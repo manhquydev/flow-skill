@@ -36,8 +36,9 @@ This table is the PLANNING source of truth. If the framework serves a spec (Fast
 
 ## Interfaces  (web: endpoints · cli: commands · library: functions · skill: commands)
 
-Adapt the columns to your project type. Web uses Method/Path/Auth/Request/Response (below);
-a CLI uses Command/Flags/Input/Output+exit/Side-effects; a library uses Function/Args/Return.
+Adapt the columns to your project type. Web: Method/Path/Access(=auth: public/token/admin)/
+Request/Response. CLI: Command/Flags/Access(=side-effects)/Input/Output+exit. Library:
+Function/—/Access(=none)/Args/Return. The shared column below is "Access/Effects".
 
 | Method/Interface | Path/Name | Access/Effects | Input shape | Output shape |
 |---|---|---|---|---|
