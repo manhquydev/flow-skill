@@ -77,6 +77,31 @@ ck 0 "$rc" "unlock exit 0"
 ck 1 "$(exists "$SB/flow/.lock")" "lock file removed"
 rm -rf "$SB"
 
+echo "I) fresh foreign STRONG lock also refuses skip and auto"
+newsb; write_lock "sid:OTHER" 5 next
+out="$(FLOW_SESSION_ID=ME bash "$RUN" skip 01-research --reason whatever 2>&1)"; rc=$?
+ck 1 "$rc" "skip refused on fresh foreign strong lock"
+has "$out" "BLOCKED" "skip refusal prints BLOCKED"
+out="$(FLOW_SESSION_ID=ME bash "$RUN" auto 2>&1)"; rc=$?
+ck 1 "$rc" "auto refused on fresh foreign strong lock"
+rm -rf "$SB"
+
+echo "J) garbage/unparseable lock file -> reclaimed as stale, no crash"
+newsb; printf 'totally-garbage-no-delimiters\n' > "$SB/flow/.lock"
+out="$(FLOW_SESSION_ID=ME bash "$RUN" next 2>&1)"; rc=$?
+ck 0 "$rc" "garbage lock does not crash; next proceeds (ts->0 => stale reclaim)"
+rm -rf "$SB"
+
+echo "K) pipe in FLOW_SESSION_ID is sanitized (no lock-line corruption, no self-block)"
+newsb
+FLOW_SESSION_ID='a|b|c' bash "$RUN" next >/dev/null 2>&1   # creates lock + 00-idea template
+has "$(cat "$SB/flow/.lock" 2>/dev/null)" "sid:abc" "pipe stripped from owner written to lock line"
+printf '#00\n## Gate\n- [x] ok\n\nreal content.\n' > "$SB/flow/00-idea.md"   # clean gate so 'next' would advance if the lock allows
+out="$(FLOW_SESSION_ID='a|b|c' bash "$RUN" next 2>&1)"; rc=$?
+ck 0 "$rc" "same pipe-id session proceeds (lock allows; not self-blocked)"
+no "$out" "BLOCKED" "no BLOCKED for same pipe-id session"
+rm -rf "$SB"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
