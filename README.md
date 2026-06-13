@@ -1,5 +1,7 @@
 # flow — a gated build harness skill for Claude Code
 
+[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 115 checks on macOS · Ubuntu · Windows
+
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
 library, a real run for a Claude Code skill. It re-encodes the `buildflow` method and adds a

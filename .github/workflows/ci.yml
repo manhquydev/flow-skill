@@ -1,0 +1,54 @@
+name: CI
+
+# Verify the /flow skill on a real macOS + Ubuntu + Linux + Windows matrix:
+#   - 93 dev checks (bash tests/run_all.sh)
+#   - a real install + 22 e2e checks against the INSTALLED copy (verifies the installer too)
+# = 115 checks per OS. shell: bash works on all three (Git Bash on Windows).
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false           # run every OS even if one fails, for full cross-platform data
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python (durable harness layer)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Environment + tool versions
+        run: |
+          echo "OS: $(uname -s)"
+          bash --version | head -1
+          python --version || python3 --version
+
+      - name: flow doctor (environment check)
+        run: bash skills/flow/runner/flow.sh doctor
+
+      - name: Dev suite (93 checks)
+        run: bash tests/run_all.sh
+
+      - name: Install to a temp project + e2e on the INSTALLED copy (22 checks)
+        run: |
+          set -eu
+          PROJ="$(mktemp -d)"
+          echo "installing /flow into: $PROJ"
+          bash install.sh project "$PROJ"
+          RUN="$PROJ/.claude/skills/flow/runner/flow.sh"
+          test -f "$RUN" || { echo "FAIL: installed runner not found at $RUN"; exit 1; }
+          bash tests/e2e-installed-drive.sh "$RUN"
