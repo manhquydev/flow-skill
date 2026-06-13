@@ -69,7 +69,7 @@ read the trend.
 | **Gate false-block** | gate blocks legitimate work | `backlog add --pain "gate blocked valid stage"` then close | 1 (dogfood v1, fixed) | <2% |
 | **Card first-pass rate** | cards passing `check` first try | `story` rows: `last_verified_result='pass'`/total | ~70% (dogfood) | ≥85% |
 | **Command coverage** | commands with a test | suite audit | ~100% | 100% |
-| **Cross-platform pass** | suite green per OS | `trace --platform <os> --outcome`; `story.platform_proof` | Windows ✓; mac/linux audited | 3/3 OS |
+| **Cross-platform pass** | suite green per OS | GitHub Actions matrix CI (`.github/workflows/ci.yml`) | **3/3 OS ✓** (CI green: ubuntu 11s, macOS bash-3.2 14s, windows 49s) | 3/3 OS |
 | **Dogfood close rate** | self-found issues fixed | `backlog WHERE discovered_while~'dogfood'`, closed/total | 4/5 (80%) | ≥80% |
 | **Reviews-to-clean** | review passes until 0 HIGH | `decision`/`intake` per review cycle | ~1-2 per change | ≤2 |
 | **Doctor pass rate** | fresh envs returning READY | `flow doctor` exit + `trace --outcome` | Windows READY | ≥90% |
@@ -86,7 +86,9 @@ to collect the rest, log review findings as `intake`, friction as `backlog`, ove
 5. `retro validate` gate (RETRO.md has ≥3 real lines) before a release.
 
 ## Open quality items
-- Run the suite on a real macOS + Ubuntu machine (only audited statically so far).
+- ~~Run the suite on a real macOS + Ubuntu machine~~ — **DONE**: GitHub Actions matrix
+  (`.github/workflows/ci.yml`) runs all 115 checks (93 dev + 22 e2e on a real install) on
+  ubuntu/macOS/windows; green on all three (macOS verified on real bash 3.2.57 arm64).
 - ~~Findings #1 + #4~~ — **DONE** (branch `fix/non-web-gates`, merged; reviewed 0 HIGH; +13 tests).
 - Automated per-type done-evidence validators (currently guidance enforced by the Claude layer).
 - Finding #3 (the "forbidden: edit flow.sh during a run" rule wording) — clarify in CLAUDE.md.
