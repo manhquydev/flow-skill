@@ -25,6 +25,8 @@ CARDS_DIR="$ROOT/cards"
 MODE_FILE="$ROOT/MODE"
 RETRO_FILE="$ROOT/RETRO.md"
 DEBT_FILE="$ROOT/DEBT.md"
+PROJECT_TYPE_FILE="$ROOT/PROJECT_TYPE"
+SKIPPED_FILE="$ROOT/flow/.skipped"
 HARNESS_PY="$SCRIPT_DIR/../harness/flow_harness.py"
 
 STAGES="00-idea 01-research 02-scope 03-prd 04-adr 05-contract"
@@ -132,13 +134,34 @@ card_status() { # $1 = file
   grep -m1 -E '^status:' "$1" 2>/dev/null | sed 's/^status:[[:space:]]*//' | tr -d '\r' | awk '{print $1}'
 }
 
-planning_complete() { # 0 = yes: all six stage files exist and every gate is clean
+stage_skipped() { # $1 = stage name; 0 = yes (operator debt-skipped it)
+  [ -f "$SKIPPED_FILE" ] && grep -qxF "$1" "$SKIPPED_FILE" 2>/dev/null
+}
+
+planning_complete() { # 0 = yes: all six stages exist and each gate is clean OR debt-skipped
   local s
   for s in $STAGES; do
     [ -f "$FLOW_DIR/$s.md" ] || return 1
-    scan_gate "$FLOW_DIR/$s.md" >/dev/null 2>&1 || return 1
+    if ! scan_gate "$FLOW_DIR/$s.md" >/dev/null 2>&1; then
+      stage_skipped "$s" || return 1
+    fi
   done
   return 0
+}
+
+# project type (web|cli|library|skill); absent => web. Adapts done-evidence + guidance.
+get_project_type() {
+  local t; t="$(cat "$PROJECT_TYPE_FILE" 2>/dev/null | tr -d '\r' | awk 'NF{print; exit}')"
+  printf '%s' "${t:-web}"
+}
+done_def_for_type() {
+  case "${1:-web}" in
+    web)     echo "a live deployed URL you can click + real curl output (NOT 'tests pass')" ;;
+    cli)     echo "the tool installs and a real invocation returns the expected output + exit code" ;;
+    library) echo "the public API imports + a usage example runs + the coverage threshold is met" ;;
+    skill)   echo "installed into ~/.claude/skills and a real run reaches its own done-definition" ;;
+    *)       echo "world-state proof appropriate to the project type" ;;
+  esac
 }
 
 # ---------- commands ----------
@@ -148,6 +171,7 @@ cmd_status() {
   echo "flow status"
   echo "  project: $ROOT"
   echo "  mode:    $(cat "$MODE_FILE" 2>/dev/null | tr -d '\r' || echo teach) (default teach)"
+  echo "  type:    $(get_project_type) (done = $(done_def_for_type "$(get_project_type)"))"
   echo
   if [ "$idx" -lt 0 ]; then
     echo "planning: not started"
@@ -200,8 +224,14 @@ cmd_next() {
     return 1
   fi
   if [ "$idx" -ge "$LAST_STAGE_IDX" ]; then
-    echo "PASS: stage $cur gate clean. Planning is COMPLETE."
-    echo "All six planning stages passed. Run '/flow card' to create build cards."
+    if planning_complete; then
+      echo "PASS: stage $cur gate clean. Planning is COMPLETE."
+      echo "All planning stages passed (or were debt-skipped). Run '/flow card' to create build cards."
+    else
+      echo "PASS: stage $cur gate clean - but an earlier stage is still BLOCKED (and not debt-skipped)."
+      echo "Run '/flow' to see which. If it is a legitimate, debt-recorded skip, use"
+      echo "'/flow skip <stage> --reason ...'. '/flow card' stays blocked until then."
+    fi
     return 0
   fi
   local nxt; nxt="$(stage_name_at "$((idx + 1))")"
@@ -328,6 +358,60 @@ cmd_mode() {
     teach|work) printf '%s\n' "$arg" > "$MODE_FILE"; echo "PASS: mode set to '$arg'."; return 0 ;;
     *) echo "FAIL: mode must be 'teach' or 'work'."; return 1 ;;
   esac
+}
+
+cmd_project_type() {
+  local arg="${1:-}"
+  if [ -z "$arg" ]; then
+    local t; t="$(get_project_type)"
+    echo "project type: $t (default web)"
+    echo "  done-evidence for '$t': $(done_def_for_type "$t")"
+    echo "  set with: /flow project-type web|cli|library|skill"
+    echo "  per-type contract + card sequence: references/project-types.md"
+    return 0
+  fi
+  case "$arg" in
+    web|cli|library|skill)
+      printf '%s\n' "$arg" > "$PROJECT_TYPE_FILE"
+      echo "PASS: project type set to '$arg'."
+      echo "  done-evidence now means: $(done_def_for_type "$arg")"
+      return 0 ;;
+    *) echo "FAIL: project type must be web|cli|library|skill."; return 1 ;;
+  esac
+}
+
+cmd_skip() {
+  local stage="${1:-}" reason=""
+  shift 2>/dev/null || true
+  case "${1:-}" in --reason) reason="${2:-}" ;; *) reason="${1:-}" ;; esac
+  if [ -z "$stage" ] || [ -z "$reason" ]; then
+    echo 'usage: /flow skip <stage e.g. 01-research> --reason "<why; an open DEBT must already exist>"'
+    return 1
+  fi
+  local known=0 s; for s in $STAGES; do [ "$s" = "$stage" ] && known=1; done
+  if [ "$known" -eq 0 ]; then echo "FAIL: unknown stage '$stage' (one of: $STAGES)"; return 1; fi
+  # security-class skips are operator-only and never auto-advanced
+  if printf '%s' "$reason" | grep -qiE 'auth|authoriz|admin|tenan|payment|password|token|secret|data loss|migration|validation'; then
+    echo "BLOCKED: that reason looks security-class. Security skips are operator-only and HALT - never auto-skipped."
+    return 1
+  fi
+  # a deliberate skip must already be written down as an open DEBT
+  if [ ! -f "$DEBT_FILE" ] || ! grep -qE '^- \[ \] DEBT:' "$DEBT_FILE" 2>/dev/null; then
+    echo "FAIL: no open DEBT recorded. First run:"
+    echo "  /flow debt add \"skip $stage\" \"<the exposure>\" \"<close-before condition>\""
+    return 1
+  fi
+  mkdir -p "$FLOW_DIR"
+  stage_skipped "$stage" || printf '%s\n' "$stage" >> "$SKIPPED_FILE"
+  local i=0 found=-1; for s in $STAGES; do [ "$s" = "$stage" ] && found=$i; i=$((i + 1)); done
+  if [ "$found" -ge 0 ] && [ "$found" -lt "$LAST_STAGE_IDX" ]; then
+    local nxt; nxt="$(stage_name_at "$((found + 1))")"
+    [ -f "$FLOW_DIR/$nxt.md" ] || cp "$TEMPLATE_DIR/$nxt.md" "$FLOW_DIR/$nxt.md"
+    echo "PASS: stage $stage debt-skipped (logged) -> $nxt available. planning_complete now tolerates it."
+  else
+    echo "PASS: stage $stage debt-skipped (logged). planning_complete now tolerates it."
+  fi
+  return 0
 }
 
 cmd_retro() {
@@ -465,6 +549,8 @@ usage: bash flow.sh <command> [args]
   card              Create the next build card (after planning complete)
   check C-NNN       Validate a card (FILL/status/sections/done-evidence)
   mode [teach|work] Show or set who writes the artifacts
+  project-type [t]  Show or set project type (web|cli|library|skill); adapts done-evidence
+  skip <stage> --reason  Advance past a gate that has a matching open DEBT (non-security only)
   ready             List buildable todo cards + parallel-safety hint
   auto              Preflight an autonomous run (orchestration in SKILL.md)
   harness <args>    Passthrough to the durable layer CLI (intake/story/trace/decision/backlog/query)
@@ -485,6 +571,8 @@ case "$cmd" in
   card)           cmd_card ;;
   check)          cmd_check "${1:-}" ;;
   mode)           cmd_mode "${1:-}" ;;
+  project-type)   cmd_project_type "${1:-}" ;;
+  skip)           cmd_skip "$@" ;;
   ready)          cmd_ready ;;
   auto)           cmd_auto ;;
   retro)          cmd_retro ;;
