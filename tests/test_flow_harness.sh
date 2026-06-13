@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Regression suite for skill/flow/harness/flow_harness.py (Phase 2 durable layer).
+# Regression suite for skills/flow/harness/flow_harness.py (Phase 2 durable layer).
 # Requires python (stdlib sqlite3). Run: bash tests/test_flow_harness.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-H="$HERE/../skill/flow/harness/flow_harness.py"
+H="$HERE/../skills/flow/harness/flow_harness.py"
 PY="$(command -v python || command -v python3)"
 if [ -z "$PY" ]; then echo "SKIP: python not found"; exit 0; fi
 pass=0; fail=0

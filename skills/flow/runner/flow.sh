@@ -548,6 +548,47 @@ cmd_debt() {
   esac
 }
 
+cmd_doctor() {
+  # Cross-platform environment + quality check (macOS / Linux / Windows Git Bash).
+  echo "flow doctor - environment check"
+  local ok=1
+  echo "  os:        $(uname -s 2>/dev/null || echo unknown)"
+  local bv; bv="$(bash --version 2>/dev/null | head -1 | sed -n 's/.*version \([0-9][0-9.]*\).*/\1/p')"
+  case "$bv" in
+    3.*) echo "  bash:      $bv  (works; 3.x is the macOS default - 'brew install bash' for 4+ if you hit issues)" ;;
+    "")  echo "  bash:      unknown (assuming ok)" ;;
+    *)   echo "  bash:      $bv  ok" ;;
+  esac
+  local py; py="$(_python)"
+  if [ -n "$py" ] && "$py" --version >/dev/null 2>&1; then
+    echo "  python:    $("$py" --version 2>&1 | awk '{print $2}') ($py)  -> durable layer ENABLED"
+    if "$py" -c 'import sqlite3' >/dev/null 2>&1; then
+      echo "  sqlite3:   ok (python stdlib)"
+    else
+      echo "  sqlite3:   MISSING from python - durable layer needs it"; ok=0
+    fi
+  else
+    echo "  python:    not found  -> durable layer DISABLED (gate engine still works fully)"
+    echo "             install: macOS 'brew install python' | Ubuntu 'sudo apt install python3' | Windows python.org"
+  fi
+  if printf 'a' | LC_ALL=C.UTF-8 grep -qP 'a' 2>/dev/null; then
+    echo "  grep -P:   ok (design emoji check available)"
+  else
+    echo "  grep -P:   unsupported (macOS BSD grep) - 'flow design' emoji check skips gracefully"
+  fi
+  command -v git >/dev/null 2>&1 && echo "  git:       ok (worktree parallel + auto-merge available)" || echo "  git:       not found (worktree/auto unavailable; serial builds still work)"
+  command -v cargo >/dev/null 2>&1 && echo "  cargo:     ok (optional Rust harness power-path)" || true
+  [ -d "$TEMPLATE_DIR" ] && echo "  templates: ok" || { echo "  templates: MISSING ($TEMPLATE_DIR)"; ok=0; }
+  [ -f "$HARNESS_PY" ] && echo "  harness:   present ($HARNESS_PY)" || echo "  harness:   absent (durable layer off)"
+  echo
+  if [ "$ok" -eq 1 ]; then
+    echo "READY. Gate engine works$([ -n "$py" ] && echo '; durable layer on.' || echo '; durable layer off (no python).')"
+    return 0
+  fi
+  echo "DEGRADED - resolve the MISSING item(s) above."
+  return 1
+}
+
 usage() {
   cat <<'EOF'
 flow.sh - buildflow gate runner (mechanical layer)
@@ -566,6 +607,7 @@ usage: bash flow.sh <command> [args]
   harness <args>    Passthrough to the durable layer CLI (intake/story/trace/decision/backlog/query)
   debt add|list     Record/list deliberate gate-skips in DEBT.md (security-class = operator-only)
   design <file>     Mechanical DESIGN.md check on a UI file (emoji/{{}}/engine-words/gradient)
+  doctor            Check the environment (bash/python/grep/git) across macOS/Linux/Windows
   retro             Print the 3 retro questions
 
 exit: 0 = pass/advanced, 1 = gate fail / usage error
@@ -589,6 +631,7 @@ case "$cmd" in
   harness)        cmd_harness "$@" ;;
   debt)           cmd_debt "$@" ;;
   design)         cmd_design "${1:-}" ;;
+  doctor)         cmd_doctor ;;
   -h|--help|help) usage ;;
   *) echo "unknown command: $cmd"; echo; usage; exit 1 ;;
 esac

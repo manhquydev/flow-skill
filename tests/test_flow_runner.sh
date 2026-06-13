@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Regression suite for skill/flow/runner/flow.sh (Phase 1 engine).
+# Regression suite for skills/flow/runner/flow.sh (Phase 1 engine).
 # Run: bash tests/test_flow_runner.sh   (Git Bash on Windows or any POSIX bash)
 # Exit 0 = all pass, 1 = any fail.
 
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-RUN="$HERE/../skill/flow/runner/flow.sh"
+RUN="$HERE/../skills/flow/runner/flow.sh"
 pass=0; fail=0
 ck() { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected $1 got $2"; fail=$((fail+1)); fi; }
 has() { if printf '%s' "$1" | grep -q "$2"; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3]"; fail=$((fail+1)); fi; }

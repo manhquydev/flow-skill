@@ -7,7 +7,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Src  = Join-Path $Here 'skill/flow'
+$Src  = Join-Path $Here 'skills/flow'
 if (-not (Test-Path (Join-Path $Src 'SKILL.md'))) { Write-Error "skill source not found at $Src"; exit 1 }
 
 if ($Mode -eq 'global') {
@@ -23,11 +23,13 @@ foreach ($d in 'runner','_templates','law','references','harness','playbooks') {
 Copy-Item -Recurse -Force (Join-Path $Src '*') $Dest
 
 Write-Host "installed /flow -> $Dest"
-Write-Host "doctor:"
+Write-Host ""
 $bash = Get-Command bash -ErrorAction SilentlyContinue
-if ($bash) { Write-Host "  bash:   ok (required - the gate runner is bash)" } else { Write-Host "  bash:   MISSING - install Git for Windows (Git Bash)" }
-$py = Get-Command python -ErrorAction SilentlyContinue
-if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
-if ($py) { Write-Host "  python: ok (durable harness layer enabled)" } else { Write-Host "  python: none (engine still works; durable layer auto-disabled)" }
+if ($bash) {
+  # run the real cross-platform doctor from the installed runner (bash)
+  & $bash.Source (Join-Path $Dest 'runner/flow.sh') doctor
+} else {
+  Write-Host "  bash: MISSING - install Git for Windows (Git Bash) so the gate runner can execute."
+}
 Write-Host ""
 Write-Host "Done. In a project, type '/flow' in Claude Code."

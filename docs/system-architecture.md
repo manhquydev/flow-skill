@@ -56,12 +56,12 @@ On-disk artifacts (in the project being built):
 ## Components
 | Path | Responsibility |
 |---|---|
-| `skill/flow/SKILL.md` | semantic-layer entry: dispatch + gatekeeper + orchestration |
-| `skill/flow/runner/flow.sh` | mechanical engine: lifecycle, gates, debt, design, harness passthrough |
-| `skill/flow/harness/` | durable layer (Python CLI + sqlite + Rust toggle) |
-| `skill/flow/_templates/` | the 7 gated artifacts (verbatim buildflow) |
-| `skill/flow/law/` | CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md |
-| `skill/flow/references/` | semantic playbooks (gates, agents, loop, design, auto) |
-| `skill/flow/playbooks/` | paid-for stack knowledge (read before, harvest after) |
+| `skills/flow/SKILL.md` | semantic-layer entry: dispatch + gatekeeper + orchestration |
+| `skills/flow/runner/flow.sh` | mechanical engine: lifecycle, gates, debt, design, harness passthrough |
+| `skills/flow/harness/` | durable layer (Python CLI + sqlite + Rust toggle) |
+| `skills/flow/_templates/` | the 7 gated artifacts (verbatim buildflow) |
+| `skills/flow/law/` | CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md |
+| `skills/flow/references/` | semantic playbooks (gates, agents, loop, design, auto) |
+| `skills/flow/playbooks/` | paid-for stack knowledge (read before, harvest after) |
 | `tests/` | 46 checks across runner / harness / scenarios |
 | `install.sh` / `install.ps1` | install to ~/.claude or a project |

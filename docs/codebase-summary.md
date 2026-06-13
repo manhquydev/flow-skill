@@ -6,7 +6,7 @@ a durable harness and pluggable agent orchestration. Dev workspace: `D:\project\
 ## Layout
 ```
 flow-skill/
-├── skill/flow/                  # the installable skill (-> ~/.claude/skills/flow)
+├── skills/flow/                  # the installable skill (-> ~/.claude/skills/flow)
 │   ├── SKILL.md                 # frontmatter + dispatch + semantic gatekeeper + orchestration
 │   ├── runner/flow.sh           # bash gate engine: status/next/card/check/mode/ready/auto/retro/
 │   │                            #   harness/debt/design  (exit 0/1)

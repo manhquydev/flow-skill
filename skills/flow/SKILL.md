@@ -1,14 +1,14 @@
 ---
 name: flow
-description: Run the buildflow gated build process from idea to a deployed URL. Walk 11 stages (Idea->Research->Scope->PRD->ADR->Contract->Cards->Build->Review->Deploy->Verify->Retro), each with a honest gate that must pass before advancing. Use when starting or driving a real product build, when the user types /flow, /flow next, /flow card, /flow check, or asks to scope/plan/ship a project through gates. Kill at any gate is a valid outcome.
+description: Run the buildflow gated build process from idea to real done-evidence. Walk gated stages (Idea->Research->Scope->PRD->ADR->Contract->Cards->Build->Review->Deploy/Ship->Verify->Retro), each with a honest gate that must pass before advancing. Adapts to project type (web|cli|library|skill). Use when starting or driving a real product build, when the user types /flow, /flow next, /flow card, /flow check, or asks to scope/plan/ship a project through gates. Kill at any gate is a valid outcome.
 user-invocable: true
-when_to_use: "User wants to build a real product end-to-end with discipline (idea -> deployed URL), or types any /flow command, or asks for a gated build process, scope decision, contract-first plan, or card-based shipping."
-argument-hint: "[ next | card | check C-NNN | mode teach|work | ready | auto | retro ]"
-keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deploy, vertical-slice]
+when_to_use: "User wants to build a real product end-to-end with discipline (idea -> a deployed URL for web, or installs+runs for a CLI/library/skill), or types any /flow command, or asks for a gated build process, scope decision, contract-first plan, or card-based shipping."
+argument-hint: "[ next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | auto | doctor | retro ]"
+keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deploy, vertical-slice, cli, library, skill]
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.1.0"
+  version: "0.2.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD."
 ---
 

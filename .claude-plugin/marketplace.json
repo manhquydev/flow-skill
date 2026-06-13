@@ -1,0 +1,15 @@
+{
+  "name": "flow-marketplace",
+  "owner": { "name": "manhquy", "email": "manhquy.mqy@gmail.com" },
+  "metadata": {
+    "description": "Marketplace hosting the /flow gated build harness skill.",
+    "version": "0.2.0"
+  },
+  "plugins": [
+    {
+      "name": "flow",
+      "source": "./",
+      "description": "buildflow gated build harness: idea to real done-evidence through honest gates (web|cli|library|skill)."
+    }
+  ]
+}

@@ -6,7 +6,7 @@
 set -eu
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SRC="$HERE/skill/flow"
+SRC="$HERE/skills/flow"
 MODE="${1:-global}"
 
 case "$MODE" in
@@ -24,13 +24,8 @@ cp -r "$SRC/." "$DEST/"
 chmod +x "$DEST/runner/flow.sh" 2>/dev/null || true
 
 echo "installed /flow -> $DEST"
-echo "doctor:"
-command -v bash >/dev/null 2>&1 && echo "  bash:   ok (required)" || echo "  bash:   MISSING - required for the gate runner"
-if (command -v python || command -v python3) >/dev/null 2>&1; then
-  echo "  python: ok  (durable harness layer enabled)"
-else
-  echo "  python: none (engine still works; durable layer auto-disabled)"
-fi
-command -v cargo >/dev/null 2>&1 && echo "  cargo:  ok  (optional Rust harness power-path available)" || true
+echo
+# run the real cross-platform doctor from the freshly installed runner
+bash "$DEST/runner/flow.sh" doctor || true
 echo
 echo "Done. In a project, type '/flow' (or '/flow next' to start a build)."

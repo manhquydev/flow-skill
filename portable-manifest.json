@@ -1,11 +1,12 @@
 {
   "name": "flow",
-  "version": "0.1.0",
-  "description": "buildflow gated build harness for Claude Code: idea to a deployed URL through honest gates, with a durable harness layer and agent orchestration.",
+  "version": "0.2.0",
+  "description": "buildflow gated build harness for Claude Code: idea to real done-evidence through honest gates (web|cli|library|skill), with a durable harness layer and agent orchestration.",
   "type": "skill",
+  "plugin": ".claude-plugin/plugin.json",
   "command": "/flow",
-  "entry": "skill/flow/SKILL.md",
-  "runner": "skill/flow/runner/flow.sh",
+  "entry": "skills/flow/SKILL.md",
+  "runner": "skills/flow/runner/flow.sh",
   "runtime": {
     "bash": "required (gate runner; Git Bash on Windows)",
     "python": "optional (durable harness layer; stdlib sqlite3, no pip install)",
@@ -17,15 +18,15 @@
     "scripts": ["install.sh", "install.ps1"]
   },
   "components": {
-    "engine": "skill/flow/runner/flow.sh",
-    "skill": "skill/flow/SKILL.md",
-    "templates": "skill/flow/_templates/",
-    "law": "skill/flow/law/",
-    "references": "skill/flow/references/",
-    "durable_layer": "skill/flow/harness/",
-    "playbooks": "skill/flow/playbooks/"
+    "engine": "skills/flow/runner/flow.sh",
+    "skill": "skills/flow/SKILL.md",
+    "templates": "skills/flow/_templates/",
+    "law": "skills/flow/law/",
+    "references": "skills/flow/references/",
+    "durable_layer": "skills/flow/harness/",
+    "playbooks": "skills/flow/playbooks/"
   },
-  "tests": ["tests/test_flow_runner.sh", "tests/test_flow_harness.sh", "tests/test_flow_scenarios.sh"],
+  "tests": ["tests/test_flow_runner.sh", "tests/test_flow_harness.sh", "tests/test_flow_scenarios.sh", "tests/test_flow_project_types.sh"],
   "provenance": {
     "methodology": "ai20k-build-phase/buildflow (Tony, arealisticdreamer.com)",
     "harness": "repository-harness",
