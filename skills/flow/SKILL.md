@@ -55,6 +55,15 @@ bash <skill-dir>/runner/flow.sh <command>
 `cards/` under the current directory (override with `FLOW_PROJECT_ROOT`). On Windows use
 Git Bash (already the Bash tool here).
 
+**One session per project (concurrency lock).** Two `/flow` sessions sharing one project
+will stomp each other's plan. The runner keeps a `flow/.lock` (auto-reclaimed after
+`FLOW_LOCK_TTL`, default 900s): mutating commands (`next`/`card`/`skip`/`auto`) refuse a
+fresh **foreign** lock and `status` warns. For hard protection, **export a stable
+`FLOW_SESSION_ID` once per session** and pass it on every call (e.g.
+`FLOW_SESSION_ID=$mysid bash <skill-dir>/runner/flow.sh next`) — without it the runner can
+only warn (it can't prove a different session, so it never self-blocks). `FLOW_FORCE=1`
+takes over a lock you're sure is dead; `/flow unlock` clears it.
+
 ## Commands
 
 | You type | Skill does |
@@ -66,11 +75,14 @@ Git Bash (already the Bash tool here).
 | `/flow mode teach\|work` | set who writes the artifacts (default `teach`) |
 | `/flow ready` | `flow.sh ready` — which todo cards are buildable + parallel-safety hint |
 | `/flow auto` | `flow.sh auto` preflight, then drive the autonomous run (see AUTO principles) |
+| `/flow unlock` | `flow.sh unlock` — clear this project's concurrency lock after a crashed/abandoned session |
 | `/flow retro` | the 3 retro questions; the operator writes the line, never you |
 
 ## Dispatch rules (how to behave for each command)
 
-1. **Always call `flow.sh` first** and read its exit code + output. Relay it faithfully.
+1. **Always call `flow.sh` first** and read its exit code + output. Relay it faithfully. If it
+   reports **BLOCKED by another session's lock**, STOP and coordinate — never `FLOW_FORCE` past a
+   live session; concurrent `/flow` runs corrupt the plan.
 2. **On `next`:** if the script FAILS, stop — report exactly what it listed (line numbers),
    and offer to help fill, but **never check a box or write an artifact on the operator's
    behalf** in `teach` mode. If the script PASSES, run the **semantic gate** for the stage

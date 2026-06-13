@@ -27,7 +27,11 @@ RETRO_FILE="$ROOT/RETRO.md"
 DEBT_FILE="$ROOT/DEBT.md"
 PROJECT_TYPE_FILE="$ROOT/PROJECT_TYPE"
 SKIPPED_FILE="$ROOT/flow/.skipped"
+LOCK_FILE="$ROOT/flow/.lock"
 HARNESS_PY="$SCRIPT_DIR/../harness/flow_harness.py"
+
+# Concurrency lock: seconds a lock stays "fresh"; older locks are stale and auto-reclaimed.
+FLOW_LOCK_TTL="${FLOW_LOCK_TTL:-900}"
 
 STAGES="00-idea 01-research 02-scope 03-prd 04-adr 05-contract"
 LAST_STAGE_IDX=5
@@ -167,6 +171,82 @@ done_def_for_type() {
   esac
 }
 
+# ---------- concurrency lock (prevents two sessions stomping one project's plan) ----------
+# A COORDINATION lock, not a per-file mutex: it records who last mutated this project's flow/
+# and when, so a second concurrent session is refused (strong identity) or warned (weak
+# identity) instead of silently corrupting the plan. Locks older than FLOW_LOCK_TTL are stale
+# and auto-reclaimed. FLOW_FORCE=1 takes over a live foreign lock.
+
+_now() { date +%s 2>/dev/null || echo 0; }
+
+# Identity of THIS invocation. Strong (hard-refusable) via FLOW_SESSION_ID, else a real tty;
+# weak (warn-only, never self-block) via host+PPID when neither is available.
+flow_lock_owner() {
+  # Strip | and newlines from a user-supplied id so it cannot corrupt the pipe-delimited
+  # lock line (a mid-field | would mis-split on read-back and break self/foreign matching).
+  if [ -n "${FLOW_SESSION_ID:-}" ]; then printf 'sid:%s' "$(printf '%s' "$FLOW_SESSION_ID" | tr -d '\r\n|')"; return; fi
+  local t; t="$(tty 2>/dev/null || true)"
+  if [ -n "$t" ] && [ "$t" != "not a tty" ]; then printf 'tty:%s' "$t"; return; fi
+  printf 'ppid:%s:%s' "$(uname -n 2>/dev/null || echo host)" "${PPID:-0}"
+}
+flow_owner_strong() { case "$1" in sid:*|tty:*) return 0 ;; *) return 1 ;; esac; }
+
+# Parse current lock -> LOCK_TS LOCK_OWNER LOCK_PID LOCK_HOST LOCK_CMD. 0 = a lock exists.
+_read_lock() {
+  LOCK_TS=0; LOCK_OWNER=""; LOCK_PID=""; LOCK_HOST=""; LOCK_CMD=""
+  [ -f "$LOCK_FILE" ] || return 1
+  IFS='|' read -r LOCK_TS LOCK_OWNER LOCK_PID LOCK_HOST LOCK_CMD < "$LOCK_FILE" 2>/dev/null || return 1
+  case "$LOCK_TS" in ''|*[!0-9]*) LOCK_TS=0 ;; esac
+  return 0
+}
+_write_lock() { # $1 = cmd label
+  mkdir -p "$FLOW_DIR" 2>/dev/null || true
+  printf '%s|%s|%s|%s|%s\n' "$(_now)" "$(flow_lock_owner)" "$$" "$(uname -n 2>/dev/null || echo host)" "${1:-?}" \
+    > "$LOCK_FILE" 2>/dev/null || true
+}
+
+# Guard a MUTATING command. 0 = lock taken/refreshed (proceed); 1 = refused (caller aborts).
+lock_acquire() { # $1 = cmd label
+  local me age; me="$(flow_lock_owner)"
+  if [ -n "${FLOW_FORCE:-}" ]; then
+    if _read_lock && [ -n "$LOCK_OWNER" ] && [ "$LOCK_OWNER" != "$me" ]; then
+      echo "NOTE: FLOW_FORCE set - taking over a lock held by [$LOCK_OWNER] (cmd '${LOCK_CMD:-?}')."
+    fi
+    _write_lock "$1"; return 0
+  fi
+  if _read_lock; then
+    age=$(( $(_now) - LOCK_TS )); [ "$age" -lt 0 ] && age=0
+    if [ "$LOCK_OWNER" = "$me" ]; then _write_lock "$1"; return 0; fi          # my own session
+    if [ "$age" -ge "$FLOW_LOCK_TTL" ]; then
+      echo "NOTE: reclaiming a STALE flow lock from [$LOCK_OWNER] (${age}s old >= ${FLOW_LOCK_TTL}s TTL)."
+      _write_lock "$1"; return 0
+    fi
+    if flow_owner_strong "$me" && flow_owner_strong "$LOCK_OWNER"; then         # fresh + provably foreign
+      echo "BLOCKED: another flow session is active on this project (concurrent /flow corrupts the plan)."
+      echo "  lock: [$LOCK_OWNER] cmd '${LOCK_CMD:-?}', ${age}s ago (TTL ${FLOW_LOCK_TTL}s) -> $LOCK_FILE"
+      echo "  Close the other session. If it is truly gone: re-run with FLOW_FORCE=1, or '/flow unlock'."
+      return 1
+    fi
+    echo "WARNING: a flow lock from [$LOCK_OWNER] is ${age}s old; this session has no stable FLOW_SESSION_ID"
+    echo "  so I cannot prove it is a different session - PROCEEDING. Export FLOW_SESSION_ID per session"
+    echo "  (see SKILL.md) for hard protection against concurrent runs."
+    _write_lock "$1"; return 0
+  fi
+  _write_lock "$1"; return 0                                                   # no lock yet
+}
+
+# Read-only warning for 'status' - never blocks.
+lock_warn() {
+  local me age; me="$(flow_lock_owner)"
+  _read_lock || return 0
+  [ -z "$LOCK_OWNER" ] && return 0
+  [ "$LOCK_OWNER" = "$me" ] && return 0
+  age=$(( $(_now) - LOCK_TS )); [ "$age" -lt 0 ] && age=0
+  [ "$age" -ge "$FLOW_LOCK_TTL" ] && return 0
+  echo "  lock:    WARNING - another session [$LOCK_OWNER] mutated ${age}s ago (cmd '${LOCK_CMD:-?}');"
+  echo "           avoid running '/flow next|card' here concurrently (set FLOW_SESSION_ID to enforce)."
+}
+
 # ---------- commands ----------
 
 cmd_status() {
@@ -175,6 +255,7 @@ cmd_status() {
   echo "  project: $ROOT"
   echo "  mode:    $(cat "$MODE_FILE" 2>/dev/null | tr -d '\r' || echo teach) (default teach)"
   echo "  type:    $(get_project_type) (done = $(done_def_for_type "$(get_project_type)"))"
+  lock_warn
   echo
   if [ "$idx" -lt 0 ]; then
     echo "planning: not started"
@@ -209,6 +290,7 @@ cmd_status() {
 }
 
 cmd_next() {
+  lock_acquire next || return 1
   local idx; idx="$(current_stage_idx)"
   if [ "$idx" -lt 0 ]; then
     mkdir -p "$FLOW_DIR"
@@ -248,6 +330,7 @@ cmd_next() {
 }
 
 cmd_card() {
+  lock_acquire card || return 1
   if ! planning_complete; then
     echo "FAIL: finish planning first. All stages 00-05 must pass their gates before cards."
     echo "Run '/flow' to see what blocks you."
@@ -384,6 +467,7 @@ cmd_project_type() {
 }
 
 cmd_skip() {
+  lock_acquire skip || return 1
   local stage="${1:-}" reason=""
   shift 2>/dev/null || true
   case "${1:-}" in --reason) shift 2>/dev/null || true; reason="$*" ;; *) reason="$*" ;; esac
@@ -473,6 +557,7 @@ cmd_ready() {
 }
 
 cmd_auto() {
+  lock_acquire auto || return 1
   echo "flow auto - preflight"
   if ! planning_complete; then
     echo "FAIL: planning not complete. Finish stages 00-05 first."
@@ -488,6 +573,14 @@ cmd_auto() {
   echo "(subagent per card, planner review + verify, worktree isolation, Tier-C halts"
   echo "for security-class debt, state in card files + AUTO-LOG.md)."
   echo "Run '/flow ready' to see parallel-safe groups."
+  return 0
+}
+
+cmd_unlock() {
+  if [ ! -f "$LOCK_FILE" ]; then echo "no flow lock to clear ($LOCK_FILE)"; return 0; fi
+  _read_lock
+  rm -f "$LOCK_FILE" 2>/dev/null || true
+  echo "PASS: cleared flow lock (was [$LOCK_OWNER], cmd '${LOCK_CMD:-?}')."
   return 0
 }
 
@@ -604,11 +697,17 @@ usage: bash flow.sh <command> [args]
   skip <stage> --reason  Advance past a gate that has a matching open DEBT (non-security only)
   ready             List buildable todo cards + parallel-safety hint
   auto              Preflight an autonomous run (orchestration in SKILL.md)
+  unlock            Clear this project's concurrency lock (after a crashed/abandoned session)
   harness <args>    Passthrough to the durable layer CLI (intake/story/trace/decision/backlog/query)
   debt add|list     Record/list deliberate gate-skips in DEBT.md (security-class = operator-only)
   design <file>     Mechanical DESIGN.md check on a UI file (emoji/{{}}/engine-words/gradient)
   doctor            Check the environment (bash/python/grep/git) across macOS/Linux/Windows
   retro             Print the 3 retro questions
+
+env:
+  FLOW_SESSION_ID   stable id per session -> enables HARD refusal of concurrent sessions
+  FLOW_LOCK_TTL     seconds a lock stays fresh (default 900); older locks auto-reclaim
+  FLOW_FORCE=1      take over a foreign lock (use only if the other session is truly gone)
 
 exit: 0 = pass/advanced, 1 = gate fail / usage error
 EOF
@@ -627,6 +726,7 @@ case "$cmd" in
   skip)           cmd_skip "$@" ;;
   ready)          cmd_ready ;;
   auto)           cmd_auto ;;
+  unlock)         cmd_unlock ;;
   retro)          cmd_retro ;;
   harness)        cmd_harness "$@" ;;
   debt)           cmd_debt "$@" ;;
