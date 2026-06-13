@@ -19,6 +19,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/../_templates"
 LAW_DIR="$SCRIPT_DIR/../law"
+PLAYBOOKS_DIR="$SCRIPT_DIR/../playbooks"
 ROOT="${FLOW_PROJECT_ROOT:-$PWD}"
 FLOW_DIR="$ROOT/flow"
 CARDS_DIR="$ROOT/cards"
@@ -245,6 +246,46 @@ lock_warn() {
   [ "$age" -ge "$FLOW_LOCK_TTL" ] && return 0
   echo "  lock:    WARNING - another session [$LOCK_OWNER] mutated ${age}s ago (cmd '${LOCK_CMD:-?}');"
   echo "           avoid running '/flow next|card' here concurrently (set FLOW_SESSION_ID to enforce)."
+}
+
+# ---------- recall (read-back of durable memory: close the capture->reuse loop) ----------
+# The harness/RETRO/DEBT/playbooks layers CAPTURE knowledge; recall READS it back so an agent
+# starts a stage/card with prior pain + decisions in view instead of cold. Degrades gracefully:
+# markdown ledgers always; SQLite harness queries only when python+harness are present.
+
+_harness_query() { # $1 = matrix|backlog|friction|tools ; echoes output or nothing
+  [ -n "${FLOW_HARNESS_DISABLE:-}" ] && return 0
+  [ -f "$HARNESS_PY" ] || return 0
+  local py; py="$(_python)"; [ -n "$py" ] || return 0
+  "$py" --version >/dev/null 2>&1 || return 0
+  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" query "$1" 2>/dev/null || true
+}
+
+recall_open_debt() { [ -f "$DEBT_FILE" ] && grep -E '^- \[ \] DEBT:' "$DEBT_FILE" 2>/dev/null || true; }
+recall_retro_tail() { # $1 = N lines; entries live after the '---' separator in RETRO.md
+  [ -f "$RETRO_FILE" ] || return 0
+  awk '/^---/{seen=1; next} seen && NF {print}' "$RETRO_FILE" 2>/dev/null | tail -"${1:-3}"
+}
+recall_playbooks() { # the "paid-for stack knowledge" index (skill-global, excludes README)
+  [ -d "$PLAYBOOKS_DIR" ] || return 0
+  local f n
+  for f in "$PLAYBOOKS_DIR"/*.md; do
+    [ -e "$f" ] || continue
+    n="$(basename "$f" .md)"; [ "$n" = "README" ] && continue
+    echo "$n"
+  done
+}
+recall_prev_card() { # most-recent DONE card's id + title + Scope (previous-card intelligence)
+  [ -d "$CARDS_DIR" ] || return 0
+  local f best=""
+  for f in "$CARDS_DIR"/C-*.md; do
+    [ -e "$f" ] || continue
+    [ "$(card_status "$f")" = "done" ] && best="$f"
+  done
+  [ -n "$best" ] || return 0
+  echo "last done: $(basename "$best" .md)"
+  grep -m1 '^# ' "$best" 2>/dev/null | sed 's/^# /  title: /'
+  awk '/^## Scope/{f=1; next} f && /^## /{f=0} f && NF {print "  | " $0}' "$best" 2>/dev/null | head -4
 }
 
 # ---------- commands ----------
@@ -576,6 +617,31 @@ cmd_auto() {
   return 0
 }
 
+cmd_recall() {
+  echo "flow recall - prior knowledge for this project"
+  echo "  project: $ROOT"
+  local proj_any=0 out
+  out="$(recall_open_debt)"
+  if [ -n "$out" ]; then echo; echo "OPEN DEBT (owed before shipping):"; printf '%s\n' "$out" | sed 's/^/  /'; proj_any=1; fi
+  out="$(recall_retro_tail 5)"
+  if [ -n "$out" ]; then echo; echo "RECENT RETRO (lessons from past runs):"; printf '%s\n' "$out" | sed 's/^/  - /'; proj_any=1; fi
+  out="$(recall_prev_card)"
+  if [ -n "$out" ]; then echo; echo "PREVIOUS CARD (carry its learnings into the next one):"; printf '%s\n' "$out" | sed 's/^/  /'; proj_any=1; fi
+  out="$(_harness_query friction)"
+  if [ -n "$out" ] && ! printf '%s' "$out" | grep -q 'no friction'; then echo; echo "FRICTION recorded earlier (do not repeat):"; printf '%s\n' "$out" | sed 's/^/  /'; proj_any=1; fi
+  out="$(_harness_query backlog)"
+  if [ -n "$out" ] && ! printf '%s' "$out" | grep -q 'no backlog'; then echo; echo "OPEN IMPROVEMENT BACKLOG:"; printf '%s\n' "$out" | sed 's/^/  /'; proj_any=1; fi
+  out="$(recall_playbooks)"
+  if [ -n "$out" ]; then echo; echo "PLAYBOOKS available (read before building that stack):"; printf '%s\n' "$out" | sed 's/^/  - /'; fi
+  echo
+  if [ "$proj_any" -eq 0 ]; then
+    echo "(no project-specific history yet - fills as you record debt, retros, decisions, and harness traces.)"
+  else
+    echo "Use the above to steer the next gate/card - don't re-learn what's already known."
+  fi
+  return 0
+}
+
 cmd_unlock() {
   if [ ! -f "$LOCK_FILE" ]; then echo "no flow lock to clear ($LOCK_FILE)"; return 0; fi
   _read_lock
@@ -697,6 +763,7 @@ usage: bash flow.sh <command> [args]
   skip <stage> --reason  Advance past a gate that has a matching open DEBT (non-security only)
   ready             List buildable todo cards + parallel-safety hint
   auto              Preflight an autonomous run (orchestration in SKILL.md)
+  recall            Read back prior knowledge (debt/retro/playbooks/prev-card/harness) before working
   unlock            Clear this project's concurrency lock (after a crashed/abandoned session)
   harness <args>    Passthrough to the durable layer CLI (intake/story/trace/decision/backlog/query)
   debt add|list     Record/list deliberate gate-skips in DEBT.md (security-class = operator-only)
@@ -726,6 +793,7 @@ case "$cmd" in
   skip)           cmd_skip "$@" ;;
   ready)          cmd_ready ;;
   auto)           cmd_auto ;;
+  recall)         cmd_recall ;;
   unlock)         cmd_unlock ;;
   retro)          cmd_retro ;;
   harness)        cmd_harness "$@" ;;
