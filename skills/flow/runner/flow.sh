@@ -333,7 +333,7 @@ cmd_status() {
   pb_n="$(recall_playbooks | awk 'END{print NR}')"
   retro_last="$(recall_retro_tail 1)"
   echo
-  echo "memory: ${debt_n} open debt · ${pb_n} playbooks${retro_last:+ · last retro: \"$retro_last\"}"
+  echo "memory: ${debt_n} open debt · ${pb_n} playbooks${retro_last:+ · last retro: [$retro_last]}"
   echo "  -> '/flow recall' reads back debt/retro/prev-card/harness before you work."
 }
 
