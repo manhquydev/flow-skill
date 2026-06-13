@@ -20,7 +20,8 @@ Updated as the skill evolves. Current: **v0.2** (2026-06-13).
 | `test_flow_harness.sh` | 19 | intake/risk-lane, trace tiers, story verify, decision, backlog, query |
 | `test_flow_scenarios.sh` | 14 | the 6 buildflow validation rounds (mechanical) |
 | `test_flow_project_types.sh` | 20 | project-type get/set, per-type done-evidence, skip hardening |
-| **Total** | **66** | all green (`bash tests/run_all.sh`) |
+| `test_flow_gate_wording.sh` | 13 | Research/Contract gates project-type aware, web path preserved |
+| **Total** | **79** | all green (`bash tests/run_all.sh`) |
 
 ## Review history (evidence-based, not self-assessed)
 | Pass | Scope | Findings | Resolution |
@@ -29,9 +30,11 @@ Updated as the skill evolves. Current: **v0.2** (2026-06-13).
 | 2 | Phase 2 durable layer (python) | 3 HIGH | all fixed (migration atomicity, init crash, tool guard, Windows path) |
 | 3 | Phase 4-6 shell (debt/design/install) | 0 HIGH, 1 MED + 1 LOW | both applied (PS 5.1 fallback, debt newline strip) |
 | 4 | v2 skip-with-debt (dogfood) | **2 HIGH** | both fixed (stage-matched DEBT, contract never skippable, broadened guard) |
+| 5 | project-type-aware gates (dogfood #1/#4) | 0 HIGH, 1 LOW | applied (stale column label); confirmed no web-gate regression |
 
 The pattern that matters: review pass #4 caught a real security weakness (the contract/auth
-seam could be skipped) before it shipped — the process works.
+seam could be skipped) before it shipped; pass #5 confirmed the gate-wording change did NOT
+weaken the web/market path. The process works.
 
 ## Cross-platform support (macOS / Linux Ubuntu / Windows)
 Portability self-audit of `runner/flow.sh` (re-run any time):
@@ -51,5 +54,6 @@ This file's #1 and #4 are the next target (research/contract gate web-flavoring)
 
 ## Open quality items
 - Run the suite on a real macOS + Ubuntu machine (only audited statically so far).
-- Findings #1 (research gate for non-web) and #4 (contract gate wording) — in progress via /flow.
+- ~~Findings #1 + #4~~ — **DONE** (branch `fix/non-web-gates`, merged; reviewed 0 HIGH; +13 tests).
 - Automated per-type done-evidence validators (currently guidance enforced by the Claude layer).
+- Finding #3 (the "forbidden: edit flow.sh during a run" rule wording) — clarify in CLAUDE.md.

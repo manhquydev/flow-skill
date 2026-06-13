@@ -27,10 +27,10 @@ is good enough to develop itself — and the evidence if it is not.
   CLI/plugin/pipeline — better than predicted.
 
 ## The 5 findings (evidence)
-1. **Research gate assumes a market-facing product** — items "3 online complaints" + "first-10-users channel" cannot be honestly satisfied for an internal/non-web build. (backlog #1, deferred — needs gate-template variants.)
+1. **Research gate assumes a market-facing product** — items "3 online complaints" + "first-10-users channel" cannot be honestly satisfied for an internal/non-web build. **FIXED** (branch `fix/non-web-gates`): the gate now accepts a non-web framing (first-party friction, who-benefits) without weakening the web path; e2e-proven (a cli project passes Research honestly). Reviewed 0 HIGH.
 2. **No mechanical skip-with-debt path** — an operator-accepted gate skip still hard-blocked `next`. **FIXED:** `flow.sh skip <stage> --reason` (stage-matched DEBT, non-security). (backlog #2, closed.)
 3. **"Forbidden: edit flow.sh during a run" is ambiguous when the product IS a build tool** — resolved in practice by worktree isolation (global driver vs worktree product); the rule text should clarify. (backlog #3, documented.)
-4. **Contract gate wording + OpenAPI section are web-only** despite the adaptive preamble (says "every endpoint", "auth: public/token/admin"). **PARTIALLY FIXED:** `references/project-types.md` + per-type guidance; the template wording itself is tracked. (backlog #4.)
+4. **Contract gate wording + OpenAPI section are web-only** despite the adaptive preamble (said "every endpoint", "auth: public/token/admin"). **FIXED** (branch `fix/non-web-gates`): gate generalized endpoint->interface, auth->access/effects, OpenAPI marked web-only; gate-rules.md applies the per-type lens. Reviewed 0 HIGH.
 5. **`next` and `card` disagreed on "planning complete"** for a debt-skipped stage. **FIXED:** `cmd_next` uses `planning_complete`, which now tolerates debt-skips. (backlog #5, closed.)
 
 ## What we shipped (merged to master, live install updated)
