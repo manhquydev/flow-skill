@@ -34,6 +34,9 @@ internal tool), record it and skip honestly:
 /flow debt add "skip 01-research" "<exposure>" "<close-before condition>"
 /flow skip 01-research --reason "internal tool, no public market"
 ```
-`skip` advances ONLY when a matching open DEBT exists and the reason is non-security-class;
-`planning_complete` then tolerates that stage so `/flow card` is not blocked forever.
-Security-class skips (auth/authz/admin/tenancy/payments/data/validation) HALT — operator-only.
+`skip` advances ONLY when an open DEBT line **names that exact stage** AND the reason is
+non-security-class; `planning_complete` then tolerates that stage so `/flow card` is not
+blocked forever. Guards (in order): the **contract (05) can never be skipped** — it is the
+seam, adapt it per project type instead; a **security-class reason HALTS** (auth/authz/
+admin/tenancy/payments/credential/permission/role/rbac/login/pii/data/migration/validation —
+operator-only); and the DEBT must name the stage (an unrelated open DEBT will not unlock it).

@@ -138,10 +138,13 @@ stage_skipped() { # $1 = stage name; 0 = yes (operator debt-skipped it)
   [ -f "$SKIPPED_FILE" ] && grep -qxF "$1" "$SKIPPED_FILE" 2>/dev/null
 }
 
-planning_complete() { # 0 = yes: all six stages exist and each gate is clean OR debt-skipped
+planning_complete() { # 0 = yes: each stage is clean, OR debt-skipped (a skipped stage may have no file)
   local s
   for s in $STAGES; do
-    [ -f "$FLOW_DIR/$s.md" ] || return 1
+    if [ ! -f "$FLOW_DIR/$s.md" ]; then
+      stage_skipped "$s" || return 1
+      continue
+    fi
     if ! scan_gate "$FLOW_DIR/$s.md" >/dev/null 2>&1; then
       stage_skipped "$s" || return 1
     fi
@@ -383,21 +386,28 @@ cmd_project_type() {
 cmd_skip() {
   local stage="${1:-}" reason=""
   shift 2>/dev/null || true
-  case "${1:-}" in --reason) reason="${2:-}" ;; *) reason="${1:-}" ;; esac
+  case "${1:-}" in --reason) shift 2>/dev/null || true; reason="$*" ;; *) reason="$*" ;; esac
   if [ -z "$stage" ] || [ -z "$reason" ]; then
-    echo 'usage: /flow skip <stage e.g. 01-research> --reason "<why; an open DEBT must already exist>"'
+    echo 'usage: /flow skip <stage e.g. 01-research> --reason "<why; a stage-matched open DEBT must already exist>"'
     return 1
   fi
   local known=0 s; for s in $STAGES; do [ "$s" = "$stage" ] && known=1; done
   if [ "$known" -eq 0 ]; then echo "FAIL: unknown stage '$stage' (one of: $STAGES)"; return 1; fi
-  # security-class skips are operator-only and never auto-advanced
-  if printf '%s' "$reason" | grep -qiE 'auth|authoriz|admin|tenan|payment|password|token|secret|data loss|migration|validation'; then
+  # PRIMARY guard (stage identity): the contract (05) is the seam - never skip it; adapt it
+  # to the project type instead. This closes the worst case (skipping the auth-boundary stage).
+  if [ "$stage" = "05-contract" ]; then
+    echo "BLOCKED: the contract (05) is the seam - never skip it. Adapt it to your project type"
+    echo "  ('/flow project-type ...'; see references/project-types.md), then pass its gate."
+    return 1
+  fi
+  # SECONDARY signal: a security-class-sounding reason HALTS (operator-only); not the sole gate.
+  if printf '%s' "$reason" | grep -qiE 'auth|authoriz|authorize|admin|tenan|payment|billing|password|token|secret|credential|permission|role|rbac|login|pii|data loss|migration|validation'; then
     echo "BLOCKED: that reason looks security-class. Security skips are operator-only and HALT - never auto-skipped."
     return 1
   fi
-  # a deliberate skip must already be written down as an open DEBT
-  if [ ! -f "$DEBT_FILE" ] || ! grep -qE '^- \[ \] DEBT:' "$DEBT_FILE" 2>/dev/null; then
-    echo "FAIL: no open DEBT recorded. First run:"
+  # the skip must already be written down as an open DEBT that NAMES this exact stage
+  if [ ! -f "$DEBT_FILE" ] || ! grep -qE "^- \[ \] DEBT:.*$stage" "$DEBT_FILE" 2>/dev/null; then
+    echo "FAIL: no open DEBT naming '$stage'. First run:"
     echo "  /flow debt add \"skip $stage\" \"<the exposure>\" \"<close-before condition>\""
     return 1
   fi

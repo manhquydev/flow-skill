@@ -45,6 +45,28 @@ bash "$RUN" card >/dev/null 2>&1; ck 0 $? "card unblocks after legitimate debt-s
 has "$(bash "$RUN" next)" "COMPLETE" "next reports COMPLETE consistently with card"
 rm -rf "$SB"
 
+echo "D) skip hardening: stage-matched DEBT, contract never skipped, paraphrase caught, no-file skip"
+SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/flow"
+# DEBT for a DIFFERENT stage must NOT unlock skip of another (HIGH-1)
+bash "$RUN" debt add "skip 03-prd" "x" "later" >/dev/null
+bash "$RUN" skip 01-research --reason "no public market" >/dev/null 2>&1; ck 1 $? "skip blocked when no DEBT names THIS stage"
+bash "$RUN" debt add "skip 01-research" "no market" "release" >/dev/null
+bash "$RUN" skip 01-research --reason "no public market" >/dev/null 2>&1; ck 0 $? "skip works when a stage-matched DEBT exists"
+# the contract (05) is never skippable (HIGH-2 primary guard)
+bash "$RUN" debt add "skip 05-contract" "x" "later" >/dev/null
+bash "$RUN" skip 05-contract --reason "no time" >/dev/null 2>&1; ck 1 $? "contract stage 05 can never be skipped"
+# paraphrased security reason still caught (HIGH-2 broadened list)
+bash "$RUN" debt add "skip 04-adr" "x" "later" >/dev/null
+bash "$RUN" skip 04-adr --reason "RBAC permission layer deferred" >/dev/null 2>&1; ck 1 $? "paraphrased security reason (rbac/permission) blocked"
+rm -rf "$SB"
+# planning_complete tolerates a skipped stage that has NO file (MEDIUM-1)
+SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/flow"
+for s in 00-idea 02-scope 03-prd 04-adr 05-contract; do stage_clean "$s" "$SB/flow/$s.md"; done   # 01 absent entirely
+bash "$RUN" debt add "skip 01-research" "no market" "release" >/dev/null
+bash "$RUN" skip 01-research --reason "internal tool" >/dev/null
+bash "$RUN" card >/dev/null 2>&1; ck 0 $? "card unblocks even when the skipped stage file never existed"
+rm -rf "$SB"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
