@@ -135,6 +135,67 @@ and `chmod +x` the runner on macOS/Linux.
 /flow doctor          environment check across macOS/Linux/Windows
 ```
 
+## Demos — real walkthroughs (captured from a live install)
+
+These are real transcripts from driving the installed `/flow` (see `tests/`-style `e2e-drive.sh`).
+
+### Demo 1 — build a web app (happy path: walk the gates → card → done)
+```
+$ /flow next                         # unlock stage 00 (idea); fill it, check its gate boxes
+$ /flow next   (x6, filling each)    # Research → Scope → PRD → ADR → Contract
+PASS: stage 05-contract gate clean. Planning is COMPLETE.
+All planning stages passed (or were debt-skipped). Run '/flow card' to create build cards.
+$ /flow card                         # -> cards/C-001.md
+$ /flow check C-001                  # after building + pasting real evidence
+PASS: C-001 is valid (status: done).
+```
+
+### Demo 2 — build a CLI / skill (done-evidence adapts, no URL needed)
+```
+$ /flow project-type cli
+$ /flow project-type
+project type: cli (default web)
+  done-evidence for 'cli': the tool installs and a real invocation returns the expected output + exit code
+```
+
+### Demo 3 — a gate blocks you honestly (and KILL is a valid outcome)
+```
+$ /flow next                         # nothing filled in yet
+FAIL: gate for stage 00-idea is not clean.
+  [x] unchecked gate boxes:
+      L4:- [ ] The pitch below is 3 sentences, no more
+  [x] unfilled [FILL] placeholders:
+      L10:[FILL: sentence 1 — who has the problem]
+Fix the above, then run '/flow next' again. (Kill at a gate is also valid.)
+```
+
+### Demo 4 — "done" must be real-world proof, not "tests pass"
+```
+$ /flow check C-001                  # status: done, but Evidence still "(empty until done)"
+  [x] status is 'done' but ## Evidence is empty (paste world-state proof: URL/curl/DB row)
+FAIL: C-001 has gate violations (above).
+```
+
+### Demo 5 — legitimately skip a gate that doesn't fit (debt + skip)
+```
+$ /flow debt add "skip 01-research" "internal tool, no public market" "before public release"
+$ /flow skip 01-research --reason "internal tool, no public market"
+PASS: stage 01-research debt-skipped (logged) -> 02-scope available. planning_complete now tolerates it.
+# (the contract stage 05 can NEVER be skipped; a security-class reason HALTS)
+```
+
+### Demo 6 — durable harness + design check
+```
+$ /flow harness intake --type change_request --summary "add login" --flags auth
+PASS: intake #1 -> lane=high_risk          # auth is a hard gate -> auto-escalates
+$ /flow design page.html                   # static UI check before a frontend card
+  [x] emoji / smart arrows (DESIGN.md: never): L1:<h1>My Workshop 🎉</h1>
+  [x] raw {{ }} template outside a power surface: L2:<p>Welcome {{ user.name }}</p>
+```
+
+> Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
+> Windows/Git Bash; the dev suite is 93 checks (`bash tests/run_all.sh`).
+
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
 **what "done" means** per type (web: a live URL; cli: installs + runs + exit codes; library:
