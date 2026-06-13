@@ -1,0 +1,36 @@
+{
+  "name": "flow",
+  "version": "0.1.0",
+  "description": "buildflow gated build harness for Claude Code: idea to a deployed URL through honest gates, with a durable harness layer and agent orchestration.",
+  "type": "skill",
+  "command": "/flow",
+  "entry": "skill/flow/SKILL.md",
+  "runner": "skill/flow/runner/flow.sh",
+  "runtime": {
+    "bash": "required (gate runner; Git Bash on Windows)",
+    "python": "optional (durable harness layer; stdlib sqlite3, no pip install)",
+    "cargo": "optional (Rust harness power-path via FLOW_HARNESS_BACKEND=rust)"
+  },
+  "install": {
+    "global": "~/.claude/skills/flow",
+    "project": ".claude/skills/flow",
+    "scripts": ["install.sh", "install.ps1"]
+  },
+  "components": {
+    "engine": "skill/flow/runner/flow.sh",
+    "skill": "skill/flow/SKILL.md",
+    "templates": "skill/flow/_templates/",
+    "law": "skill/flow/law/",
+    "references": "skill/flow/references/",
+    "durable_layer": "skill/flow/harness/",
+    "playbooks": "skill/flow/playbooks/"
+  },
+  "tests": ["tests/test_flow_runner.sh", "tests/test_flow_harness.sh", "tests/test_flow_scenarios.sh"],
+  "provenance": {
+    "methodology": "ai20k-build-phase/buildflow (Tony, arealisticdreamer.com)",
+    "harness": "repository-harness",
+    "agents_and_packaging": "claudekit-engineer",
+    "method_and_review": "BMAD-METHOD",
+    "principles": "research-report-agent-orchestration-2026.md"
+  }
+}

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Run every /flow test suite. Exit 0 only if all pass. Run: bash tests/run_all.sh
+set -u
+HERE="$(cd "$(dirname "$0")" && pwd)"
+rc=0
+for suite in test_flow_runner.sh test_flow_harness.sh test_flow_scenarios.sh; do
+  echo "==================== $suite ===================="
+  bash "$HERE/$suite" || rc=1
+  echo
+done
+if [ "$rc" -eq 0 ]; then echo "ALL SUITES PASSED"; else echo "SOME SUITES FAILED"; fi
+exit $rc
