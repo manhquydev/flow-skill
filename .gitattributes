@@ -1,0 +1,6 @@
+# Force LF on scripts so the bash runner and python harness work after a Windows clone.
+# CRLF in a shebang/script breaks `bash` with "\r: command not found".
+*.sh   text eol=lf
+*.py   text eol=lf
+*.json text eol=lf
+# Leave markdown/other text to the platform default.
