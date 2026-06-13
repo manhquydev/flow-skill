@@ -14,6 +14,7 @@ install dir; run from the project root so `flow/` and `cards/` resolve.
 | `/flow mode work` | `bash <skill>/runner/flow.sh mode work` | Interview once, draft 00-05, pause for scope sign-off, deliver card set; still pass every gate. |
 | `/flow ready` | `bash <skill>/runner/flow.sh ready` | Relay buildable cards; confirm allowed-files truly don't overlap before suggesting parallel. Operator dispatches. |
 | `/flow auto` | `bash <skill>/runner/flow.sh auto` | On preflight PASS, drive the autonomous run per SKILL.md AUTO principles (subagent/card, planner review, worktree, Tier-C halt on security debt). |
+| `/flow recall` | `bash <skill>/runner/flow.sh recall` | Read back prior knowledge (open debt, recent retro, previous-card scope, harness friction/backlog, playbooks). Run at the START of a stage/card; apply it, don't re-learn known pain. |
 | `/flow unlock` | `bash <skill>/runner/flow.sh unlock` | Clear this project's concurrency lock after a crashed/abandoned session. Confirm the other session is really gone first. |
 | `/flow retro` | `bash <skill>/runner/flow.sh retro` | Ask the 3 questions; the operator writes the RETRO.md line — never you. |
 
@@ -25,6 +26,7 @@ install dir; run from the project root so `flow/` and `cards/` resolve.
 5. Never edit `_templates/` or `runner/flow.sh` during a project run.
 6. Relay failures verbatim (line numbers included) — they are the operator's to-do list.
 7. If the runner reports BLOCKED by another session's lock, STOP and coordinate — never `FLOW_FORCE` past a live session; concurrent runs corrupt the plan. Set `FLOW_SESSION_ID` per session for hard protection.
+8. At the start of a stage or build card, run `/flow recall` first — its output (prior debt / retro / friction / previous-card scope) is context to apply, not noise. `status` shows a one-line memory summary; `card` injects the previous card's scope automatically.
 
 ## Install-path note
 - Project install: `bash .claude/skills/flow/runner/flow.sh <cmd>`

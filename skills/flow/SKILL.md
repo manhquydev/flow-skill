@@ -75,6 +75,7 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | `/flow mode teach\|work` | set who writes the artifacts (default `teach`) |
 | `/flow ready` | `flow.sh ready` — which todo cards are buildable + parallel-safety hint |
 | `/flow auto` | `flow.sh auto` preflight, then drive the autonomous run (see AUTO principles) |
+| `/flow recall` | `flow.sh recall` — read back durable memory (open debt, recent retro, previous-card scope, harness friction/backlog, playbooks) **at the start of a stage/card** so you don't re-learn known pain |
 | `/flow unlock` | `flow.sh unlock` — clear this project's concurrency lock after a crashed/abandoned session |
 | `/flow retro` | the 3 retro questions; the operator writes the line, never you |
 
@@ -92,6 +93,8 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
    silently advance past a hollow artifact; do not silently block a sound one.
 3. **On `card`/`check`:** enforce the build-session laws in `law/CLAUDE.md` — one card per
    session, touch only `## Allowed files`, contract is the seam, done = world-state proof.
+   **Before authoring a new stage or card, run `/flow recall`** and treat its output (prior
+   debt / retro / friction / previous-card scope) as context to apply, not noise.
 4. **Mode `work`:** interview the operator once, draft stages 00–05 yourself, pause only
    for scope sign-off, deliver the card set as one summary. Gates and done-rules are
    identical to `teach` — you still must pass every gate, you just also author.
@@ -158,7 +161,7 @@ Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, r
 - `references/debt-and-halts.md` — `DEBT.md` ledger, security-class Tier-C halt, when a run halts.
 - `references/design-review-checklist.md` — UI card review (mechanical `flow.sh design` + semantic DESIGN.md).
 - `references/ui-patterns-tcr.md` — 7 UI patterns + T-C-R frame + pattern-choice priority rules.
-- `harness/` — durable layer (`flow.sh harness ...`): intake/story/trace/decision/backlog. See `harness/README.md`.
+- `harness/` — durable layer (`flow.sh harness ...`): intake/story/trace/decision/backlog. See `harness/README.md`. Read it back with `/flow recall` (open debt, retro, previous-card, friction, backlog, playbooks) — this is the capture→reuse loop.
 - `playbooks/` — paid-for stack knowledge: read before building a card on that stack, harvest the lesson after.
 - `_templates/` — the 7 artifacts the runner copies into `flow/` and `cards/`. Never edit during a run.
 
