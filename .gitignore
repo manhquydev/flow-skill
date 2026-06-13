@@ -1,0 +1,13 @@
+# runtime artifacts (created when /flow runs in a project)
+.flow/
+*.db
+*.db-wal
+*.db-shm
+
+# python
+__pycache__/
+*.pyc
+
+# os
+.DS_Store
+Thumbs.db
