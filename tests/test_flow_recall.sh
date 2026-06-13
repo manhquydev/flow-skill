@@ -58,6 +58,26 @@ has "$out" "OPEN DEBT" "markdown ledgers still read back without the harness"
 no  "$out" "FRICTION recorded" "no harness section when the durable layer is disabled"
 rm -rf "$SB"
 
+echo "F) status surfaces a compact memory line + recall pointer"
+newsb
+printf '# DEBT\n\n- [ ] DEBT: a -- b -- close before: c -- opened 2026-06-14\n' > "$SB/DEBT.md"
+out="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" status 2>&1)"
+has "$out" "memory: 1 open debt" "status shows the open-debt count"
+has "$out" "/flow recall" "status points to recall"
+rm -rf "$SB"
+
+echo "G) card creation injects previous-card intelligence + open debt"
+newsb; mkdir -p "$SB/flow" "$SB/cards"
+for s in 00-idea 01-research 02-scope 03-prd 04-adr 05-contract; do printf '#%s\n## Gate\n- [x] ok\n\nreal.\n' "$s" > "$SB/flow/$s.md"; done
+printf '# C-001 - first\nstatus: done\ndeps: none\n## Scope\nestablished the auth pattern\n## Allowed files\nx\n' > "$SB/cards/C-001.md"
+printf '# DEBT\n\n- [ ] DEBT: q -- r -- close before: s -- opened 2026-06-14\n' > "$SB/DEBT.md"
+out="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" card 2>&1)"
+has "$out" "PASS: created C-002" "card created after C-001 done"
+has "$out" "Prior knowledge to carry" "card prints the prior-knowledge block"
+has "$out" "established the auth pattern" "card carries the previous card's Scope forward"
+has "$out" "open debt:" "card surfaces open debt at creation time"
+rm -rf "$SB"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

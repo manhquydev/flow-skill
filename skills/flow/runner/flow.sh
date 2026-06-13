@@ -328,6 +328,13 @@ cmd_status() {
   else
     echo "cards: none yet"
   fi
+  local debt_n pb_n retro_last
+  debt_n="$(recall_open_debt | awk 'END{print NR}')"
+  pb_n="$(recall_playbooks | awk 'END{print NR}')"
+  retro_last="$(recall_retro_tail 1)"
+  echo
+  echo "memory: ${debt_n} open debt · ${pb_n} playbooks${retro_last:+ · last retro: \"$retro_last\"}"
+  echo "  -> '/flow recall' reads back debt/retro/prev-card/harness before you work."
 }
 
 cmd_next() {
@@ -367,6 +374,7 @@ cmd_next() {
   fi
   cp "$TEMPLATE_DIR/$nxt.md" "$FLOW_DIR/$nxt.md"
   echo "PASS: stage $cur gate clean -> unlocked stage $((idx + 1)) (flow/$nxt.md)"
+  echo "  tip: '/flow recall' surfaces prior debt/retro/friction before you fill this stage."
   return 0
 }
 
@@ -392,6 +400,15 @@ cmd_card() {
   fi
   echo "PASS: created $id -> cards/$id.md"
   echo "Fill its Scope / Allowed files / Verify / Done-evidence, build it, then '/flow check $id'."
+  local pc dbt
+  pc="$(recall_prev_card)"
+  dbt="$(recall_open_debt)"
+  if [ -n "$pc" ] || [ -n "$dbt" ]; then
+    echo
+    echo "Prior knowledge to carry into this card (full read-back: '/flow recall'):"
+    [ -n "$pc" ] && printf '%s\n' "$pc" | sed 's/^/  /'
+    [ -n "$dbt" ] && { echo "  open debt:"; printf '%s\n' "$dbt" | sed 's/^/    /'; }
+  fi
   harness_call story add --id "$id" --title "$id" --lane normal   # durable tracking handle
   return 0
 }
