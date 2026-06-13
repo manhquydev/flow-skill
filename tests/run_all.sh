@@ -3,7 +3,7 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 rc=0
-for suite in test_flow_runner.sh test_flow_harness.sh test_flow_scenarios.sh test_flow_project_types.sh; do
+for suite in test_flow_runner.sh test_flow_harness.sh test_flow_scenarios.sh test_flow_project_types.sh test_flow_gate_wording.sh; do
   echo "==================== $suite ===================="
   bash "$HERE/$suite" || rc=1
   echo
