@@ -1,0 +1,159 @@
+---
+name: flow
+description: Run the buildflow gated build process from idea to a deployed URL. Walk 11 stages (Idea->Research->Scope->PRD->ADR->Contract->Cards->Build->Review->Deploy->Verify->Retro), each with a honest gate that must pass before advancing. Use when starting or driving a real product build, when the user types /flow, /flow next, /flow card, /flow check, or asks to scope/plan/ship a project through gates. Kill at any gate is a valid outcome.
+user-invocable: true
+when_to_use: "User wants to build a real product end-to-end with discipline (idea -> deployed URL), or types any /flow command, or asks for a gated build process, scope decision, contract-first plan, or card-based shipping."
+argument-hint: "[ next | card | check C-NNN | mode teach|work | ready | auto | retro ]"
+keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deploy, vertical-slice]
+license: MIT
+metadata:
+  author: flow-skill
+  version: "0.1.0"
+  attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD."
+---
+
+# /flow — buildflow gated build harness
+
+Idea to a **deployed URL**, not idea to paperwork. You walk gated stages; each has an
+**output artifact** and a **GATE** — a checklist that must be honestly satisfied before
+you advance. **Kill at any gate is a valid, honored outcome** (killing a weak idea at
+Scope is cheap and smart).
+
+```
+Idea -> Research -> Scope -> PRD -> ADR -> Contract -> Cards -> Build -> Review -> Deploy -> Verify-live -> Retro
+|------------------ planning (files in flow/) ------------------|  |------- shipping (inside cards/) -------|
+```
+
+## Two-layer harness (this is the core idea)
+
+`/flow` is **two layers working together**:
+
+1. **Mechanical layer — `runner/flow.sh`** (deterministic, exit 0/1). It manages the
+   stage/card lifecycle and checks the *cheatable* things: unchecked gate boxes,
+   leftover `[FILL]` placeholders, card status validity, empty done-evidence. Always run
+   it first — its exit code is ground truth, never your own judgment.
+2. **Semantic layer — YOU (Claude), via this skill** (quality gatekeeper). The script
+   cannot tell a real competitor quote from a fabricated one, or a grade-laundered C
+   feature from an honest B. **That is your job.** After the script passes, apply the
+   per-stage challenges in `references/gate-rules.md` before you let the operator advance.
+
+A gate is only truly passed when **both** layers agree. The script can pass while the
+content is hollow — catch that.
+
+## Running the mechanical layer
+
+From the **project root** (where `flow/` and `cards/` live), run the runner that ships
+with this skill:
+
+```
+bash <skill-dir>/runner/flow.sh <command>
+# project install:  bash .claude/skills/flow/runner/flow.sh next
+# global install:   bash ~/.claude/skills/flow/runner/flow.sh next
+```
+
+`<skill-dir>` is wherever this skill is installed. The runner reads/writes `flow/` and
+`cards/` under the current directory (override with `FLOW_PROJECT_ROOT`). On Windows use
+Git Bash (already the Bash tool here).
+
+## Commands
+
+| You type | Skill does |
+|---|---|
+| `/flow` | `flow.sh status` — where am I, what's blocking, card states |
+| `/flow next` | `flow.sh next` — gate-check current stage; on pass, unlock next stage. **Then** you apply the semantic challenge for the stage just passed. |
+| `/flow card` | `flow.sh card` — create next build card (only after all 6 planning gates pass) |
+| `/flow check C-NNN` | `flow.sh check C-NNN` — validate a card; **then** you review diff-vs-scope, allowed-files drift, contract shapes, DESIGN.md for UI, and that evidence is real world-state |
+| `/flow mode teach\|work` | set who writes the artifacts (default `teach`) |
+| `/flow ready` | `flow.sh ready` — which todo cards are buildable + parallel-safety hint |
+| `/flow auto` | `flow.sh auto` preflight, then drive the autonomous run (see AUTO principles) |
+| `/flow retro` | the 3 retro questions; the operator writes the line, never you |
+
+## Dispatch rules (how to behave for each command)
+
+1. **Always call `flow.sh` first** and read its exit code + output. Relay it faithfully.
+2. **On `next`:** if the script FAILS, stop — report exactly what it listed (line numbers),
+   and offer to help fill, but **never check a box or write an artifact on the operator's
+   behalf** in `teach` mode. If the script PASSES, run the **semantic gate** for the stage
+   just completed (see `references/gate-rules.md`). If you find hollow content (fabricated
+   quotes, grade-laundering, a pain with no feature, an endpoint with no auth), tell the
+   operator it mechanically passed but is qualitatively weak, and let them decide. Do not
+   silently advance past a hollow artifact; do not silently block a sound one.
+3. **On `card`/`check`:** enforce the build-session laws in `law/CLAUDE.md` — one card per
+   session, touch only `## Allowed files`, contract is the seam, done = world-state proof.
+4. **Mode `work`:** interview the operator once, draft stages 00–05 yourself, pause only
+   for scope sign-off, deliver the card set as one summary. Gates and done-rules are
+   identical to `teach` — you still must pass every gate, you just also author.
+5. **Never** edit `_templates/` or `runner/flow.sh` during a project run. Read any file the
+   runner just created before editing it.
+
+## The three rules under everything (from law/CLAUDE.md)
+
+1. **Inspect first.** Before planning, look at what already exists (competitors, live
+   systems, code). Evidence, not vibes.
+2. **Contract is the seam.** The API contract (stage 05) is written before any code.
+   Backend builds TO it, UI consumes FROM it. Never improvise a shape; amend the contract
+   first, then code. Honor a shape now (null/stub) even when its value ships in a later card.
+3. **Done = proof in the world.** Every card names its done-evidence up front. Verify on
+   the live URL as a user. "Tests pass" / "code merged" are mid-pipeline, never done.
+
+## Agent orchestration
+
+Each stage can delegate to a specialist agent, and degrades to built-in behavior when none
+exist — `/flow` stays portable. Priority: **ck: agents first, bmad-* skills as alternative,
+built-in fallback** (`references/agent-detection.md`). The stage→agent map, scoped prompt
+template, and durable-record hooks are in `references/agent-stage-mapping.md`:
+research→`researcher`, scope/PRD→`planner`, ADR→`architect`, contract→`bmad-spec` kernel,
+build→`fullstack-developer`, review→`code-reviewer` or `bmad-code-review` (3-layer
+adversarial), verify-live→`tester`. **The gate is identical on every path** — an agent
+drafts, the gate still judges. Give each subagent ONLY task + files + acceptance + relevant
+law/contract excerpts (no session history); each returns DONE/DONE_WITH_CONCERNS/BLOCKED/
+NEEDS_CONTEXT. After a delegation: run the gate, apply the semantic challenge, write the
+durable hook (`flow.sh harness ...`), announce which path ran.
+
+Mode `work` (`references/mode-work.md`): interview once → draft 00-05 → one scope pause →
+deliver the card set as one summary. Gates bind the same as `teach`.
+
+## AUTO principles
+
+`/flow auto` drives the build phase autonomously (`references/auto-run.md`). Operator
+setting: **Tier-A auto-merge green cards; halt at security-class.** Per card: tier-classify
+→ one scoped subagent in its own worktree → build to contract → adversarial review →
+`flow.sh check` PASS → merge in card order → deploy → **verify on the LIVE URL** (merge ≠
+shipped) → world-state evidence → `status: done` → durable trace + `AUTO-LOG.md`.
+- **Tier A**: green + no security-class → auto-merge, no ask.
+- **Tier B**: fixable issues → one repair by a FRESH subagent (two-strikes), else escalate.
+- **Tier C**: security-class (auth, authorization, admin exposure, tenancy, payments, data
+  migration, removing validation) → **HALT.** Operator accepts the exposure in `DEBT.md`,
+  in writing. Never planner-decided.
+Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, real
+`## Verify` runs, live check — never an agent's self-assessment) are mandatory.
+
+## Law & reference files
+
+- `law/CLAUDE.md` — build-session discipline, card sequence, PR/merge, debt, worktree, forbidden. **Read before building any card.**
+- `law/DESIGN.md` — UI law for every mock/frontend card (tokens, affordance ladder, object-first, never-do list).
+- `law/RETRO.md` — one honest line per run.
+- `references/gate-rules.md` — the per-stage semantic challenges (the heart of your gatekeeping).
+- `references/stage-state-machine.md` — stage order, unlock conditions, what each artifact must contain.
+- `references/command-dispatch.md` — exact mapping of each `/flow` command to runner call + your duties.
+- `references/agent-detection.md` — detect ck:/bmad agents + priority + fallback.
+- `references/agent-stage-mapping.md` — stage→agent map, scoped prompt template, durable hooks.
+- `references/mode-work.md` — work-mode script (interview once → draft → one scope pause → summary).
+- `references/auto-run.md` — `/flow auto` tiers, worktree loop, AUTO-LOG, security-class halt.
+- `references/loop-harness-2026-principles.md` — harness-first, hard stops, ground-truth, context isolation.
+- `references/ground-truth-gates.md` — the mechanical signal each gate decides on (never self-assessment).
+- `references/adversarial-review.md` — the 3-layer "must find issues" Review gate + triage.
+- `references/debt-and-halts.md` — `DEBT.md` ledger, security-class Tier-C halt, when a run halts.
+- `references/design-review-checklist.md` — UI card review (mechanical `flow.sh design` + semantic DESIGN.md).
+- `references/ui-patterns-tcr.md` — 7 UI patterns + T-C-R frame + pattern-choice priority rules.
+- `harness/` — durable layer (`flow.sh harness ...`): intake/story/trace/decision/backlog. See `harness/README.md`.
+- `playbooks/` — paid-for stack knowledge: read before building a card on that stack, harvest the lesson after.
+- `_templates/` — the 7 artifacts the runner copies into `flow/` and `cards/`. Never edit during a run.
+
+## Forbidden
+
+- Checking a gate box or writing a planning artifact on the operator's behalf (in `teach` mode).
+- Setting a card `done` without pasted world-state evidence.
+- Building two cards in one session, or in parallel before `/flow ready` marks them safe.
+- Frontend code before the UI mock card is approved.
+- Editing `_templates/` or `runner/flow.sh` during a project run.
