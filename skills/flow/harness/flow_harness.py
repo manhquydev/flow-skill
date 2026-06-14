@@ -12,6 +12,7 @@ DB:   <FLOW_PROJECT_ROOT>/.flow/harness.db   (override with --db)
 import argparse
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -163,6 +164,11 @@ def cmd_decision(con, a):
         _db.update(con, "decision", "id", a.id, last_verified_at=_now(con), last_verified_result=result)
         print(f"  {a.id}: {result} (exit {res.returncode})")
         return 0 if result == "pass" else 1
+    if a.decision_cmd == "outcome":
+        # close the predicted-vs-actual loop: record what actually happened vs predicted_impact.
+        n = _db.update(con, "decision", "id", a.id, actual_outcome=a.actual, status=(a.status or None))
+        print(f"PASS: decision {a.id} actual_outcome recorded" if n else f"FAIL: decision {a.id} not found")
+        return 0 if n else 1
 
 
 def cmd_backlog(con, a):
@@ -248,6 +254,159 @@ def cmd_query(con, a):
         if not data:
             print("(no tools registered)")
         return 0
+    if a.query_cmd == "decisions":
+        data = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome FROM decision ORDER BY id")
+        if a.json:
+            print(json.dumps(data, indent=2)); return 0
+        for x in data:
+            print(f"  {x['id']} [{x['status']}] {x['title']} "
+                  f"| predicted: {x.get('predicted_impact') or '-'} | actual: {x.get('actual_outcome') or '-'}")
+        if not data:
+            print("(no decisions)")
+        return 0
+
+
+# ---- self-improvement: audit (entropy/drift) + propose (deterministic GRC loop) ----
+# Ported from repository-harness (infrastructure.rs audit/propose, domain.rs entropy_score).
+# Deterministic on purpose: mine REPEATED friction/interventions by count (>=2) — never an
+# LLM guess (grounded > intrinsic). Proposals are advisory; --commit only adds backlog rows.
+
+_AUDIT_QUERIES = {
+    "orphaned_stories": ("orphaned planned/in-progress stories",
+        "SELECT story.id, story.title FROM story LEFT JOIN trace ON trace.story_id=story.id "
+        "WHERE story.status IN ('planned','in_progress') AND trace.id IS NULL ORDER BY story.id"),
+    "unverified_stories": ("unverified story commands",
+        "SELECT id, title FROM story WHERE verify_command IS NOT NULL AND TRIM(verify_command)<>'' "
+        "AND last_verified_result IS NULL ORDER BY id"),
+    "unverified_decisions": ("unverified decision commands",
+        "SELECT id, title FROM decision WHERE verify_command IS NOT NULL AND TRIM(verify_command)<>'' "
+        "AND last_verified_result IS NULL ORDER BY id"),
+    "backlog_without_outcomes": ("implemented backlog items without outcomes",
+        "SELECT CAST(id AS TEXT), title FROM backlog WHERE predicted_impact IS NOT NULL "
+        "AND actual_outcome IS NULL AND status='implemented' ORDER BY id"),
+    "stale_stories": ("stale unfinished stories (>30d since last trace)",
+        "SELECT story.id, story.title FROM story JOIN trace ON trace.story_id=story.id "
+        "WHERE story.status<>'implemented' GROUP BY story.id, story.title "
+        "HAVING julianday('now')-julianday(MAX(trace.created_at))>30 ORDER BY story.id"),
+}
+_ENTROPY_WEIGHTS = {"orphaned_stories": 10, "unverified_stories": 5, "unverified_decisions": 5,
+                    "backlog_without_outcomes": 2, "stale_stories": 3}
+
+
+def _audit(con):
+    findings = {k: _db.rows(con, sql) for k, (_label, sql) in _AUDIT_QUERIES.items()}
+    score = min(100, sum(len(findings[k]) * _ENTROPY_WEIGHTS[k] for k in _AUDIT_QUERIES))
+    return findings, score
+
+
+def _normalize_token(s):
+    return re.sub(r"[^a-z0-9]+", " ", str(s).lower()).strip()
+
+
+def _repeated_values(values, threshold=2):
+    """Group by normalized key, keep a representative + count; return those seen >= threshold."""
+    grouped, order = {}, []
+    for v in values:
+        k = _normalize_token(v)
+        if not k:
+            continue
+        if k in grouped:
+            grouped[k][1] += 1
+        else:
+            grouped[k] = [v, 1]
+            order.append(k)
+    return [(grouped[k][0], grouped[k][1]) for k in order if grouped[k][1] >= threshold]
+
+
+def _short_title(s, n=8):
+    words = " ".join(str(s).split()[:n])
+    return (words[:69] + "...") if len(words) > 72 else words
+
+
+def _confidence_for_count(c):
+    return "high" if c >= 3 else "medium"
+
+
+def _repeated_friction(con):
+    rows = _db.rows(con, "SELECT harness_friction AS f FROM trace WHERE harness_friction IS NOT NULL "
+                         "AND TRIM(harness_friction)<>'' AND LOWER(TRIM(harness_friction))<>'none'")
+    return _repeated_values([r["f"] for r in rows])
+
+
+def _repeated_interventions(con):
+    rows = _db.rows(con, "SELECT type || ': ' || description AS k FROM intervention WHERE TRIM(description)<>''")
+    return _repeated_values([r["k"] for r in rows])
+
+
+def _build_proposals(con):
+    findings, _score = _audit(con)
+    props = []
+    for text, count in _repeated_friction(con):
+        props.append(dict(title=f"Reduce repeated friction: {_short_title(text)}",
+                          component="Failure attribution",
+                          evidence=f"{count} traces recorded similar friction: {text}",
+                          predicted_impact="Fewer repeated friction entries for similar tasks.",
+                          risk="normal",
+                          suggested="Update the relevant docs, templates, or guidance for this friction pattern.",
+                          validation="Review the next five related traces and compare friction frequency.",
+                          confidence=_confidence_for_count(count)))
+    for key, count in _repeated_interventions(con):
+        props.append(dict(title=f"Address repeated intervention: {_short_title(key)}",
+                          component="Intervention recording",
+                          evidence=f"{count} interventions share the pattern: {key}",
+                          predicted_impact="Fewer repeated human/review interventions for the same issue.",
+                          risk="normal",
+                          suggested="Clarify the operating rule or gate that would have caught this earlier.",
+                          validation="Future interventions of this type should decrease after the rule change.",
+                          confidence=_confidence_for_count(count)))
+    for key, (label, _sql) in _AUDIT_QUERIES.items():
+        n = len(findings[key])
+        if n > 0:
+            props.append(dict(title=f"Clean up {label}", component="Entropy auditing",
+                              evidence=f"Audit found {n} {label}.",
+                              predicted_impact="Lower entropy score and stronger completion evidence.",
+                              risk="tiny",
+                              suggested="Resolve the listed audit findings or record why they are intentionally retained.",
+                              validation="Run 'flow harness audit' and confirm the category count decreases.",
+                              confidence="low"))
+    return props
+
+
+def cmd_audit(con, a):
+    findings, score = _audit(con)
+    print(f"flow-harness audit: entropy score {score}/100 (0 = clean, higher = more drift)")
+    any_found = False
+    for key, (label, _sql) in _AUDIT_QUERIES.items():
+        rows = findings[key]
+        if rows:
+            any_found = True
+            print(f"  {len(rows)} {label}:")
+            for r in rows[:10]:
+                vals = list(r.values())
+                print(f"    - {vals[0]}: {vals[1] if len(vals) > 1 else ''}")
+    if not any_found:
+        print("  no drift findings - clean.")
+    return 0
+
+
+def cmd_propose(con, a):
+    props = _build_proposals(con)
+    if not props:
+        print("flow-harness propose: no repeated friction/interventions or audit drift yet - nothing to propose.")
+        return 0
+    mode = "committing to backlog" if a.commit else "dry-run; pass --commit to add to backlog"
+    print(f"flow-harness propose: {len(props)} improvement proposal(s) from accumulated signal ({mode})")
+    for p in props:
+        print(f"  [{p['confidence']}] {p['title']}")
+        print(f"      evidence: {p['evidence']}")
+        print(f"      suggest:  {p['suggested']}")
+        if a.commit:
+            bid = _db.insert(con, "backlog", title=p["title"], discovered_while="flow harness propose",
+                             current_pain=p["evidence"], suggested_improvement=p["suggested"],
+                             risk=p["risk"], predicted_impact=p["predicted_impact"],
+                             notes=f"component: {p['component']}; confidence: {p['confidence']}; validation: {p['validation']}")
+            print(f"      -> backlog #{bid}")
+    return 0
 
 
 def _now(con):
@@ -299,6 +458,8 @@ def build_parser():
     d1.add_argument("--doc"); d1.add_argument("--status", choices=D.DECISION_STATUSES); d1.add_argument("--verify")
     d1.add_argument("--predicted")
     d2 = pds.add_parser("verify"); d2.add_argument("--id", required=True)
+    d3 = pds.add_parser("outcome"); d3.add_argument("--id", required=True)
+    d3.add_argument("--actual", required=True); d3.add_argument("--status", choices=D.DECISION_STATUSES)
 
     pb = sub.add_parser("backlog", help="growth-rule improvement loop")
     pbs = pb.add_subparsers(dest="backlog_cmd", required=True)
@@ -323,6 +484,11 @@ def build_parser():
     q2 = pqs.add_parser("backlog"); q2.add_argument("--open", action="store_true"); q2.add_argument("--closed", action="store_true"); q2.add_argument("--json", action="store_true")
     q3 = pqs.add_parser("friction"); q3.add_argument("--json", action="store_true")
     q4 = pqs.add_parser("tools"); q4.add_argument("--responsibility"); q4.add_argument("--json", action="store_true"); q4.add_argument("--summary", action="store_true")
+    q5 = pqs.add_parser("decisions"); q5.add_argument("--json", action="store_true")
+
+    sub.add_parser("audit", help="entropy/drift audit: orphaned/unverified/stale records + a 0-100 score")
+    pp = sub.add_parser("propose", help="deterministic improvement proposals from repeated friction/interventions + audit drift")
+    pp.add_argument("--commit", action="store_true", help="write the proposals into the backlog (else dry-run)")
     return p
 
 
@@ -337,6 +503,7 @@ def main(argv):
         "init": cmd_init, "intake": cmd_intake, "story": cmd_story, "trace": cmd_trace,
         "decision": cmd_decision, "backlog": cmd_backlog, "tool": cmd_tool,
         "intervention": cmd_intervention, "query": cmd_query,
+        "audit": cmd_audit, "propose": cmd_propose,
     }
     try:
         return dispatch[a.cmd](con, a) or 0

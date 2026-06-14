@@ -607,6 +607,15 @@ cmd_retro() {
   echo
   echo "RETRO.md: $RETRO_FILE"
   echo "(You write the line - the runner never fills it for you.)"
+  if harness_available; then
+    local pr; pr="$(harness_emit propose)"
+    if [ -n "$pr" ] && ! printf '%s' "$pr" | grep -q 'nothing to propose'; then
+      echo
+      echo "Harness proposes (deterministic, from repeated friction/interventions + audit drift):"
+      printf '%s\n' "$pr" | sed 's/^/  /'
+      echo "  -> commit the worth-doing ones: flow harness propose --commit"
+    fi
+  fi
   return 0
 }
 
@@ -680,6 +689,8 @@ cmd_recall() {
   if [ -n "$out" ] && ! printf '%s' "$out" | grep -q 'no friction'; then echo; echo "FRICTION recorded earlier (do not repeat):"; printf '%s\n' "$out" | sed 's/^/  /'; proj_any=1; fi
   out="$(_harness_query backlog)"
   if [ -n "$out" ] && ! printf '%s' "$out" | grep -q 'no backlog'; then echo; echo "OPEN IMPROVEMENT BACKLOG:"; printf '%s\n' "$out" | sed 's/^/  /'; proj_any=1; fi
+  out="$(harness_emit audit)"
+  if [ -n "$out" ]; then printf '%s\n' "$out" | grep -iE 'entropy score' | sed 's/^/  health: /'; fi
   out="$(recall_playbooks)"
   if [ -n "$out" ]; then echo; echo "PLAYBOOKS available (read before building that stack):"; printf '%s\n' "$out" | sed 's/^/  - /'; fi
   echo
