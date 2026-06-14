@@ -11,7 +11,9 @@ install dir; run from the project root so `flow/` and `cards/` resolve.
 | `/flow card` | `bash <skill>/runner/flow.sh card` | Confirm the new card id; remind: fill Scope (one thing) / Allowed files / Verify / Done-evidence per `law/CLAUDE.md`. |
 | `/flow check C-NNN` | `bash <skill>/runner/flow.sh check C-NNN` | If PASS mechanically: review diff-vs-scope, allowed-files drift, contract-shape match, DESIGN.md for UI, evidence = real world-state. |
 | `/flow contract` | `bash <skill>/runner/flow.sh contract` | After the contract gate / before UI cards (web): flags client base-URL vs served-path prefix drift (double-`/api`, mixed-prefix) — the class spec-diff tools miss. Advisory; confirm on the running app. |
-| `/flow tokens` | `bash <skill>/runner/flow.sh tokens` | On/after UI cards: flags DESIGN.md tokens the CSS never uses (design-system drift) + orphan CSS vars. Advisory; if the swap is intentional, record a dated DESIGN.md amendment. |
+| `/flow tokens` | `bash <skill>/runner/flow.sh tokens` | On/after UI cards: flags DESIGN.md tokens the CSS never uses + VALUE mismatches (same name, drifted value) + orphan CSS vars (info). Advisory; if the swap is intentional, record a dated DESIGN.md amendment. |
+| `/flow coherence` | `bash <skill>/runner/flow.sh coherence` | Flags version drift across declared version fields (package.json / pyproject / src app_version). The cheap doc-vs-code slice; semantic contradictions stay a human gate-challenge. |
+| `/flow promote <file>` | `bash <skill>/runner/flow.sh promote <file>` | Copy a hard-won playbook into the cross-project KB (`~/.claude/flow/playbooks`) so its lesson is surfaced by `recall` in every project, not just this one. |
 | `/flow mode teach` | `bash <skill>/runner/flow.sh mode teach` | Confirm; you only gatekeep, operator authors. |
 | `/flow mode work` | `bash <skill>/runner/flow.sh mode work` | Interview once, draft 00-05, pause for scope sign-off, deliver card set; still pass every gate. |
 | `/flow ready` | `bash <skill>/runner/flow.sh ready` | Relay buildable cards; confirm allowed-files truly don't overlap before suggesting parallel. Operator dispatches. |

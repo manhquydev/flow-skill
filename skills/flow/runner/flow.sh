@@ -20,6 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/../_templates"
 LAW_DIR="$SCRIPT_DIR/../law"
 PLAYBOOKS_DIR="$SCRIPT_DIR/../playbooks"
+GLOBAL_KB_DIR="${FLOW_GLOBAL_KB:-$HOME/.claude/flow/playbooks}"   # cross-project knowledge tier
 ROOT="${FLOW_PROJECT_ROOT:-$PWD}"
 FLOW_DIR="$ROOT/flow"
 CARDS_DIR="$ROOT/cards"
@@ -277,6 +278,15 @@ recall_playbooks() { # the "paid-for stack knowledge" index (skill-global, exclu
   [ -d "$PLAYBOOKS_DIR" ] || return 0
   local f n
   for f in "$PLAYBOOKS_DIR"/*.md; do
+    [ -e "$f" ] || continue
+    n="$(basename "$f" .md)"; [ "$n" = "README" ] && continue
+    echo "$n"
+  done
+}
+recall_global_playbooks() { # cross-project playbooks dropped in ~/.claude/flow/playbooks (lessons travel A->B)
+  [ -d "$GLOBAL_KB_DIR" ] || return 0
+  local f n
+  for f in "$GLOBAL_KB_DIR"/*.md; do
     [ -e "$f" ] || continue
     n="$(basename "$f" .md)"; [ "$n" = "README" ] && continue
     echo "$n"
@@ -693,6 +703,8 @@ cmd_recall() {
   if [ -n "$out" ]; then printf '%s\n' "$out" | grep -iE 'entropy score' | sed 's/^/  health: /'; fi
   out="$(recall_playbooks)"
   if [ -n "$out" ]; then echo; echo "PLAYBOOKS available (read before building that stack):"; printf '%s\n' "$out" | sed 's/^/  - /'; fi
+  out="$(recall_global_playbooks)"
+  if [ -n "$out" ]; then echo; echo "GLOBAL PLAYBOOKS (cross-project, ~/.claude/flow/playbooks):"; printf '%s\n' "$out" | sed 's/^/  - /'; fi
   echo
   if [ "$proj_any" -eq 0 ]; then
     echo "(no project-specific history yet - fills as you record debt, retros, decisions, and harness traces.)"
@@ -839,12 +851,70 @@ cmd_tokens() {
     echo "  [i] $onum CSS token(s) are not declared in DESIGN.md (may include framework tokens); sample:"
     printf '%s\n' "$orphan" | head -8 | sed 's/^/        /'
   fi
+  # value-mismatch: tokens declared in DESIGN.md (table: | `--name` | `value` |) AND defined in
+  # CSS (--name: value) but with a different value (same name, drifted value).
+  local td2 mism; td2="$(mktemp -d)"
+  awk -F'`' 'NF>=4 && $2 ~ /^--[a-zA-Z]/ {gsub(/[ \t\\]/,"",$2); v=$4; gsub(/^[ \t]+|[ \t]+$|\\/,"",v); if(v!="") print $2"\t"v}' \
+    "$design" 2>/dev/null | sort -u > "$td2/dv"
+  grep -rhoE '\-\-[a-zA-Z][a-zA-Z0-9_-]*[[:space:]]*:[[:space:]]*[^;{}]+' --include='*.css' --include='*.scss' "$cssroot" 2>/dev/null \
+    | sed -E 's/^(--[a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*/\1\t/' | sort -u > "$td2/cv"
+  mism="$(awk -F'\t' 'NR==FNR{if(NF>=2)d[$1]=$2; next}
+                      NF>=2 && ($1 in d){a=tolower(d[$1]); b=tolower($2); gsub(/[ \t]/,"",a); gsub(/[ \t]/,"",b);
+                        if(a!=b) print "        "$1": DESIGN.md=\""d[$1]"\" vs CSS=\""$2"\""}' "$td2/dv" "$td2/cv")"
+  rm -rf "$td2"
+  if [ -n "$mism" ]; then
+    echo "  [!] token VALUE mismatch (same name, different value in DESIGN.md vs CSS):"
+    printf '%s\n' "$mism" | head -40
+    found=1
+  fi
   if [ "$found" -eq 0 ]; then
-    echo "  PASS: every DESIGN.md token is used by the CSS (name-level; value mismatches not checked here)."
+    echo "  PASS: DESIGN.md tokens are used by the CSS with matching values (where CSS defines them)."
     return 0
   fi
   echo "FLAGGED: if the swap is intentional, record a dated amendment in DESIGN.md (its own rule); else align the CSS to the tokens."
   return 1
+}
+
+cmd_coherence() {
+  # F7 (mechanical slice): flag VERSION drift across declared version fields. Semantic doc-vs-code
+  # contradictions (e.g. a headline doc describing endpoints that don't exist) stay a human
+  # gate-challenge in gate-rules.md - this catches the cheap, low-noise, structured case.
+  local td; td="$(mktemp -d)"; : > "$td/v"
+  _ver() { [ -n "$2" ] && printf '%s\t%s\n' "$2" "$1" >> "$td/v"; }   # $1=label $2=version
+  [ -f "$ROOT/package.json" ] && _ver "package.json" \
+    "$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' "$ROOT/package.json" | head -1 | sed -E 's/.*"([^"]+)"$/\1/')"
+  [ -f "$ROOT/frontend/package.json" ] && _ver "frontend/package.json" \
+    "$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' "$ROOT/frontend/package.json" | head -1 | sed -E 's/.*"([^"]+)"$/\1/')"
+  [ -f "$ROOT/pyproject.toml" ] && _ver "pyproject.toml" \
+    "$(grep -oE '^version[[:space:]]*=[[:space:]]*"[^"]+"' "$ROOT/pyproject.toml" | head -1 | sed -E 's/.*"([^"]+)"$/\1/')"
+  local cfgv; cfgv="$(grep -rhoE 'app_version[[:space:]]*[:=][[:space:]]*["'\''][^"'\'' ]+' "$ROOT/src" 2>/dev/null | head -1 | sed -E 's/.*["'\'']([^"'\'' ]+)$/\1/')"
+  [ -n "$cfgv" ] && _ver "src app_version" "$cfgv"
+  if [ ! -s "$td/v" ]; then rm -rf "$td"; echo "coherence: no declared version fields found - skipped."; return 0; fi
+  local distinct; distinct="$(cut -f1 "$td/v" | sort -u | grep -c .)"
+  echo "coherence check - declared versions:"
+  sort -u "$td/v" | sed 's/^/  /'
+  rm -rf "$td"
+  if [ "$distinct" -gt 1 ]; then
+    echo "  [!] version drift: $distinct different versions declared across files - align them."
+    echo "      (semantic doc-vs-code contradictions remain a human gate-challenge; see references/gate-rules.md)"
+    return 1
+  fi
+  echo "  PASS: declared versions agree."
+  return 0
+}
+
+cmd_promote() {
+  # cross-project knowledge tier: copy a playbook/lesson into ~/.claude/flow/playbooks so its
+  # lessons travel to every project (surfaced by '/flow recall' everywhere).
+  local src="${1:-}"
+  if [ -z "$src" ] || [ ! -f "$src" ]; then echo "usage: /flow promote <path-to-playbook.md>"; return 1; fi
+  mkdir -p "$GLOBAL_KB_DIR" 2>/dev/null || true
+  if ! cp "$src" "$GLOBAL_KB_DIR/$(basename "$src")" 2>/dev/null; then
+    echo "FAIL: could not copy into $GLOBAL_KB_DIR"; return 1
+  fi
+  echo "PASS: promoted $(basename "$src") -> $GLOBAL_KB_DIR"
+  echo "  '/flow recall' now surfaces it as a GLOBAL PLAYBOOK in every project."
+  return 0
 }
 
 cmd_doctor() {
@@ -910,6 +980,8 @@ usage: bash flow.sh <command> [args]
   design <file>     Mechanical DESIGN.md check on a UI file (emoji/{{}}/engine-words/gradient)
   contract          Check client base-URL vs served-path prefixes (path-resolution drift; web)
   tokens            Check DESIGN.md declared tokens vs CSS usage (design-system drift)
+  coherence         Flag version drift across declared version fields (doc-vs-code coherence)
+  promote <file>    Copy a playbook into the cross-project KB (~/.claude/flow/playbooks)
   doctor            Check the environment (bash/python/grep/git) across macOS/Linux/Windows
   retro             Print the 3 retro questions
 
@@ -943,6 +1015,8 @@ case "$cmd" in
   design)         cmd_design "${1:-}" ;;
   contract)       cmd_contract ;;
   tokens)         cmd_tokens ;;
+  coherence)      cmd_coherence ;;
+  promote)        cmd_promote "${1:-}" ;;
   doctor)         cmd_doctor ;;
   -h|--help|help) usage ;;
   *) echo "unknown command: $cmd"; echo; usage; exit 1 ;;

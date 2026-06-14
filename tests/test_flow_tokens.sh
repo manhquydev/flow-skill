@@ -49,6 +49,25 @@ has "$out" "not declared in DESIGN.md" "reports orphan CSS vars as info"
 has "$out" "PASS" "still PASS (orphans are informational)"
 rm -rf "$SB"
 
+echo "G) value mismatch: same token, different value in DESIGN.md vs CSS -> flagged"
+newsb
+printf '# Design\n| \`--accent\` | \`#4F46E5\` |\n' > "$SB/DESIGN.md"
+css ':root{ --accent: #0969DA; } .x{ color: var(--accent); }'
+out="$(bash "$RUN" tokens 2>&1)"; rc=$?
+ck 1 "$rc" "exit 1 on value mismatch"
+has "$out" "VALUE mismatch" "value mismatch flagged"
+has "$out" "0969DA" "shows the CSS value"
+rm -rf "$SB"
+
+echo "H) matching value -> no value-mismatch flag"
+newsb
+printf '# Design\n| \`--accent\` | \`#0969DA\` |\n' > "$SB/DESIGN.md"
+css ':root{ --accent: #0969DA; }'
+out="$(bash "$RUN" tokens 2>&1)"; rc=$?
+ck 0 "$rc" "exit 0 when values match"
+no  "$out" "VALUE mismatch" "no false value-mismatch when aligned"
+rm -rf "$SB"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

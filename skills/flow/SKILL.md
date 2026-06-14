@@ -77,7 +77,9 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | `/flow auto` | `flow.sh auto` preflight, then drive the autonomous run (see AUTO principles) |
 | `/flow recall` | `flow.sh recall` — read back durable memory (open debt, recent retro, previous-card scope, harness friction/backlog, playbooks) **at the start of a stage/card** so you don't re-learn known pain |
 | `/flow contract` | `flow.sh contract` — flag client base-URL vs served-path prefix drift (web; advisory; run after the contract gate) |
-| `/flow tokens` | `flow.sh tokens` — flag DESIGN.md tokens the CSS never uses (design-system drift; advisory; run on UI cards) |
+| `/flow tokens` | `flow.sh tokens` — flag DESIGN.md vs CSS design-token drift: unused tokens + value mismatches + orphan vars (advisory; UI cards) |
+| `/flow coherence` | `flow.sh coherence` — flag version drift across declared version fields (doc-vs-code coherence; advisory) |
+| `/flow promote <file>` | `flow.sh promote <file>` — copy a playbook into the cross-project KB (`~/.claude/flow/playbooks`); `recall` then surfaces it everywhere |
 | `/flow unlock` | `flow.sh unlock` — clear this project's concurrency lock after a crashed/abandoned session |
 | `/flow retro` | the 3 retro questions; the operator writes the line, never you |
 
