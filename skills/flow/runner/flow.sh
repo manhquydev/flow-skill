@@ -809,6 +809,44 @@ cmd_contract() {
   return 1
 }
 
+cmd_tokens() {
+  # F4: design-token divergence - DESIGN.md's declared tokens vs the CSS actually used.
+  # Flags DESIGN.md tokens the CSS NEVER uses (the law-divergence signal: implemented UI
+  # stopped following DESIGN.md); reports orphan CSS vars as info (may include framework tokens).
+  # Advisory; never auto-fix - if the divergence is intentional, record a dated DESIGN.md amendment.
+  local design="$ROOT/DESIGN.md"
+  [ -f "$design" ] || design="$LAW_DIR/DESIGN.md"
+  if [ ! -f "$design" ]; then echo "tokens: no DESIGN.md found - skipped."; return 0; fi
+  local declared; declared="$(grep -oE '\-\-[a-zA-Z][a-zA-Z0-9_-]*' "$design" 2>/dev/null | sort -u)"
+  if [ -z "$declared" ]; then echo "tokens: DESIGN.md declares no --tokens - skipped."; return 0; fi
+  local cssroot="$ROOT/frontend"; [ -d "$cssroot" ] || cssroot="$ROOT"
+  local used; used="$(grep -rhoE '\-\-[a-zA-Z][a-zA-Z0-9_-]*' --include='*.css' --include='*.scss' "$cssroot" 2>/dev/null | sort -u)"
+  if [ -z "$used" ]; then echo "tokens: no CSS custom properties found under $cssroot - skipped."; return 0; fi
+  local td; td="$(mktemp -d)"
+  printf '%s\n' "$declared" > "$td/d"; printf '%s\n' "$used" > "$td/u"
+  local unused orphan onum found=0
+  unused="$(comm -23 "$td/d" "$td/u")"
+  orphan="$(comm -13 "$td/d" "$td/u")"
+  onum="$(printf '%s\n' "$orphan" | grep -c .)"
+  rm -rf "$td"
+  echo "design-token divergence check (DESIGN.md vs CSS under $(printf '%s' "$cssroot" | sed "s#$ROOT/##"))"
+  if [ -n "$unused" ]; then
+    echo "  [!] DESIGN.md declares tokens the CSS never uses (the implemented UI diverged from the law):"
+    printf '%s\n' "$unused" | sed 's/^/        /' | head -40
+    found=1
+  fi
+  if [ "$onum" -gt 0 ]; then
+    echo "  [i] $onum CSS token(s) are not declared in DESIGN.md (may include framework tokens); sample:"
+    printf '%s\n' "$orphan" | head -8 | sed 's/^/        /'
+  fi
+  if [ "$found" -eq 0 ]; then
+    echo "  PASS: every DESIGN.md token is used by the CSS (name-level; value mismatches not checked here)."
+    return 0
+  fi
+  echo "FLAGGED: if the swap is intentional, record a dated amendment in DESIGN.md (its own rule); else align the CSS to the tokens."
+  return 1
+}
+
 cmd_doctor() {
   # Cross-platform environment + quality check (macOS / Linux / Windows Git Bash).
   echo "flow doctor - environment check"
@@ -871,6 +909,7 @@ usage: bash flow.sh <command> [args]
   debt add|list     Record/list deliberate gate-skips in DEBT.md (security-class = operator-only)
   design <file>     Mechanical DESIGN.md check on a UI file (emoji/{{}}/engine-words/gradient)
   contract          Check client base-URL vs served-path prefixes (path-resolution drift; web)
+  tokens            Check DESIGN.md declared tokens vs CSS usage (design-system drift)
   doctor            Check the environment (bash/python/grep/git) across macOS/Linux/Windows
   retro             Print the 3 retro questions
 
@@ -903,6 +942,7 @@ case "$cmd" in
   debt)           cmd_debt "$@" ;;
   design)         cmd_design "${1:-}" ;;
   contract)       cmd_contract ;;
+  tokens)         cmd_tokens ;;
   doctor)         cmd_doctor ;;
   -h|--help|help) usage ;;
   *) echo "unknown command: $cmd"; echo; usage; exit 1 ;;
