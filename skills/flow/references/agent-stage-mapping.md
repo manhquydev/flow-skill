@@ -62,5 +62,7 @@ Return: the drafted artifact + status (DONE/DONE_WITH_CONCERNS/BLOCKED/NEEDS_CON
 ## After any delegation
 1. Run the gate (`flow.sh next` for stages, `flow.sh check C-NNN` for cards).
 2. Apply the semantic challenge from `gate-rules.md`.
-3. Write the durable hook above.
+3. Write the durable hook above. NOTE: the engine now AUTO-fires some — `flow next` past 01 seeds
+   `intake`, past 04 reminds `decision add`; `flow check` (done) records the `trace` and shows its
+   tier. You still author the content the engine can't (decision rationale, interventions, rich traces).
 4. Announce which path ran + the gate verdict to the operator.

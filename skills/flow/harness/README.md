@@ -54,9 +54,12 @@ A trace below its lane's required tier is flagged (advisory — never hard-fails
 Linking a trace to an unverified story prints a **pre-close gate** warning.
 
 ## How `/flow` uses it (auto-wired in flow.sh, best-effort)
+- `/flow next` past **stage 01 (research)** → seeds an `intake` row (lane=normal default; reclassify with risk flags if it touches auth/data/external/contracts).
+- `/flow next` past **stage 04 (ADR)** → reminds you to record each decision durably (`decision add`) — the ADR markdown is not a durable record.
 - `/flow card` creates a card → seeds a `story` row (tracking handle).
 - `/flow check C-NNN` (todo) → `story update --status in_progress`.
-- `/flow check C-NNN` (done) → `story update --status implemented` + a `trace`.
+- `/flow check C-NNN` (done) → `story update --status implemented` + a `trace` (its **tier verdict is shown**, so thin traces are visible).
+- `/flow recall` → reads the durable layer back (friction + backlog) into your working context — the capture→reuse loop.
 - `/flow harness <args>` exposes the full CLI directly.
 All wiring degrades gracefully: if python is absent or `FLOW_HARNESS_DISABLE=1`, the
 mechanical engine runs unchanged.
