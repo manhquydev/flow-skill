@@ -9,7 +9,7 @@ principles below. Operator chose: **Tier-A auto-merge green cards; halt at secur
 | Tier | What | Action |
 |---|---|---|
 | **A** | Card built, review green, verify-live passed, no security-class concern | **Auto-merge without asking.** Log PR URL + merged SHA in `AUTO-LOG.md`. |
-| **B** | Built but review found fixable issues, or verify ambiguous | One repair pass by a **fresh** subagent (two-strikes). **If the codex tier is eligible, prefer a Codex fresh-engine repair** (`codex:codex-rescue` — a different model breaks deadlocks the same model re-hits; see `codex-integration.md`). Still red after the second strike → escalate to operator. |
+| **B** | Built but review found fixable issues, or verify ambiguous | First repair = a **fresh same-ladder subagent** (Claude). If THAT repair is still red — the **two-strikes deadlock** — THEN, if the codex tier is USABLE, try a **Codex fresh-engine repair** (`codex:codex-rescue`, a different model) before escalating; else escalate to operator. (Codex may come in earlier ONLY on a security-class card or explicit operator opt-in — the cost gate in `codex-integration.md`. Do NOT call Codex on the first red of an ordinary card.) |
 | **C** | Security-class touch (auth, authorization, admin exposure, tenancy, payments, data migration, removing validation) OR a debt skip | **HALT.** Operator must accept the exposure in writing in `DEBT.md`. Never planner-decided. |
 
 ## Loop per card (serial by default; parallel only when `/flow ready` says safe)
@@ -21,9 +21,9 @@ for each todo card in card-number order:
      git worktree add ../<project>-C-NNN -b card/C-NNN
   2. agent builds to contract, touches only allowed files, runs ## Verify for real
   3. review the diff (code-reviewer or bmad-code-review 3-layer; see adversarial-review.md).
-       On a security-class card with the codex tier eligible, add the Codex cross-model lens.
-       red -> Tier-B repair by a FRESH subagent, preferring a Codex fresh-engine repair when
-              eligible (two-strikes); second red -> escalate
+       On a security-class card with the codex tier USABLE, add the Codex cross-model lens.
+       red (strike 1) -> repair by a FRESH same-ladder (Claude) subagent
+       still red (strike 2 / deadlock) -> a Codex fresh-engine repair if USABLE, else escalate
        green -> continue
   4. flow.sh check C-NNN must PASS (mechanical) + gate-rules semantic check
   5. merge to main in card order; deploy; VERIFY ON LIVE URL (merge != shipped)

@@ -474,7 +474,8 @@ def build_parser():
     tr.add_argument("--description", required=True); tr.add_argument("--responsibility", required=True); tr.add_argument("--args")
 
     pv = sub.add_parser("intervention", help="record a human/reviewer/ci/agent override")
-    pv.add_argument("--type", required=True, choices=D.INTERVENTION_TYPES); pv.add_argument("--description", required=True)
+    # --note is an additive alias for --description (both set a.description; eases the verb-grammar friction)
+    pv.add_argument("--type", required=True, choices=D.INTERVENTION_TYPES); pv.add_argument("--description", "--note", required=True)
     pv.add_argument("--source", required=True, choices=D.INTERVENTION_SOURCES); pv.add_argument("--trace", type=int)
     pv.add_argument("--story"); pv.add_argument("--impact")
 

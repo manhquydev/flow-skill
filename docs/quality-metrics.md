@@ -1,7 +1,7 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.4** (2026-06-14).
+Updated as the skill evolves. Current: **v0.5** (2026-06-14).
 
 ## Codex-integration dogfood run (2026-06-14) — the headline result
 
@@ -33,6 +33,41 @@ single-vendor review missed.**
 Close rate this run: 2/5 fixed-and-shipped in-session (the 2 review findings); 3 tracked for the
 runner-edit follow-up (can't touch the runner mid-run).
 
+## v0.5 quality-hardening run (2026-06-14) — adversarial review → fix
+
+A 32-agent adversarial workflow (5 static dimensions + a live cross-vendor Codex pass, every
+finding adversarially verified) scored the v0.4 Codex tier and the `/flow` run that built it, then
+the confirmed P0–P3 findings were fixed under `/flow` (cards C-006..C-009) + an out-of-band engine
+maintenance step (the runner edits `/flow` forbids mid-run).
+
+**Scorecard (v0.4 as-shipped):** safety 86 · consistency 78 · process 78 · portability 68 ·
+**test-guard 38 (weakest)** · live Codex `needs-attention`. Composite ≈70 — "ships, safe, fixable debt."
+
+**The live cross-vendor Codex pass caught a 2nd real defect on the shipped commit** (auto-run routed
+a *first*-red Tier-B repair to billable Codex without the two-strikes condition; the test had 0
+assertions against auto-run.md) — the feature's value-prop, proven a second time.
+
+**Fixed (confirmed-real, adversarially verified):**
+- **P2-1 (portability):** the USABLE liveness probe used `codex-companion status`, which returns
+  **no auth field** (verified) → non-load-bearing. Switched to `setup --json` (`ready`+`auth.loggedIn`).
+- **Auto-run cost-gate:** first-red Tier-B now stays same-ladder; Codex only at the true 2nd strike / security / opt-in.
+- **Contract I1 drift:** `flow/05-contract.md` now carries the USABLE two-state (was INSTALLED-only).
+- **Test guard (38→ robust):** rewritten clause-bound + anti-pattern `lacks` + auto-run/probe/durable-hook coverage (19→25 checks).
+- **D3-F1:** data-boundary note (ScopedBrief → OpenAI) added beside the auth clause.
+- **P3 / DF-2:** a self-consistency (+ opt-in cross-model) challenge wired into the **Contract gate** — closes the gate false-pass at its source.
+
+**Engine maintenance (out-of-band, not a card — `/flow` forbids runner edits mid-run):**
+- **DF-1 (now FIXED):** `flow coherence` now reads SKILL.md frontmatter `version:`, `*-manifest.json`,
+  and `.claude-plugin/plugin.json` — for project-type=skill it had ZERO version source. The fix
+  immediately caught a real drift (plugin.json stuck at 0.3.0). All now 0.5.0 → coherence PASSES.
+- **DF-6 (now FIXED):** the runner idempotently adds run-state (`MODE`, `PROJECT_TYPE`, `.flow/`)
+  to `.gitignore` (only in a git repo) — no more host-repo pollution.
+- **DF-3 (partial):** `intervention --note` added as an additive alias for `--description`; full
+  verb-grammar normalization remains a deliberate test-first follow-up (not a hasty rename).
+
+DF status now: DF-1 ✅ · DF-2 ✅ (Contract-gate lens) · DF-3 ◑ (alias; grammar pending) · DF-6 ✅ ·
+DF-4 (trace-tier nag) + DF-5 (allowed-files containment) tracked.
+
 ## Size & surface
 | Metric | Value |
 |---|---|
@@ -52,9 +87,18 @@ runner-edit follow-up (can't touch the runner mid-run).
 | `test_flow_project_types.sh` | 20 | project-type get/set, per-type done-evidence, skip hardening |
 | `test_flow_gate_wording.sh` | 13 | Research/Contract gates project-type aware, web path preserved |
 | `test_flow_coverage_gaps.sh` | 14 | retro, ready (deps), auto preflight, harness decision/tool/intervention |
-| **Total (dev)** | **93** | all green (`bash tests/run_all.sh`) |
-| **+ e2e (installed)** | **22** | `flow-test-drive/e2e-drive.sh` — happy+edge against a fresh per-project install (Windows) |
-| **Grand total** | **115** | all green |
+| `test_flow_concurrency_lock.sh` | 26 | session lock, TTL reclaim, foreign-lock refusal, force/unlock |
+| `test_flow_recall.sh` | 22 | recall reads debt/retro/prev-card/friction/backlog/playbooks |
+| `test_flow_gate_capture.sh` | 13 | gate-fired durable capture (intake/decision reminders) |
+| `test_flow_propose_audit.sh` | 16 | audit health/entropy, propose suggestions |
+| `test_flow_contract.sh` | 14 | contract base-URL vs served-path drift (web) |
+| `test_flow_tokens.sh` | 15 | DESIGN.md vs CSS token drift (unused/mismatch/orphan) |
+| `test_flow_coherence_kb.sh` | 14 | version-drift coherence + cross-project KB |
+| `test_flow_assess.sh` | 11 | brownfield assess scaffold + gate + status surfacing |
+| `test_flow_codex_integration.sh` | 25 | Codex doc-contract: installed≠usable, cost gate, gate parity, opt-in, auto-run, anti-pattern guard |
+| **Total (dev)** | **249** | all green (`bash tests/run_all.sh`), 15 suites |
+| **+ e2e (installed)** | **22** | `tests/e2e-installed-drive.sh` — happy+edge against a fresh per-project install (Windows) |
+| **Grand total** | **271** | all green |
 
 **Command coverage:** ~100% of runner commands now have a dedicated assertion (was 14/15;
 `retro`/`ready`/`auto` + harness `decision`/`tool`/`intervention` gaps closed 2026-06-13).

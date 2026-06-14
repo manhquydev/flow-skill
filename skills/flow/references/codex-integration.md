@@ -25,8 +25,11 @@ invocation — that violates "absence never breaks a run". So:
 - **INSTALLED** — `codex:codex-rescue` is in the host agent registry, OR the plugin dir exists
   (`~/.claude/plugins/cache/openai-codex` / `.../marketplaces/openai-codex`). Necessary, not sufficient.
 - **USABLE** — INSTALLED **and** a cheap, non-billable liveness/auth check passes:
-  `codex-companion.mjs status [--json]` returns cleanly (or a confirmed prior successful call this
-  session). Run this check **before the first time** you would route work to Codex.
+  `codex-companion.mjs setup --json` reports `ready === true` AND `auth.loggedIn === true`
+  (or a confirmed prior successful Codex call this session). Run this check **before the first
+  time** you would route work to Codex. NOTE: use `setup --json`, NOT `status` — `status` reports
+  runtime/job state but carries **no auth field**, so it passes even when Codex is unauthenticated
+  (it would route then fail at the real call). `setup --json` is the auth-aware, non-billable probe.
 
 **Selection rule:** only select the Codex tier when state = **USABLE**. If INSTALLED-but-not-USABLE
 (or absent): **degrade** to ck:→bmad→built-in, announce `"codex tier unavailable (installed but
@@ -80,6 +83,12 @@ Give Codex ONLY: `task` (one goal) · `read_for_context` (contract, law, the car
   still judges. A cross-model review INFORMS triage — it never auto-passes or auto-fails a card.
 - **Auth.** Delegated entirely to the plugin (`codex login` / `OPENAI_API_KEY` / ChatGPT
   subscription). `/flow` never reads, stores, or logs Codex credentials.
+- **Data boundary (the other half of trust).** Selecting Codex SENDS the ScopedBrief — the source
+  diff plus the contract / PRD / law excerpts — to OpenAI's API, governed by the operator's OpenAI
+  plan and its data-retention/training terms. This is distinct from the credential clause above:
+  even with perfect secret handling, the *code and specs* leave the machine. For a sensitive,
+  regulated, or NDA'd codebase, the operator must opt in knowingly; the cost gate (high-value
+  moments only) keeps the exposure surface small by default.
 
 ## Durable metric (S2)
 

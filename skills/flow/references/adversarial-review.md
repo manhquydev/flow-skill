@@ -20,9 +20,10 @@ the diff's shapes against the contract.
 ## Optional 4th lens — Codex cross-MODEL reviewer (different vendor, not just different context)
 
 The three lenses above differ by *information* but share one *model* (Claude) → correlated blind
-spots. When the codex tier is eligible (`codex-integration.md`), add a **cross-model** lens: run
-`codex-companion.mjs review|adversarial-review [--base <ref>] [--scope working-tree|branch]` (or a
-read-only `codex:codex-rescue` review). A different engine (GPT-5.x) catches failure modes a
+spots. When the codex tier is USABLE (`codex-integration.md`), add a **cross-model** lens: run
+`codex-companion.mjs review|adversarial-review [--base <ref>] [--scope working-tree|branch]`
+(review/adversarial-review go through `codex-companion.mjs` — the `codex:codex-rescue` subagent
+only forwards to `task`, so it is NOT a review path). A different engine (GPT-5.x) catches failure modes a
 same-model panel structurally can't — cross-model review markedly outperforms same-model
 self-review (gemini-cli study: 43% → 91% merge-ready), and same-model judges carry systematic
 self-bias.

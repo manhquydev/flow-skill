@@ -11,3 +11,8 @@ __pycache__/
 # os
 .DS_Store
 Thumbs.db
+
+# /flow run-state (generated; safe to ignore)
+MODE
+PROJECT_TYPE
+.flow/

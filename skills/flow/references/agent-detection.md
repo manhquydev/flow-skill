@@ -39,7 +39,8 @@ Full seam (invocation surfaces, shapes, cost gate): **`references/codex-integrat
 
 **Detection (I1) — installed ≠ usable.** The codex tier has two states (`codex-integration.md` §I1):
 **INSTALLED** (`codex:codex-rescue` in the registry OR the `openai-codex` plugin dir exists) and
-**USABLE** (INSTALLED + a non-billable `codex-companion.mjs status` liveness/auth check passes).
+**USABLE** (INSTALLED + a non-billable `codex-companion.mjs setup --json` check reports
+`ready` + `auth.loggedIn`; NOT `status`, which has no auth field — see `codex-integration.md`).
 **Only select Codex when USABLE.** INSTALLED-but-not-usable (no auth / unreachable — common in
 headless/CI) or absent → **degrade** to ck:→bmad→built-in, announce "codex tier unavailable —
 degraded to <path>", record the reason. Never route to Codex on mere presence: that would spend a

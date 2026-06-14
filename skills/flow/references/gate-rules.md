@@ -76,6 +76,14 @@ cli=command+flags+output/exit, library=public function+args+return, skill=comman
 - One-way rule: this file is planning source of truth. For web the served spec
   (`/openapi.json`) is the runtime artifact of the SAME contract (amend file -> code -> spec).
   For non-web there is no served spec — the no-drift check is the per-type done-evidence.
+- **Self-consistency pass (the contract is ground truth every downstream card trusts).** Before
+  passing this gate, read the contract AGAINST any doc it names as its own source of truth and
+  re-state each shared rule in your own words — a contradiction here ships as "passed" and every
+  card inherits it. (This gate once passed an internally-inconsistent seam that only a later
+  cross-model review caught — catch that class HERE, at its source, where it is cheapest.) When the
+  **codex tier is USABLE**, an OPTIONAL opt-in **cross-model** check of the contract is the
+  highest-value single Codex call in a run — a different engine breaks the same-model blind spot at
+  the one artifact whose drift is most expensive downstream.
 
 ## Card gate (`/flow check C-NNN`)
 Mechanical: no FILL, valid status, required sections, if done -> verify boxes checked +

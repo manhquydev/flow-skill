@@ -32,6 +32,16 @@ SKIPPED_FILE="$ROOT/flow/.skipped"
 LOCK_FILE="$ROOT/flow/.lock"
 HARNESS_PY="$SCRIPT_DIR/../harness/flow_harness.py"
 
+# Keep pure run-state (MODE / PROJECT_TYPE / .flow/) out of the host repo's git status.
+# Idempotent; only acts in a real git repo OR where a .gitignore already exists (so test
+# sandboxes and non-git dirs are untouched — no surprise file creation).
+_ignore_run_state() {
+  { [ -d "$ROOT/.git" ] || [ -f "$ROOT/.gitignore" ]; } || return 0
+  local gi="$ROOT/.gitignore"
+  grep -q 'flow run-state' "$gi" 2>/dev/null && return 0
+  printf '\n# /flow run-state (generated; safe to ignore)\nMODE\nPROJECT_TYPE\n.flow/\n' >> "$gi"
+}
+
 # Concurrency lock: seconds a lock stays "fresh"; older locks are stale and auto-reclaimed.
 FLOW_LOCK_TTL="${FLOW_LOCK_TTL:-900}"
 
@@ -549,7 +559,7 @@ cmd_mode() {
     return 0
   fi
   case "$arg" in
-    teach|work) printf '%s\n' "$arg" > "$MODE_FILE"; echo "PASS: mode set to '$arg'."; return 0 ;;
+    teach|work) printf '%s\n' "$arg" > "$MODE_FILE"; _ignore_run_state; echo "PASS: mode set to '$arg'."; return 0 ;;
     *) echo "FAIL: mode must be 'teach' or 'work'."; return 1 ;;
   esac
 }
@@ -566,7 +576,7 @@ cmd_project_type() {
   fi
   case "$arg" in
     web|cli|library|skill)
-      printf '%s\n' "$arg" > "$PROJECT_TYPE_FILE"
+      printf '%s\n' "$arg" > "$PROJECT_TYPE_FILE"; _ignore_run_state
       echo "PASS: project type set to '$arg'."
       echo "  done-evidence now means: $(done_def_for_type "$arg")"
       return 0 ;;
@@ -940,6 +950,16 @@ cmd_coherence() {
     "$(grep -oE '^version[[:space:]]*=[[:space:]]*"[^"]+"' "$ROOT/pyproject.toml" | head -1 | sed -E 's/.*"([^"]+)"$/\1/')"
   local cfgv; cfgv="$(grep -rhoE 'app_version[[:space:]]*[:=][[:space:]]*["'\''][^"'\'' ]+' "$ROOT/src" 2>/dev/null | head -1 | sed -E 's/.*["'\'']([^"'\'' ]+)$/\1/')"
   [ -n "$cfgv" ] && _ver "src app_version" "$cfgv"
+  # skill-type version fields: SKILL.md YAML frontmatter, *-manifest.json, plugin.json
+  # (without these, a project-type=skill had ZERO version source and coherence silently skipped).
+  local sk; for sk in "$ROOT"/SKILL.md "$ROOT"/skills/*/SKILL.md; do
+    [ -f "$sk" ] && _ver "${sk#$ROOT/}" \
+      "$(sed -nE 's/^[[:space:]]*version:[[:space:]]*"?([0-9][.0-9A-Za-z-]*).*/\1/p' "$sk" | head -1)"
+  done
+  local mf; for mf in "$ROOT"/*-manifest.json "$ROOT"/.claude-plugin/plugin.json; do
+    [ -f "$mf" ] && _ver "${mf#$ROOT/}" \
+      "$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' "$mf" | head -1 | sed -E 's/.*"([^"]+)"$/\1/')"
+  done
   if [ ! -s "$td/v" ]; then rm -rf "$td"; echo "coherence: no declared version fields found - skipped."; return 0; fi
   local distinct; distinct="$(cut -f1 "$td/v" | sort -u | grep -c .)"
   echo "coherence check - declared versions:"
