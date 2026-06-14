@@ -30,11 +30,13 @@ Disable the durable layer entirely with `FLOW_HARNESS_DISABLE=1` (engine still r
 | `intake --type <t> --summary <s> [--flags ...] [--lane ...] [--narrow-scope]` | Task specification + risk classification |
 | `story add\|update\|verify\|verify-all` | Task state + Verification (mechanical proof) |
 | `trace --summary ... [--story ...] --outcome ...` | Observability + Failure attribution (auto-scored tier) |
-| `decision add\|verify` | Project memory (durable ADR row; markdown ADR is the companion) |
+| `decision add\|verify\|outcome` | Project memory (durable ADR row + companion markdown); `outcome` closes the predicted-vs-actual loop |
 | `backlog add\|close` | Entropy auditing + harness self-improvement (growth rule) |
+| `audit` | Entropy/drift score (0-100) + findings (orphaned/unverified/stale records) |
+| `propose [--commit]` | Deterministic improvement proposals from repeated friction/interventions + audit drift (>=2 to fire) |
 | `tool register` | Tool access registry |
 | `intervention add` | Intervention recording (human/reviewer/ci/agent overrides) |
-| `query matrix\|backlog\|friction\|tools` | Read durable state |
+| `query matrix\|backlog\|friction\|tools\|decisions` | Read durable state (incl. predicted-vs-actual decisions) |
 
 ## Risk lanes (intake)
 `tiny` (docs/copy/narrow edits, smoke proof) · `normal` (story-sized, bounded blast radius)
@@ -59,7 +61,8 @@ Linking a trace to an unverified story prints a **pre-close gate** warning.
 - `/flow card` creates a card → seeds a `story` row (tracking handle).
 - `/flow check C-NNN` (todo) → `story update --status in_progress`.
 - `/flow check C-NNN` (done) → `story update --status implemented` + a `trace` (its **tier verdict is shown**, so thin traces are visible).
-- `/flow recall` → reads the durable layer back (friction + backlog) into your working context — the capture→reuse loop.
+- `/flow recall` → reads the durable layer back (friction + backlog + audit health) into your working context — the capture→reuse loop.
+- `/flow retro` → surfaces `propose` (deterministic improvement proposals from repeated friction/interventions + audit drift) for you to commit.
 - `/flow harness <args>` exposes the full CLI directly.
 All wiring degrades gracefully: if python is absent or `FLOW_HARNESS_DISABLE=1`, the
 mechanical engine runs unchanged.
