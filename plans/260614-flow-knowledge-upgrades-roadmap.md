@@ -29,7 +29,18 @@ grounded in real evidence, graceful degradation, no new schema where existing ta
   retro→propose, recall→audit health) — merged. Faithful port of repository-harness propose/audit (ACE GRC,
   deterministic ≥2, entropy weights), predicted-vs-actual closed.
 
-## Next — sequential
+- ✅ **F3 — `flow contract`** (client base-URL vs served-path prefix drift) — merged.
+- ✅ **F4 — `flow tokens`** (design-token drift: unused + VALUE mismatch + orphan) — merged.
+- ✅ **F7 — `flow coherence`** (version drift across declared version fields) — merged.
+- ✅ **Cross-project KB — `flow promote` + recall GLOBAL PLAYBOOKS** (`~/.claude/flow/playbooks`) — merged.
+- ✅ **F2 — `flow assess`** (brownfield current-state assessment + `flow/00-inspect.md` gate) — merged.
+
+**All shipped 2026-06-14 → master pushed to github.com/manhquydev/mq_flow.** 21 commands, 14 test
+suites / 214 assertions green; every feature branch→test→code-reviewer(APPROVE)→merge.
+Remaining nice-to-haves (not scheduled): tree-sitter dependency graph in `assess` scan; SEMANTIC
+doc-coherence (beyond version drift); auto-promote playbooks from `propose`; Rust-backend parity tests.
+
+## Done (delivered above) — was: Next — sequential
 
 ### F3 — contract path-resolution drift check (effort: low) [IN PROGRESS]
 Research-confirmed GAP: oasdiff/Pact/Spectral/Schemathesis all miss client-base/prefix-vs-spec drift.
