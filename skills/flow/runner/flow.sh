@@ -795,8 +795,8 @@ cmd_contract() {
     echo "      base '$base' + a '$base_path/...' path -> '$base_path$base_path/...' (404). Use an origin-only base, or drop '$base_path' from the paths."
     found=1
   fi
-  if [ "$nprefix" -gt 1 ] && [ -n "$base" ]; then
-    echo "  [!] mixed served prefixes under a single client base '$base':"
+  if [ "$nprefix" -gt 1 ] && [ -n "$base_path" ]; then
+    echo "  [!] mixed served prefixes under a single client base '$base' (base path '$base_path'):"
     printf '%s\n' "$prefixes" | sed 's/^/        served prefix: /'
     echo "      one base resolves one prefix; the others (e.g. auth vs api) will 404. Confirm each path composes correctly."
     found=1

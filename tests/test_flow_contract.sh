@@ -54,6 +54,15 @@ out="$(bash "$RUN" contract 2>&1)"
 has "$out" "https://api.example.com:8443/api" "full base URL parsed (colons preserved)"
 rm -rf "$SB"
 
+echo "F) origin-only base + mixed prefixes -> NOT flagged (both resolve under the origin)"
+newsb
+contract_md /api/admin/users /auth/admin/login
+printf 'VITE_API_BASE=http://localhost:3000\n' > "$SB/.env"
+out="$(bash "$RUN" contract 2>&1)"; rc=$?
+ck 0 "$rc" "exit 0: origin-only base resolves all prefixes"
+no  "$out" "mixed served prefixes" "no false mixed-prefix flag on origin-only base"
+rm -rf "$SB"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
