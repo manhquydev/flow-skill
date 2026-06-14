@@ -93,6 +93,19 @@ harness_call() {
   return 0
 }
 
+harness_available() { # 0 = durable layer usable (python + harness present, not disabled)
+  [ -n "${FLOW_HARNESS_DISABLE:-}" ] && return 1
+  [ -f "$HARNESS_PY" ] || return 1
+  local py; py="$(_python)"; [ -n "$py" ] || return 1
+  "$py" --version >/dev/null 2>&1 || return 1
+  return 0
+}
+
+harness_emit() { # run a harness subcommand and ECHO its stdout (best-effort; nothing if unavailable)
+  harness_available || return 0
+  FLOW_PROJECT_ROOT="$ROOT" "$(_python)" "$HARNESS_PY" "$@" 2>/dev/null || true
+}
+
 cmd_harness() {
   # passthrough to the full durable-layer CLI (visible output + real exit code)
   if [ ! -f "$HARNESS_PY" ]; then echo "harness not installed at $HARNESS_PY"; return 1; fi
@@ -253,13 +266,7 @@ lock_warn() {
 # starts a stage/card with prior pain + decisions in view instead of cold. Degrades gracefully:
 # markdown ledgers always; SQLite harness queries only when python+harness are present.
 
-_harness_query() { # $1 = matrix|backlog|friction|tools ; echoes output or nothing
-  [ -n "${FLOW_HARNESS_DISABLE:-}" ] && return 0
-  [ -f "$HARNESS_PY" ] || return 0
-  local py; py="$(_python)"; [ -n "$py" ] || return 0
-  "$py" --version >/dev/null 2>&1 || return 0
-  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" query "$1" 2>/dev/null || true
-}
+_harness_query() { harness_emit query "$1"; }   # $1 = matrix|backlog|friction|tools
 
 recall_open_debt() { [ -f "$DEBT_FILE" ] && grep -E '^- \[ \] DEBT:' "$DEBT_FILE" 2>/dev/null || true; }
 recall_retro_tail() { # $1 = N lines; entries live after the '---' separator in RETRO.md
@@ -286,6 +293,29 @@ recall_prev_card() { # most-recent DONE card's id + title + Scope (previous-card
   echo "last done: $(basename "$best" .md)"
   grep -m1 '^# ' "$best" 2>/dev/null | sed 's/^# /  title: /'
   awk '/^## Scope/{f=1; next} f && /^## /{f=0} f && NF {print "  | " $0}' "$best" 2>/dev/null | head -4
+}
+
+# ---------- gate-fired durable capture (engine writes the record, not agent goodwill) ----------
+# Promotes the per-stage "durable hook" prose (agent-stage-mapping.md) to engine-fired calls so
+# capture is reliable. Uses ONLY the existing harness CLI; no-op when the durable layer is off.
+gate_durable_hook() { # $1 = stage just passed
+  harness_available || return 0
+  case "$1" in
+    01-research)
+      # seed the work-classification the harness model starts from (lane=normal default).
+      local pitch out
+      pitch="$(awk '/^## Pitch/{f=1; next} f && NF {print; exit}' "$FLOW_DIR/00-idea.md" 2>/dev/null | cut -c1-160)"
+      [ -n "$pitch" ] || pitch="research gate passed"
+      out="$(harness_emit intake --type new_spec --summary "$pitch")"
+      printf '%s\n' "$out" | grep -i 'intake' | sed 's/^/  harness: /'
+      echo "  harness: intake seeded (lane=normal). If it touches auth/data/external/contracts, reclassify:"
+      echo "           flow harness intake --type new_spec --summary \"...\" --flags auth,data_model,external_systems"
+      ;;
+    04-adr)
+      echo "  harness: ADR passed - record each non-trivial decision durably (the ADR md is NOT a durable record):"
+      echo "           flow harness decision add --id <slug> --summary \"<what + why>\" --doc flow/04-adr.md"
+      ;;
+  esac
 }
 
 # ---------- commands ----------
@@ -374,6 +404,7 @@ cmd_next() {
   fi
   cp "$TEMPLATE_DIR/$nxt.md" "$FLOW_DIR/$nxt.md"
   echo "PASS: stage $cur gate clean -> unlocked stage $((idx + 1)) (flow/$nxt.md)"
+  gate_durable_hook "$cur"
   echo "  tip: '/flow recall' surfaces prior debt/retro/friction before you fill this stage."
   return 0
 }
@@ -483,7 +514,8 @@ cmd_check() {
     case "$st" in
       todo) harness_call story update --id "$id" --status in_progress ;;
       done) harness_call story update --id "$id" --status implemented
-            harness_call trace --summary "card $id reached done-evidence" --story "$id" --outcome completed ;;
+            local tr; tr="$(harness_emit trace --summary "card $id reached done-evidence" --story "$id" --outcome completed)"
+            [ -n "$tr" ] && printf '%s\n' "$tr" | grep -iE 'tier|to reach' | sed 's/^/  harness: /' ;;
     esac
     return 0
   fi
