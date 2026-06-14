@@ -166,7 +166,7 @@ def cmd_decision(con, a):
         return 0 if result == "pass" else 1
     if a.decision_cmd == "outcome":
         # close the predicted-vs-actual loop: record what actually happened vs predicted_impact.
-        n = _db.update(con, "decision", "id", a.id, actual_outcome=a.actual, status=(a.status or None))
+        n = _db.update(con, "decision", "id", a.id, actual_outcome=a.actual, status=a.status)
         print(f"PASS: decision {a.id} actual_outcome recorded" if n else f"FAIL: decision {a.id} not found")
         return 0 if n else 1
 
