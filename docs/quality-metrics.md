@@ -1,7 +1,37 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.2** (2026-06-13).
+Updated as the skill evolves. Current: **v0.4** (2026-06-14).
+
+## Codex-integration dogfood run (2026-06-14) — the headline result
+
+Used `/flow` (released global runner) to build its OWN v0.4 Codex cross-vendor tier — full
+gauntlet (assess→00..05→C-001..C-005→live verify). The point was to MEASURE the skill, and the
+single most important number came from the new feature verifying itself:
+
+**Live cross-model catch: a real GPT-5.x `codex adversarial-review` (job `review-mqdz64jr-bp75qu`)
+found 2 genuine defects that the same-model author AND the same-model semantic gate both passed.**
+- HIGH (conf 0.88): detection routed on "installed" not "usable" → installed-but-unauthenticated
+  hosts would route into Codex then fail (broke the detect-and-degrade promise). Fixed (INSTALLED
+  vs USABLE + liveness probe).
+- MED (conf 0.93): the review-lens cost gate added a rogue zero-findings auto-trigger contradicting
+  the 3-trigger cost gate. Fixed (opt-in only).
+Both re-verified RESOLVED by a live rescue-path call (`codex:codex-rescue`). Recorded as
+`harness intervention #1 (correction by reviewer)`. **This is the cross-model-catch metric going
+from a cited claim (43→91% merge-ready) to a first-party data point: 2/2 real defects caught that
+single-vendor review missed.**
+
+### Dogfood findings (this run) — friction to feed the next upgrade
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| DF-1 | `flow coherence` reported "no declared version fields found — skipped" while a REAL drift existed (SKILL.md 0.2.0 vs manifest 0.3.0 vs docs v0.2). The skill's own anti-drift tool missed its own drift — its version-field detector doesn't read SKILL.md frontmatter `version:` or manifest `"version"`. | HIGH (tool blind spot) | open — runner fix next release (forbidden to edit runner mid-run) |
+| DF-2 | Same-model semantic gate passed the contract/PRD stages on internally-inconsistent docs; only the cross-model engine caught it. Confirms the exact blind spot this feature targets — and argues the cross-model lens should be standard on the Contract gate, not just card review. | MED | tracked → consider widening lens to Contract gate in v0.5 |
+| DF-3 | Harness CLI verb inconsistency: `decision add --id`, but `intervention` takes NO `add` subverb and `--description` (not `--note`); `intake` differs again. 3 usage errors hit this session. | MED (DX friction) | open — normalize harness CLI verbs |
+| DF-4 | Auto-trace stayed tier 1/3 on every card (lane 'normal' wants 2); cards passed but the harness nags each `check`. The richer trace fields aren't auto-populated from a card. | LOW | tracked |
+| DF-5 | Card allowed-files containment conflicts with cross-cutting fixes: the live HIGH finding spanned 3 docs but C-003 owned 1 → had to document honest drift. The "one card = its allowed files" law needs an escape hatch for review-driven cross-doc repairs. | LOW (process) | documented in C-003 |
+
+Close rate this run: 2/5 fixed-and-shipped in-session (the 2 review findings); 3 tracked for the
+runner-edit follow-up (can't touch the runner mid-run).
 
 ## Size & surface
 | Metric | Value |

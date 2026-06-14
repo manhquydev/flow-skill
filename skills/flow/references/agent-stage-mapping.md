@@ -2,7 +2,16 @@
 
 How each buildflow stage delegates to a specialist. Pick the path by `agent-detection.md`
 priority (ck: first, bmad alternative, built-in fallback). The artifact + gate are
-identical across paths; only the drafter changes. In `teach` mode you do NOT author — you
+identical across paths; only the drafter changes.
+
+**Codex (cross-vendor second engine) column.** When the codex tier is eligible
+(`agent-detection.md` / `codex-integration.md`), each stage gains two extra options on top of the
+ladder below: (1) **rescue** — if the chosen path is BLOCKED twice, hand the scoped brief to
+`codex:codex-rescue` before escalating; (2) **opt-in primary** — the operator may select Codex as
+the primary drafter for **research** and **build** stages (`codex:codex-rescue --write` /
+`codex-companion.mjs task --write`). **Default stays ck:**; Codex-as-primary is operator-selected,
+never automatic. The scope/PRD/ADR/Contract judgment stages stay Claude by default (Codex may
+still rescue them). The stage gate is identical on the Codex path — Codex drafts, the gate judges. In `teach` mode you do NOT author — you
 gatekeep; agents assist the operator. In `work`/`auto` mode you (or the agent) draft, then
 the gate still judges.
 

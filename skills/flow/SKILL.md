@@ -8,7 +8,7 @@ keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deplo
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.2.0"
+  version: "0.4.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD."
 ---
 
@@ -120,7 +120,12 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 
 Each stage can delegate to a specialist agent, and degrades to built-in behavior when none
 exist — `/flow` stays portable. Priority: **ck: agents first, bmad-* skills as alternative,
-built-in fallback** (`references/agent-detection.md`). The stage→agent map, scoped prompt
+built-in fallback** (`references/agent-detection.md`). When the `openai-codex` plugin is present
+**and usable**, a cross-vendor **Codex (GPT-5.x) second engine** unlocks — used at three gated
+moments: two-strikes rescue, cross-model adversarial review (a different *model*, not just a
+different context), and opt-in primary drafter at research/build (default stays ck:). It detects
+and degrades like every other tier (installed≠usable; absence never breaks a run). Full seam,
+cost gate, and shapes: **`references/codex-integration.md`**. The stage→agent map, scoped prompt
 template, and durable-record hooks are in `references/agent-stage-mapping.md`:
 research→`researcher`, scope/PRD→`planner`, ADR→`architect`, contract→`bmad-spec` kernel,
 build→`fullstack-developer`, review→`code-reviewer` or `bmad-code-review` (3-layer
@@ -158,6 +163,7 @@ Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, r
 - `references/command-dispatch.md` — exact mapping of each `/flow` command to runner call + your duties.
 - `references/agent-detection.md` — detect ck:/bmad agents + priority + fallback.
 - `references/agent-stage-mapping.md` — stage→agent map, scoped prompt template, durable hooks.
+- `references/codex-integration.md` — the Codex cross-vendor second-engine seam: detection (installed≠usable), cost gate, invocation surfaces, ReviewResult shape, gate parity.
 - `references/mode-work.md` — work-mode script (interview once → draft → one scope pause → summary).
 - `references/auto-run.md` — `/flow auto` tiers, worktree loop, AUTO-LOG, security-class halt.
 - `references/loop-harness-2026-principles.md` — harness-first, hard stops, ground-truth, context isolation.

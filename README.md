@@ -2,18 +2,18 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 14 test suites / 224 checks on macOS · Ubuntu · Windows
+[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 15 test suites / 243 checks on macOS · Ubuntu · Windows
 
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
 library, a real run for a Claude Code skill. It re-encodes the `buildflow` method and adds a
-durable harness layer (intake/story/trace/decision/backlog), agent orchestration (ck: + bmad),
-and project-type awareness.
+durable harness layer (intake/story/trace/decision/backlog), agent orchestration (ck: + bmad +
+**Codex cross-vendor second engine**), and project-type awareness.
 
-> Status: **v0.3** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
+> Status: **v0.4** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
 > cross-project KB) + gate-fired capture + drift checks (contract/tokens/coherence) + brownfield
 > `assess` + a concurrency lock + agent integration + DESIGN law + project-type awareness.
-> **14 test suites / 224 checks green.** MIT.
+> **15 test suites / 243 checks green.** MIT.
 
 ## What ships
 
@@ -26,12 +26,12 @@ flow-skill/
 │   │                            #   coherence/promote/doctor/retro
 │   ├── _templates/              # 00-idea .. 05-contract + card (buildflow) + 00-inspect (brownfield)
 │   ├── law/                     # CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md
-│   ├── references/              # 14 semantic playbooks (gates, agents, loop, design, project-types)
+│   ├── references/              # 15 semantic playbooks (gates, agents, loop, design, project-types)
 │   ├── harness/                 # durable layer: flow_harness.py + _db.py + _domain.py + schema
 │   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
 ├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
 ├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 14 suites / 224 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess)
+├── tests/run_all.sh             # 15 suites / 243 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess)
 └── docs/                        # architecture + codebase summary
 ```
 
@@ -289,7 +289,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 14 suites / 224 checks (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is 15 suites / 243 checks (`bash tests/run_all.sh`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -306,7 +306,7 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 14 suites / 224 checks; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # 15 suites / 243 checks; needs bash (+ python for the harness/propose suites)
 ```
 
 ## Provenance
