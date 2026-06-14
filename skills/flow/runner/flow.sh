@@ -338,6 +338,14 @@ cmd_status() {
   echo "  type:    $(get_project_type) (done = $(done_def_for_type "$(get_project_type)"))"
   lock_warn
   echo
+  if [ -f "$FLOW_DIR/00-inspect.md" ]; then
+    if scan_gate "$FLOW_DIR/00-inspect.md" >/dev/null 2>&1; then
+      echo "brownfield: assessment present, gate clean (flow/00-inspect.md)"
+    else
+      echo "brownfield: assessment present but gate NOT clean - run '/flow assess'"
+    fi
+    echo
+  fi
   if [ "$idx" -lt 0 ]; then
     echo "planning: not started"
     echo "  -> run '/flow next' to unlock stage 00 (idea)"
@@ -875,6 +883,49 @@ cmd_tokens() {
   return 1
 }
 
+assess_scan() {
+  # best-effort stack/CI/context detection from real files (fast: no recursive find).
+  echo "stack:"
+  [ -f "$ROOT/package.json" ] && echo "  - node (package.json)"
+  [ -f "$ROOT/frontend/package.json" ] && echo "  - frontend (frontend/package.json)"
+  { [ -f "$ROOT/pyproject.toml" ] || [ -f "$ROOT/requirements.txt" ]; } && echo "  - python (pyproject/requirements)"
+  [ -f "$ROOT/go.mod" ] && echo "  - go (go.mod)"
+  [ -f "$ROOT/Cargo.toml" ] && echo "  - rust (Cargo.toml)"
+  [ -d "$ROOT/.github/workflows" ] && echo "  - CI: github actions (.github/workflows)"
+  { [ -f "$ROOT/Dockerfile" ] || [ -f "$ROOT/docker-compose.yml" ]; } && echo "  - docker"
+  echo "context files present:"
+  local k
+  for k in README.md AGENTS.md CLAUDE.md ARCHITECTURE.md docs specs tests test; do
+    [ -e "$ROOT/$k" ] && echo "  - $k"
+  done
+}
+
+cmd_assess() {
+  # F2: brownfield/assessment mode. Scaffold + gate a current-state map of an EXISTING codebase
+  # BEFORE planning. Reuses the stage gate machinery (unchecked boxes / [FILL]). Operator-gated.
+  mkdir -p "$FLOW_DIR"
+  local f="$FLOW_DIR/00-inspect.md"
+  if [ ! -f "$f" ]; then
+    if [ ! -f "$TEMPLATE_DIR/00-inspect.md" ]; then echo "FAIL: assess template missing at $TEMPLATE_DIR/00-inspect.md"; return 1; fi
+    cp "$TEMPLATE_DIR/00-inspect.md" "$f"
+    { echo; echo "<!-- auto-scan -->"; assess_scan; } >> "$f"
+    seed_law_files
+    echo "PASS: created flow/00-inspect.md (brownfield assessment) - auto-scan seeded."
+    echo "Fill it from the code (functionality / UI-UX vs product / risks / tests), check the gate,"
+    echo "then re-run '/flow assess' to verify; proceed to planning with '/flow next'."
+    return 0
+  fi
+  if scan_gate "$f" >/dev/null 2>&1; then
+    echo "PASS: brownfield assessment gate clean (flow/00-inspect.md). Proceed to planning ('/flow next')."
+    return 0
+  fi
+  echo "FAIL: brownfield assessment gate not clean:"
+  scan_gate "$f"
+  echo
+  echo "Fill the above (evidence, not vibes), then '/flow assess' again."
+  return 1
+}
+
 cmd_coherence() {
   # F7 (mechanical slice): flag VERSION drift across declared version fields. Semantic doc-vs-code
   # contradictions (e.g. a headline doc describing endpoints that don't exist) stay a human
@@ -966,6 +1017,7 @@ usage: bash flow.sh <command> [args]
 
   status            Where am I? What's blocking? (also: no command)
   next              Check current gate; unlock next stage (or start at 00)
+  assess            Brownfield: scaffold + gate a current-state assessment (flow/00-inspect.md) before planning
   card              Create the next build card (after planning complete)
   check C-NNN       Validate a card (FILL/status/sections/done-evidence)
   mode [teach|work] Show or set who writes the artifacts
@@ -1000,6 +1052,7 @@ shift 2>/dev/null || true
 case "$cmd" in
   status|"")      cmd_status ;;
   next)           cmd_next ;;
+  assess)         cmd_assess ;;
   card)           cmd_card ;;
   check)          cmd_check "${1:-}" ;;
   mode)           cmd_mode "${1:-}" ;;

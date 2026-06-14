@@ -70,6 +70,7 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 |---|---|
 | `/flow` | `flow.sh status` — where am I, what's blocking, card states |
 | `/flow next` | `flow.sh next` — gate-check current stage; on pass, unlock next stage. **Then** you apply the semantic challenge for the stage just passed. |
+| `/flow assess` | `flow.sh assess` — **brownfield**: scaffold + gate a current-state assessment (`flow/00-inspect.md`, auto-scan seeded) for an EXISTING codebase before planning. Operator-reviewed. |
 | `/flow card` | `flow.sh card` — create next build card (only after all 6 planning gates pass) |
 | `/flow check C-NNN` | `flow.sh check C-NNN` — validate a card; **then** you review diff-vs-scope, allowed-files drift, contract shapes, DESIGN.md for UI, and that evidence is real world-state |
 | `/flow mode teach\|work` | set who writes the artifacts (default `teach`) |

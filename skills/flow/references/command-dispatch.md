@@ -8,6 +8,7 @@ install dir; run from the project root so `flow/` and `cards/` resolve.
 |---|---|---|
 | `/flow` | `bash <skill>/runner/flow.sh status` | Summarize where they are + the single next action. Nothing to author. |
 | `/flow next` | `bash <skill>/runner/flow.sh next` | If FAIL: relay the exact violations + line numbers; offer help, don't author/tick in teach mode. If PASS: run the stage's challenge in `gate-rules.md`; flag hollow content, let operator decide. |
+| `/flow assess` | `bash <skill>/runner/flow.sh assess` | Brownfield only: fill `flow/00-inspect.md` from EVIDENCE (read the code) — functionality/UI/UX vs product, risks, test baseline. Reuse `scout`/`researcher`. Gate is operator-reviewed; then proceed to `/flow next`. |
 | `/flow card` | `bash <skill>/runner/flow.sh card` | Confirm the new card id; remind: fill Scope (one thing) / Allowed files / Verify / Done-evidence per `law/CLAUDE.md`. |
 | `/flow check C-NNN` | `bash <skill>/runner/flow.sh check C-NNN` | If PASS mechanically: review diff-vs-scope, allowed-files drift, contract-shape match, DESIGN.md for UI, evidence = real world-state. |
 | `/flow contract` | `bash <skill>/runner/flow.sh contract` | After the contract gate / before UI cards (web): flags client base-URL vs served-path prefix drift (double-`/api`, mixed-prefix) — the class spec-diff tools miss. Advisory; confirm on the running app. |

@@ -9,6 +9,13 @@ the gate still judges.
 Artifact language: **Vietnamese for user-facing copy** (per `law/DESIGN.md`: VN native,
 `₫` prices, VietQR), **English for code identifiers/endpoints**.
 
+## Brownfield pre-stage (existing codebase)
+
+If the project ALREADY EXISTS, run `/flow assess` first → `flow/00-inspect.md` (current-state map:
+stack, functionality/UI/UX vs product goals, risks, test baseline). Delegate to `ck:scout` +
+`researcher` (or `bmad-document-project`); the gate is operator-reviewed. This seeds planning (and
+the harness) with reality before stage 01. Greenfield projects skip it and start at `/flow next` (00).
+
 ## Planning stages (flow/)
 
 | Stage | ck: (primary) | bmad (alt) | fallback | Durable hook |
