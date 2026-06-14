@@ -76,6 +76,7 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | `/flow ready` | `flow.sh ready` — which todo cards are buildable + parallel-safety hint |
 | `/flow auto` | `flow.sh auto` preflight, then drive the autonomous run (see AUTO principles) |
 | `/flow recall` | `flow.sh recall` — read back durable memory (open debt, recent retro, previous-card scope, harness friction/backlog, playbooks) **at the start of a stage/card** so you don't re-learn known pain |
+| `/flow contract` | `flow.sh contract` — flag client base-URL vs served-path prefix drift (web; advisory; run after the contract gate) |
 | `/flow unlock` | `flow.sh unlock` — clear this project's concurrency lock after a crashed/abandoned session |
 | `/flow retro` | the 3 retro questions; the operator writes the line, never you |
 

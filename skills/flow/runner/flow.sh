@@ -767,6 +767,48 @@ cmd_debt() {
   esac
 }
 
+cmd_contract() {
+  # F3: client base-URL vs served-path PREFIX drift - the class oasdiff/Pact/Spectral miss
+  # (e.g. VITE_API_BASE='/api' + path '/api/admin' -> '/api/api/admin'; or auth at '/auth/*'
+  # unreachable under a '/api' base). Served paths come from the contract seam (flow/05-contract.md)
+  # or openapi.json; client base from .env*/frontend. Heuristic + advisory (web only).
+  local pt; pt="$(get_project_type)"
+  if [ "$pt" != "web" ]; then echo "contract: project type '$pt' is not web - path check skipped."; return 0; fi
+  local spec="" paths=""
+  if [ -f "$FLOW_DIR/05-contract.md" ]; then
+    spec="flow/05-contract.md"
+    paths="$(grep -oE '`/[A-Za-z0-9_/{}.:-]+`' "$FLOW_DIR/05-contract.md" 2>/dev/null | tr -d '`' | sort -u)"
+  elif [ -f "$ROOT/openapi.json" ]; then
+    spec="openapi.json"
+    paths="$(grep -oE '"/[A-Za-z0-9_/{}.:-]+"' "$ROOT/openapi.json" 2>/dev/null | tr -d '"' | sort -u)"
+  fi
+  if [ -z "$paths" ]; then echo "contract: no served paths found (flow/05-contract.md or openapi.json) - skipped."; return 0; fi
+  local base base_path prefixes nprefix found=0
+  base="$(grep -rhoE '(VITE_API_BASE|VITE_API_URL|API_BASE|REACT_APP_API_BASE)[[:space:]]*[:=][[:space:]]*[^[:space:]]+' \
+            "$ROOT/.env" "$ROOT/.env.example" "$ROOT/frontend" 2>/dev/null | head -1 | sed -E 's/^[^=:]*[:=][[:space:]]*//; s/["'"'"';,]//g')"
+  base_path="$(printf '%s' "$base" | sed -E 's#^[a-z][a-z0-9+.-]*://[^/]+##; s#/$##')"
+  prefixes="$(printf '%s\n' "$paths" | sed -E 's#^(/[^/]+).*#\1#' | sort -u | grep .)"
+  nprefix="$(printf '%s\n' "$prefixes" | grep -c .)"
+  echo "contract path-resolution check ($spec; client base: ${base:-<none found>})"
+  if [ -n "$base_path" ] && printf '%s\n' "$prefixes" | grep -qxF "$base_path"; then
+    echo "  [!] double-prefix risk: client base path '$base_path' duplicates a served prefix."
+    echo "      base '$base' + a '$base_path/...' path -> '$base_path$base_path/...' (404). Use an origin-only base, or drop '$base_path' from the paths."
+    found=1
+  fi
+  if [ "$nprefix" -gt 1 ] && [ -n "$base" ]; then
+    echo "  [!] mixed served prefixes under a single client base '$base':"
+    printf '%s\n' "$prefixes" | sed 's/^/        served prefix: /'
+    echo "      one base resolves one prefix; the others (e.g. auth vs api) will 404. Confirm each path composes correctly."
+    found=1
+  fi
+  if [ "$found" -eq 0 ]; then
+    echo "  PASS: no obvious base/prefix drift (served prefixes: $(printf '%s ' $prefixes))."
+    return 0
+  fi
+  echo "FLAGGED: confirm against the running app - this catches the base/prefix class spec-diff tools miss."
+  return 1
+}
+
 cmd_doctor() {
   # Cross-platform environment + quality check (macOS / Linux / Windows Git Bash).
   echo "flow doctor - environment check"
@@ -828,6 +870,7 @@ usage: bash flow.sh <command> [args]
   harness <args>    Passthrough to the durable layer CLI (intake/story/trace/decision/backlog/query)
   debt add|list     Record/list deliberate gate-skips in DEBT.md (security-class = operator-only)
   design <file>     Mechanical DESIGN.md check on a UI file (emoji/{{}}/engine-words/gradient)
+  contract          Check client base-URL vs served-path prefixes (path-resolution drift; web)
   doctor            Check the environment (bash/python/grep/git) across macOS/Linux/Windows
   retro             Print the 3 retro questions
 
@@ -859,6 +902,7 @@ case "$cmd" in
   harness)        cmd_harness "$@" ;;
   debt)           cmd_debt "$@" ;;
   design)         cmd_design "${1:-}" ;;
+  contract)       cmd_contract ;;
   doctor)         cmd_doctor ;;
   -h|--help|help) usage ;;
   *) echo "unknown command: $cmd"; echo; usage; exit 1 ;;
