@@ -230,6 +230,55 @@ capture → reuse → improve loop** — agents accumulate and reuse experience 
 - `/flow tokens` — DESIGN.md declared tokens vs the CSS actually used (unused + **value mismatch** + orphan).
 - `/flow coherence` — version drift across declared version fields (the cheap doc-vs-code slice).
 
+## Codex — cross-vendor second engine (v0.4+)
+
+`/flow`'s agent ladder is **ck: agents → bmad-\* skills → built-in fallback**. v0.4 adds a 4th,
+**cross-vendor** tier: OpenAI **Codex (GPT-5.x)** via the [`openai-codex`](https://github.com/) Claude
+Code plugin. It is a *second engine* — a genuinely different model used at the few moments where
+that beats another Claude pass — **never a replacement** and **never required**.
+
+**Why a second vendor.** A single-vendor harness makes the builder and the reviewer share one
+model, so correlated blind spots sail through green gates. A different engine is the cheapest way
+to close that same-vendor gap without weakening any gate. In this project's own dogfood, a live
+Codex cross-model review caught **2 real defects** (an installed-vs-usable detection hole + a rogue
+cost-gate) that same-model passes had missed — see `docs/quality-metrics.md`.
+
+**Detect-and-degrade (absence never breaks a run).** Two states:
+- **INSTALLED** — `codex:codex-rescue` is in the agent registry *or* the plugin dir exists. Necessary, not sufficient.
+- **USABLE** — INSTALLED **and** a cheap, non-billable probe passes: `codex-companion.mjs setup --json`
+  reports `ready` + `auth.loggedIn`. (`setup --json`, **not** `status` — `status` carries no auth field.)
+
+`/flow` only routes to Codex when **USABLE**; otherwise it silently-but-announced degrades to
+`ck:→bmad→built-in` and records the reason. You never get a hard failure from Codex being absent.
+
+**Cost gate — exactly 3 triggers** (Codex calls are billable GPT-5.x; default engine stays ck:):
+1. a **two-strikes deadlock** — a same-model agent BLOCKED twice (Tier-B fresh-engine repair),
+2. a **security-class card review** (auth / tenancy / payments / data-migration),
+3. an **explicit operator opt-in** — e.g. *"draft this stage on Codex"*, or selecting it as a primary drafter.
+
+**Gate parity is absolute.** Codex DRAFTS or CRITIQUES; the identical stage gate (`flow.sh` +
+`gate-rules.md`) still judges. A cross-model review **informs triage — it never auto-passes or
+auto-fails** a card.
+
+**Trust boundary (read before enabling on sensitive code).**
+- *Auth* is delegated entirely to the plugin (`codex login` / `OPENAI_API_KEY` / ChatGPT sub).
+  `/flow` never reads, stores, or logs Codex credentials.
+- *Data* — selecting Codex **sends** the ScopedBrief (the diff + contract/PRD/law excerpts) to
+  OpenAI's API under your OpenAI plan's retention/training terms. Even with perfect secret handling,
+  the *code and specs* leave the machine. For regulated / NDA'd codebases, opt in knowingly; the
+  cost gate keeps the default exposure surface small.
+
+**Try it.** With the `openai-codex` plugin installed + authenticated:
+```
+/flow project-type skill
+/flow card                       # cut a card
+# build it, then on a security-class card or a two-strikes deadlock /flow will
+# offer the Codex tier automatically; or force it explicitly:
+#   "review this card on Codex"  /  "draft stage 03 on Codex"
+```
+The engine that ran is always announced, e.g. `review via Codex cross-model lens (needs-attention, 2 findings)`.
+Full seam spec: `skills/flow/references/codex-integration.md`.
+
 ## Demos — real walkthroughs (captured from a live install)
 
 These are real transcripts from driving the installed `/flow` (see `tests/`-style `e2e-drive.sh`).
