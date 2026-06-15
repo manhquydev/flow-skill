@@ -1,7 +1,19 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.6.1** (2026-06-15).
+Updated as the skill evolves. Current: **v0.6.2** (2026-06-15).
+
+## v0.6.2 — portable multi-harness install (2026-06-15)
+
+`flow` is a portable skill (same `SKILL.md` format on Claude Code, Codex CLI, and other
+SKILL.md-aware agents). `install.sh`/`install.ps1` `global` now install into **every harness
+present** — `~/.claude/skills/flow` (always) + `~/.codex/skills/flow` + `~/.agents/skills/flow`
+(each only if that harness exists) — plus targeted `global claude|codex|agents`. The repo is the
+single source of truth: re-run `install.sh global` to re-sync all harnesses (no drift). Codex
+invokes it as **`$flow`** (skill, `$`-prefix), not `/flow` or `/prompts:flow`. `install.ps1`
+hardened here: prefers Git Bash over WSL's `System32\bash.exe` (WSL can't see `C:/` paths),
+forward-slashes the runner path, dotfile-parity copy, non-fatal doctor. Suite still **291 dev**,
+all green; no engine change.
 
 ## v0.6 — cross-artifact consistency audit (2026-06-15)
 

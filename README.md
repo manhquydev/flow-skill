@@ -10,9 +10,10 @@ library, a real run for a Claude Code skill. It re-encodes the `buildflow` metho
 durable harness layer (intake/story/trace/decision/backlog), agent orchestration (ck: + bmad +
 **Codex cross-vendor second engine**), and project-type awareness.
 
-> Status: **v0.6.1** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
+> Status: **v0.6.2** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
 > cross-project KB) + gate-fired capture + drift checks (contract/tokens/coherence/**consistency**) + brownfield
-> `assess` + a concurrency lock + agent integration + DESIGN law + project-type awareness.
+> `assess` + a concurrency lock + agent integration + DESIGN law + project-type awareness +
+> **portable install across Claude Code (`/flow`) and Codex CLI (`$flow`)**.
 > **16 test suites / 291 checks green.** MIT.
 
 ## What ships
@@ -39,9 +40,17 @@ flow-skill/
 
 # Installation
 
-`/flow` is a Claude Code **skill**: a folder at `~/.claude/skills/flow/` (personal, all
-projects) or `<project>/.claude/skills/flow/` (one project). It works the same on **macOS,
-Linux (Ubuntu), and Windows**.
+`/flow` is a **portable skill** — a folder with a `SKILL.md` that the same format runs in
+Claude Code **and** Codex CLI (and other SKILL.md-aware agents). Install it once and the
+installer drops it into every harness you have:
+
+| Harness | Install dir | Invoke |
+|---|---|---|
+| **Claude Code** | `~/.claude/skills/flow/` (or `<project>/.claude/skills/flow/`) | `/flow` |
+| **Codex CLI** | `~/.codex/skills/flow/` | `$flow` |
+| **Agents / claudekit** | `~/.agents/skills/flow/` | per host |
+
+It works the same on **macOS, Linux (Ubuntu), and Windows**.
 
 ## Prerequisites
 
@@ -97,12 +106,16 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 ## Install methods
 
-**A. Install script (recommended)** — copies the skill + runs a doctor check:
+**A. Install script (recommended)** — installs into **every harness present** + runs a doctor check:
 ```bash
-bash install.sh global            # ~/.claude/skills/flow (every project)
+bash install.sh global            # ~/.claude/skills/flow (always) + ~/.codex/skills/flow
+                                  #   + ~/.agents/skills/flow  (each added only if that harness exists)
+bash install.sh global codex      # target one harness: claude | codex | agents
 bash install.sh project [dir]     # <dir>/.claude/skills/flow (one project, commit-able)
-# Windows PowerShell: pwsh install.ps1 global | pwsh install.ps1 project [dir]
+# Windows PowerShell: pwsh install.ps1 global | pwsh install.ps1 global codex | pwsh install.ps1 project [dir]
 ```
+The repo is the single source of truth — **re-run `install.sh global` after any update** to
+re-sync every harness (no drift between your Claude Code and Codex copies).
 
 **B. Plugin / marketplace** (for sharing across machines or a team):
 ```
@@ -115,10 +128,13 @@ The repo ships `.claude-plugin/plugin.json` + `marketplace.json`.
 and `chmod +x` the runner on macOS/Linux.
 
 ## Activate & verify
-- A **new** skills directory needs Claude Code to be restarted once so it starts watching it;
-  edits to an already-watched skill apply within the session.
+- **Claude Code:** a **new** skills directory needs Claude Code restarted once so it starts
+  watching it; edits to an already-watched skill apply within the session. Type **`/flow`**.
+- **Codex CLI:** Codex loads its skill catalog **at startup**, so **fully restart Codex** after
+  installing, then type **`$flow`** (or `/skills` to confirm `flow` is listed). Codex invokes
+  skills with a `$` prefix — `$flow`, `$flow next`, `$flow assess` — not `/flow`.
 - Confirm the environment any time: `bash ~/.claude/skills/flow/runner/flow.sh doctor`
-- In a project, type **`/flow`** (or `/flow next` to start a build).
+  (Codex path: `bash ~/.codex/skills/flow/runner/flow.sh doctor`).
 
 ## Troubleshooting
 | Symptom | Cause | Fix |
@@ -131,7 +147,7 @@ and `chmod +x` the runner on macOS/Linux.
 
 ---
 
-## Quick start (`/flow ...`)
+## Quick start (`/flow ...`  ·  Codex: `$flow ...`)
 ```
 /flow                  where am I, what's blocking, memory summary
 /flow assess           brownfield: scaffold + gate a current-state assessment of an existing repo

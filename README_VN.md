@@ -10,9 +10,10 @@ một lần chạy thật cho skill Claude Code. Nó tái hiện phương pháp 
 harness bền vững** (intake/story/trace/decision/backlog), điều phối agent (ck: + bmad + **Codex —
 engine thứ hai khác nhà cung cấp**), và nhận biết loại dự án.
 
-> Trạng thái: **v0.6.1** — engine + **vòng tri thức** bền vững khép kín (recall · audit/propose · KB
+> Trạng thái: **v0.6.2** — engine + **vòng tri thức** bền vững khép kín (recall · audit/propose · KB
 > liên-dự-án) + capture tự động tại gate + drift checks (contract/tokens/coherence/**consistency**) + chế độ
-> brownfield `assess` + concurrency lock + tích hợp agent + DESIGN law + nhận biết loại dự án.
+> brownfield `assess` + concurrency lock + tích hợp agent + DESIGN law + nhận biết loại dự án +
+> **cài đặt portable trên Claude Code (`/flow`) và Codex CLI (`$flow`)**.
 > **16 bộ test / 291 check xanh.** MIT.
 
 ## Triết lý cốt lõi
@@ -47,8 +48,17 @@ flow-skill/
 
 # Cài đặt
 
-`/flow` là một **skill** Claude Code: thư mục `~/.claude/skills/flow/` (cá nhân, mọi dự án) hoặc
-`<project>/.claude/skills/flow/` (một dự án). Chạy như nhau trên **macOS, Linux (Ubuntu), Windows**.
+`/flow` là một **skill portable** — một thư mục có `SKILL.md` mà cùng định dạng chạy được trên
+Claude Code **và** Codex CLI (và các agent đọc SKILL.md khác). Cài một lần, installer tự đặt vào
+mọi harness bạn có:
+
+| Harness | Thư mục cài | Gọi bằng |
+|---|---|---|
+| **Claude Code** | `~/.claude/skills/flow/` (hoặc `<project>/.claude/skills/flow/`) | `/flow` |
+| **Codex CLI** | `~/.codex/skills/flow/` | `$flow` |
+| **Agents / claudekit** | `~/.agents/skills/flow/` | tùy host |
+
+Chạy như nhau trên **macOS, Linux (Ubuntu), Windows**.
 
 ## Yêu cầu
 
@@ -98,12 +108,16 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 ```
 
 ## Các cách cài
-**A. Script cài (khuyến nghị)** — copy skill + chạy doctor:
+**A. Script cài (khuyến nghị)** — cài vào **mọi harness đang có** + chạy doctor:
 ```bash
-bash install.sh global            # ~/.claude/skills/flow (mọi dự án)
+bash install.sh global            # ~/.claude/skills/flow (luôn) + ~/.codex/skills/flow
+                                  #   + ~/.agents/skills/flow  (chỉ thêm nếu harness đó tồn tại)
+bash install.sh global codex      # target 1 harness: claude | codex | agents
 bash install.sh project [dir]     # <dir>/.claude/skills/flow (một dự án, commit được)
-# Windows PowerShell: pwsh install.ps1 global | pwsh install.ps1 project [dir]
+# Windows PowerShell: pwsh install.ps1 global | pwsh install.ps1 global codex | pwsh install.ps1 project [dir]
 ```
+Repo là single source of truth — **chạy lại `install.sh global` sau mỗi lần update** để đồng bộ mọi
+harness (không lệch giữa bản Claude Code và Codex).
 **B. Plugin / marketplace** (chia sẻ giữa nhiều máy / cả team):
 ```
 /plugin marketplace add <path-hoặc-git-url-tới-flow-skill>
@@ -112,10 +126,13 @@ bash install.sh project [dir]     # <dir>/.claude/skills/flow (một dự án, c
 **C. Thủ công** — copy `skills/flow/` vào `~/.claude/skills/flow/` và `chmod +x` runner trên macOS/Linux.
 
 ## Kích hoạt & kiểm tra
-- Thư mục skill **mới** cần khởi động lại Claude Code một lần để nó theo dõi; sửa skill đang được
-  theo dõi thì áp dụng ngay trong phiên.
+- **Claude Code:** thư mục skill **mới** cần khởi động lại Claude Code một lần để nó theo dõi; sửa
+  skill đang theo dõi thì áp dụng ngay trong phiên. Gõ **`/flow`**.
+- **Codex CLI:** Codex nạp danh mục skill **lúc khởi động**, nên **thoát hẳn rồi mở lại Codex** sau
+  khi cài, rồi gõ **`$flow`** (hoặc `/skills` để xác nhận có `flow`). Codex gọi skill bằng tiền tố
+  `$` — `$flow`, `$flow next`, `$flow assess` — không phải `/flow`.
 - Kiểm môi trường bất kỳ lúc nào: `bash ~/.claude/skills/flow/runner/flow.sh doctor`
-- Trong một dự án, gõ **`/flow`** (hoặc `/flow next` để bắt đầu build).
+  (đường Codex: `bash ~/.codex/skills/flow/runner/flow.sh doctor`).
 
 ## Khắc phục sự cố
 | Triệu chứng | Nguyên nhân | Cách sửa |

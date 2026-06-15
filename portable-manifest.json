@@ -1,10 +1,10 @@
 {
   "name": "flow",
-  "version": "0.6.1",
-  "description": "buildflow gated build harness for Claude Code: idea to real done-evidence through honest gates (web|cli|library|skill), with a durable harness layer and agent orchestration (ck: + bmad + Codex cross-vendor second engine).",
+  "version": "0.6.2",
+  "description": "buildflow gated build harness: idea to real done-evidence through honest gates (web|cli|library|skill), with a durable harness layer and agent orchestration (ck: + bmad + Codex cross-vendor second engine). Portable across Claude Code (/flow) and Codex CLI ($flow).",
   "type": "skill",
   "plugin": ".claude-plugin/plugin.json",
-  "command": "/flow",
+  "command": "/flow (Claude Code) | $flow (Codex CLI)",
   "entry": "skills/flow/SKILL.md",
   "runner": "skills/flow/runner/flow.sh",
   "runtime": {
@@ -13,9 +13,11 @@
     "cargo": "optional (Rust harness power-path via FLOW_HARNESS_BACKEND=rust)"
   },
   "install": {
-    "global": "~/.claude/skills/flow",
+    "global": "~/.claude/skills/flow (+ ~/.codex/skills/flow and ~/.agents/skills/flow when those harnesses exist)",
+    "global_targets": { "claude": "~/.claude/skills/flow", "codex": "~/.codex/skills/flow", "agents": "~/.agents/skills/flow" },
     "project": ".claude/skills/flow",
-    "scripts": ["install.sh", "install.ps1"]
+    "scripts": ["install.sh", "install.ps1"],
+    "invoke": { "claude_code": "/flow", "codex_cli": "$flow" }
   },
   "components": {
     "engine": "skills/flow/runner/flow.sh",
