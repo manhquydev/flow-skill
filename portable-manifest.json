@@ -1,6 +1,6 @@
 {
   "name": "flow",
-  "version": "0.5.0",
+  "version": "0.6.1",
   "description": "buildflow gated build harness for Claude Code: idea to real done-evidence through honest gates (web|cli|library|skill), with a durable harness layer and agent orchestration (ck: + bmad + Codex cross-vendor second engine).",
   "type": "skill",
   "plugin": ".claude-plugin/plugin.json",

@@ -1,7 +1,49 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.5** (2026-06-14).
+Updated as the skill evolves. Current: **v0.6.1** (2026-06-15).
+
+## v0.6 — cross-artifact consistency audit (2026-06-15)
+
+New advisory `flow.sh consistency`: the **mechanical** complement to the traceability spine
+that gate-rules.md (§03/§05) demanded but only a human checked. It closes the missing axis of
+the drift lattice — `coherence`=versions, `contract`=URL prefixes, `tokens`=design tokens, and
+now `consistency`=do the planning artifacts + cards trace to each other. Grounded in 2026
+research (GitHub Spec Kit's `/analyze` made spec-driven gating mainstream; harness > model is now
+empirically established). Precise, ID-based only (no fuzzy matching, per the no-vibes rule):
+every PRD `FRn` must be claimed by a card (`implements:`) and served by a contract interface; the
+success metric must carry a number; placeholder sweep across 00–05. CRITICAL/HIGH → FLAGGED
+(exit 1); MEDIUM/LOW → notes (exit 0). Three template anchors added (PRD `FRn:`, card
+`implements:`, contract `FRn →`). Semantic passes the runner can't judge (hollow coverage,
+conflicting requirements, cut-list contradiction, terminology drift) live in gate-rules.md.
+39 consistency tests at v0.6 (happy + edge: boundary, CRLF, infra, missing dirs; now 42 with the
+v0.6.1 nudge); full suite **291 dev / 313 grand**, all green.
+
+### v0.6 dogfood run (2026-06-15) — `/flow` end-to-end on a real project (`flowstat`)
+
+Built a real CLI (`flowstat`, a read-only consolidated `/flow` dashboard, D:\project\flow\flowstat)
+through the FULL gate gauntlet (00-idea→05-contract→C-001..C-003→review→retro) in `work` mode, to
+exercise the v0.6 `consistency` feature + FR anchors on REAL artifacts. Headline numbers:
+
+- **`consistency` tracked the real build state exactly:** at the Cards boundary with the PRD's
+  FR1/FR2/FR3 declared + contract-mapped but no cards yet → **3 CRITICAL (uncovered), exit 1**; after
+  authoring the 3 cards with `implements:` → **PASS, exit 0**. **0 false positives, 0 false negatives**
+  across the run. This is the first positive-path data point for the feature on real (non-synthetic) artifacts.
+- **v0.6 template anchors scaffolded correctly** into a fresh project: the PRD `FRn:` guidance, card
+  `implements:` field, and contract `FRn →` map all appeared from the global install — and were
+  authorable in `work` mode with no friction.
+- **The built tool cross-validates the feature:** `flowstat`'s own FR-coverage section agrees with
+  `flow.sh consistency`'s verdict on the same project (manual paired capture; both CLEAN). 32 tests green.
+
+Dogfood findings (friction → next upgrade):
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| DF6-1 | The live `consistency` cross-check from a Windows-python `subprocess` → Git-Bash loses drive mounts (rc 127); the script path can't be launched. Not a `/flow` bug, but any test that shells the runner from Windows-python must hand `/c/`-form paths or skip. | LOW (test-env) | flowstat test O skips honestly; asserts on Linux/macOS CI |
+| DF6-2 | Trace tier stayed 1/3 (lane `normal` wants 2) on every `check` — the standing DF-4 reappears: card→trace fields aren't auto-populated. | LOW | tracked (DF-4 dup) |
+| DF6-3 | `consistency` is advisory-only; nothing in the runner *prompts* the operator to run it at the Cards boundary (I ran it by discipline). A one-line nudge in `cmd_card`/`cmd_status` when FRs exist + a card lands could close the loop. | LOW (DX) | **FIXED v0.6.1** — `cmd_next` (planning-complete) + `cmd_status` now nudge `/flow consistency` when the PRD declares `FRn` (gated by `prd_declares_fr`); +3 tests |
+
+Net: v0.6 `consistency` performed correctly on real artifacts (3→0 with zero error); the only friction
+is DX (a nudge) + a test-harness portability note — no correctness defect in the feature.
 
 ## Codex-integration dogfood run (2026-06-14) — the headline result
 
@@ -71,10 +113,10 @@ DF-4 (trace-tier nag) + DF-5 (allowed-files containment) tracked.
 ## Size & surface
 | Metric | Value |
 |---|---|
-| Gate engine (`runner/flow.sh`) | 637 LOC |
-| Durable layer (python) | 627 LOC (flow_harness + _db + _domain) |
-| Commands | ~15 (`next/card/check/status/mode/project-type/skip/ready/auto/harness/debt/design/doctor/retro`) |
-| Semantic references | 14 markdown playbooks |
+| Gate engine (`runner/flow.sh`) | 1198 LOC |
+| Durable layer (python) | 795 LOC (flow_harness + _db + _domain) |
+| Commands | 22 (incl. drift/coverage probes `contract/tokens/coherence/consistency`) |
+| Semantic references | 15 markdown playbooks |
 | Stack playbooks | 4 |
 | Schema migrations | 4 SQL (verbatim from repository-harness) |
 
@@ -96,9 +138,10 @@ DF-4 (trace-tier nag) + DF-5 (allowed-files containment) tracked.
 | `test_flow_coherence_kb.sh` | 14 | version-drift coherence + cross-project KB |
 | `test_flow_assess.sh` | 11 | brownfield assess scaffold + gate + status surfacing |
 | `test_flow_codex_integration.sh` | 25 | Codex doc-contract: installed≠usable, cost gate, gate parity, opt-in, auto-run, anti-pattern guard |
-| **Total (dev)** | **249** | all green (`bash tests/run_all.sh`), 15 suites |
+| `test_flow_consistency.sh` | 42 | cross-artifact coverage audit: FR→card→contract mapping, numeric metric, placeholder sweep, severity/exit |
+| **Total (dev)** | **291** | all green (`bash tests/run_all.sh`), 16 suites |
 | **+ e2e (installed)** | **22** | `tests/e2e-installed-drive.sh` — happy+edge against a fresh per-project install (Windows) |
-| **Grand total** | **271** | all green |
+| **Grand total** | **313** | all green |
 
 **Command coverage:** ~100% of runner commands now have a dedicated assertion (was 14/15;
 `retro`/`ready`/`auto` + harness `decision`/`tool`/`intervention` gaps closed 2026-06-13).

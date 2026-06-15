@@ -2,7 +2,7 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 15 test suites / 249 checks on macOS · Ubuntu · Windows
+[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 16 test suites / 291 checks on macOS · Ubuntu · Windows
 
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
@@ -10,10 +10,10 @@ library, a real run for a Claude Code skill. It re-encodes the `buildflow` metho
 durable harness layer (intake/story/trace/decision/backlog), agent orchestration (ck: + bmad +
 **Codex cross-vendor second engine**), and project-type awareness.
 
-> Status: **v0.5** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
-> cross-project KB) + gate-fired capture + drift checks (contract/tokens/coherence) + brownfield
+> Status: **v0.6.1** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
+> cross-project KB) + gate-fired capture + drift checks (contract/tokens/coherence/**consistency**) + brownfield
 > `assess` + a concurrency lock + agent integration + DESIGN law + project-type awareness.
-> **15 test suites / 249 checks green.** MIT.
+> **16 test suites / 291 checks green.** MIT.
 
 ## What ships
 
@@ -31,7 +31,7 @@ flow-skill/
 │   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
 ├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
 ├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 15 suites / 249 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess)
+├── tests/run_all.sh             # 16 suites / 291 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess)
 └── docs/                        # architecture + codebase summary
 ```
 
@@ -141,13 +141,13 @@ and `chmod +x` the runner on macOS/Linux.
 /flow card             create a build card (after all planning gates pass)
 /flow check C-001      validate a card (done = real-world proof, not "tests pass")
 /flow auto             autonomous build run (Tier-A auto-merge green, halt at security-class)
-/flow contract|tokens|coherence   drift checks (path-resolution · design tokens · version)
+/flow contract|tokens|coherence|consistency   drift/coverage checks (path-resolution · design tokens · version · cross-artifact FR mapping)
 /flow doctor           environment check across macOS/Linux/Windows
 ```
 
 ## Commands
 
-Quick start above is the common path; this is the full reference — all 21 commands the engine dispatches (`bash skills/flow/runner/flow.sh <command>`):
+Quick start above is the common path; this is the full reference — all 22 commands the engine dispatches (`bash skills/flow/runner/flow.sh <command>`):
 
 | Command | What it does |
 |---|---|
@@ -169,6 +169,7 @@ Quick start above is the common path; this is the full reference — all 21 comm
 | `/flow contract` | Client base-URL vs served-path prefix drift (path-resolution; web) |
 | `/flow tokens` | `DESIGN.md` declared tokens vs CSS usage (design-system drift) |
 | `/flow coherence` | Version drift across declared version fields (doc-vs-code coherence) |
+| `/flow consistency` | Cross-artifact coverage: every PRD `FRn` claimed by a card (`implements:`) + served by a contract interface; numeric metric; placeholder sweep (advisory) |
 | `/flow promote <file>` | Copy a playbook into the cross-project KB (`~/.claude/flow/playbooks`) |
 | `/flow doctor` | Check the environment (bash/python/grep/git) across macOS/Linux/Windows |
 | `/flow retro` | Print the 3 retro questions |
@@ -229,6 +230,10 @@ capture → reuse → improve loop** — agents accumulate and reuse experience 
   mixed-prefix class that oasdiff/Pact/Spectral miss).
 - `/flow tokens` — DESIGN.md declared tokens vs the CSS actually used (unused + **value mismatch** + orphan).
 - `/flow coherence` — version drift across declared version fields (the cheap doc-vs-code slice).
+- `/flow consistency` — cross-artifact coverage: every PRD `FRn` claimed by a card and served by a
+  contract interface, numeric success metric, no leftover placeholders (the traceability spine,
+  mechanized). The drift lattice's missing axis: coherence=versions, contract=URLs, tokens=design,
+  consistency=do the artifacts trace to each other.
 
 ## Codex — cross-vendor second engine (v0.4+)
 
@@ -338,7 +343,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 15 suites / 249 checks (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is 16 suites / 291 checks (`bash tests/run_all.sh`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -355,7 +360,7 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 15 suites / 249 checks; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # 16 suites / 291 checks; needs bash (+ python for the harness/propose suites)
 ```
 
 ## Provenance

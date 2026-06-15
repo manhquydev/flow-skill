@@ -365,6 +365,7 @@ cmd_status() {
     if scan_gate "$FLOW_DIR/$cur.md" >/dev/null 2>&1; then
       if [ "$idx" -ge "$LAST_STAGE_IDX" ]; then
         echo "  gate: PASS - planning complete. '/flow card' is unlocked."
+        prd_declares_fr && echo "        tip: '/flow consistency' checks FR->card->contract coverage."
       else
         echo "  gate: PASS - run '/flow next' to unlock the next stage."
       fi
@@ -418,6 +419,9 @@ cmd_next() {
     if planning_complete; then
       echo "PASS: stage $cur gate clean. Planning is COMPLETE."
       echo "All planning stages passed (or were debt-skipped). Run '/flow card' to create build cards."
+      if prd_declares_fr; then
+        echo "  tip: the PRD declares FR ids - run '/flow consistency' to check FR->card->contract coverage before building."
+      fi
     else
       echo "PASS: stage $cur gate clean - but an earlier stage is still BLOCKED (and not debt-skipped)."
       echo "Run '/flow' to see which. If it is a legitimate, debt-recorded skip, use"
@@ -974,6 +978,113 @@ cmd_coherence() {
   return 0
 }
 
+prd_declares_fr() { # true if the PRD uses the FRn traceability convention (drives the consistency nudge)
+  # Deliberately a loose full-file grep (NOT the Features-section scoping cmd_consistency uses): this
+  # only decides whether to print an advisory tip, so a rare over-fire on a prose 'FRn' is harmless;
+  # keep it loose so the tip reliably shows in the common case. Do not "tighten" to match consistency.
+  [ -f "$FLOW_DIR/03-prd.md" ] && grep -qE 'FR[0-9]+' "$FLOW_DIR/03-prd.md" 2>/dev/null
+}
+
+cmd_consistency() {
+  # Cross-artifact coverage + contradiction audit - the MECHANICAL complement to the human
+  # traceability challenges in gate-rules.md (03/05). The other probes each cover one axis:
+  # coherence=version drift, contract=URL-prefix drift, tokens=design-token drift. THIS axis is
+  # "do the planning artifacts + cards trace to each other" - the spine gate-rules.md 03/05
+  # demand but only a human checks today. Precise, ID-based only (NO fuzzy text matching);
+  # advisory; project-type agnostic; degrades gracefully when artifacts are absent.
+  #
+  # Traceability anchors (see _templates): PRD 'Features' entries tagged 'FRn:' (functional
+  # requirement id); cards declare 'implements: FR1, FR2' (or 'infra'/'none' for non-feature
+  # cards); 05-contract 'Feature -> interface map' references each 'FRn'.
+  local prd="$FLOW_DIR/03-prd.md" contract="$FLOW_DIR/05-contract.md"
+  if [ ! -f "$prd" ]; then echo "consistency: no flow/03-prd.md yet - planning incomplete (skipped)."; return 0; fi
+  local td; td="$(mktemp -d)"
+  : > "$td/find"; local cn=0 crit=0 high=0
+  add() { # $1=severity $2=location $3=summary
+    cn=$((cn+1)); printf '| CON-%d | %s | %s | %s |\n' "$cn" "$1" "$2" "$3" >> "$td/find"
+    case "$1" in CRITICAL) crit=$((crit+1));; HIGH) high=$((high+1));; esac
+  }
+
+  # FR universe declared in the PRD, and FR refs across all cards' 'implements:' lines.
+  # scope FR extraction to the '## Features' section so a legacy/deferred id mentioned in PRD
+  # prose does not inflate the declared set (would spuriously demand a card for it).
+  awk '/^##[[:space:]]+[Ff]eatures/{f=1;next} /^##[[:space:]]/{f=0} f' "$prd" 2>/dev/null \
+    | grep -oE 'FR[0-9]+' | sort -u > "$td/prd_fr"
+  local nfr; nfr="$(grep -c . "$td/prd_fr" 2>/dev/null)"; nfr="${nfr:-0}"
+  : > "$td/card_fr"
+  if [ -d "$CARDS_DIR" ]; then
+    grep -rhiE '^[[:space:]]*implements:' "$CARDS_DIR"/*.md 2>/dev/null \
+      | grep -oE 'FR[0-9]+' | sort -u > "$td/card_fr" || true
+  fi
+
+  echo "cross-artifact consistency audit (flow/02-05 + cards/)"
+  if [ "$nfr" -eq 0 ]; then
+    echo "  [i] no FR ids found in flow/03-prd.md - coverage mapping skipped."
+    echo "      tag each v1 feature 'FRn:' (PRD), add 'implements: FRn' to cards, 'FRn ->' to the contract map"
+    echo "      (see _templates/03-prd.md) to enable mechanical traceability."
+  else
+    # 1) PRD feature with NO card implementing it -> CRITICAL (planned, nobody builds).
+    local fr
+    while IFS= read -r fr; do
+      [ -n "$fr" ] || continue
+      grep -qxF "$fr" "$td/card_fr" || add CRITICAL "03-prd.md:$fr" "PRD feature $fr has no card that 'implements:' it (zero coverage)"
+    done < "$td/prd_fr"
+    # 2) card implements an FR absent from the PRD -> HIGH (inconsistency).
+    while IFS= read -r fr; do
+      [ -n "$fr" ] || continue
+      grep -qxF "$fr" "$td/prd_fr" || add HIGH "cards/*:$fr" "a card 'implements: $fr' but $fr is not declared in flow/03-prd.md"
+    done < "$td/card_fr"
+    # 3) PRD feature not referenced in the contract feature->interface map -> HIGH (the seam gap).
+    if [ -f "$contract" ]; then
+      while IFS= read -r fr; do
+        [ -n "$fr" ] || continue
+        # POSIX-ERE word boundary (BSD/macOS grep has no \b in -E): no alnum neighbour.
+        # Also fixes the FR1-matches-FR10 substring collision.
+        grep -qE "(^|[^A-Za-z0-9])${fr}([^A-Za-z0-9]|$)" "$contract" \
+          || add HIGH "05-contract.md:$fr" "PRD feature $fr is absent from the contract (no interface serves it)"
+      done < "$td/prd_fr"
+    fi
+  fi
+
+  # 4) Success metric must contain a NUMBER (mechanizes the PRD 'numbers only' gate rule).
+  local metric; metric="$(awk 'tolower($0) ~ /^##[[:space:]]+success metric/{f=1;next} /^##[[:space:]]/{f=0} f' "$prd" 2>/dev/null)"
+  if [ -n "$(printf '%s' "$metric" | tr -d '[:space:]')" ] && ! printf '%s' "$metric" | grep -q '[0-9]'; then
+    add HIGH "03-prd.md:Success metric" "success metric has no number (the 'numbers only' rule: vague metrics are untestable)"
+  fi
+
+  # 5) Placeholder sweep across the planning set (defense-in-depth vs a forced/skipped stage).
+  local s
+  for s in 00-idea 01-research 02-scope 03-prd 04-adr 05-contract; do
+    [ -f "$FLOW_DIR/$s.md" ] || continue
+    if grep -qE '\[FILL|TODO|TKTK|\?\?\?' "$FLOW_DIR/$s.md" 2>/dev/null; then
+      add LOW "$s.md" "leftover placeholder ([FILL]/TODO/TKTK/???) - artifact not fully resolved"
+    fi
+  done
+
+  if [ "$cn" -eq 0 ]; then
+    rm -rf "$td"
+    if [ "$nfr" -eq 0 ]; then
+      echo "  PASS (nothing to map): no FR ids yet; success metric + placeholder passes clean."
+    else
+      echo "  PASS: $nfr FR id(s) declared; every one is claimed by a card and served by the contract; no placeholders."
+    fi
+    echo "      (semantic passes - terminology drift, conflicting requirements, hollow coverage - remain a human gate-challenge; see references/gate-rules.md)"
+    return 0
+  fi
+  echo "  findings:"
+  echo "  | ID | Severity | Location | Summary |"
+  echo "  | -- | -------- | -------- | ------- |"
+  sed 's/^/  /' "$td/find"
+  echo "  coverage: $nfr FR declared, $(grep -c . "$td/card_fr" 2>/dev/null) referenced by cards. CRITICAL=$crit HIGH=$high."
+  rm -rf "$td"
+  echo "      (terminology drift / conflicting requirements / hollow coverage remain a human gate-challenge; see references/gate-rules.md)"
+  if [ "$crit" -gt 0 ] || [ "$high" -gt 0 ]; then
+    echo "FLAGGED: resolve CRITICAL/HIGH before building cards - a planned feature with no card (or no interface) ships as a silent gap."
+    return 1
+  fi
+  return 0
+}
+
 cmd_promote() {
   # cross-project knowledge tier: copy a playbook/lesson into ~/.claude/flow/playbooks so its
   # lessons travel to every project (surfaced by '/flow recall' everywhere).
@@ -1053,6 +1164,7 @@ usage: bash flow.sh <command> [args]
   contract          Check client base-URL vs served-path prefixes (path-resolution drift; web)
   tokens            Check DESIGN.md declared tokens vs CSS usage (design-system drift)
   coherence         Flag version drift across declared version fields (doc-vs-code coherence)
+  consistency       Audit cross-artifact coverage (PRD features <-> cards <-> contract; FR ids)
   promote <file>    Copy a playbook into the cross-project KB (~/.claude/flow/playbooks)
   doctor            Check the environment (bash/python/grep/git) across macOS/Linux/Windows
   retro             Print the 3 retro questions
@@ -1089,6 +1201,7 @@ case "$cmd" in
   contract)       cmd_contract ;;
   tokens)         cmd_tokens ;;
   coherence)      cmd_coherence ;;
+  consistency)    cmd_consistency ;;
   promote)        cmd_promote "${1:-}" ;;
   doctor)         cmd_doctor ;;
   -h|--help|help) usage ;;

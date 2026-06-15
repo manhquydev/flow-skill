@@ -5,7 +5,7 @@
 ## Gate — check ALL before `/flow next`
 - [ ] Every section below is filled from MY scope decision (stage 02), not re-expanded
 - [ ] Success metric is a NUMBER, not vibes ("save time" fails; "first response < 2h" passes)
-- [ ] Each feature names the user action and the observable result
+- [ ] Each feature names the user action and the observable result, tagged with a stable `FRn:` id
 - [ ] Pain & gain is a MAPPING TABLE: every pain cites evidence (a stage-01 quote or a named observation), and names the v1 feature that kills it; every v1 feature kills at least one pain
 - [ ] A stranger could build v1 from this without asking me anything
 - [ ] No FILL placeholders remain in this file
@@ -38,7 +38,11 @@ it; if a pain has no feature, it goes to the "not addressed" list — honestly.
 
 ## Features (user-centric — action → observable result)
 
-- [FILL: "As a <user>, I <action>, and I see <result>" — one per v1 feature from stage 02]
+Tag each v1 feature with a stable id `FRn:` (functional requirement) — the traceability
+anchor. Every `FRn` must later be claimed by a card (`implements: FRn`) and served by an
+interface in the contract (`FRn →`); `/flow consistency` checks this mechanically.
+
+- [FILL: "FR1: As a <user>, I <action>, and I see <result>" — one per v1 feature from stage 02]
 
 ## Non-functional requirements
 

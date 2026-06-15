@@ -2,6 +2,7 @@
 
 status: todo
 deps: [FILL: card ids this depends on, e.g. "C-001, C-002" — or "none"]
+implements: [FILL: PRD feature ids this card delivers, e.g. "FR1, FR2" — or "infra"/"none" for non-feature cards]
 
 ## Scope
 

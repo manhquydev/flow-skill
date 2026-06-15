@@ -53,4 +53,7 @@ Function/—/Access(=none)/Args/Return. The shared column below is "Access/Effec
 
 ## Feature → interface map
 
-- [FILL: PRD feature → interface(s) that serve it]
+Reference each PRD feature by its `FRn` id so the mapping is machine-checkable
+(`/flow consistency` flags any `FRn` with no interface here).
+
+- [FILL: FR1 → interface(s) that serve it]

@@ -8,7 +8,7 @@ keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deplo
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.5.0"
+  version: "0.6.1"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD."
 ---
 
@@ -80,6 +80,7 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | `/flow contract` | `flow.sh contract` — flag client base-URL vs served-path prefix drift (web; advisory; run after the contract gate) |
 | `/flow tokens` | `flow.sh tokens` — flag DESIGN.md vs CSS design-token drift: unused tokens + value mismatches + orphan vars (advisory; UI cards) |
 | `/flow coherence` | `flow.sh coherence` — flag version drift across declared version fields (doc-vs-code coherence; advisory) |
+| `/flow consistency` | `flow.sh consistency` — audit cross-artifact coverage: every PRD `FRn` is claimed by a card (`implements:`) and served by a contract interface; numeric success metric; no leftover placeholders (advisory; run after the contract gate, before cards) |
 | `/flow promote <file>` | `flow.sh promote <file>` — copy a playbook into the cross-project KB (`~/.claude/flow/playbooks`); `recall` then surfaces it everywhere |
 | `/flow unlock` | `flow.sh unlock` — clear this project's concurrency lock after a crashed/abandoned session |
 | `/flow retro` | the 3 retro questions; the operator writes the line, never you |
@@ -164,6 +165,7 @@ Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, r
 - `references/agent-detection.md` — detect ck:/bmad agents + priority + fallback.
 - `references/agent-stage-mapping.md` — stage→agent map, scoped prompt template, durable hooks.
 - `references/codex-integration.md` — the Codex cross-vendor second-engine seam: detection (installed≠usable), cost gate, invocation surfaces, ReviewResult shape, gate parity.
+- `references/gate-rules.md` → "Cross-artifact consistency" — the semantic passes behind `/flow consistency` (hollow coverage, conflicting requirements, cut-list contradiction, terminology drift) that the runner's ID-based check can't judge.
 - `references/mode-work.md` — work-mode script (interview once → draft → one scope pause → summary).
 - `references/auto-run.md` — `/flow auto` tiers, worktree loop, AUTO-LOG, security-class halt.
 - `references/loop-harness-2026-principles.md` — harness-first, hard stops, ground-truth, context isolation.
