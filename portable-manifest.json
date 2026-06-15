@@ -26,7 +26,7 @@
     "durable_layer": "skills/flow/harness/",
     "playbooks": "skills/flow/playbooks/"
   },
-  "tests": ["tests/test_flow_runner.sh", "tests/test_flow_harness.sh", "tests/test_flow_scenarios.sh", "tests/test_flow_project_types.sh", "tests/test_flow_gate_wording.sh", "tests/test_flow_coverage_gaps.sh", "tests/test_flow_concurrency_lock.sh", "tests/test_flow_recall.sh", "tests/test_flow_gate_capture.sh", "tests/test_flow_propose_audit.sh", "tests/test_flow_contract.sh", "tests/test_flow_tokens.sh", "tests/test_flow_coherence_kb.sh", "tests/test_flow_assess.sh"],
+  "tests": ["tests/test_flow_runner.sh", "tests/test_flow_harness.sh", "tests/test_flow_scenarios.sh", "tests/test_flow_project_types.sh", "tests/test_flow_gate_wording.sh", "tests/test_flow_coverage_gaps.sh", "tests/test_flow_concurrency_lock.sh", "tests/test_flow_recall.sh", "tests/test_flow_gate_capture.sh", "tests/test_flow_propose_audit.sh", "tests/test_flow_contract.sh", "tests/test_flow_tokens.sh", "tests/test_flow_coherence_kb.sh", "tests/test_flow_assess.sh", "tests/test_flow_codex_integration.sh", "tests/test_flow_consistency.sh"],
   "provenance": {
     "methodology": "ai20k-build-phase/buildflow (Tony, arealisticdreamer.com)",
     "harness": "repository-harness",
