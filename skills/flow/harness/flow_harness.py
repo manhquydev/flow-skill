@@ -49,6 +49,44 @@ def _jlist(s):
     return json.dumps(items)
 
 
+# --- usage signal: accessed_count (read-only reuse counter; NEVER deletes a row) ---
+# Low access count is not evidence of low value: a rare one-time security lesson is recalled
+# rarely BECAUSE it is rare. So security-class rows sort first and nothing is ever pruned by count.
+# Mirrors flow.sh's canonical security-class Tier-C pattern, extended with JWT-class terms a
+# title can carry. Over-classifying is safe here (security rows merely sort first); a buried
+# security lesson is the real harm, so err broad.
+_SECURITY_RE = re.compile(
+    r"auth|authoriz|authorize|admin|tenan|payment|billing|password|token|secret|credential|"
+    r"permission|role|rbac|login|pii|migrat|validation|jwt|oauth|session|crypto|encrypt", re.I)
+
+
+def _is_security_text(*parts):
+    return bool(_SECURITY_RE.search(" ".join(str(p) for p in parts if p)))
+
+
+def _order_by_reuse(rows, sec_key):
+    # security-class rows FIRST (never deprioritized by a low count), then most-reused-first,
+    # then a stable id tiebreak. Pure ordering — never drops or deletes a row.
+    return sorted(rows, key=lambda r: (0 if sec_key(r) else 1,
+                                       -(r.get("accessed_count") or 0),
+                                       str(r.get("id"))))
+
+
+def _touch_accessed(con, table, ids):
+    # increment the read counter for surfaced rows. `table` is a code literal, never user input.
+    # Best-effort: a read-only / locked DB must NOT fail the query — surfacing the rows matters
+    # more than the counter, so swallow a write error and return the results regardless.
+    ids = [i for i in ids if i is not None]
+    if not ids:
+        return
+    ph = ", ".join("?" for _ in ids)
+    try:
+        con.execute(f"UPDATE {table} SET accessed_count = accessed_count + 1 WHERE id IN ({ph})", ids)
+        con.commit()
+    except sqlite3.Error:
+        pass
+
+
 # ---------------- commands ----------------
 
 def cmd_init(con, a):
@@ -223,7 +261,9 @@ def cmd_query(con, a):
             where = "WHERE status IN ('proposed','accepted')"
         elif a.closed:
             where = "WHERE status IN ('implemented','rejected')"
-        data = _db.rows(con, f"SELECT * FROM backlog {where} ORDER BY id")
+        data = _db.rows(con, f"SELECT * FROM backlog {where}")
+        data = _order_by_reuse(data, lambda r: _is_security_text(r.get("title"), r.get("current_pain")))
+        _touch_accessed(con, "backlog", [r["id"] for r in data])
         if a.json:
             print(json.dumps(data, indent=2)); return 0
         for x in data:
@@ -233,8 +273,10 @@ def cmd_query(con, a):
             print("(no backlog items)")
         return 0
     if a.query_cmd == "friction":
-        data = _db.rows(con, "SELECT id,created_at,task_summary,harness_friction FROM trace "
-                             "WHERE harness_friction IS NOT NULL AND harness_friction<>'' ORDER BY id")
+        data = _db.rows(con, "SELECT id,created_at,task_summary,harness_friction,accessed_count FROM trace "
+                             "WHERE harness_friction IS NOT NULL AND harness_friction<>''")
+        data = _order_by_reuse(data, lambda r: _is_security_text(r.get("task_summary"), r.get("harness_friction")))
+        _touch_accessed(con, "trace", [r["id"] for r in data])
         if a.json:
             print(json.dumps(data, indent=2)); return 0
         for x in data:
@@ -255,7 +297,9 @@ def cmd_query(con, a):
             print("(no tools registered)")
         return 0
     if a.query_cmd == "decisions":
-        data = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome FROM decision ORDER BY id")
+        data = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision")
+        data = _order_by_reuse(data, lambda r: _is_security_text(r.get("title")))
+        _touch_accessed(con, "decision", [r["id"] for r in data])
         if a.json:
             print(json.dumps(data, indent=2)); return 0
         for x in data:

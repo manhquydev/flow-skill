@@ -17,6 +17,12 @@ then check the gate. `/flow assess` seeds the auto-scan and validates this gate.
 ## Detected (auto-scan)
 [FILL: replace with the `/flow assess` auto-scan output — stack, CI, context files]
 
+## Ranked surfaces (auto-scan — read these first)
+The auto-scan ranks source files by how widely their symbols are referenced (highest-leverage
+code first). Start your functionality + risk assessment from the top of that list — the surfaces
+most of the codebase depends on are where a hidden cross-cutting risk (e.g. unscoped data access)
+is most likely to hide. [FILL: note which ranked surfaces you inspected + what you found.]
+
 ## What this product is (from docs/specs/code, not guesses)
 [FILL: 2-3 sentences — the real product + who it's for + the core job]
 

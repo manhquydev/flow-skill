@@ -1,7 +1,36 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.6.2** (2026-06-15).
+Updated as the skill evolves. Current: **v0.7.0** (2026-06-16).
+
+## v0.7.0 — usage signal + constitution + assess repo-map (2026-06-16)
+
+Three ported-and-adapted upgrades (anti-FOMO research → red-team-verified plan → dogfooded build):
+- **`accessed_count` usage signal** (schema 005): `recall`/`query` now order durable rows
+  security-first, then by reuse count — a read-only signal that never deletes or reorders away
+  real rows. (`flow_harness.py`)
+- **`/flow constitution`** — advisory checker of operator-authored per-project invariants in
+  `flow/constitution.md` (structure + optional `\|`-safe grep-markers). Deliberately NOT wired into
+  `cmd_next` (no hot-path coupling); run it at the scope/PRD/contract seam. (`flow.sh`, template,
+  gate-rules)
+- **assess repo-map** — `flow.sh assess` now seeds a stdlib reference-count ranking of the
+  existing codebase (no tree-sitter; 512 KB cap; TS typed-arrow aware). (`repo_map.py`)
+
+Cross-model Codex red-team on the assembled release found 2 majors (repo_map TS typed-arrow blind
+spot; constitution `|`-split corrupting alternation markers) + 2 doc/manifest drifts — all fixed
+and regression-locked before ship. Suite: **18 suites / 338 checks** green; version coherence clean.
+
+## v0.6.3 — Windows/Codex runner launcher (2026-06-15)
+
+Found by dogfooding `$flow` inside Codex on Windows: the agent followed SKILL.md and ran
+`bash <skill-dir>/runner/flow.sh status`, but in Codex/PowerShell a bare `bash` resolves to
+**WSL** (`C:\WINDOWS\system32\bash.exe`), which can't read `C:/...` or `/c/...` paths — the
+mechanical layer failed with `No such file or directory` before any gate ran (the skill looked
+broken when it wasn't). Fix: added `runner/flow.cmd`, a Windows launcher that locates Git Bash
+(skipping WSL) and runs the engine with a forward-slash path Git Bash accepts; SKILL.md's
+"Running the mechanical layer" now tells the agent to use `flow.cmd` on Windows/Codex and warns
+about the WSL trap. Verified: `flow.cmd doctor`/`coherence` run clean from PowerShell. No engine
+or gate change; suite still **291** green.
 
 ## v0.6.2 — portable multi-harness install (2026-06-15)
 
@@ -148,12 +177,14 @@ DF-4 (trace-tier nag) + DF-5 (allowed-files containment) tracked.
 | `test_flow_contract.sh` | 14 | contract base-URL vs served-path drift (web) |
 | `test_flow_tokens.sh` | 15 | DESIGN.md vs CSS token drift (unused/mismatch/orphan) |
 | `test_flow_coherence_kb.sh` | 14 | version-drift coherence + cross-project KB |
-| `test_flow_assess.sh` | 11 | brownfield assess scaffold + gate + status surfacing |
+| `test_flow_assess.sh` | 21 | brownfield assess scaffold + gate + status surfacing + repo-map ranking (incl. TS typed-arrow) |
 | `test_flow_codex_integration.sh` | 25 | Codex doc-contract: installed≠usable, cost gate, gate parity, opt-in, auto-run, anti-pattern guard |
 | `test_flow_consistency.sh` | 42 | cross-artifact coverage audit: FR→card→contract mapping, numeric metric, placeholder sweep, severity/exit |
-| **Total (dev)** | **291** | all green (`bash tests/run_all.sh`), 16 suites |
+| `test_flow_accessed_count.sh` | 12 | usage-signal ordering (security-first, reuse count), read-only, no row loss |
+| `test_flow_constitution.sh` | 25 | per-project invariants: structure, `\|`-safe markers (loud sentinel-collision guard), NOT in cmd_next, recall surfacing |
+| **Total (dev)** | **338** | all green (`bash tests/run_all.sh`), 18 suites |
 | **+ e2e (installed)** | **22** | `tests/e2e-installed-drive.sh` — happy+edge against a fresh per-project install (Windows) |
-| **Grand total** | **313** | all green |
+| **Grand total** | **360** | all green |
 
 **Command coverage:** ~100% of runner commands now have a dedicated assertion (was 14/15;
 `retro`/`ready`/`auto` + harness `decision`/`tool`/`intervention` gaps closed 2026-06-13).

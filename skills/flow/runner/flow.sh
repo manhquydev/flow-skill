@@ -93,7 +93,17 @@ scan_gate() {
   return $found
 }
 
-_python() { command -v python 2>/dev/null || command -v python3 2>/dev/null || true; }
+_python() {
+  # prefer python3, and only accept an interpreter that is actually Python 3.x (the harness +
+  # repo_map.py are py3-only — a py2 `python` must NOT be selected or it fails silently).
+  local p
+  for p in python3 python; do
+    if command -v "$p" >/dev/null 2>&1 && "$p" -c 'import sys; sys.exit(0 if sys.version_info[0]>=3 else 1)' >/dev/null 2>&1; then
+      command -v "$p"; return 0
+    fi
+  done
+  return 0
+}
 
 harness_call() {
   # best-effort durable-layer write; NEVER breaks the engine if python/harness absent.
@@ -727,6 +737,10 @@ cmd_recall() {
   if [ -n "$out" ]; then echo; echo "PLAYBOOKS available (read before building that stack):"; printf '%s\n' "$out" | sed 's/^/  - /'; fi
   out="$(recall_global_playbooks)"
   if [ -n "$out" ]; then echo; echo "GLOBAL PLAYBOOKS (cross-project, ~/.claude/flow/playbooks):"; printf '%s\n' "$out" | sed 's/^/  - /'; fi
+  if [ -f "$ROOT/flow/constitution.md" ]; then
+    out="$(awk '/^[[:space:]]*```/{f=!f;next} f{next} /^[[:space:]]*\|/ && !/\|[[:space:]]*[Ii][Dd][[:space:]]*\|/ && !/\|[[:space:]]*:?-{2,}/{print}' "$ROOT/flow/constitution.md")"
+    if [ -n "$out" ]; then echo; echo "PROJECT CONSTITUTION (operator invariants to honor):"; printf '%s\n' "$out" | sed 's/^/  /'; proj_any=1; fi
+  fi
   echo
   if [ "$proj_any" -eq 0 ]; then
     echo "(no project-specific history yet - fills as you record debt, retros, decisions, and harness traces.)"
@@ -912,6 +926,18 @@ assess_scan() {
   for k in README.md AGENTS.md CLAUDE.md ARCHITECTURE.md docs specs tests test; do
     [ -e "$ROOT/$k" ] && echo "  - $k"
   done
+  # ranked surfaces: highest-leverage code first (symbols referenced most widely). Optional helper
+  # (stdlib reference-count ranker); degrades to a note if python/helper absent - the flat scan stands.
+  echo "ranked surfaces (most-referenced first - inspect these before planning):"
+  local rmap="${HARNESS_PY%/*}/repo_map.py" py rout
+  py="$(_python)"
+  if [ -n "$py" ] && [ -f "$rmap" ]; then
+    rout="$("$py" "$rmap" "$ROOT" 10 2>/dev/null)"
+    if [ -n "$rout" ]; then printf '%s\n' "$rout" | sed 's/^/  /'
+    else echo "  (no rankable source symbols found)"; fi
+  else
+    echo "  (ranking unavailable - python or repo_map.py absent; the flat scan above stands)"
+  fi
 }
 
 cmd_assess() {
@@ -1140,6 +1166,85 @@ cmd_doctor() {
   return 1
 }
 
+cmd_constitution() {
+  # Advisory: validate an operator-authored flow/constitution.md of per-project invariants and
+  # advisory-scan each invariant's OPTIONAL grep-marker. Deliberately NOT called from cmd_next:
+  # enforcing it at every gate would put an LLM token-tax on the hot path. The operator runs it
+  # at the scope/PRD/contract seam. This is the mechanical half; the semantic challenge that
+  # actually judges artifacts against the invariants lives in references/gate-rules.md.
+  local cf="$ROOT/flow/constitution.md"
+  if [ ! -f "$cf" ]; then
+    echo "constitution: no flow/constitution.md - skipped (optional)."
+    echo "  to enforce per-project invariants, copy the template and fill the invariant table:"
+    echo "    cp \"$TEMPLATE_DIR/constitution.md\" \"$cf\""
+    return 0
+  fi
+  local rc=0
+  if grep -qE '\[FILL' "$cf"; then
+    echo "constitution: FAIL - unfilled placeholder(s) remain:"
+    grep -nE '\[FILL' "$cf" | sed 's/^/  /'
+    rc=1
+  fi
+  # invariant rows = table rows OUTSIDE any fenced code block, excluding the header + |---| separator.
+  # (a fenced ``` example containing pipe-rows must not be mistaken for invariants.)
+  local rows; rows="$(awk '
+    /^[[:space:]]*```/ { infence = !infence; next }
+    infence { next }
+    /^[[:space:]]*\|/ {
+      if ($0 ~ /^[[:space:]]*\|[[:space:]]*[Ii][Dd][[:space:]]*\|/) next
+      if ($0 ~ /^[[:space:]]*\|[[:space:]]*:?-{2,}/) next
+      print
+    }' "$cf")"
+  if [ -z "$rows" ]; then
+    echo "constitution: FAIL - no invariant rows found (the table is empty)."
+    return 1
+  fi
+  local scan_root=""; [ -d "$ROOT/src" ] && scan_root="$ROOT/src"
+  echo "constitution check - operator invariants (advisory; semantic challenge in gate-rules.md):"
+  local n=0 markers=0 unmet=0
+  while IFS= read -r line; do
+    [ -z "${line//[[:space:][:punct:]]/}" ] && continue
+    local id inv applies marker prot
+    # protect markdown-escaped pipes (\|) so an alternation regex in a cell survives the |-split.
+    # the sentinel is reserved: if it appears literally in source, fail LOUD rather than silently mangle.
+    case "$line" in
+      *__FLOW_ESC_PIPE__*) echo "  [!] constitution line uses reserved token __FLOW_ESC_PIPE__ - rename it: $line"; rc=1; continue ;;
+    esac
+    prot="$(printf '%s\n' "$line" | sed 's/\\|/__FLOW_ESC_PIPE__/g')"
+    id="$(printf '%s\n' "$prot" | awk -F'|' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/__FLOW_ESC_PIPE__/|/g')"
+    inv="$(printf '%s\n' "$prot" | awk -F'|' '{print $3}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/__FLOW_ESC_PIPE__/|/g')"
+    applies="$(printf '%s\n' "$prot" | awk -F'|' '{print $4}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/__FLOW_ESC_PIPE__/|/g')"
+    marker="$(printf '%s\n' "$prot" | awk -F'|' '{print $5}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/__FLOW_ESC_PIPE__/|/g')"
+    if [ -z "$id" ]; then echo "  [!] invariant row has no ID: $line"; rc=1; continue; fi
+    if [ -z "$inv" ] || [ -z "$applies" ]; then
+      echo "  [!] $id - malformed row (need ID | Invariant | Applies-at | grep-marker | Rationale): $line"; rc=1; continue
+    fi
+    n=$((n+1))
+    if [ -n "$marker" ] && [ "$marker" != "-" ]; then
+      markers=$((markers+1))
+      if [ -z "$scan_root" ]; then
+        echo "  --  $id (marker '$marker' not scanned: no src/ dir - verify manually)"
+      elif grep -rqsE -- "$marker" "$scan_root" 2>/dev/null; then
+        echo "  ok  $id (grep-marker present)"
+      else
+        echo "  [!] $id - declared grep-marker '$marker' not found under src/ (verify the invariant holds)"
+        unmet=$((unmet+1))
+      fi
+    else
+      echo "  --  $id (semantic-only invariant - challenge it at the gate)"
+    fi
+  done <<EOF
+$rows
+EOF
+  echo "  $n invariant(s); $markers with markers, $unmet unmet (advisory)."
+  if [ "$rc" -ne 0 ]; then
+    echo "constitution: FAIL - fix the structural issue(s) above (placeholder / missing ID)."
+    return 1
+  fi
+  echo "constitution: PASS (structure clean). Unmet markers are advisory - apply the semantic challenge."
+  return 0
+}
+
 usage() {
   cat <<'EOF'
 flow.sh - buildflow gate runner (mechanical layer)
@@ -1165,6 +1270,7 @@ usage: bash flow.sh <command> [args]
   tokens            Check DESIGN.md declared tokens vs CSS usage (design-system drift)
   coherence         Flag version drift across declared version fields (doc-vs-code coherence)
   consistency       Audit cross-artifact coverage (PRD features <-> cards <-> contract; FR ids)
+  constitution      Check operator-authored per-project invariants in flow/constitution.md (advisory; not a next-gate)
   promote <file>    Copy a playbook into the cross-project KB (~/.claude/flow/playbooks)
   doctor            Check the environment (bash/python/grep/git) across macOS/Linux/Windows
   retro             Print the 3 retro questions
@@ -1202,6 +1308,7 @@ case "$cmd" in
   tokens)         cmd_tokens ;;
   coherence)      cmd_coherence ;;
   consistency)    cmd_consistency ;;
+  constitution)   cmd_constitution ;;
   promote)        cmd_promote "${1:-}" ;;
   doctor)         cmd_doctor ;;
   -h|--help|help) usage ;;

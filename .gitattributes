@@ -3,4 +3,6 @@
 *.sh   text eol=lf
 *.py   text eol=lf
 *.json text eol=lf
+# Batch launcher must be CRLF — some cmd.exe builds mis-parse LF-only .cmd files.
+*.cmd  text eol=crlf
 # Leave markdown/other text to the platform default.

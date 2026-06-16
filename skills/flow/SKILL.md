@@ -8,7 +8,7 @@ keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deplo
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.6.2"
+  version: "0.7.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD."
 ---
 
@@ -46,14 +46,23 @@ From the **project root** (where `flow/` and `cards/` live), run the runner that
 with this skill:
 
 ```
-bash <skill-dir>/runner/flow.sh <command>
-# project install:  bash .claude/skills/flow/runner/flow.sh next
-# global install:   bash ~/.claude/skills/flow/runner/flow.sh next
+# macOS / Linux / Windows Git Bash:
+bash <skill-dir>/runner/flow.sh <command>          # e.g. bash ~/.claude/skills/flow/runner/flow.sh next
+
+# Windows PowerShell or cmd (INCLUDING inside Codex): use the .cmd launcher, NOT bare `bash`.
+<skill-dir>\runner\flow.cmd <command>              # e.g. ...\.codex\skills\flow\runner\flow.cmd status
+# from PowerShell call it directly:  & "<skill-dir>\runner\flow.cmd" status
 ```
 
-`<skill-dir>` is wherever this skill is installed. The runner reads/writes `flow/` and
-`cards/` under the current directory (override with `FLOW_PROJECT_ROOT`). On Windows use
-Git Bash (already the Bash tool here).
+**Windows / Codex gotcha (read this):** in PowerShell/Codex a bare `bash` usually resolves to
+**WSL** (`C:\WINDOWS\system32\bash.exe`), which **cannot** read `C:/...` or `/c/...` paths and
+fails with `No such file or directory` — the mechanical layer then looks "broken" when it is not.
+**Always invoke `runner/flow.cmd`** on Windows; it locates Git Bash and runs the engine with a
+path Git Bash accepts. Only call `bash flow.sh` directly when you've confirmed `bash` is Git Bash.
+
+`<skill-dir>` is wherever this skill is installed (`~/.claude/skills/flow`, `~/.codex/skills/flow`,
+`~/.agents/skills/flow`, or a project `.claude/skills/flow`). The runner reads/writes `flow/` and
+`cards/` under the current directory (override with `FLOW_PROJECT_ROOT`).
 
 **One session per project (concurrency lock).** Two `/flow` sessions sharing one project
 will stomp each other's plan. The runner keeps a `flow/.lock` (auto-reclaimed after
@@ -81,6 +90,7 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | `/flow tokens` | `flow.sh tokens` — flag DESIGN.md vs CSS design-token drift: unused tokens + value mismatches + orphan vars (advisory; UI cards) |
 | `/flow coherence` | `flow.sh coherence` — flag version drift across declared version fields (doc-vs-code coherence; advisory) |
 | `/flow consistency` | `flow.sh consistency` — audit cross-artifact coverage: every PRD `FRn` is claimed by a card (`implements:`) and served by a contract interface; numeric success metric; no leftover placeholders (advisory; run after the contract gate, before cards) |
+| `/flow constitution` | `flow.sh constitution` — check operator-authored per-project invariants in `flow/constitution.md` (structure + optional grep-markers); **advisory and NOT a `next` gate** — run it at the scope/PRD/contract seam, then apply the semantic challenge in `gate-rules.md` |
 | `/flow promote <file>` | `flow.sh promote <file>` — copy a playbook into the cross-project KB (`~/.claude/flow/playbooks`); `recall` then surfaces it everywhere |
 | `/flow unlock` | `flow.sh unlock` — clear this project's concurrency lock after a crashed/abandoned session |
 | `/flow retro` | the 3 retro questions; the operator writes the line, never you |

@@ -67,6 +67,15 @@ Linking a trace to an unverified story prints a **pre-close gate** warning.
 All wiring degrades gracefully: if python is absent or `FLOW_HARNESS_DISABLE=1`, the
 mechanical engine runs unchanged.
 
+## Usage signal: accessed_count (read-only, schema 005)
+`query decisions|friction|backlog` increment an `accessed_count` on every surfaced row and order
+output **most-reused-first**, so `recall` floats the knowledge you actually reuse to the top. It is
+a **read-only ordering signal** — never used to prune, delete, or archive a row. Low count is not
+low value: a rare one-time lesson (often a security decision) is recalled rarely *because it is
+rare*. Security-class rows (`auth|authoriz|admin|tenan|payment|migrat|valid|secret|credential`)
+always sort first and are never deprioritized. The story `matrix` view is intentionally left
+ordered by id (it is a status table, not recalled knowledge).
+
 ## Files
 - `flow_harness.py` — CLI entrypoint + backend toggle.
 - `_domain.py` — pure rules (input types, lanes, hard gates, trace tiers). Testable in isolation.

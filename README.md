@@ -2,7 +2,7 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 16 test suites / 291 checks on macOS · Ubuntu · Windows
+[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 18 test suites / 338 checks on macOS · Ubuntu · Windows
 
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
@@ -10,11 +10,12 @@ library, a real run for a Claude Code skill. It re-encodes the `buildflow` metho
 durable harness layer (intake/story/trace/decision/backlog), agent orchestration (ck: + bmad +
 **Codex cross-vendor second engine**), and project-type awareness.
 
-> Status: **v0.6.2** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
+> Status: **v0.7.0** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
 > cross-project KB) + gate-fired capture + drift checks (contract/tokens/coherence/**consistency**) + brownfield
 > `assess` + a concurrency lock + agent integration + DESIGN law + project-type awareness +
-> **portable install across Claude Code (`/flow`) and Codex CLI (`$flow`)**.
-> **16 test suites / 291 checks green.** MIT.
+> **portable install across Claude Code (`/flow`) and Codex CLI (`$flow`)** + a **Windows/Codex
+> runner launcher** (`flow.cmd`, routes around WSL-bash path failures).
+> **18 test suites / 338 checks green.** MIT.
 
 ## What ships
 
@@ -32,7 +33,7 @@ flow-skill/
 │   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
 ├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
 ├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 16 suites / 291 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess)
+├── tests/run_all.sh             # 18 suites / 338 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess)
 └── docs/                        # architecture + codebase summary
 ```
 
@@ -114,8 +115,12 @@ bash install.sh global codex      # target one harness: claude | codex | agents
 bash install.sh project [dir]     # <dir>/.claude/skills/flow (one project, commit-able)
 # Windows PowerShell: pwsh install.ps1 global | pwsh install.ps1 global codex | pwsh install.ps1 project [dir]
 ```
-The repo is the single source of truth — **re-run `install.sh global` after any update** to
-re-sync every harness (no drift between your Claude Code and Codex copies).
+The repo is the single source of truth — **re-run the installer after any update** to re-sync
+every harness (no drift between your Claude Code and Codex copies).
+
+> **Windows:** use **`pwsh install.ps1 global`**, not `bash install.sh` — in PowerShell a bare
+> `bash` may be **WSL**, which installs into the WSL filesystem (`/home/...`) instead of your
+> Windows home. Run `bash install.sh` only from **Git Bash**.
 
 **B. Plugin / marketplace** (for sharing across machines or a team):
 ```
@@ -133,14 +138,19 @@ and `chmod +x` the runner on macOS/Linux.
 - **Codex CLI:** Codex loads its skill catalog **at startup**, so **fully restart Codex** after
   installing, then type **`$flow`** (or `/skills` to confirm `flow` is listed). Codex invokes
   skills with a `$` prefix — `$flow`, `$flow next`, `$flow assess` — not `/flow`.
-- Confirm the environment any time: `bash ~/.claude/skills/flow/runner/flow.sh doctor`
-  (Codex path: `bash ~/.codex/skills/flow/runner/flow.sh doctor`).
+- Confirm the environment any time: `bash ~/.claude/skills/flow/runner/flow.sh doctor`.
+- **Windows manual runner calls (PowerShell/cmd/Codex):** use the launcher, not bare `bash` —
+  `~/.codex/skills/flow/runner/flow.cmd doctor`. In PowerShell a bare `bash` usually means WSL,
+  which can't read `C:/` paths and fails with "No such file or directory"; `flow.cmd` finds Git
+  Bash for you. (Inside Claude Code's own Bash tool, `bash …/flow.sh` is fine — that's Git Bash.)
 
 ## Troubleshooting
 | Symptom | Cause | Fix |
 |---|---|---|
 | `\r: command not found` / `bad interpreter` | CRLF line endings (Windows clone) | the repo enforces LF via `.gitattributes`; re-clone, or `sed -i 's/\r$//' runner/flow.sh` |
 | `/flow` not listed | new skills dir not watched yet | restart Claude Code once after first install |
+| `$flow` not found in Codex | skill not in `~/.codex/skills` or Codex not restarted | `bash install.sh global` then fully restart Codex; `/skills` to confirm |
+| runner: `flow.sh: No such file or directory` in PowerShell/Codex | bare `bash` = WSL, can't read `C:/` paths | call `…/runner/flow.cmd <command>` (finds Git Bash) instead of `bash …/flow.sh` |
 | `durable layer DISABLED` in doctor | python not found | install python3 (see per-platform) or ignore — engine still works |
 | `flow design` finds no emoji on macOS | BSD grep has no `-P` | expected; the rest of the design check still runs |
 | PowerShell `??` parse error | PowerShell 5.1 | use `pwsh` (PowerShell 7+) or the Git Bash `install.sh` |
@@ -359,7 +369,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 16 suites / 291 checks (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is 18 suites / 338 checks (`bash tests/run_all.sh`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -376,7 +386,7 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 16 suites / 291 checks; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # 18 suites / 338 checks; needs bash (+ python for the harness/propose suites)
 ```
 
 ## Provenance
