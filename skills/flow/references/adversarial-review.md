@@ -43,12 +43,26 @@ self-bias.
   `intake`. This feeds the cross-model-catch-rate in `docs/quality-metrics.md` — the measured
   justification for keeping the lens.
 
+## Optional 5th lens — Antigravity (Gemini-3) cross-vendor reviewer (a third vendor)
+
+When the Antigravity tier is USABLE (`antigravity-integration.md`), add Gemini-3 as a further
+cross-vendor lens — the SAME three triggers and cost/data gate as Codex. With Claude × GPT-5.x ×
+Gemini-3 you get a **three-model** gate; three vendors rarely share one blind spot. Run it AFTER
+Codex on a two-strikes deadlock (a third independent engine before escalating to the operator), or
+in parallel on a security-class card / explicit opt-in. **Usability is stricter here:** `agy`'s exit
+code lies (exit 0 + empty stdout even when unauthenticated), so route ONLY on non-empty expected
+output, prefer the **interactive** path (IDE Agent Manager / real `agy` terminal, paste the
+`ReviewResult` back), and treat an empty Gemini result as **"review unavailable", never an approval**.
+Same parity rule: it INFORMS, never auto-passes/auto-fails. Log the same durable metric.
+
 ## Triage
 Group every finding by severity x actionability:
 - **Must-fix (correctness/contract/security)** -> Tier-B repair by a FRESH subagent before merge.
 - **Should-fix (maintainability)** -> fix now if cheap, else note.
 - **Observation** -> record, proceed.
-Two-strikes: a second red review on the same card -> escalate to the operator, don't loop.
+Two-strikes: a second red review on the same card -> try the next USABLE cross-vendor engine
+(Codex, then Antigravity) as a fresh-engine pass; if none usable or still red, escalate to the
+operator, don't loop.
 
 ## Apply your own decision rules (do not blindly accept findings)
 - Validate each finding against what the code actually does and protects. "Theoretically

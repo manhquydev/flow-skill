@@ -2,20 +2,21 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 18 test suites / 338 checks on macOS · Ubuntu · Windows
+[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 19 test suites / 367 checks on macOS · Ubuntu · Windows
 
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
 library, a real run for a Claude Code skill. It re-encodes the `buildflow` method and adds a
 durable harness layer (intake/story/trace/decision/backlog), agent orchestration (ck: + bmad +
-**Codex cross-vendor second engine**), and project-type awareness.
+**Codex (GPT-5.x) second engine + Antigravity (Gemini-3) third engine** = a three-model adversarial
+gate), and project-type awareness.
 
-> Status: **v0.7.0** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
+> Status: **v0.8.0** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
 > cross-project KB) + gate-fired capture + drift checks (contract/tokens/coherence/**consistency**) + brownfield
 > `assess` + a concurrency lock + agent integration + DESIGN law + project-type awareness +
-> **portable install across Claude Code (`/flow`) and Codex CLI (`$flow`)** + a **Windows/Codex
-> runner launcher** (`flow.cmd`, routes around WSL-bash path failures).
-> **18 test suites / 338 checks green.** MIT.
+> **portable install across Claude Code (`/flow`), Codex CLI (`$flow`), and Antigravity (`agy` CLI /
+> IDE)** + a **Windows/Codex runner launcher** (`flow.cmd`, routes around WSL-bash path failures).
+> **19 test suites / 367 checks green.** MIT.
 
 ## What ships
 
@@ -28,12 +29,12 @@ flow-skill/
 │   │                            #   coherence/promote/doctor/retro
 │   ├── _templates/              # 00-idea .. 05-contract + card (buildflow) + 00-inspect (brownfield)
 │   ├── law/                     # CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md
-│   ├── references/              # 15 semantic playbooks (gates, agents, loop, design, project-types)
+│   ├── references/              # 16 semantic playbooks (gates, agents, codex/antigravity, loop, design, project-types)
 │   ├── harness/                 # durable layer: flow_harness.py + _db.py + _domain.py + schema
 │   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
 ├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
 ├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 18 suites / 338 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess)
+├── tests/run_all.sh             # 19 suites / 367 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess)
 └── docs/                        # architecture + codebase summary
 ```
 
@@ -50,6 +51,7 @@ installer drops it into every harness you have:
 | **Claude Code** | `~/.claude/skills/flow/` (or `<project>/.claude/skills/flow/`) | `/flow` |
 | **Codex CLI** | `~/.codex/skills/flow/` | `$flow` |
 | **Agents / claudekit** | `~/.agents/skills/flow/` | per host |
+| **Antigravity** | `~/.gemini/antigravity-cli/skills/flow/` (CLI) · `~/.gemini/config/skills/flow/` (IDE) | auto-match (`agy inspect`) |
 
 It works the same on **macOS, Linux (Ubuntu), and Windows**.
 
@@ -111,7 +113,7 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 ```bash
 bash install.sh global            # ~/.claude/skills/flow (always) + ~/.codex/skills/flow
                                   #   + ~/.agents/skills/flow  (each added only if that harness exists)
-bash install.sh global codex      # target one harness: claude | codex | agents
+bash install.sh global codex      # one harness: claude | codex | agents | antigravity
 bash install.sh project [dir]     # <dir>/.claude/skills/flow (one project, commit-able)
 # Windows PowerShell: pwsh install.ps1 global | pwsh install.ps1 global codex | pwsh install.ps1 project [dir]
 ```
@@ -310,6 +312,24 @@ auto-fails** a card.
 The engine that ran is always announced, e.g. `review via Codex cross-model lens (needs-attention, 2 findings)`.
 Full seam spec: `skills/flow/references/codex-integration.md`.
 
+## Antigravity — cross-vendor third engine (v0.8+)
+
+v0.8 adds a **third** cross-vendor engine: Google **Antigravity (Gemini-3)** via the `agy` CLI or the
+Antigravity IDE. Same role as Codex — a genuinely different vendor used at the same high-value moments,
+giving a **three-model adversarial gate** (Claude × GPT-5.x × Gemini-3 rarely share a blind spot).
+flow installs into Antigravity's skill homes (`~/.gemini/antigravity-cli/skills/flow` for the CLI,
+`~/.gemini/config/skills/flow` for the IDE) — it's the **same `SKILL.md` bundle**, no restructuring;
+run `agy inspect` to confirm it's discovered.
+
+**Strictest usability check of any tier (measured, not assumed).** `agy -p` returns **exit code 0 with
+empty stdout even when unauthenticated** (the error only lands in `--log-file`), and non-TTY stdout
+capture is empty. So flow routes to Antigravity **only on non-empty expected output — never on the exit
+code, which lies** — and because headless capture is unreliable, the **supported default is interactive**
+(run the review in the IDE Agent Manager / a real `agy` terminal and paste the result back). An empty
+Gemini result is **"review unavailable", never an approval**. Same detect-and-degrade, same billable +
+data-leaves-the-machine cost gate (3 triggers), same absolute gate parity as Codex. Full seam spec:
+`skills/flow/references/antigravity-integration.md`.
+
 ## Demos — real walkthroughs (captured from a live install)
 
 These are real transcripts from driving the installed `/flow` (see `tests/`-style `e2e-drive.sh`).
@@ -369,7 +389,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 18 suites / 338 checks (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is 19 suites / 367 checks (`bash tests/run_all.sh`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -386,7 +406,7 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 18 suites / 338 checks; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # 19 suites / 367 checks; needs bash (+ python for the harness/propose suites)
 ```
 
 ## Provenance

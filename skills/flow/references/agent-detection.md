@@ -51,6 +51,24 @@ breaks a run — this is the portability promise. "Eligible" in this file means 
 moments: a two-strikes deadlock, a security-class card review, or an explicit operator opt-in.
 Never call Codex on every stage by default.
 
+## Antigravity — the cross-vendor third engine (Gemini-3)
+
+When `agy` (CLI) or the Antigravity IDE is present, a **fifth path** unlocks: **Antigravity
+(Google Gemini-3)** — a third vendor's model, sibling to Codex. Used at the same three high-value
+moments (two-strikes after Codex, security-class review, operator opt-in) to give a genuine
+**three-model** adversarial gate. Full seam (invocation, shapes, cost/data gate): **`references/antigravity-integration.md`**.
+
+**Detection — installed ≠ usable, and NEVER route on exit code.** Antigravity needs the strictest
+usability check: `agy -p` returns **exit 0 with empty stdout even when unauthenticated** (the error
+only lands in `--log-file`; non-TTY capture is empty). So **only non-empty expected output proves
+USABLE** — never exit code, never empty stdout. INSTALLED = `agy`/IDE/`~/.gemini` present; USABLE =
+INSTALLED + a liveness probe returns a non-empty sentinel token. Not usable (unauthenticated, or
+non-TTY capture empty — common in headless/CI and piped agent harnesses) or absent → **degrade** to
+Codex / ck:→bmad→built-in, announce "antigravity tier unavailable — degraded to <path>", record the
+reason. Because headless capture is unreliable, the **supported default is interactive** (IDE Agent
+Manager / real `agy` terminal, paste the ReviewResult back); an empty Gemini result is
+"review-unavailable", **never** an approval. Same billable + data-leaves-machine cost gate as Codex.
+
 ## Rules
 
 - **Same gate regardless of path.** The buildflow gate (`flow.sh` + `gate-rules.md`) is the

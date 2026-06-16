@@ -8,7 +8,7 @@ keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deplo
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.7.0"
+  version: "0.8.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD."
 ---
 
@@ -61,8 +61,14 @@ fails with `No such file or directory` — the mechanical layer then looks "brok
 path Git Bash accepts. Only call `bash flow.sh` directly when you've confirmed `bash` is Git Bash.
 
 `<skill-dir>` is wherever this skill is installed (`~/.claude/skills/flow`, `~/.codex/skills/flow`,
-`~/.agents/skills/flow`, or a project `.claude/skills/flow`). The runner reads/writes `flow/` and
-`cards/` under the current directory (override with `FLOW_PROJECT_ROOT`).
+`~/.agents/skills/flow`, the Antigravity homes `~/.gemini/antigravity-cli/skills/flow` (CLI) /
+`~/.gemini/config/skills/flow` (IDE), or a project `.claude/skills/flow`). The runner reads/writes
+`flow/` and `cards/` under the current directory (override with `FLOW_PROJECT_ROOT`).
+
+**Antigravity (`agy` CLI / IDE):** flow installs as the same `SKILL.md` bundle; run `agy inspect` to
+confirm Antigravity discovered it. The mechanical layer is the **same** `bash flow.sh` / `flow.cmd`
+runner — the Windows WSL-bash trap below applies identically (use `flow.cmd` from a Windows shell).
+The Antigravity agent invokes shell tools, so it drives `flow.sh` like any other harness.
 
 **One session per project (concurrency lock).** Two `/flow` sessions sharing one project
 will stomp each other's plan. The runner keeps a `flow/.lock` (auto-reclaimed after
@@ -136,7 +142,12 @@ built-in fallback** (`references/agent-detection.md`). When the `openai-codex` p
 moments: two-strikes rescue, cross-model adversarial review (a different *model*, not just a
 different context), and opt-in primary drafter at research/build (default stays ck:). It detects
 and degrades like every other tier (installed≠usable; absence never breaks a run). Full seam,
-cost gate, and shapes: **`references/codex-integration.md`**. The stage→agent map, scoped prompt
+cost gate, and shapes: **`references/codex-integration.md`**. When `agy`/the Antigravity IDE is
+present **and usable**, a cross-vendor **Antigravity (Gemini-3) third engine** unlocks too — same
+high-value moments, giving a **three-model** adversarial gate. Antigravity needs the strictest
+usability check (`agy -p` returns exit 0 + empty stdout even when unauthenticated, so route only on
+non-empty expected output, never exit code; headless capture is unreliable → interactive review is
+the supported default). Full seam: **`references/antigravity-integration.md`**. The stage→agent map, scoped prompt
 template, and durable-record hooks are in `references/agent-stage-mapping.md`:
 research→`researcher`, scope/PRD→`planner`, ADR→`architect`, contract→`bmad-spec` kernel,
 build→`fullstack-developer`, review→`code-reviewer` or `bmad-code-review` (3-layer
@@ -175,6 +186,7 @@ Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, r
 - `references/agent-detection.md` — detect ck:/bmad agents + priority + fallback.
 - `references/agent-stage-mapping.md` — stage→agent map, scoped prompt template, durable hooks.
 - `references/codex-integration.md` — the Codex cross-vendor second-engine seam: detection (installed≠usable), cost gate, invocation surfaces, ReviewResult shape, gate parity.
+- `references/antigravity-integration.md` — the Antigravity (Gemini-3) cross-vendor third-engine seam: install homes, strict usability (exit code lies → route on non-empty output), interactive-default review, cost/data gate, gate parity.
 - `references/gate-rules.md` → "Cross-artifact consistency" — the semantic passes behind `/flow consistency` (hollow coverage, conflicting requirements, cut-list contradiction, terminology drift) that the runner's ID-based check can't judge.
 - `references/mode-work.md` — work-mode script (interview once → draft → one scope pause → summary).
 - `references/auto-run.md` — `/flow auto` tiers, worktree loop, AUTO-LOG, security-class halt.

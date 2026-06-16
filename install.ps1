@@ -2,7 +2,10 @@
 #   pwsh install.ps1 global                     -> ~/.claude/skills/flow (always)
 #                                                  + ~/.codex/skills/flow  (if ~/.codex/skills exists)
 #                                                  + ~/.agents/skills/flow (if ~/.agents/skills exists)
-#   pwsh install.ps1 global claude|codex|agents -> only that one harness
+#                                                  + Antigravity homes     (if ~/.gemini exists):
+#                                                      ~/.gemini/antigravity-cli/skills/flow (CLI)
+#                                                      ~/.gemini/config/skills/flow          (IDE)
+#   pwsh install.ps1 global claude|codex|agents|antigravity -> only that one harness
 #   pwsh install.ps1 project [dir]              -> <dir|cwd>/.claude/skills/flow
 # Re-run after any update to re-sync every harness (the repo is the single source of truth).
 param(
@@ -38,7 +41,12 @@ if ($Mode -eq 'global') {
   if ($target -eq 'agents' -or ($target -eq 'all' -and (Test-Path (Join-Path $HOME '.agents/skills')))) {
     $last = Install-To (Join-Path $HOME '.agents/skills/flow')
   }
-  if (-not $last) { Write-Error "unknown target '$target' (use claude|codex|agents|all)"; exit 1 }
+  # antigravity (Gemini): same SKILL.md bundle; two global homes (CLI + IDE) under ~/.gemini
+  if ($target -eq 'antigravity' -or ($target -eq 'all' -and (Test-Path (Join-Path $HOME '.gemini')))) {
+    $last = Install-To (Join-Path $HOME '.gemini/antigravity-cli/skills/flow')   # agy CLI global
+    $last = Install-To (Join-Path $HOME '.gemini/config/skills/flow')            # Antigravity IDE global
+  }
+  if (-not $last) { Write-Error "unknown target '$target' (use claude|codex|agents|antigravity|all)"; exit 1 }
 } else {
   $dir = if ($Arg2 -ne '') { $Arg2 } else { (Get-Location).Path }
   $last = Install-To (Join-Path $dir '.claude/skills/flow')

@@ -3,7 +3,10 @@
 #   bash install.sh global                       -> ~/.claude/skills/flow (always)
 #                                                   + ~/.codex/skills/flow  (if ~/.codex/skills exists)
 #                                                   + ~/.agents/skills/flow (if ~/.agents/skills exists)
-#   bash install.sh global claude|codex|agents   -> only that one harness
+#                                                   + Antigravity homes     (if ~/.gemini exists):
+#                                                       ~/.gemini/antigravity-cli/skills/flow (CLI)
+#                                                       ~/.gemini/config/skills/flow          (IDE)
+#   bash install.sh global claude|codex|agents|antigravity -> only that one harness
 #   bash install.sh project [dir]                -> <dir|cwd>/.claude/skills/flow
 # Re-run after any update to re-sync every harness (the repo is the single source of truth).
 # Windows: run under Git Bash. Claude Code invokes it as /flow; Codex CLI as $flow.
@@ -26,7 +29,7 @@ install_to() {
   LAST="$dest"
 }
 
-usage() { echo "usage: bash install.sh [global [claude|codex|agents|all] | project [dir]]"; }
+usage() { echo "usage: bash install.sh [global [claude|codex|agents|antigravity|all] | project [dir]]"; }
 
 LAST=""
 case "$MODE" in
@@ -43,6 +46,11 @@ case "$MODE" in
     # agents: same rule
     if [ "$TARGET" = "agents" ] || { [ "$TARGET" = "all" ] && [ -d "${HOME}/.agents/skills" ]; }; then
       install_to "${HOME}/.agents/skills/flow"
+    fi
+    # antigravity (Gemini): same SKILL.md bundle; two global homes (CLI + IDE) under ~/.gemini
+    if [ "$TARGET" = "antigravity" ] || { [ "$TARGET" = "all" ] && [ -d "${HOME}/.gemini" ]; }; then
+      install_to "${HOME}/.gemini/antigravity-cli/skills/flow"   # agy CLI global
+      install_to "${HOME}/.gemini/config/skills/flow"            # Antigravity IDE global
     fi
     [ -n "$LAST" ] || { echo "FAIL: unknown target '$TARGET'"; usage; exit 1; }
     ;;

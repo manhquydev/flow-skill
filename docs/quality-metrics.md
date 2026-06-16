@@ -1,7 +1,23 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.7.0** (2026-06-16).
+Updated as the skill evolves. Current: **v0.8.0** (2026-06-16).
+
+## v0.8.0 — Antigravity (Gemini-3) cross-vendor third engine (2026-06-16)
+
+flow gains a **third** cross-vendor engine alongside Codex: Google **Antigravity (Gemini-3)** via the
+`agy` CLI / IDE — a three-model adversarial gate (Claude × GPT-5.x × Gemini-3). Install scripts now
+target Antigravity's skill homes (`~/.gemini/antigravity-cli/skills/flow` CLI + `~/.gemini/config/skills/flow`
+IDE) — the same `SKILL.md` bundle, no restructuring. Seam doc `references/antigravity-integration.md`
++ detection mirrored in `agent-detection.md` + SKILL.md invocation note; doc-contract suite
+`test_flow_antigravity_integration.sh` (29).
+
+**Headline (the live-verify that shaped the design):** probing `agy` on this machine proved
+`agy -p` returns **exit 0 with empty stdout even when unauthenticated** (error only in `--log-file`;
+non-TTY capture empty via raw pipe and winpty alike). So the tier routes **only on non-empty expected
+output, never on exit code** (which lies), the **interactive** path is the supported default, and an
+empty Gemini result is **"review unavailable", never an approval** — a silent false-PASS gate avoided
+by measurement, not assumption. Suite: **19 suites / 367 checks** green; coherence clean.
 
 ## v0.7.0 — usage signal + constitution + assess repo-map (2026-06-16)
 
@@ -182,9 +198,10 @@ DF-4 (trace-tier nag) + DF-5 (allowed-files containment) tracked.
 | `test_flow_consistency.sh` | 42 | cross-artifact coverage audit: FR→card→contract mapping, numeric metric, placeholder sweep, severity/exit |
 | `test_flow_accessed_count.sh` | 12 | usage-signal ordering (security-first, reuse count), read-only, no row loss |
 | `test_flow_constitution.sh` | 25 | per-project invariants: structure, `\|`-safe markers (loud sentinel-collision guard), NOT in cmd_next, recall surfacing |
-| **Total (dev)** | **338** | all green (`bash tests/run_all.sh`), 18 suites |
+| `test_flow_antigravity_integration.sh` | 29 | Antigravity third-engine doc-contract + install wiring: exit-code-lies → route on non-empty output, interactive default, data/cost gate, gate parity, liveness-probe shape, ~/.gemini install homes |
+| **Total (dev)** | **367** | all green (`bash tests/run_all.sh`), 19 suites |
 | **+ e2e (installed)** | **22** | `tests/e2e-installed-drive.sh` — happy+edge against a fresh per-project install (Windows) |
-| **Grand total** | **360** | all green |
+| **Grand total** | **389** | all green |
 
 **Command coverage:** ~100% of runner commands now have a dedicated assertion (was 14/15;
 `retro`/`ready`/`auto` + harness `decision`/`tool`/`intervention` gaps closed 2026-06-13).
