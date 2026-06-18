@@ -1,7 +1,39 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.8.0** (2026-06-16).
+Updated as the skill evolves. Current: **v0.9.0** (2026-06-18).
+
+## v0.9.0 — mechanical usage log + `flow usage` analytics (2026-06-18)
+
+flow gains a **mechanical usage log**: `flow.sh` self-records **every invocation** to append-only
+JSONL — the deterministic mechanical layer (not the agent) is now the flight-recorder, closing the
+gap where the agent-authored durable layer had silent holes (no record unless a trace was written).
+
+- **Capture (`flow.sh`):** `_log_event` + a single `EXIT` trap writes per-run `{ts, epoch_s, session,
+  cycle_id (stamped at stage-00 unlock), command, masked args, exit_code, gate_pass, duration_s,
+  stage_from→to, card, project_type, mode, flow_version, tier, host, read_only}`. Dual sink: per-project
+  `.flow/events.jsonl` (full) + device-global `~/.claude/flow/usage.jsonl` (compact, <PIPE_BUF →
+  race-safe append). **No-fail / exit-code preserving** (trap captures `$?` first, re-exits unchanged;
+  best-effort writes). Local-only; disable with `FLOW_LOG_DISABLE=1` / `DO_NOT_TRACK=1`. Conservative
+  secret-arg redaction before disk.
+- **`/flow usage`:** idempotent rollup (schema 006 `usage_event` + `rollup_cursor`, `UNIQUE(src,line_no)`)
+  then analytics — cycle-time, gate fail-rate, per-stage dwell, cycle completion, command breakdown.
+- **DRY:** semantic events keep reusing `trace`/`intervention`/`decision`; the usage log does not
+  duplicate them (a generic `event` table was rejected at review).
+
+**Built through `/flow`'s own gates** (isolated root, idea→contract all PASS, consistency PASS, 3 cards)
+and **red-team-verified before build** (R1–R9: seconds-not-ms for portability, no-fail NFR, dropped the
+overlapping table, compact global sink, `cycle_id`, redaction de-rated). Anti-FOMO discipline applied:
+post-research "OTel-friendly naming" was rejected (no credible numbers, LLM-call-shaped not
+harness-shaped); "kill rate" was **not fabricated** — replaced with a real cycle-completion proxy.
+Independent code review verdict **SHIP** (0 critical/high; 1 MEDIUM cursor-reset fixed → monotonic
+cursor; 1 LOW token-prefix mask gap accepted as documented residual). Suite: **20 suites / 386 checks**
+green; version coherence clean (0.8.0 → 0.9.0). Shipped to all 5 skill homes on-device and verified by a
+real installed-runner run (`flow_version=0.9.0` event + live `flow usage`).
+
+Open follow-ups (next increment): wire usage stats into `recall`/`propose` (close the capture→reuse
+loop — the feature's ultimate payoff, deferred as v2 S-a); global-log rotation/retention (unbounded
+today, fine at personal volume); capture "which gate check failed" reason (deferred R5).
 
 ## v0.8.0 — Antigravity (Gemini-3) cross-vendor third engine (2026-06-16)
 
@@ -170,12 +202,12 @@ DF-4 (trace-tier nag) + DF-5 (allowed-files containment) tracked.
 ## Size & surface
 | Metric | Value |
 |---|---|
-| Gate engine (`runner/flow.sh`) | 1198 LOC |
-| Durable layer (python) | 795 LOC (flow_harness + _db + _domain) |
-| Commands | 22 (incl. drift/coverage probes `contract/tokens/coherence/consistency`) |
+| Gate engine (`runner/flow.sh`) | 1416 LOC |
+| Durable layer (python) | 967 LOC (flow_harness + _db + _domain) |
+| Commands | 23 (incl. drift/coverage probes `contract/tokens/coherence/consistency` + `usage`) |
 | Semantic references | 15 markdown playbooks |
 | Stack playbooks | 4 |
-| Schema migrations | 4 SQL (verbatim from repository-harness) |
+| Schema migrations | 6 SQL (001–006; 006 = usage_event mirror) |
 
 ## Test coverage
 | Suite | Checks | Covers |
@@ -199,9 +231,10 @@ DF-4 (trace-tier nag) + DF-5 (allowed-files containment) tracked.
 | `test_flow_accessed_count.sh` | 12 | usage-signal ordering (security-first, reuse count), read-only, no row loss |
 | `test_flow_constitution.sh` | 25 | per-project invariants: structure, `\|`-safe markers (loud sentinel-collision guard), NOT in cmd_next, recall surfacing |
 | `test_flow_antigravity_integration.sh` | 29 | Antigravity third-engine doc-contract + install wiring: exit-code-lies → route on non-empty output, interactive default, data/cost gate, gate parity, liveness-probe shape, ~/.gemini install homes |
-| **Total (dev)** | **367** | all green (`bash tests/run_all.sh`), 19 suites |
+| `test_flow_usage_log.sh` | 19 | mechanical usage log: full+compact event, read_only class, secret mask + no-leak, no-fail on unwritable sink, disable envs, cycle_id+stage carry, idempotent rollup + malformed-skip, `flow usage` metrics |
+| **Total (dev)** | **386** | all green (`bash tests/run_all.sh`), 20 suites |
 | **+ e2e (installed)** | **22** | `tests/e2e-installed-drive.sh` — happy+edge against a fresh per-project install (Windows) |
-| **Grand total** | **389** | all green |
+| **Grand total** | **408** | all green |
 
 **Command coverage:** ~100% of runner commands now have a dedicated assertion (was 14/15;
 `retro`/`ready`/`auto` + harness `decision`/`tool`/`intervention` gaps closed 2026-06-13).
