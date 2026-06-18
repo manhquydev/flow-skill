@@ -5,6 +5,24 @@ bless. "No 'looks good' allowed. Zero findings triggers a halt: re-analyze, or e
 nothing was found." (BMAD adversarial-review pattern.) Prefer `bmad-code-review` when
 present; else `code-reviewer`; else run the three lenses yourself as separate passes.
 
+## Don't defang the reviewer (controller-side input)
+
+The "must find issues" rule above governs the reviewer's **output**. It is defeated at the source if
+you hand the reviewer a **poisoned prompt**. When you construct a review dispatch, you may not
+pre-judge its findings:
+
+- Never write "don't flag X", "treat it as Minor at most", "the plan already chose this", or any
+  steer that tells the reviewer what NOT to find. If you believe a finding would be a false
+  positive, let the reviewer raise it and adjudicate it in triage — do not pre-empt it.
+- The card's own example/scaffold code is a starting point, not evidence its weaknesses were
+  intentional. Do not present it to the reviewer as "the chosen design".
+- Hand the reviewer the diff as a file (or scoped repo read), the contract, and the card's
+  acceptance — not your opinion of the diff. The reviewer's lens is acceptance + contract + the
+  three hunts, nothing you added to spare yourself a review loop.
+
+A reviewer told what not to find is not adversarial. If the dispatch you are writing contains any
+"do not flag" steer, stop — that is the failure this gate exists to prevent, one layer up.
+
 ## Three layers (information asymmetry — each sees less, so each catches different things)
 
 | Layer | Sees | Hunts for |
@@ -71,6 +89,10 @@ operator, don't loop.
   verification missed, or changed context. Surface conflicts to the operator with the source.
 - Security-class findings (auth/authz/data/payments) are never waved through — they are
   Tier-C: operator decides, in writing (`debt-and-halts.md`).
+- No performative agreement. When a finding lands, do not answer "you're absolutely right" /
+  "great catch" and then comply — that reflex launders a wrong finding into a change. State the
+  adjudication: confirmed (→ fix) or refuted-with-reason (→ documented). Agreement is a verdict you
+  reach, not a courtesy you extend.
 
 ## Output
 A short report: findings by layer, triage, and the verdict (green / repair-needed /

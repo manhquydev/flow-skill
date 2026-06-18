@@ -10,6 +10,15 @@ artifact, never silently block a sound one.
 > Rule of behavior: in `teach` mode you do NOT edit the artifact or tick boxes. You report.
 > In `work` mode you authored it, so you self-challenge before presenting.
 
+> Authoring note (when editing these challenges): **match the form to the failure.** A challenge
+> that fights a *discipline drift* — the agent rationalizing a hollow artifact through (grade
+> laundering, fabricated quotes, "merge ≈ shipped") — is rightly a prohibition + the specific
+> rationalization it counters. A challenge that fixes a *wrong-shaped artifact* (a missing field, a
+> drifted name) is better written as a positive recipe — "every interface has both shapes, names
+> that won't drift" — than as a ban; a bare prohibition on a shaping problem can produce *more* of
+> the bad shape, not less, and a hedging "unless it matters" clause turns a crisp recipe noisy. Pick
+> the form deliberately; don't reflexively reach for another "do NOT".
+
 ## Stage 00 — Idea
 Mechanical: pitch present, one real person named, no FILL.
 **Challenge:** Is the pitch really 3 sentences (who / pain / what)? Is the named person a
@@ -97,6 +106,9 @@ evidence non-empty.
 - **Is `## Evidence` real world-state** — a clickable URL, real curl output, a DB row — and
   NOT "tests pass" / "code merged" / "deployed successfully"? Merge != shipped: the proof is
   the live surface changing, verified as a user.
+- **If this card fixes a bug/regression**, the evidence includes the red→green proof that the
+  new test was actually tied to the bug (`ground-truth-gates.md` → "Bug-fix cards"), not just a
+  green run.
 
 ## Cross-artifact consistency (`/flow consistency`)
 Run after the Contract gate and before building cards (advisory; never blocks the build path).

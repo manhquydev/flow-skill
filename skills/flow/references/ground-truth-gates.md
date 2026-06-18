@@ -27,6 +27,17 @@ and used only to add color, never to pass a gate.
 5. **Capture the proof.** Paste the real curl/URL/exit into the card `## Evidence` and the
    harness `trace` — so the next session sees ground truth, not a claim.
 
+## Bug-fix cards: prove the test was tied to the bug
+When a card's job is fixing a bug/regression (not new behavior), a passing test is not yet
+ground truth — a test written after the fix can pass without ever having exercised the bug. The
+ground-truth signal is the **red→green** pair: with the fix reverted the new test FAILS (and
+fails for the bug's reason, not a typo), with the fix restored it PASSES. Paste both runs into
+`## Evidence`. This is a *technique for this card class*, not a project-wide test-first law — flow
+stays contract-/evidence-first. It is cleanest for `cli`/`library`/`skill` cards where a fix
+reverts in isolation; for `web` cards whose fix involves migrations or stateful backends a clean
+revert may not be possible — there, fall back to the live `## Verify` reproduction of the original
+symptom as the signal.
+
 ## Why
 LLM-as-judge is useful for triage and prioritization but unreliable at the exact moment a
 mistake becomes expensive (a merge, a deploy, a "done"). The whole buildflow philosophy —
