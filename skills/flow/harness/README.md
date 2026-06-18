@@ -76,6 +76,23 @@ rare*. Security-class rows (`auth|authoriz|admin|tenan|payment|migrat|valid|secr
 always sort first and are never deprioritized. The story `matrix` view is intentionally left
 ordered by id (it is a status table, not recalled knowledge).
 
+## Usage log: mechanical flight-recorder (schema 006)
+Distinct from the curated, agent-authored records above: `flow.sh` itself self-records **every
+invocation** (no agent action needed) to append-only JSONL — `.flow/events.jsonl` (full, per-project)
+plus `~/.claude/flow/usage.jsonl` (compact, device-global). Fields: ts/epoch_s, session_id, cycle_id
+(stamped when stage 00 unlocks), command, masked args, exit_code, gate_pass, duration_s (seconds),
+stage_from→to, card, project_type, mode, flow_version, tier, host, read_only.
+- **Local-only, never transmitted.** Disable with `FLOW_LOG_DISABLE=1` or the standard `DO_NOT_TRACK=1`.
+- Secret-shaped args (token/secret/password/credential/api_key/bearer/authorization/PEM) are masked
+  before disk (conservative whole-field redaction).
+- **Best-effort, never fails:** a logging error (unwritable sink, etc.) never alters a command's exit
+  code or breaks it (EXIT trap captures `$?` first, re-exits unchanged).
+- `flow.sh usage` → `flow_harness.py rollup` (idempotent ingest into the `usage_event` table via
+  `UNIQUE(src,line_no)` + `rollup_cursor`) then `flow_harness.py usage` (cycle-time, gate fail-rate,
+  per-stage dwell, cycle completion, command breakdown). `--global` reads the device-wide log.
+- JSONL is the source of truth; `usage_event` is a derived, queryable mirror. Semantic events keep
+  using `trace`/`intervention`/`decision` — the usage log does not duplicate them.
+
 ## Files
 - `flow_harness.py` — CLI entrypoint + backend toggle.
 - `_domain.py` — pure rules (input types, lanes, hard gates, trace tiers). Testable in isolation.

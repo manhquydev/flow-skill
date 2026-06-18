@@ -457,6 +457,127 @@ def _now(con):
     return con.execute("SELECT datetime('now')").fetchone()[0]
 
 
+# ---------------- usage-log rollup + stats (schema 006) ----------------
+# JSONL sinks are the source of truth; usage_event is a derived, queryable mirror.
+# Idempotency rests on UNIQUE(src,line_no); rollup_cursor skips already-seen lines.
+
+USAGE_COLS = ("epoch_s", "session_id", "cycle_id", "project", "command", "args",
+              "exit_code", "gate_pass", "duration_s", "stage_from", "stage_to", "card",
+              "project_type", "mode", "flow_version", "tier", "host", "read_only")
+
+
+def _events_path(a):
+    return os.path.join(os.path.dirname(a._db_path), "events.jsonl")
+
+
+def _global_log_path():
+    return os.path.join(os.path.expanduser("~"), ".claude", "flow", "usage.jsonl")
+
+
+def _coerce_event(o):
+    row = {c: o.get(c) for c in USAGE_COLS}
+    for k in ("gate_pass", "read_only"):
+        v = row.get(k)
+        if isinstance(v, bool):
+            row[k] = 1 if v else 0
+        # JSON null -> None (non-gate command); ints pass through
+    return row
+
+
+def cmd_rollup(con, a):
+    srcs = [_events_path(a)]
+    if getattr(a, "global_", False):
+        srcs.append(_global_log_path())
+    rolled = skipped = 0
+    cols = ["src", "line_no"] + list(USAGE_COLS)
+    ph = ",".join("?" for _ in cols)
+    for src in srcs:
+        if not os.path.isfile(src):
+            continue
+        cur = con.execute("SELECT last_line FROM rollup_cursor WHERE src=?", (src,)).fetchone()
+        last = cur[0] if cur else 0
+        with open(src, "r", encoding="utf-8") as fh:
+            text = fh.read()
+        lines = text.split("\n")
+        lines = lines[:-1]  # drop trailing empty (after final \n) or a partial unterminated last line
+        n = 0
+        for line in lines:
+            n += 1
+            if n <= last:
+                continue
+            s = line.strip()
+            if not s:
+                continue
+            try:
+                o = json.loads(s)
+            except ValueError:
+                skipped += 1
+                continue
+            row = _coerce_event(o)
+            vals = [src, n] + [row[c] for c in USAGE_COLS]
+            c2 = con.execute(f"INSERT OR IGNORE INTO usage_event ({','.join(cols)}) VALUES ({ph})", vals)
+            if c2.rowcount and c2.rowcount > 0:
+                rolled += 1
+        # advance the cursor monotonically only (never reset backward, e.g. when a sink is
+        # truncated/empty on re-read) — correctness rests on UNIQUE(src,line_no) regardless.
+        if n > last:
+            con.execute("INSERT INTO rollup_cursor(src,last_line,updated_at) VALUES(?,?,datetime('now')) "
+                        "ON CONFLICT(src) DO UPDATE SET last_line=excluded.last_line, updated_at=excluded.updated_at",
+                        (src, n))
+    con.commit()
+    print(json.dumps({"rolled": rolled, "skipped": skipped}))
+    return 0
+
+
+def cmd_usage(con, a):
+    src = _global_log_path() if getattr(a, "global_", False) else _events_path(a)
+    w = "WHERE src=?"
+    pr = (src,)
+    total = con.execute(f"SELECT COUNT(*) FROM usage_event {w}", pr).fetchone()[0]
+    if not total:
+        print(f"usage: no events yet for {src}")
+        print("  (run some flow commands first, then 'flow usage')")
+        return 0
+    g = con.execute(f"SELECT COUNT(*), SUM(CASE WHEN gate_pass=0 THEN 1 ELSE 0 END) FROM usage_event "
+                    f"{w} AND command IN ('next','check') AND gate_pass IS NOT NULL", pr).fetchone()
+    gate_total, gate_fail = (g[0] or 0), (g[1] or 0)
+    fail_rate = (100.0 * gate_fail / gate_total) if gate_total else 0.0
+    cyc = con.execute(f"SELECT cycle_id, MAX(epoch_s)-MIN(epoch_s) FROM usage_event "
+                      f"{w} AND cycle_id<>'' GROUP BY cycle_id", pr).fetchall()
+    cycles_started = len(cyc)
+    times = sorted(r[1] for r in cyc if r[1] is not None)
+    reached = con.execute(f"SELECT COUNT(DISTINCT cycle_id) FROM usage_event "
+                          f"{w} AND cycle_id<>'' AND (card<>'' OR command='card')", pr).fetchone()[0]
+    dwell = con.execute(f"SELECT stage_to, COUNT(*), AVG(duration_s) FROM usage_event "
+                        f"{w} AND command='next' AND stage_to<>'' GROUP BY stage_to ORDER BY stage_to", pr).fetchall()
+    cmds = con.execute(f"SELECT command, COUNT(*) FROM usage_event {w} GROUP BY command ORDER BY COUNT(*) DESC", pr).fetchall()
+    med = times[len(times) // 2] if times else 0
+    if getattr(a, "json", False):
+        print(json.dumps({
+            "src": src, "events_total": total,
+            "gate_fail_rate_pct": round(fail_rate, 1), "gate_fail": gate_fail, "gate_total": gate_total,
+            "cycles_started": cycles_started, "cycles_reached_cards": reached,
+            "cycle_time_s": {"min": times[0] if times else 0, "median": med, "max": times[-1] if times else 0},
+            "stage_dwell": [{"stage": s, "n": c, "avg_s": round(v or 0, 1)} for s, c, v in dwell],
+            "commands": [{"command": c, "n": n} for c, n in cmds],
+        }))
+        return 0
+    print(f"flow usage - {src}")
+    print(f"  events total:         {total}")
+    print(f"  gate fail-rate:       {fail_rate:.0f}%  ({gate_fail}/{gate_total} next|check failed)")
+    print(f"  cycles started:       {cycles_started}")
+    print(f"  cycles reached cards: {reached}  (abandonment proxy: {cycles_started - reached} not yet at cards)")
+    if times:
+        print(f"  cycle-time (s):       min={times[0]} median={med} max={times[-1]}")
+    print("  per-stage dwell (avg duration_s of 'next'):")
+    for s, c, v in dwell:
+        print(f"    {s:<12} n={c} avg={(v or 0):.0f}s")
+    print("  commands:")
+    for c, n in cmds:
+        print(f"    {c:<12} {n}")
+    return 0
+
+
 # ---------------- arg parsing ----------------
 
 def build_parser():
@@ -534,6 +655,12 @@ def build_parser():
     sub.add_parser("audit", help="entropy/drift audit: orphaned/unverified/stale records + a 0-100 score")
     pp = sub.add_parser("propose", help="deterministic improvement proposals from repeated friction/interventions + audit drift")
     pp.add_argument("--commit", action="store_true", help="write the proposals into the backlog (else dry-run)")
+
+    pr = sub.add_parser("rollup", help="ingest JSONL usage sinks into usage_event (idempotent)")
+    pr.add_argument("--global", dest="global_", action="store_true", help="also roll up the device-global log")
+    pu = sub.add_parser("usage", help="print usage analytics from usage_event")
+    pu.add_argument("--global", dest="global_", action="store_true", help="read the device-global log instead of this project")
+    pu.add_argument("--json", action="store_true")
     return p
 
 
@@ -549,6 +676,7 @@ def main(argv):
         "decision": cmd_decision, "backlog": cmd_backlog, "tool": cmd_tool,
         "intervention": cmd_intervention, "query": cmd_query,
         "audit": cmd_audit, "propose": cmd_propose,
+        "rollup": cmd_rollup, "usage": cmd_usage,
     }
     try:
         return dispatch[a.cmd](con, a) or 0

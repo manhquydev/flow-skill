@@ -11,8 +11,10 @@ durable harness layer (intake/story/trace/decision/backlog), agent orchestration
 **Codex (GPT-5.x) second engine + Antigravity (Gemini-3) third engine** = a three-model adversarial
 gate), and project-type awareness.
 
-> Status: **v0.8.0** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
-> cross-project KB) + gate-fired capture + drift checks (contract/tokens/coherence/**consistency**) + brownfield
+> Status: **v0.9.0** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
+> cross-project KB) + gate-fired capture + a **mechanical usage log** (every `flow.sh` invocation
+> self-recorded to JSONL; `/flow usage` → cycle-time, gate fail-rate, per-stage dwell; local-only) +
+> drift checks (contract/tokens/coherence/**consistency**) + brownfield
 > `assess` + a concurrency lock + agent integration + DESIGN law + project-type awareness +
 > **portable install across Claude Code (`/flow`), Codex CLI (`$flow`), and Antigravity (`agy` CLI /
 > IDE)** + a **Windows/Codex runner launcher** (`flow.cmd`, routes around WSL-bash path failures).

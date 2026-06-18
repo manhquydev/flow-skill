@@ -32,6 +32,15 @@ SKIPPED_FILE="$ROOT/flow/.skipped"
 LOCK_FILE="$ROOT/flow/.lock"
 HARNESS_PY="$SCRIPT_DIR/../harness/flow_harness.py"
 
+# Usage-log sinks (run-state dir, gitignored). Mechanical flight-recorder: every invocation
+# self-records here. Local-only, never transmitted. See flow/05-contract.md (this feature's plan).
+LOG_DIR="$ROOT/.flow"
+EVENTS_FILE="$LOG_DIR/events.jsonl"                       # per-project FULL event
+CYCLE_FILE="$LOG_DIR/cycle_id"                            # stamped when stage 00 unlocks
+GLOBAL_LOG="${HOME:-}/.claude/flow/usage.jsonl"           # device-global COMPACT event
+# Stage/card carried into the exit event by the commands that know them (set during run).
+FLOW_LOG_STAGE_FROM=""; FLOW_LOG_STAGE_TO=""; FLOW_LOG_CARD=""
+
 # Keep pure run-state (MODE / PROJECT_TYPE / .flow/) out of the host repo's git status.
 # Idempotent; only acts in a real git repo OR where a .gitignore already exists (so test
 # sandboxes and non-git dirs are untouched — no surprise file creation).
@@ -413,6 +422,9 @@ cmd_next() {
     mkdir -p "$FLOW_DIR"
     cp "$TEMPLATE_DIR/00-idea.md" "$FLOW_DIR/00-idea.md"
     seed_law_files
+    # New build cycle starts here -> stamp a cycle id the usage log groups events under.
+    { mkdir -p "$LOG_DIR" && printf '%s-%s\n' "$(_now)" "$(uname -n 2>/dev/null | cut -c1-12 || echo host)" > "$CYCLE_FILE"; } 2>/dev/null || true
+    FLOW_LOG_STAGE_TO="00-idea"
     echo "PASS: unlocked stage 00 -> flow/00-idea.md"
     echo "Fill it in, check its gate boxes, then run '/flow next'."
     return 0
@@ -426,6 +438,7 @@ cmd_next() {
     return 1
   fi
   if [ "$idx" -ge "$LAST_STAGE_IDX" ]; then
+    FLOW_LOG_STAGE_FROM="$cur"
     if planning_complete; then
       echo "PASS: stage $cur gate clean. Planning is COMPLETE."
       echo "All planning stages passed (or were debt-skipped). Run '/flow card' to create build cards."
@@ -445,6 +458,7 @@ cmd_next() {
     return 0
   fi
   cp "$TEMPLATE_DIR/$nxt.md" "$FLOW_DIR/$nxt.md"
+  FLOW_LOG_STAGE_FROM="$cur"; FLOW_LOG_STAGE_TO="$nxt"
   echo "PASS: stage $cur gate clean -> unlocked stage $((idx + 1)) (flow/$nxt.md)"
   gate_durable_hook "$cur"
   echo "  tip: '/flow recall' surfaces prior debt/retro/friction before you fill this stage."
@@ -465,6 +479,7 @@ cmd_card() {
   mkdir -p "$CARDS_DIR"
   local next; next="$(( $(highest_card) + 1 ))"
   local id; id="$(printf 'C-%03d' "$next")"
+  FLOW_LOG_CARD="$id"
   local out="$CARDS_DIR/$id.md"
   if ! sed "s/C-NNN/$id/g" "$TEMPLATE_DIR/card.md" > "$out"; then
     rm -f "$out"
@@ -495,6 +510,7 @@ cmd_check() {
     return 1
   fi
   local id; id="$(basename "$file" .md)"
+  FLOW_LOG_CARD="$id"
   local found=0
 
   # 1) no [FILL]
@@ -1284,9 +1300,92 @@ exit: 0 = pass/advanced, 1 = gate fail / usage error
 EOF
 }
 
+# ---------- usage log (mechanical capture; best-effort, never fails, exit-code preserving) ----------
+# Logging is OFF when FLOW_LOG_DISABLE or the standard DO_NOT_TRACK env is set (hygiene; local-only).
+_log_disabled() { [ -n "${FLOW_LOG_DISABLE:-}" ] || [ -n "${DO_NOT_TRACK:-}" ]; }
+
+# JSON string escape: backslash, doublequote, then drop control chars (keeps one line valid).
+_json_str() { printf '%s' "${1:-}" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\r\n\t'; }
+
+# Conservative arg mask: if the arg string contains any secret-shaped keyword (case-insensitive
+# via tr, portable), replace the WHOLE field rather than risk a partial leak. Args are rarely
+# secret-bearing (mostly 'next'/'card'/'check C-001'); free-text --summary is the only real vector.
+_mask_secrets() {
+  case "$(printf '%s' "${1:-}" | tr 'A-Z' 'a-z')" in
+    *token*|*secret*|*passwd*|*password*|*credential*|*api_key*|*api-key*|*apikey*|*bearer*|*authorization*|*-----begin*)
+      printf '***redacted***' ;;
+    *) printf '%s' "${1:-}" ;;
+  esac
+}
+
+_flow_version() {
+  local sk="$SCRIPT_DIR/../SKILL.md" v=""
+  v="$(sed -nE 's/^[[:space:]]*version:[[:space:]]*"?([0-9][.0-9A-Za-z-]*).*/\1/p' "$sk" 2>/dev/null | head -1)"
+  [ -n "$v" ] && printf '%s' "$v" || printf 'unknown'
+}
+
+_log_is_readonly() { # $1 = command -> true|false (does it mutate the flow plan?)
+  case "$1" in
+    status|recall|ready|usage|tokens|coherence|consistency|contract|constitution|doctor|design|help|-h|--help|"") echo true ;;
+    *) echo false ;;
+  esac
+}
+
+# Build + append one event. $1 = exit code. Wrapped by the caller in { } 2>/dev/null || true.
+_log_event() {
+  _log_disabled && return 0
+  local ec="${1:-0}" now ts dur gp ro ver proj host cyc args
+  now="$(_now)"; ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo '')"
+  dur=$(( now - ${FLOW_LOG_START:-$now} )); [ "$dur" -lt 0 ] && dur=0
+  case "$FLOW_LOG_CMD" in next|check) [ "$ec" -eq 0 ] && gp=true || gp=false ;; *) gp=null ;; esac
+  ro="$(_log_is_readonly "$FLOW_LOG_CMD")"
+  ver="$(_flow_version)"; proj="$(basename "$ROOT" 2>/dev/null || echo '?')"
+  host="$(uname -n 2>/dev/null | cut -c1-16 || echo host)"
+  cyc="$(cat "$CYCLE_FILE" 2>/dev/null | tr -d '\r\n' || echo '')"
+  args="$(_mask_secrets "$FLOW_LOG_ARGS")"
+  mkdir -p "$LOG_DIR" 2>/dev/null || true
+  # FULL line -> per-project
+  printf '{"ts":"%s","epoch_s":%s,"session_id":"%s","cycle_id":"%s","project":"%s","command":"%s","args":"%s","exit_code":%s,"gate_pass":%s,"duration_s":%s,"stage_from":"%s","stage_to":"%s","card":"%s","project_type":"%s","mode":"%s","flow_version":"%s","tier":"%s","host":"%s","read_only":%s}\n' \
+    "$ts" "$now" "$(_json_str "${FLOW_SESSION_ID:-}")" "$cyc" "$(_json_str "$proj")" "$(_json_str "$FLOW_LOG_CMD")" "$(_json_str "$args")" "$ec" "$gp" "$dur" "$FLOW_LOG_STAGE_FROM" "$FLOW_LOG_STAGE_TO" "$(_json_str "$FLOW_LOG_CARD")" "$(get_project_type)" "$(cat "$MODE_FILE" 2>/dev/null | tr -d '\r' || echo teach)" "$ver" "${FLOW_ENGINE_TIER:-builtin}" "$(_json_str "$host")" "$ro" \
+    >> "$EVENTS_FILE" 2>/dev/null || true
+  # COMPACT line -> device-global (no args/host/stage_from/type/mode -> stays small, <PIPE_BUF, race-safe append)
+  if [ -n "${HOME:-}" ]; then
+    mkdir -p "$(dirname "$GLOBAL_LOG")" 2>/dev/null || true
+    printf '{"ts":"%s","epoch_s":%s,"session_id":"%s","cycle_id":"%s","project":"%s","command":"%s","exit_code":%s,"gate_pass":%s,"duration_s":%s,"stage_to":"%s","flow_version":"%s","read_only":%s}\n' \
+      "$ts" "$now" "$(_json_str "${FLOW_SESSION_ID:-}")" "$cyc" "$(_json_str "$proj")" "$(_json_str "$FLOW_LOG_CMD")" "$ec" "$gp" "$dur" "$FLOW_LOG_STAGE_TO" "$ver" "$ro" \
+      >> "$GLOBAL_LOG" 2>/dev/null || true
+  fi
+  return 0
+}
+
+# EXIT trap: capture $? FIRST, log best-effort, re-exit unchanged (logging never alters exit code).
+_log_on_exit() {
+  ec=$?
+  { _log_event "$ec"; } 2>/dev/null || true
+  exit "$ec"
+}
+
+# Roll up the JSONL usage sinks into usage_event, then print analytics. Read-only; degrades
+# gracefully when python/harness is unavailable (mirrors the durable-layer best-effort idiom).
+cmd_usage() {
+  if ! harness_available; then
+    echo "usage: durable layer unavailable (python or harness missing, or FLOW_HARNESS_DISABLE set)."
+    echo "  the raw JSONL log still exists at $EVENTS_FILE"
+    return 0
+  fi
+  local py; py="$(_python)"
+  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" rollup >/dev/null 2>&1 || true
+  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" usage
+  return 0
+}
+
 # ---------- dispatch ----------
 cmd="${1:-status}"
 shift 2>/dev/null || true
+FLOW_LOG_CMD="$cmd"
+FLOW_LOG_ARGS="$*"
+FLOW_LOG_START="$(_now)"
+trap '_log_on_exit' EXIT
 case "$cmd" in
   status|"")      cmd_status ;;
   next)           cmd_next ;;
@@ -1311,6 +1410,7 @@ case "$cmd" in
   constitution)   cmd_constitution ;;
   promote)        cmd_promote "${1:-}" ;;
   doctor)         cmd_doctor ;;
+  usage)          cmd_usage ;;
   -h|--help|help) usage ;;
   *) echo "unknown command: $cmd"; echo; usage; exit 1 ;;
 esac

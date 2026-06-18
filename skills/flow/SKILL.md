@@ -8,7 +8,7 @@ keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deplo
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.8.0"
+  version: "0.9.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD."
 ---
 
@@ -92,6 +92,7 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | `/flow ready` | `flow.sh ready` — which todo cards are buildable + parallel-safety hint |
 | `/flow auto` | `flow.sh auto` preflight, then drive the autonomous run (see AUTO principles) |
 | `/flow recall` | `flow.sh recall` — read back durable memory (open debt, recent retro, previous-card scope, harness friction/backlog, playbooks) **at the start of a stage/card** so you don't re-learn known pain |
+| `/flow usage` | `flow.sh usage` — roll up the mechanical usage log (JSONL flight-recorder of every invocation) into `usage_event` and print build analytics: cycle-time, gate fail-rate, per-stage dwell, cycle completion, command breakdown. Local-only; disable with `FLOW_LOG_DISABLE=1`/`DO_NOT_TRACK=1`. `--global` for the device-wide view |
 | `/flow contract` | `flow.sh contract` — flag client base-URL vs served-path prefix drift (web; advisory; run after the contract gate) |
 | `/flow tokens` | `flow.sh tokens` — flag DESIGN.md vs CSS design-token drift: unused tokens + value mismatches + orphan vars (advisory; UI cards) |
 | `/flow coherence` | `flow.sh coherence` — flag version drift across declared version fields (doc-vs-code coherence; advisory) |

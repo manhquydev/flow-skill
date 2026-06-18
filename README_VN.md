@@ -11,8 +11,10 @@ harness bền vững** (intake/story/trace/decision/backlog), điều phối age
 (GPT-5.x) engine thứ hai + Antigravity (Gemini-3) engine thứ ba khác nhà cung cấp** = gate đối kháng
 ba mô hình), và nhận biết loại dự án.
 
-> Trạng thái: **v0.8.0** — engine + **vòng tri thức** bền vững khép kín (recall · audit/propose · KB
-> liên-dự-án) + capture tự động tại gate + drift checks (contract/tokens/coherence/**consistency**) + chế độ
+> Trạng thái: **v0.9.0** — engine + **vòng tri thức** bền vững khép kín (recall · audit/propose · KB
+> liên-dự-án) + capture tự động tại gate + **usage log cơ học** (mỗi lần chạy `flow.sh` tự ghi ra JSONL;
+> `/flow usage` → cycle-time, tỷ lệ fail gate, dwell theo stage; chỉ lưu cục bộ) +
+> drift checks (contract/tokens/coherence/**consistency**) + chế độ
 > brownfield `assess` + concurrency lock + tích hợp agent + DESIGN law + nhận biết loại dự án +
 > **cài đặt portable trên Claude Code (`/flow`), Codex CLI (`$flow`) và Antigravity (`agy` CLI /
 > IDE)** + **launcher runner cho Windows/Codex** (`flow.cmd`, tránh lỗi path của WSL-bash).
