@@ -30,13 +30,18 @@ and used only to add color, never to pass a gate.
 ## Bug-fix cards: prove the test was tied to the bug
 When a card's job is fixing a bug/regression (not new behavior), a passing test is not yet
 ground truth — a test written after the fix can pass without ever having exercised the bug. The
-ground-truth signal is the **red→green** pair: with the fix reverted the new test FAILS (and
-fails for the bug's reason, not a typo), with the fix restored it PASSES. Paste both runs into
-`## Evidence`. This is a *technique for this card class*, not a project-wide test-first law — flow
-stays contract-/evidence-first. It is cleanest for `cli`/`library`/`skill` cards where a fix
-reverts in isolation; for `web` cards whose fix involves migrations or stateful backends a clean
-revert may not be possible — there, fall back to the live `## Verify` reproduction of the original
-symptom as the signal.
+ground-truth signal is the **red→green** pair: with the fix reverted the new test FAILS, with the
+fix restored it PASSES. Paste both runs into `## Evidence`. The reverted-failure must fail **for the
+bug's reason** — its message names the bugged behavior/output (a wrong value, a missing rejection, a
+bad status), NOT an `ImportError`/compile/setup/typo error. A revert that errors before reaching the
+asserted behavior proves nothing; if you see a collection/import/syntax error on revert, the test is
+not yet tied to the bug — fix the harness and re-run. This is a *technique for this card class*, not a
+project-wide test-first law — flow stays contract-/evidence-first. It is cleanest for
+`cli`/`library`/`skill` cards where a fix reverts in isolation. For a `web` card whose fix genuinely
+cannot revert cleanly (migration, stateful backend), the waiver is **not** agent-self-asserted: name
+the **specific** blocking dependency in `## Evidence` (e.g. "irreversible migration `0042_*`",
+"shared session store") and still paste a live `## Verify` reproduction that shows the **original
+symptom before** the fix and its absence **after** — a bare post-fix green is not the signal.
 
 ## Why
 LLM-as-judge is useful for triage and prioritization but unreliable at the exact moment a

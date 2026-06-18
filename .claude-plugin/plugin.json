@@ -1,7 +1,7 @@
 {
   "name": "flow",
   "description": "buildflow gated build harness for Claude Code: take a product from idea to its real done-evidence (a deployed URL for web; installs+runs for a CLI; a real run for a skill) through honest gates, with a durable harness layer and agent orchestration. Adapts to project type (web|cli|library|skill).",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "author": { "name": "manhquy", "email": "manhquy.mqy@gmail.com" },
   "license": "MIT",
   "keywords": ["flow", "buildflow", "gate", "build", "ship", "scope", "prd", "contract", "harness"]

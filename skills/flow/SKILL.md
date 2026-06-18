@@ -8,7 +8,7 @@ keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deplo
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.10.1"
+  version: "0.10.2"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD."
 ---
 
@@ -99,6 +99,10 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | `/flow consistency` | `flow.sh consistency` — audit cross-artifact coverage: every PRD `FRn` is claimed by a card (`implements:`) and served by a contract interface; numeric success metric; no leftover placeholders (advisory; run after the contract gate, before cards) |
 | `/flow constitution` | `flow.sh constitution` — check operator-authored per-project invariants in `flow/constitution.md` (structure + optional grep-markers); **advisory and NOT a `next` gate** — run it at the scope/PRD/contract seam, then apply the semantic challenge in `gate-rules.md` |
 | `/flow promote <file>` | `flow.sh promote <file>` — copy a playbook into the cross-project KB (`~/.claude/flow/playbooks`); `recall` then surfaces it everywhere |
+| `/flow project-type <web\|cli\|library\|skill>` | `flow.sh project-type` — set/read the project type that selects the per-type gate lens (`references/project-types.md`) |
+| `/flow skip <stage>` | `flow.sh skip` — advance past a gate that has a matching open `DEBT.md` line; **security-class skips are operator-only and HALT** (never auto-skipped) |
+| `/flow doctor` | `flow.sh doctor` — environment/install self-check (paths, runner, Git Bash) |
+| `/flow harness … \| debt … \| design` | runner subsystems: `harness` (durable intake/story/trace/decision/backlog — see `harness/README.md`), `debt` (record/list deliberate gate-skips), `design` (mechanical UI-token check) |
 | `/flow unlock` | `flow.sh unlock` — clear this project's concurrency lock after a crashed/abandoned session |
 | `/flow retro` | the 3 retro questions; the operator writes the line, never you |
 
@@ -183,6 +187,7 @@ Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, r
 - `law/RETRO.md` — one honest line per run.
 - `references/gate-rules.md` — the per-stage semantic challenges (the heart of your gatekeeping).
 - `references/stage-state-machine.md` — stage order, unlock conditions, what each artifact must contain.
+- `references/project-types.md` — per-type (web|cli|library|skill) adaptations of the stages, gate lenses, and done-evidence.
 - `references/command-dispatch.md` — exact mapping of each `/flow` command to runner call + your duties.
 - `references/agent-detection.md` — detect ck:/bmad agents + priority + fallback.
 - `references/agent-stage-mapping.md` — stage→agent map, scoped prompt template, durable hooks.
