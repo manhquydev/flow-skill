@@ -90,6 +90,45 @@ has "$u" "gate fail-rate" "usage shows gate fail-rate"
 has "$u" "cycles started" "usage shows cycle count"
 has "$u" "cycle-time" "usage shows cycle-time"
 has "$u" "per-stage dwell" "usage shows per-stage dwell"
+
+echo "8) v2 loop-closing: migration 007 + usage --summary + recall block + gate-reason + prune + propose"
+PY="$(command -v python || command -v python3)"
+ver="$("$PY" - "$SB/.flow/harness.db" <<'PY'
+import sqlite3,sys
+print(sqlite3.connect(sys.argv[1]).execute("select max(version) from schema_version").fetchone()[0])
+PY
+)"
+ck "7" "$ver" "migration 007 applied (schema_version 7)"
+s="$(bash "$RUN" usage --summary 2>/dev/null)"
+has "$s" "USAGE (mechanical log)" "usage --summary prints one-line digest"
+SE="$HERE/.usageempty_$$"; rm -rf "$SE"; mkdir -p "$SE"
+es="$(FLOW_PROJECT_ROOT="$SE" "$PY" "$HARN" usage --summary 2>/dev/null)"
+ck "" "$es" "usage --summary silent on no data"
+rm -rf "$SE"
+rc="$(bash "$RUN" recall 2>&1)"
+has "$rc" "USAGE (mechanical log)" "recall surfaces the usage block"
+rd="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" recall 2>&1)"
+no  "$rd" "USAGE (mechanical log)" "recall omits usage block when harness disabled"
+gr="$("$PY" - "$SB/.flow/events.jsonl" <<'PY'
+import json,sys
+print(next((o.get("gate_fail_reason") or "" for o in (json.loads(l) for l in open(sys.argv[1]) if l.strip()) if o.get("gate_pass") is False), ""))
+PY
+)"
+has "$gr" "fill:" "failing gate records gate_fail_reason"
+pr="$(bash "$RUN" usage --prune --keep 1 2>/dev/null)"
+has "$pr" '"kept": 1' "usage --prune caps to keep N"
+SP="$HERE/.usageprop_$$"; rm -rf "$SP"; mkdir -p "$SP/.flow"
+"$PY" - "$SP/.flow/events.jsonl" <<'PY'
+import json,sys
+rows=[{"command":"next","stage_to":"03-prd","gate_pass":False,"cycle_id":"A","epoch_s":1,"exit_code":1},
+      {"command":"next","stage_to":"03-prd","gate_pass":False,"cycle_id":"B","epoch_s":2,"exit_code":1},
+      {"command":"next","stage_to":"03-prd","gate_pass":True,"cycle_id":"B","epoch_s":3,"exit_code":0}]
+open(sys.argv[1],"w").write("\n".join(json.dumps(r) for r in rows)+"\n")
+PY
+FLOW_PROJECT_ROOT="$SP" "$PY" "$HARN" rollup >/dev/null 2>&1
+pp="$(FLOW_PROJECT_ROOT="$SP" "$PY" "$HARN" propose 2>&1)"
+has "$pp" "03-prd" "propose surfaces a stage-fail proposal from the usage log"
+rm -rf "$SP"
 rm -rf "$SB"
 
 echo

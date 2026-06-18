@@ -403,6 +403,15 @@ def _build_proposals(con):
                           suggested="Clarify the operating rule or gate that would have caught this earlier.",
                           validation="Future interventions of this type should decrease after the rule change.",
                           confidence=_confidence_for_count(count)))
+    for stage, f, t, fc in _usage_gate_fail_stages(con):
+        props.append(dict(title=f"Stage {stage} fails its gate often",
+                          component=stage,
+                          evidence=f"gate fail-rate {f}/{t} over {fc} cycles (mechanical usage log)",
+                          predicted_impact="Fewer gate retries at this stage once its artifact/template is tightened.",
+                          risk="normal",
+                          suggested="Tighten this stage's artifact/template, or split the stage so its gate is honestly satisfiable.",
+                          validation="Watch this stage's gate fail-rate in 'flow usage' over the next cycles.",
+                          confidence="medium"))
     for key, (label, _sql) in _AUDIT_QUERIES.items():
         n = len(findings[key])
         if n > 0:
@@ -463,7 +472,8 @@ def _now(con):
 
 USAGE_COLS = ("epoch_s", "session_id", "cycle_id", "project", "command", "args",
               "exit_code", "gate_pass", "duration_s", "stage_from", "stage_to", "card",
-              "project_type", "mode", "flow_version", "tier", "host", "read_only")
+              "project_type", "mode", "flow_version", "tier", "host", "read_only",
+              "gate_fail_reason")
 
 
 def _events_path(a):
@@ -535,8 +545,9 @@ def cmd_usage(con, a):
     pr = (src,)
     total = con.execute(f"SELECT COUNT(*) FROM usage_event {w}", pr).fetchone()[0]
     if not total:
-        print(f"usage: no events yet for {src}")
-        print("  (run some flow commands first, then 'flow usage')")
+        if not getattr(a, "summary", False):   # --summary stays silent on no data (recall appends nothing)
+            print(f"usage: no events yet for {src}")
+            print("  (run some flow commands first, then 'flow usage')")
         return 0
     g = con.execute(f"SELECT COUNT(*), SUM(CASE WHEN gate_pass=0 THEN 1 ELSE 0 END) FROM usage_event "
                     f"{w} AND command IN ('next','check') AND gate_pass IS NOT NULL", pr).fetchone()
@@ -552,6 +563,15 @@ def cmd_usage(con, a):
                         f"{w} AND command='next' AND stage_to<>'' GROUP BY stage_to ORDER BY stage_to", pr).fetchall()
     cmds = con.execute(f"SELECT command, COUNT(*) FROM usage_event {w} GROUP BY command ORDER BY COUNT(*) DESC", pr).fetchall()
     med = times[len(times) // 2] if times else 0
+    if getattr(a, "summary", False):   # one compact line for `recall` to append
+        tf = con.execute(f"SELECT stage_to, SUM(CASE WHEN gate_pass=0 THEN 1 ELSE 0 END) AS f, COUNT(*) AS t "
+                         f"FROM usage_event {w} AND command IN ('next','check') AND stage_to<>'' AND gate_pass IS NOT NULL "
+                         f"GROUP BY stage_to HAVING f>0 ORDER BY f DESC LIMIT 1", pr).fetchone()
+        tfs = f"{tf[0]}({tf[1]}/{tf[2]})" if tf else "none"
+        print(f"USAGE (mechanical log): cycles={cycles_started} reached-cards={reached} "
+              f"| cycle-time s min/med/max={times[0] if times else 0}/{med}/{times[-1] if times else 0} "
+              f"| gate fail-rate={fail_rate:.0f}% | top-fail-stage={tfs}")
+        return 0
     if getattr(a, "json", False):
         print(json.dumps({
             "src": src, "events_total": total,
@@ -575,6 +595,59 @@ def cmd_usage(con, a):
     print("  commands:")
     for c, n in cmds:
         print(f"    {c:<12} {n}")
+    return 0
+
+
+def _usage_gate_fail_stages(con):
+    """Stages whose gate fails often (>=50%) across >=2 distinct cycles — the usage->propose signal.
+    Heuristic, surfaced for the operator to commit (never auto-applied)."""
+    try:
+        rows = con.execute(
+            "SELECT stage_to, SUM(CASE WHEN gate_pass=0 THEN 1 ELSE 0 END) AS f, COUNT(*) AS t, "
+            "       COUNT(DISTINCT CASE WHEN gate_pass=0 THEN cycle_id END) AS fc "
+            "FROM usage_event WHERE command IN ('next','check') AND stage_to<>'' AND gate_pass IS NOT NULL "
+            "GROUP BY stage_to").fetchall()
+    except sqlite3.Error:
+        return []
+    out = []
+    for stage, f, t, fc in rows:
+        if t and (f / t) >= 0.5 and (fc or 0) >= 2:
+            out.append((stage, f, t, fc))
+    return out
+
+
+def cmd_prune(con, a):
+    """Cap each JSONL sink to its last N lines, crash-safe (temp + os.replace). Pruning renumbers
+    lines, so the usage_event mirror + rollup_cursor for that sink are reset to rebuild cleanly."""
+    keep = getattr(a, "keep", None) or 5000
+    srcs = [_events_path(a)]
+    if getattr(a, "global_", False):
+        srcs.append(_global_log_path())
+    for src in srcs:
+        if not os.path.isfile(src):
+            print(json.dumps({"sink": src, "kept": 0, "dropped": 0, "note": "absent"}))
+            continue
+        with open(src, "r", encoding="utf-8") as fh:
+            lines = fh.readlines()
+        if len(lines) <= keep:
+            print(json.dumps({"sink": src, "kept": len(lines), "dropped": 0}))
+            continue
+        kept = lines[-keep:]
+        tmp = src + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.writelines(kept)
+        os.replace(tmp, src)            # atomic on the same filesystem
+        # line numbers changed -> the mirror + cursor for this sink are stale; reset so the next
+        # rollup re-ingests the kept lines as line_no 1..K (UNIQUE(src,line_no) stays consistent).
+        con.execute("DELETE FROM usage_event WHERE src=?", (src,))
+        con.execute("DELETE FROM rollup_cursor WHERE src=?", (src,))
+        con.commit()
+        print(json.dumps({"sink": src, "kept": len(kept), "dropped": len(lines) - len(kept)}))
+    if getattr(a, "global_", False):
+        # the global sink is shared: only THIS project's db cursor/mirror was reset. Any other
+        # project that ran `rollup --global` keeps a stale cursor + phantom rows for it until reset.
+        sys.stderr.write("note: pruned the device-global log; other projects that rolled it up should "
+                         "reset it too (run a rollup after deleting their rollup_cursor row for that path).\n")
     return 0
 
 
@@ -661,6 +734,10 @@ def build_parser():
     pu = sub.add_parser("usage", help="print usage analytics from usage_event")
     pu.add_argument("--global", dest="global_", action="store_true", help="read the device-global log instead of this project")
     pu.add_argument("--json", action="store_true")
+    pu.add_argument("--summary", action="store_true", help="one compact line (for `recall` to append); silent on no data")
+    ppr = sub.add_parser("prune", help="cap each JSONL sink to its last N lines (crash-safe; resets the mirror for that sink)")
+    ppr.add_argument("--keep", type=int, help="lines to keep (default 5000)")
+    ppr.add_argument("--global", dest="global_", action="store_true", help="also prune the device-global log")
     return p
 
 
@@ -676,7 +753,7 @@ def main(argv):
         "decision": cmd_decision, "backlog": cmd_backlog, "tool": cmd_tool,
         "intervention": cmd_intervention, "query": cmd_query,
         "audit": cmd_audit, "propose": cmd_propose,
-        "rollup": cmd_rollup, "usage": cmd_usage,
+        "rollup": cmd_rollup, "usage": cmd_usage, "prune": cmd_prune,
     }
     try:
         return dispatch[a.cmd](con, a) or 0

@@ -93,6 +93,16 @@ stage_from→to, card, project_type, mode, flow_version, tier, host, read_only.
 - JSONL is the source of truth; `usage_event` is a derived, queryable mirror. Semantic events keep
   using `trace`/`intervention`/`decision` — the usage log does not duplicate them.
 
+**Closed feedback loop (schema 007).** The recorded data feeds the surfaces where you already act:
+- `recall` appends a one-line digest (`flow_harness.py usage --summary`): cycles, cycle-time, gate
+  fail-rate, top gate-fail stage — so build history reaches you at stage/card start (silent if no data).
+- `propose` (`_build_proposals`) emits a backlog proposal when a stage's gate fail-rate ≥ 50% across
+  ≥ 2 cycles (honest heuristic; you commit it — never auto-applied).
+- `flow usage --prune [--keep N]` / `flow_harness.py prune` caps each sink to its last N lines
+  (crash-safe temp + `os.replace`; resets that sink's mirror + cursor so the next rollup rebuilds cleanly).
+- A failing `next`/`check` records `gate_fail_reason` (e.g. `fill:2,unchecked:1`) and attributes the
+  failing stage, so "stage X fails often" is diagnosable. All best-effort / exit-code preserving.
+
 ## Files
 - `flow_harness.py` — CLI entrypoint + backend toggle.
 - `_domain.py` — pure rules (input types, lanes, hard gates, trace tiers). Testable in isolation.

@@ -39,7 +39,7 @@ EVENTS_FILE="$LOG_DIR/events.jsonl"                       # per-project FULL eve
 CYCLE_FILE="$LOG_DIR/cycle_id"                            # stamped when stage 00 unlocks
 GLOBAL_LOG="${HOME:-}/.claude/flow/usage.jsonl"           # device-global COMPACT event
 # Stage/card carried into the exit event by the commands that know them (set during run).
-FLOW_LOG_STAGE_FROM=""; FLOW_LOG_STAGE_TO=""; FLOW_LOG_CARD=""
+FLOW_LOG_STAGE_FROM=""; FLOW_LOG_STAGE_TO=""; FLOW_LOG_CARD=""; FLOW_LAST_GATE_FAIL=""
 
 # Keep pure run-state (MODE / PROJECT_TYPE / .flow/) out of the host repo's git status.
 # Idempotent; only acts in a real git repo OR where a .gitignore already exists (so test
@@ -433,6 +433,10 @@ cmd_next() {
   if ! scan_gate "$FLOW_DIR/$cur.md" >/dev/null 2>&1; then
     echo "FAIL: gate for stage $cur is not clean."
     scan_gate "$FLOW_DIR/$cur.md"
+    # attribute the failing event to THIS stage (so usage top-fail-stage + propose can see it)
+    # and record WHICH checks failed, so a chronically-failing stage is diagnosable.
+    FLOW_LOG_STAGE_TO="$cur"
+    FLOW_LAST_GATE_FAIL="fill:$(grep -c '\[FILL' "$FLOW_DIR/$cur.md" 2>/dev/null || echo 0),unchecked:$(grep -cE '^[[:space:]]*- \[ \]' "$FLOW_DIR/$cur.md" 2>/dev/null || echo 0)"
     echo
     echo "Fix the above, then run '/flow next' again. (Kill at a gate is also valid.)"
     return 1
@@ -577,6 +581,7 @@ cmd_check() {
     esac
     return 0
   fi
+  FLOW_LAST_GATE_FAIL="fill:$(grep -c '\[FILL' "$file" 2>/dev/null || echo 0),unchecked:$(grep -cE '^[[:space:]]*- \[ \]' "$file" 2>/dev/null || echo 0)"
   echo "FAIL: $id has gate violations (above)."
   return 1
 }
@@ -753,6 +758,10 @@ cmd_recall() {
   if [ -n "$out" ]; then echo; echo "PLAYBOOKS available (read before building that stack):"; printf '%s\n' "$out" | sed 's/^/  - /'; fi
   out="$(recall_global_playbooks)"
   if [ -n "$out" ]; then echo; echo "GLOBAL PLAYBOOKS (cross-project, ~/.claude/flow/playbooks):"; printf '%s\n' "$out" | sed 's/^/  - /'; fi
+  # mechanical usage log (best-effort): roll up, then surface the one-line digest so build history
+  # reaches the operator at stage/card start. Silent when there is no data / no python.
+  out="$(harness_emit rollup >/dev/null 2>&1; harness_emit usage --summary)"
+  if [ -n "$out" ]; then echo; printf '%s\n' "$out" | sed 's/^/  /'; proj_any=1; fi
   if [ -f "$ROOT/flow/constitution.md" ]; then
     out="$(awk '/^[[:space:]]*```/{f=!f;next} f{next} /^[[:space:]]*\|/ && !/\|[[:space:]]*[Ii][Dd][[:space:]]*\|/ && !/\|[[:space:]]*:?-{2,}/{print}' "$ROOT/flow/constitution.md")"
     if [ -n "$out" ]; then echo; echo "PROJECT CONSTITUTION (operator invariants to honor):"; printf '%s\n' "$out" | sed 's/^/  /'; proj_any=1; fi
@@ -1345,8 +1354,8 @@ _log_event() {
   args="$(_mask_secrets "$FLOW_LOG_ARGS")"
   mkdir -p "$LOG_DIR" 2>/dev/null || true
   # FULL line -> per-project
-  printf '{"ts":"%s","epoch_s":%s,"session_id":"%s","cycle_id":"%s","project":"%s","command":"%s","args":"%s","exit_code":%s,"gate_pass":%s,"duration_s":%s,"stage_from":"%s","stage_to":"%s","card":"%s","project_type":"%s","mode":"%s","flow_version":"%s","tier":"%s","host":"%s","read_only":%s}\n' \
-    "$ts" "$now" "$(_json_str "${FLOW_SESSION_ID:-}")" "$cyc" "$(_json_str "$proj")" "$(_json_str "$FLOW_LOG_CMD")" "$(_json_str "$args")" "$ec" "$gp" "$dur" "$FLOW_LOG_STAGE_FROM" "$FLOW_LOG_STAGE_TO" "$(_json_str "$FLOW_LOG_CARD")" "$(get_project_type)" "$(cat "$MODE_FILE" 2>/dev/null | tr -d '\r' || echo teach)" "$ver" "${FLOW_ENGINE_TIER:-builtin}" "$(_json_str "$host")" "$ro" \
+  printf '{"ts":"%s","epoch_s":%s,"session_id":"%s","cycle_id":"%s","project":"%s","command":"%s","args":"%s","exit_code":%s,"gate_pass":%s,"duration_s":%s,"stage_from":"%s","stage_to":"%s","card":"%s","project_type":"%s","mode":"%s","flow_version":"%s","tier":"%s","host":"%s","read_only":%s,"gate_fail_reason":"%s"}\n' \
+    "$ts" "$now" "$(_json_str "${FLOW_SESSION_ID:-}")" "$cyc" "$(_json_str "$proj")" "$(_json_str "$FLOW_LOG_CMD")" "$(_json_str "$args")" "$ec" "$gp" "$dur" "$FLOW_LOG_STAGE_FROM" "$FLOW_LOG_STAGE_TO" "$(_json_str "$FLOW_LOG_CARD")" "$(get_project_type)" "$(cat "$MODE_FILE" 2>/dev/null | tr -d '\r' || echo teach)" "$ver" "${FLOW_ENGINE_TIER:-builtin}" "$(_json_str "$host")" "$ro" "$(_json_str "${FLOW_LAST_GATE_FAIL:-}")" \
     >> "$EVENTS_FILE" 2>/dev/null || true
   # COMPACT line -> device-global (no args/host/stage_from/type/mode -> stays small, <PIPE_BUF, race-safe append)
   if [ -n "${HOME:-}" ]; then
@@ -1374,8 +1383,13 @@ cmd_usage() {
     return 0
   fi
   local py; py="$(_python)"
+  if [ "${1:-}" = "--prune" ]; then          # flow usage --prune [--keep N] [--global]
+    shift
+    FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" prune "$@"
+    return 0
+  fi
   FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" rollup >/dev/null 2>&1 || true
-  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" usage
+  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" usage "$@"
   return 0
 }
 
@@ -1410,7 +1424,7 @@ case "$cmd" in
   constitution)   cmd_constitution ;;
   promote)        cmd_promote "${1:-}" ;;
   doctor)         cmd_doctor ;;
-  usage)          cmd_usage ;;
+  usage)          cmd_usage "$@" ;;
   -h|--help|help) usage ;;
   *) echo "unknown command: $cmd"; echo; usage; exit 1 ;;
 esac

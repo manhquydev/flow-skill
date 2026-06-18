@@ -1,7 +1,32 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.9.0** (2026-06-18).
+Updated as the skill evolves. Current: **v0.10.0** (2026-06-18).
+
+## v0.10.0 — closed the usage-log feedback loop (2026-06-18)
+
+v0.9.0 *recorded* every invocation but nothing consumed it. v0.10.0 wires the recorded data into the
+surfaces where the operator already acts, finishing the deferred v1 follow-ups (S-a + rotation + R5):
+- **`recall` surfaces a usage digest** (`flow_harness.py usage --summary`): cycles, cycle-time, gate
+  fail-rate, top gate-fail stage — at every stage/card start; silent when there is no data/python.
+- **`propose` flags chronically-failing stages** (`_build_proposals` branch): a stage with gate
+  fail-rate ≥ 50% over ≥ 2 cycles emits a committable backlog proposal (honest heuristic; operator commits).
+- **`flow usage --prune [--keep N]`** caps each sink crash-safe (temp + `os.replace`; resets that
+  sink's mirror+cursor so the next rollup rebuilds cleanly).
+- **gate-fail reason** (migration 007 `gate_fail_reason` + failing `next`/`check` now attribute the
+  stage): "stage X fails often" is diagnosable, not a bare bool.
+
+**Closed by decision (not silently dropped):** sub-second/ms duration → WONTFIX (seconds is the
+portability-correct ruling; `%N` is GNU-only); trace-tier auto-population (DF-4) → out of scope (a
+separate harness-DX increment). Anti-FOMO held: the propose threshold is a surfaced heuristic for the
+operator, never an auto-change; no invented magic numbers.
+
+Built through `/flow`'s own gates (idea→contract PASS, consistency PASS, 3 cards). Live verification
+caught a real fix (the gate-fail path now sets `FLOW_LOG_STAGE_TO` so failing events attribute their
+stage — without it `top-fail-stage`/propose got no data). Independent code review verdict **SHIP**
+(0 critical/high; 1 MEDIUM `prune --global` cross-project cursor staleness → documented + a stderr
+warning at the point of use). Suite **20 suites / 394 checks** green; coherence clean (0.9.0 → 0.10.0).
+Shipped to all 5 skill homes and verified by a live installed-runner `recall` showing the usage digest.
 
 ## v0.9.0 — mechanical usage log + `flow usage` analytics (2026-06-18)
 
@@ -202,12 +227,12 @@ DF-4 (trace-tier nag) + DF-5 (allowed-files containment) tracked.
 ## Size & surface
 | Metric | Value |
 |---|---|
-| Gate engine (`runner/flow.sh`) | 1416 LOC |
-| Durable layer (python) | 967 LOC (flow_harness + _db + _domain) |
-| Commands | 23 (incl. drift/coverage probes `contract/tokens/coherence/consistency` + `usage`) |
+| Gate engine (`runner/flow.sh`) | 1430 LOC |
+| Durable layer (python) | 1044 LOC (flow_harness + _db + _domain) |
+| Commands | 23 (incl. drift/coverage probes `contract/tokens/coherence/consistency` + `usage [--prune]`) |
 | Semantic references | 15 markdown playbooks |
 | Stack playbooks | 4 |
-| Schema migrations | 6 SQL (001–006; 006 = usage_event mirror) |
+| Schema migrations | 7 SQL (001–007; 006 = usage_event mirror, 007 = gate_fail_reason) |
 
 ## Test coverage
 | Suite | Checks | Covers |
@@ -231,10 +256,10 @@ DF-4 (trace-tier nag) + DF-5 (allowed-files containment) tracked.
 | `test_flow_accessed_count.sh` | 12 | usage-signal ordering (security-first, reuse count), read-only, no row loss |
 | `test_flow_constitution.sh` | 25 | per-project invariants: structure, `\|`-safe markers (loud sentinel-collision guard), NOT in cmd_next, recall surfacing |
 | `test_flow_antigravity_integration.sh` | 29 | Antigravity third-engine doc-contract + install wiring: exit-code-lies → route on non-empty output, interactive default, data/cost gate, gate parity, liveness-probe shape, ~/.gemini install homes |
-| `test_flow_usage_log.sh` | 19 | mechanical usage log: full+compact event, read_only class, secret mask + no-leak, no-fail on unwritable sink, disable envs, cycle_id+stage carry, idempotent rollup + malformed-skip, `flow usage` metrics |
-| **Total (dev)** | **386** | all green (`bash tests/run_all.sh`), 20 suites |
+| `test_flow_usage_log.sh` | 27 | mechanical usage log + closed loop: full+compact event, mask, no-fail, disable envs, cycle_id+stage carry, idempotent rollup, `flow usage`; v2: migration 007, `usage --summary`, recall digest (+disabled), gate_fail_reason, `--prune`, usage→propose |
+| **Total (dev)** | **394** | all green (`bash tests/run_all.sh`), 20 suites |
 | **+ e2e (installed)** | **22** | `tests/e2e-installed-drive.sh` — happy+edge against a fresh per-project install (Windows) |
-| **Grand total** | **408** | all green |
+| **Grand total** | **416** | all green |
 
 **Command coverage:** ~100% of runner commands now have a dedicated assertion (was 14/15;
 `retro`/`ready`/`auto` + harness `decision`/`tool`/`intervention` gaps closed 2026-06-13).
