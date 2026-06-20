@@ -44,6 +44,14 @@ for each todo card in card-number order:
 - Ground-truth gates only at decision points: `flow.sh` exit, `## Verify` real runs, story
   `verify_command`, deploy + live check. Never advance on an agent's self-assessment alone.
 
+## Repair discipline — full-suite re-run required
+A control-flow / runner repair (any change to `flow.sh`, `run_all.sh`, a test helper, or any
+shared test fixture) MUST re-run the FULL suite (`bash tests/run_all.sh`) before claiming
+green — not just the targeted suite that triggered the repair. A repair subagent that ran
+**only the targeted suite** is **BLOCKED**, not done. Rationale: runner-layer changes can break
+suites that were not failing before the repair (the C-015 regression was caught only by the
+full run, not by the targeted re-run).
+
 ## AUTO-LOG.md schema (one line per card)
 ```
 - C-NNN | <title> | tier=A | review=green | PR=<url> | merged=<sha> | live=<verified-url> | <date>

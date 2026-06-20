@@ -4,6 +4,40 @@ All notable changes to the flow skill. Versions follow the `version:` field in
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 
+## 0.12.1 — 2026-06-21 — v0.12 polish round
+
+Three polish items closing the v0.12 backlog. All backward-compatible.
+
+**telemetry-honesty [C-017]**
+
+- **Legacy-dwell `~approx` label.** `flow usage` now marks dwell figures inferred from legacy
+  rows (rows that pre-date the compact global-sink `stage_from` field) with a `~approx` suffix
+  so the operator can distinguish reliable wall-clock data from estimated dwell.
+- **`--builds-only` build-cycle count.** `flow usage --builds-only` now filters the cycle-time
+  line to show only build-intent cycles (excludes diagnostic-only sessions), labeled
+  `[N build cycles]` for clarity.
+- **Dead variable removed.** `display_count` was assigned but never consumed; the assignment is
+  removed so the variable is not a latent confusion risk for future readers.
+
+**orchestration completeness [C-018]**
+
+- **`git-manager` + `docs-manager` seam rows wired.** Both agents now appear as explicit entries
+  in `agent-stage-mapping.md` (previously listed in `agent-detection.md` but absent from the
+  mapping — a declared-but-unwired gap of the same class as the C-013 `debugger` defect).
+- **Agent-wiring tripwire DERIVES its set from `agent-detection.md`.** The `test_flow_coverage_gaps.sh`
+  tripwire no longer hard-codes the agent list; it reads the priority list from `agent-detection.md`
+  at test time, so a newly added agent that is not wired into `agent-stage-mapping.md` will
+  automatically turn the assertion red — no manual maintenance of the test's expected set.
+- **Repair-discipline rule.** A new law entry states: when a control-flow or runner repair is
+  applied, the FULL test suite must be re-run before advancing the gate (partial re-runs are
+  insufficient for changes that touch shared runner paths).
+
+**engine hygiene [C-019]**
+
+- **Advisory-probe tempdir cleaned on SIGINT and early-return.** The tempdir created during
+  an advisory probe is now removed via a dual `RETURN`+`EXIT` guard, so a SIGINT mid-probe or
+  an early function return leaves no leftover temp directories under `$TMPDIR`.
+
 ## 0.12.0 — 2026-06-20 — telemetry truth + orchestration depth
 
 Six improvements across three themes, plus a new CI tripwire that catches "declared but unwired"

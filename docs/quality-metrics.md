@@ -1,7 +1,31 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.12.0** (2026-06-20).
+Updated as the skill evolves. Current: **v0.12.1** (2026-06-21).
+
+## v0.12.1 — v0.12 polish round (2026-06-21)
+
+Three polish items closing the v0.12 backlog (C-017 / C-018 / C-019). All backward-compatible.
+Docs/manifest/test-count only — no engine logic changes.
+
+- **telemetry-honesty (C-017):** `~approx` suffix on dwell header when figures are legacy-inferred
+  (no `stage_from`); `--builds-only` now shows `[N build cycles]` on the cycle-time line; dead
+  variable `display_count` removed from the print path.
+- **orchestration completeness (C-018):** `git-manager` and `docs-manager` seam rows wired in
+  `agent-stage-mapping.md` (previously listed in `agent-detection.md` but absent from the mapping);
+  agent-wiring tripwire now DERIVES its expected set by reading `agent-detection.md` at test time
+  (no more hard-coded list); repair-discipline rule added: control-flow / runner repairs re-run the
+  FULL suite before advancing.
+- **engine hygiene (C-019):** advisory-probe tempdir cleaned on SIGINT and early-return via a
+  dual `RETURN`+`EXIT` guard (no leftover temps).
+
+Suite **20 suites / 467 checks** green (suite count unchanged; 458→467 checks; run on 2026-06-21).
+Coherence clean (0.12.0 → 0.12.1).
+
+| Changed check count | Suite | What changed |
+|---|---|---|
+| 30 (was 27) | `test_flow_coverage_gaps.sh` | +3 checks: derived-agent-set assertion + C-018 seam-row checks for docs-manager and git-manager |
+| 59 (was 54) | `test_flow_usage_log.sh` | +5 checks: 20a/20b `~approx` marker, 21a/21b `--builds-only` count label, 21c `display_count` wired proof |
 
 ## v0.12.0 — telemetry truth + orchestration depth (2026-06-20)
 
@@ -297,16 +321,16 @@ DF-4 (trace-tier nag) + DF-5 (allowed-files containment) tracked.
 ## Test coverage
 | Suite | Checks | Covers |
 |---|---|---|
-| `test_flow_runner.sh` | 13 | gate lifecycle, FILL/checkbox/evidence, gap-bypass, card validation |
+| `test_flow_runner.sh` | 18 | gate lifecycle, FILL/checkbox/evidence, gap-bypass, card validation, _python exit-code, tempdir-leak guard |
 | `test_flow_harness.sh` | 19 | intake/risk-lane, trace tiers, story verify, decision, backlog, query |
-| `test_flow_scenarios.sh` | 14 | the 6 buildflow validation rounds (mechanical) |
+| `test_flow_scenarios.sh` | 15 | the 6 buildflow validation rounds (mechanical) + repair-ladder order (debugger before codex) |
 | `test_flow_project_types.sh` | 20 | project-type get/set, per-type done-evidence, skip hardening |
 | `test_flow_gate_wording.sh` | 13 | Research/Contract gates project-type aware, web path preserved |
-| `test_flow_coverage_gaps.sh` | 14 | retro, ready (deps), auto preflight, harness decision/tool/intervention |
-| `test_flow_concurrency_lock.sh` | 26 | session lock, TTL reclaim, foreign-lock refusal, force/unlock |
+| `test_flow_coverage_gaps.sh` | 30 | retro, ready (deps), auto preflight, harness decision/tool/intervention, agent-wiring tripwire (derived set) |
+| `test_flow_concurrency_lock.sh` | 36 | session lock, TTL reclaim, foreign-lock refusal, force/unlock, atomic mkdir race, crash-recovery self-heal |
 | `test_flow_recall.sh` | 22 | recall reads debt/retro/prev-card/friction/backlog/playbooks |
 | `test_flow_gate_capture.sh` | 13 | gate-fired durable capture (intake/decision reminders) |
-| `test_flow_propose_audit.sh` | 16 | audit health/entropy, propose suggestions |
+| `test_flow_propose_audit.sh` | 25 | audit health/entropy, propose suggestions, security-class review lens dispatch |
 | `test_flow_contract.sh` | 14 | contract base-URL vs served-path drift (web) |
 | `test_flow_tokens.sh` | 15 | DESIGN.md vs CSS token drift (unused/mismatch/orphan) |
 | `test_flow_coherence_kb.sh` | 14 | version-drift coherence + cross-project KB |
@@ -316,10 +340,8 @@ DF-4 (trace-tier nag) + DF-5 (allowed-files containment) tracked.
 | `test_flow_accessed_count.sh` | 12 | usage-signal ordering (security-first, reuse count), read-only, no row loss |
 | `test_flow_constitution.sh` | 25 | per-project invariants: structure, `\|`-safe markers (loud sentinel-collision guard), NOT in cmd_next, recall surfacing |
 | `test_flow_antigravity_integration.sh` | 29 | Antigravity third-engine doc-contract + install wiring: exit-code-lies → route on non-empty output, interactive default, data/cost gate, gate parity, liveness-probe shape, ~/.gemini install homes |
-| `test_flow_usage_log.sh` | 27 | mechanical usage log + closed loop: full+compact event, mask, no-fail, disable envs, cycle_id+stage carry, idempotent rollup, `flow usage`; v2: migration 007, `usage --summary`, recall digest (+disabled), gate_fail_reason, `--prune`, usage→propose |
-| **Total (dev)** | **394** | all green (`bash tests/run_all.sh`), 20 suites |
-| **+ e2e (installed)** | **22** | `tests/e2e-installed-drive.sh` — happy+edge against a fresh per-project install (Windows) |
-| **Grand total** | **416** | all green |
+| `test_flow_usage_log.sh` | 59 | mechanical usage log + closed loop: full+compact event, mask, no-fail, disable envs, cycle_id+stage carry, idempotent rollup, `flow usage`; v2: migration 007, `usage --summary`, recall digest (+disabled), gate_fail_reason, `--prune`, usage→propose; C-017: `~approx` dwell label + `--builds-only` count + dead-var proof |
+| **Total (dev)** | **467** | all green (`bash tests/run_all.sh`), 20 suites |
 
 **Command coverage:** ~100% of runner commands now have a dedicated assertion (was 14/15;
 `retro`/`ready`/`auto` + harness `decision`/`tool`/`intervention` gaps closed 2026-06-13).

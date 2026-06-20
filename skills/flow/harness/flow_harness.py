@@ -581,10 +581,13 @@ def cmd_usage(con, a):
                         f"ORDER BY project, cycle_id, epoch_s", pr).fetchall()
     _prev_stage_to: dict = {}   # key=(project, cycle_id) -> stage_to of last processed row
     _enter, _exit = {}, {}      # key=(project, cycle_id) to prevent cross-project bleed on --global
+    _dwell_inference_fired = False  # True when any row lacked a real stage_from (legacy pre-v0.12)
     for cyc_id, proj_name, sf, st, es in trans:
         pkey = (proj_name or "", cyc_id)
         # Infer stage_from from prior row's stage_to when the field is absent (legacy compact rows).
         sf_effective = sf if sf else _prev_stage_to.get(pkey)
+        if not sf and sf_effective:
+            _dwell_inference_fired = True
         _prev_stage_to[pkey] = st if st else _prev_stage_to.get(pkey)
         if st:
             _enter.setdefault(pkey, {}).setdefault(st, es)   # first entry into st
@@ -665,11 +668,15 @@ def cmd_usage(con, a):
     print(f"  cycles started:       {cycles_started}   (build-intent: {build_cycles} · diagnostic-only: {diag_cycles})")
     print(f"  cycles reached cards: {reached}  (abandonment proxy: {cycles_started - reached} not yet at cards)")
     if times_display:
-        print(f"  cycle-time (s):       min={times_display[0]} median={med_display} max={times_display[-1]}")
+        _ct_label = "build cycles" if builds_only and build_cycles < cycles_started else "cycles"
+        print(f"  cycle-time (s) [{display_count} {_ct_label}]: min={times_display[0]} median={med_display} max={times_display[-1]}")
     print("  per-stage command exec time (avg duration_s of 'next' - runner overhead, NOT lead-time):")
     for s, c, v in dwell:
         print(f"    {s:<12} n={c} avg={(v or 0):.0f}s")
-    print("  per-stage dwell (wall-clock: avg real time spent IN the stage, from transitions):")
+    _dwell_hdr = ("  per-stage dwell (wall-clock; ~approx for pre-v0.12 global rows):"
+                  if _dwell_inference_fired else
+                  "  per-stage dwell (wall-clock: avg real time spent IN the stage, from transitions):")
+    print(_dwell_hdr)
     if stage_wall:
         for s, c, v in stage_wall:
             print(f"    {s:<12} n={c} avg={_dur(v)}")

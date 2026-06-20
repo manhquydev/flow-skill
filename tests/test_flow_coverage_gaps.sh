@@ -65,34 +65,51 @@ echo "agent-wiring tripwire — every ck: agent in agent-detection.md must appea
 # Read the two reference files from the skill bundle.
 DETECTION="$HERE/../skills/flow/references/agent-detection.md"
 MAPPING="$HERE/../skills/flow/references/agent-stage-mapping.md"
-# Priority list from agent-detection.md line ~18:
-#   planner researcher architect fullstack-developer code-reviewer tester
-#   ui-ux-designer docs-manager git-manager debugger scout
-#
-# WIRED agents — must appear in agent-stage-mapping.md (a stage row or a labelled seam).
-# docs-manager and git-manager are intentionally NOT in the wired set: they have no
-# assigned stage or seam in agent-stage-mapping.md yet (pre-existing state; adding them
-# to that mapping is a separate doc card, not this release card). This tripwire catches
-# new "declared but unwired" gaps going forward — exactly the class of defect C-013 fixed
-# for debugger.
-WIRED_AGENTS="planner researcher architect fullstack-developer code-reviewer tester ui-ux-designer debugger scout"
-for agent in $WIRED_AGENTS; do
-  if grep -q "$agent" "$MAPPING"; then
+
+# Derive the required agent set by parsing the ck: priority list from agent-detection.md.
+# The canonical line has the form:
+#   1. **ck: agent** (primary) — agent1, agent2, ..., agentN.
+# Extract it, strip markdown formatting, split on comma/space to get individual agent names.
+DERIVED_AGENTS="$(grep -oP '(?<=— ).*(?=\.)' "$DETECTION" | grep 'planner' | \
+  sed 's/,/ /g' | tr -s ' ')"
+# Accepted exceptions: agents declared in agent-detection.md but intentionally assigned no
+# stage row (e.g. a meta-agent with no buildflow stage seam). Currently none — docs-manager
+# and git-manager are genuinely wired as of C-018.
+ACCEPTED_EXCEPTIONS=""
+
+if [ -z "$DERIVED_AGENTS" ]; then
+  echo "  FAIL [agent-wiring: could not parse ck: priority list from agent-detection.md]"; fail=$((fail+1))
+else
+  echo "  ok   [agent-wiring: derived agent set from agent-detection.md: $DERIVED_AGENTS]"; pass=$((pass+1))
+fi
+
+# Assert each derived agent appears in agent-stage-mapping.md (or is an accepted exception).
+for agent in $DERIVED_AGENTS; do
+  is_exception=0
+  for ex in $ACCEPTED_EXCEPTIONS; do
+    [ "$agent" = "$ex" ] && is_exception=1 && break
+  done
+  if [ "$is_exception" -eq 1 ]; then
+    echo "  ok   [agent-wiring: $agent is an accepted exception (no stage seam by design)]"; pass=$((pass+1))
+  elif grep -q "$agent" "$MAPPING"; then
     echo "  ok   [agent-wired: $agent appears in agent-stage-mapping.md]"; pass=$((pass+1))
   else
     echo "  FAIL [agent-wired: $agent NOT found in agent-stage-mapping.md]"; fail=$((fail+1))
   fi
 done
-# Confirm known-unwired agents ARE in the detection list (they're declared, not forgotten).
+
+# Explicit assertions for the two agents wired in C-018 (docs-manager + git-manager).
+# These were grandfathered in v0.12; they must now be genuinely present in the mapping.
 for agent in docs-manager git-manager; do
-  if grep -q "$agent" "$DETECTION"; then
-    echo "  ok   [declared-not-yet-wired: $agent present in agent-detection.md]"; pass=$((pass+1))
+  if grep -q "$agent" "$MAPPING"; then
+    echo "  ok   [C-018-wired: $agent now has a seam row in agent-stage-mapping.md]"; pass=$((pass+1))
   else
-    echo "  FAIL [declared-not-yet-wired: $agent missing from agent-detection.md]"; fail=$((fail+1))
+    echo "  FAIL [C-018-wired: $agent missing from agent-stage-mapping.md — seam not added]"; fail=$((fail+1))
   fi
 done
+
 # NEGATIVE CONTROL: verify the tripwire CAN go red.
-# Simulate the pre-C-013 state: strip 'debugger' from a temp copy of the mapping and
+# Simulate an unwired-agent state: strip 'debugger' from a temp copy of the mapping and
 # assert the wiring check would fail for it — proving the tripwire is not trivially green.
 TMPMAP="$(mktemp)"
 grep -v "debugger" "$MAPPING" > "$TMPMAP"

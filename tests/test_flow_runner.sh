@@ -76,6 +76,30 @@ else
   echo "  skip [_python real-interpreter checks] (no python on this PATH)"
 fi
 
+echo "G) advisory probe tempdir cleaned even when interrupted (SIGINT) — tempdir-leak guard"
+# Run cmd_coherence in a background subshell under a controlled TMPDIR so mktemp -d creates
+# dirs there. Send SIGINT immediately; the EXIT trap (_cleanup_tds) fires and removes them.
+# A package.json with a version field ensures the tempdir is actually created before the kill.
+SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"
+printf '{"name":"t","version":"1.0.0"}\n' > "$SB/package.json"
+MY_TMPDIR="$(mktemp -d)"                           # isolated tempdir root for this test
+leftover=""
+TMPDIR="$MY_TMPDIR" bash "$RUN" coherence >/dev/null 2>&1 &
+bgpid=$!
+# Wait until the subshell ACTUALLY creates its tempdir (poll w/ timeout), THEN interrupt — a
+# fixed sleep could fire before `mktemp -d` on a slow host and false-green without exercising
+# cleanup. End-state ("no leftover") holds whether SIGINT lands mid-run or it completed normally.
+waited=0
+while [ -z "$(ls "$MY_TMPDIR" 2>/dev/null)" ] && [ "$waited" -lt 100 ]; do sleep 0.05; waited=$((waited+1)); done
+kill -INT "$bgpid" 2>/dev/null; wait "$bgpid" 2>/dev/null || true
+leftover="$(ls "$MY_TMPDIR" 2>/dev/null)"
+if [ -z "$leftover" ]; then
+  echo "  ok   [advisory probe tempdir_leak_on_sigint: no leftover under controlled TMPDIR]"; pass=$((pass+1))
+else
+  echo "  FAIL [advisory probe tempdir_leak_on_sigint: leftover dirs: $leftover]"; fail=$((fail+1))
+fi
+rm -rf "$SB" "$MY_TMPDIR"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

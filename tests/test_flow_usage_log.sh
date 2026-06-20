@@ -440,6 +440,80 @@ else echo "  FAIL [19f: _ensure_cycle appears to have an intent-gate added — F
 
 rm -rf "$SBI"
 
+echo "20) C-017 LOW-2: inference-fired -> dwell header carries ~approx marker; all-exact -> no marker"
+PY="$(command -v python || command -v python3)"
+
+# 20a: fixture with legacy rows (no stage_from) — inference fires -> header must have ~approx
+SB20A="$HERE/.c017_approx_$$"; rm -rf "$SB20A"; mkdir -p "$SB20A/home/.claude/flow"
+export HOME="$SB20A/home"; export USERPROFILE="$SB20A/home"; export FLOW_PROJECT_ROOT="$SB20A"
+"$PY" - "$SB20A/home/.claude/flow/usage.jsonl" <<'PY'
+import json, sys
+E = 1700000000
+# stage_from is empty string (legacy pre-v0.12 compact global rows)
+rows = [
+    {"command":"next","cycle_id":"A","project":"P","stage_from":"","stage_to":"00-idea",    "epoch_s":E,      "ephemeral":0,"exit_code":0,"gate_pass":True},
+    {"command":"next","cycle_id":"A","project":"P","stage_from":"","stage_to":"01-research","epoch_s":E+3600, "ephemeral":0,"exit_code":0,"gate_pass":True},
+]
+open(sys.argv[1],"w").write("\n".join(json.dumps(r) for r in rows)+"\n")
+PY
+mkdir -p "$SB20A/.flow"
+HOME="$SB20A/home" USERPROFILE="$SB20A/home" FLOW_PROJECT_ROOT="$SB20A" "$PY" "$HARN" rollup --global >/dev/null 2>&1
+ta="$(HOME="$SB20A/home" USERPROFILE="$SB20A/home" FLOW_PROJECT_ROOT="$SB20A" "$PY" "$HARN" usage --global 2>/dev/null)"
+has "$ta" "~approx" "20a: legacy rows (no stage_from) -> dwell header carries ~approx marker"
+rm -rf "$SB20A"
+
+# 20b: fixture with all-exact rows (stage_from present) — inference should NOT fire -> no marker
+SB20B="$HERE/.c017_exact_$$"; rm -rf "$SB20B"; mkdir -p "$SB20B/home/.claude/flow"
+export HOME="$SB20B/home"; export USERPROFILE="$SB20B/home"; export FLOW_PROJECT_ROOT="$SB20B"
+"$PY" - "$SB20B/home/.claude/flow/usage.jsonl" <<'PY'
+import json, sys
+E = 1700000000
+# stage_from is a real stage name (post-v0.12 rows)
+rows = [
+    {"command":"next","cycle_id":"X","project":"Q","stage_from":"",           "stage_to":"00-idea",    "epoch_s":E,      "ephemeral":0,"exit_code":0,"gate_pass":True},
+    {"command":"next","cycle_id":"X","project":"Q","stage_from":"00-idea",    "stage_to":"01-research","epoch_s":E+7200, "ephemeral":0,"exit_code":0,"gate_pass":True},
+]
+open(sys.argv[1],"w").write("\n".join(json.dumps(r) for r in rows)+"\n")
+PY
+mkdir -p "$SB20B/.flow"
+HOME="$SB20B/home" USERPROFILE="$SB20B/home" FLOW_PROJECT_ROOT="$SB20B" "$PY" "$HARN" rollup --global >/dev/null 2>&1
+tb="$(HOME="$SB20B/home" USERPROFILE="$SB20B/home" FLOW_PROJECT_ROOT="$SB20B" "$PY" "$HARN" usage --global 2>/dev/null)"
+no "$tb" "~approx" "20b: exact rows (real stage_from) -> dwell header has NO ~approx marker"
+rm -rf "$SB20B"
+
+echo "21) C-017 LOW-1: --builds-only prints build-cycle count on cycle-time line; display_count is not a dead assignment"
+PY="$(command -v python || command -v python3)"
+
+# 21a: --builds-only output includes build count on cycle-time line
+SB21="$HERE/.c017_bonly_$$"; rm -rf "$SB21"; mkdir -p "$SB21/.flow"
+export FLOW_PROJECT_ROOT="$SB21"
+"$PY" - "$SB21/.flow/events.jsonl" <<'PY'
+import json, sys
+# 2 build cycles (next events) + 1 diagnostic cycle (status only)
+rows = [
+    {"command":"next",  "cycle_id":"B1","project":"p","epoch_s":100,"exit_code":0,"gate_pass":True, "read_only":False,"ephemeral":0},
+    {"command":"next",  "cycle_id":"B1","project":"p","epoch_s":200,"exit_code":0,"gate_pass":True, "read_only":False,"ephemeral":0},
+    {"command":"next",  "cycle_id":"B2","project":"p","epoch_s":300,"exit_code":0,"gate_pass":True, "read_only":False,"ephemeral":0},
+    {"command":"next",  "cycle_id":"B2","project":"p","epoch_s":500,"exit_code":0,"gate_pass":True, "read_only":False,"ephemeral":0},
+    {"command":"status","cycle_id":"D1","project":"p","epoch_s":600,"exit_code":0,"gate_pass":None, "read_only":True, "ephemeral":0},
+]
+open(sys.argv[1],"w").write("\n".join(json.dumps(r) for r in rows)+"\n")
+PY
+FLOW_PROJECT_ROOT="$SB21" "$PY" "$HARN" rollup >/dev/null 2>&1
+bo="$(FLOW_PROJECT_ROOT="$SB21" "$PY" "$HARN" usage --builds-only 2>/dev/null)"
+has "$bo" "build cycles" "21a: --builds-only labels cycle-time line with 'build cycles'"
+has "$bo" "[2 build cycles]" "21b: --builds-only shows the filtered build-cycle count on cycle-time line"
+rm -rf "$SB21"
+
+# 21c: display_count is not a dead variable — grep finds a real read use (the print statement)
+dc_grep="$(grep -n 'display_count' "$HERE/../skills/flow/harness/flow_harness.py" || true)"
+# display_count must appear in a print/f-string (wired), not just assignments
+if printf '%s' "$dc_grep" | grep -q 'print\|f".*display_count\|f'"'"'.*display_count'; then
+  echo "  ok   [21c: display_count is wired (found in a print expression)]"; pass=$((pass+1))
+else
+  echo "  FAIL [21c: display_count not found in any print — still dead or removed without grep proof]"; fail=$((fail+1))
+fi
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

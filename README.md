@@ -2,7 +2,7 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 21 test suites / 458 checks on macOS · Ubuntu · Windows
+[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 20 test suites / 467 checks on macOS · Ubuntu · Windows
 
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
@@ -11,7 +11,7 @@ durable harness layer (intake/story/trace/decision/backlog), agent orchestration
 **Codex (GPT-5.x) second engine + Antigravity (Gemini-3) third engine** = a three-model adversarial
 gate), and project-type awareness.
 
-> Status: **v0.12.0** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
+> Status: **v0.12.1** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
 > cross-project KB) + gate-fired capture + a **mechanical usage log** wired into a closed feedback loop
 > (every `flow.sh` invocation self-recorded to JSONL; `recall` surfaces a usage digest, `propose` flags
 > chronically-failing stages, `/flow usage [--prune]` → cycle-time/gate fail-rate/dwell; local-only).
@@ -25,7 +25,10 @@ gate), and project-type awareness.
 > `assess` + a concurrency lock + agent integration + DESIGN law + project-type awareness +
 > **portable install across Claude Code (`/flow`), Codex CLI (`$flow`), and Antigravity (`agy` CLI /
 > IDE)** + a **Windows/Codex runner launcher** (`flow.cmd`, routes around WSL-bash path failures).
-> **21 test suites / 427 checks green.** MIT.
+> **v0.12.1** closes the v0.12 polish round: telemetry-honesty labels (`~approx` dwell + `--builds-only`
+> count), orchestration completeness (git-manager + docs-manager wired; tripwire derives from
+> agent-detection.md; full-suite repair discipline), and engine hygiene (tempdir SIGINT/early-return guard).
+> **20 test suites / 467 checks green.** MIT.
 
 ## What ships
 
@@ -43,7 +46,7 @@ flow-skill/
 │   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
 ├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
 ├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 20 suites / 413 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log)
+├── tests/run_all.sh             # 20 suites / 467 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log)
 └── docs/                        # architecture + codebase summary
 ```
 

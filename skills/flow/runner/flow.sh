@@ -42,6 +42,13 @@ GLOBAL_LOG="${HOME:-}/.claude/flow/usage.jsonl"           # device-global COMPAC
 # Stage/card carried into the exit event by the commands that know them (set during run).
 FLOW_LOG_STAGE_FROM=""; FLOW_LOG_STAGE_TO=""; FLOW_LOG_CARD=""; FLOW_LAST_GATE_FAIL=""
 
+# Tempdir cleanup list: advisory probe functions register their mktemp -d paths here so the
+# EXIT trap (which fires on normal exit AND signals) removes them even on SIGINT/SIGTERM.
+# Each entry is a NUL-terminated path; use _register_td / _cleanup_tds helpers.
+_CLEANUP_TDS=""
+_register_td()  { _CLEANUP_TDS="${_CLEANUP_TDS}${1} "; }      # append (space-separated; paths have no spaces)
+_cleanup_tds()  { local d; for d in $_CLEANUP_TDS; do rm -rf "$d" 2>/dev/null; done; _CLEANUP_TDS=""; }
+
 # Keep pure run-state (MODE / PROJECT_TYPE / .flow/) out of the host repo's git status.
 # Idempotent; only acts in a real git repo OR where a .gitignore already exists (so test
 # sandboxes and non-git dirs are untouched — no surprise file creation).
@@ -996,7 +1003,8 @@ cmd_tokens() {
   local cssroot="$ROOT/frontend"; [ -d "$cssroot" ] || cssroot="$ROOT"
   local used; used="$(grep -rhoE '\-\-[a-zA-Z][a-zA-Z0-9_-]*' --include='*.css' --include='*.scss' "$cssroot" 2>/dev/null | sort -u)"
   if [ -z "$used" ]; then echo "tokens: no CSS custom properties found under $cssroot - skipped."; return 0; fi
-  local td; td="$(mktemp -d)"
+  local td td2=""; td="$(mktemp -d)"; _register_td "$td"
+  trap 'rm -rf "$td" 2>/dev/null; [ -n "$td2" ] && rm -rf "$td2" 2>/dev/null' RETURN
   printf '%s\n' "$declared" > "$td/d"; printf '%s\n' "$used" > "$td/u"
   local unused orphan onum found=0
   unused="$(comm -23 "$td/d" "$td/u")"
@@ -1015,7 +1023,7 @@ cmd_tokens() {
   fi
   # value-mismatch: tokens declared in DESIGN.md (table: | `--name` | `value` |) AND defined in
   # CSS (--name: value) but with a different value (same name, drifted value).
-  local td2 mism; td2="$(mktemp -d)"
+  local mism; td2="$(mktemp -d)"; _register_td "$td2"
   awk -F'`' 'NF>=4 && $2 ~ /^--[a-zA-Z]/ {gsub(/[ \t\\]/,"",$2); v=$4; gsub(/^[ \t]+|[ \t]+$|\\/,"",v); if(v!="") print $2"\t"v}' \
     "$design" 2>/dev/null | sort -u > "$td2/dv"
   grep -rhoE '\-\-[a-zA-Z][a-zA-Z0-9_-]*[[:space:]]*:[[:space:]]*[^;{}]+' --include='*.css' --include='*.scss' "$cssroot" 2>/dev/null \
@@ -1097,7 +1105,8 @@ cmd_coherence() {
   # F7 (mechanical slice): flag VERSION drift across declared version fields. Semantic doc-vs-code
   # contradictions (e.g. a headline doc describing endpoints that don't exist) stay a human
   # gate-challenge in gate-rules.md - this catches the cheap, low-noise, structured case.
-  local td; td="$(mktemp -d)"; : > "$td/v"
+  local td; td="$(mktemp -d)"; _register_td "$td"; : > "$td/v"
+  trap 'rm -rf "$td" 2>/dev/null' RETURN
   _ver() { [ -n "$2" ] && printf '%s\t%s\n' "$2" "$1" >> "$td/v"; }   # $1=label $2=version
   [ -f "$ROOT/package.json" ] && _ver "package.json" \
     "$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' "$ROOT/package.json" | head -1 | sed -E 's/.*"([^"]+)"$/\1/')"
@@ -1151,7 +1160,8 @@ cmd_consistency() {
   # cards); 05-contract 'Feature -> interface map' references each 'FRn'.
   local prd="$FLOW_DIR/03-prd.md" contract="$FLOW_DIR/05-contract.md"
   if [ ! -f "$prd" ]; then echo "consistency: no flow/03-prd.md yet - planning incomplete (skipped)."; return 0; fi
-  local td; td="$(mktemp -d)"
+  local td; td="$(mktemp -d)"; _register_td "$td"
+  trap 'rm -rf "$td" 2>/dev/null' RETURN
   : > "$td/find"; local cn=0 crit=0 high=0
   add() { # $1=severity $2=location $3=summary
     cn=$((cn+1)); printf '| CON-%d | %s | %s | %s |\n' "$cn" "$1" "$2" "$3" >> "$td/find"
@@ -1503,6 +1513,7 @@ _log_event() {
 # EXIT trap: capture $? FIRST, log best-effort, re-exit unchanged (logging never alters exit code).
 _log_on_exit() {
   ec=$?
+  _cleanup_tds 2>/dev/null || true   # remove any advisory-probe tempdirs (belt-and-suspenders for SIGINT/SIGTERM)
   { _log_event "$ec"; } 2>/dev/null || true
   exit "$ec"
 }
