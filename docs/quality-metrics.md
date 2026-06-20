@@ -1,7 +1,35 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.10.0** (2026-06-18).
+Updated as the skill evolves. Current: **v0.11.0** (2026-06-20).
+
+## v0.11.0 — usage-log telemetry correctness (2026-06-20)
+
+v0.6–v0.10 *built* the usage-log; a self-assessment (driven by `/flow` on flow itself, auditing two
+external projects' logs + the 1739-line device-global log) proved it produced **empty or misleading
+analytics on real, brownfield, agent-driven usage**. v0.11.0 fixes the six defects so the telemetry is
+a correct, honest, decision-grade signal. All changes are backward-compatible (optional fields; the
+existing logs roll up with no rewrite).
+
+- **FR1** `usage --global` forwards `--global` to the rollup → device-wide view works in one command
+  (was always "no events").
+- **FR2** idempotent `_ensure_cycle` stamps `cycle_id` at assess + lazily everywhere → brownfield builds
+  are no longer blind on cycle metrics (was 0% cycle_id on real projects).
+- **FR3** per-stage dwell reconstructed as **wall-clock** time-in-stage from `next` transitions (was the
+  runner's own ~1-2s exec time); both metrics now labeled honestly.
+- **FR4** `session_id` auto-derives from a cascade (FLOW_SESSION_ID → CLAUDE_CODE_SESSION_ID →
+  Codex/AGY → tty → ppid) + same-host `kill -0` dead-PID lock reclaim → the concurrency lock can
+  hard-block for real (was 92% empty session_id, warn-only).
+- **FR5** `ephemeral` flag (temp-dir or `tmp.*`) + default-exclude in analytics (migration 008; read-time
+  `tmp.%` fallback for the legacy log) → device view stopped being 83% test noise. `--include-ephemeral` opts in.
+- **FR6** bounded `gate_fail_reason` added to the compact device-global line → gate failures explainable device-wide.
+
+Built through `/flow`'s own gates (idea→contract PASS, consistency PASS, 6 cards). Adversarial code
+review before tag verdict **SAFE TO TAG** (0 critical/high; 2 MEDIUM fixed pre-tag: Windows `$TEMP`
+ephemeral path normalization `C:\`↔`/c/`, and `_json_str` now strips all control chars). Live dogfood on
+the installed runner: `usage --global` **1739 → 334** events (85% tmp noise excluded), gate-fail-rate
+19% → 6%, per-project wall-clock dwell showing real stage times. Suite **20 suites / 413 checks** green;
+coherence clean (0.10.2 → 0.11.0). Shipped to all skill homes via `install.sh global`.
 
 ## v0.10.0 — closed the usage-log feedback loop (2026-06-18)
 

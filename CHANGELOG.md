@@ -35,6 +35,8 @@ the usage-log is a correct, honest, decision-grade signal. All changes are backw
   a bounded (`≤120` char) `gate_fail_reason`, so "why does stage X fail" is answerable across all
   projects, not just per-project. (runner)
 
-Tests: 20 suites / 412 checks green (`tests/test_flow_usage_log.sh` §9–§13, plus updated
-concurrency §L/§M and schema-version assertion). Built and gated through `/flow` itself
+Tests: 20 suites / 413 checks green (`tests/test_flow_usage_log.sh` §9–§14, plus updated
+concurrency §L/§M and schema-version assertion). Built and gated through `/flow` itself.
+A pre-tag adversarial review fixed two MED issues: Windows `$TEMP` ephemeral-path
+normalization (`C:\` vs `/c/`) and `_json_str` now strips all control characters.
 (plan in `flow-telemetry-v011/`, research in `plans/260620-flow-telemetry-assessment/`).

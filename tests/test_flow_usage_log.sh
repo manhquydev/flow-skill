@@ -206,6 +206,13 @@ has "$tw" "wall-clock"        "text output labels the dwell line wall-clock"
 has "$tw" "command exec time" "text output keeps exec-time, distinctly relabeled"
 rm -rf "$SBW"
 
+echo "14) a non-tmp.* project UNDER the system temp dir is tagged ephemeral (normalized path branch)"
+TD="$(mktemp -d)"; TBASE="$(dirname "$TD")"; rm -rf "$TD"   # TBASE = real system temp dir (POSIX/Windows)
+PP="$TBASE/realbuild_$$"; rm -rf "$PP"; mkdir -p "$PP"
+FLOW_PROJECT_ROOT="$PP" bash "$RUN" status >/dev/null 2>&1
+has "$(tail -1 "$PP/.flow/events.jsonl" 2>/dev/null)" '"ephemeral":1' "non-tmp.*-named project under the temp dir is ephemeral (path match survives Windows C:\\ vs /c/)"
+rm -rf "$PP"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

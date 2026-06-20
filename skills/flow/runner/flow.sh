@@ -1344,7 +1344,7 @@ EOF
 _log_disabled() { [ -n "${FLOW_LOG_DISABLE:-}" ] || [ -n "${DO_NOT_TRACK:-}" ]; }
 
 # JSON string escape: backslash, doublequote, then drop control chars (keeps one line valid).
-_json_str() { printf '%s' "${1:-}" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\r\n\t'; }
+_json_str() { printf '%s' "${1:-}" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\037'; }
 
 # Conservative arg mask: if the arg string contains any secret-shaped keyword (case-insensitive
 # via tr, portable), replace the WHOLE field rather than risk a partial leak. Args are rarely
@@ -1380,12 +1380,17 @@ _ensure_cycle() {
 
 # Is this project a throwaway/test run? True when the root is named like an mktemp dir (tmp.*)
 # or sits under the system temp dir. Lets analytics default-exclude dogfood/test noise.
+# Normalize a path for prefix comparison across POSIX + Git-Bash-on-Windows: backslashes ->
+# slashes, lowercase (Windows is case-insensitive), and the Windows drive form `C:/` -> `/c/`
+# (Git Bash reports $ROOT as `/c/...` but $TEMP/$TMP as `C:\...` — without this they never match).
+_norm_path() { printf '%s' "${1:-}" | tr 'A-Z\\' 'a-z/' | sed -E 's#^([a-z]):/#/\1/#'; }
 _is_ephemeral() {
   case "$(basename "$ROOT" 2>/dev/null)" in tmp.*) echo 1; return ;; esac
-  local d
+  local d rp; rp="$(_norm_path "$ROOT")"
   for d in "${TMPDIR:-}" "${TEMP:-}" "${TMP:-}" /tmp /var/tmp; do
     [ -n "$d" ] || continue
-    case "$ROOT" in "$d"/*|"$d") echo 1; return ;; esac
+    d="$(_norm_path "$d")"
+    case "$rp" in "$d"/*|"$d") echo 1; return ;; esac
   done
   echo 0
 }

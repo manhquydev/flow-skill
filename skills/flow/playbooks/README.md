@@ -25,3 +25,4 @@ the next card touching that stack starts from the gotchas instead of rediscoveri
 |---|---|
 | [cloudflare-ai-gateway-qwen.md](cloudflare-ai-gateway-qwen.md) | LLM feature in a Python/FastAPI backend via CF AI Gateway → Workers AI Qwen. CRITICAL: Qwen returns no real tool_calls — single structured-JSON calls, not agent frameworks. |
 | [docker-deploy-stale-cache.md](docker-deploy-stale-cache.md) | Deployed route 404s though merged+deployed: layer cache served a stale image. Check live `/openapi.json` BEFORE debugging code; fix Dockerfile layer order. |
+| [windows-gitbash-jsonl-telemetry.md](windows-gitbash-jsonl-telemetry.md) | Shell-writes / Python-reads a JSONL log on Git Bash for Windows. CRITICAL: bash `$HOME` != Python `expanduser` (USERPROFILE); `$TEMP` is `C:\` but `$ROOT` is `/c/`; no atomic append for files; flock absent. |

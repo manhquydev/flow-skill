@@ -2,7 +2,7 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 19 test suites / 367 checks on macOS · Ubuntu · Windows
+[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 20 test suites / 413 checks on macOS · Ubuntu · Windows
 
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
@@ -22,7 +22,7 @@ gate), and project-type awareness.
 > `assess` + a concurrency lock + agent integration + DESIGN law + project-type awareness +
 > **portable install across Claude Code (`/flow`), Codex CLI (`$flow`), and Antigravity (`agy` CLI /
 > IDE)** + a **Windows/Codex runner launcher** (`flow.cmd`, routes around WSL-bash path failures).
-> **20 test suites / 412 checks green.** MIT.
+> **20 test suites / 413 checks green.** MIT.
 
 ## What ships
 
@@ -40,7 +40,7 @@ flow-skill/
 │   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
 ├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
 ├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 19 suites / 367 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess)
+├── tests/run_all.sh             # 20 suites / 413 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log)
 └── docs/                        # architecture + codebase summary
 ```
 
@@ -395,7 +395,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 19 suites / 367 checks (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is 20 suites / 413 checks (`bash tests/run_all.sh`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -412,7 +412,7 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 19 suites / 367 checks; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # 20 suites / 413 checks; needs bash (+ python for the harness/propose suites)
 ```
 
 ## Provenance
