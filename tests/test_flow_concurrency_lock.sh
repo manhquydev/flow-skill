@@ -102,6 +102,22 @@ ck 0 "$rc" "same pipe-id session proceeds (lock allows; not self-blocked)"
 no "$out" "BLOCKED" "no BLOCKED for same pipe-id session"
 rm -rf "$SB"
 
+echo "L) fresh foreign lock with a DEAD pid on this host -> reclaimed via kill -0 liveness"
+newsb
+MYHOST="$(uname -n 2>/dev/null || echo host)"
+printf '%s|sid:DEAD|999999|%s|next\n' "$(date +%s)" "$MYHOST" > "$SB/flow/.lock"   # age 0 but pid gone
+out="$(FLOW_SESSION_ID=ME bash "$RUN" next 2>&1)"; rc=$?
+ck 0 "$rc" "fresh foreign lock with a dead PID is reclaimed (not blocked)"
+has "$out" "dead session" "dead-PID reclaim note printed"
+rm -rf "$SB"
+
+echo "M) session id auto-derives from a harness env var (no FLOW_SESSION_ID export)"
+newsb
+out="$( unset FLOW_SESSION_ID; CLAUDE_CODE_SESSION_ID=HARNESSID bash "$RUN" next 2>&1 )"; rc=$?
+ck 0 "$rc" "auto-id session acquires lock with no manual export"
+has "$(cat "$SB/flow/.lock" 2>/dev/null)" "sid:HARNESSID" "lock owner auto-derived from CLAUDE_CODE_SESSION_ID"
+rm -rf "$SB"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

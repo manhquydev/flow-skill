@@ -11,15 +11,18 @@ durable harness layer (intake/story/trace/decision/backlog), agent orchestration
 **Codex (GPT-5.x) second engine + Antigravity (Gemini-3) third engine** = a three-model adversarial
 gate), and project-type awareness.
 
-> Status: **v0.10.0** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
+> Status: **v0.11.0** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
 > cross-project KB) + gate-fired capture + a **mechanical usage log** wired into a closed feedback loop
 > (every `flow.sh` invocation self-recorded to JSONL; `recall` surfaces a usage digest, `propose` flags
-> chronically-failing stages, `/flow usage [--prune]` → cycle-time/gate fail-rate/dwell; local-only) +
+> chronically-failing stages, `/flow usage [--prune]` → cycle-time/gate fail-rate/dwell; local-only).
+> **v0.11 makes that telemetry trustworthy** — working `usage --global`, brownfield `cycle_id` at every
+> entry point, **wall-clock** per-stage dwell, auto-derived `session_id` + PID-liveness lock (hard-blocks
+> for real now), ephemeral test-run exclusion, and device-wide gate-fail reasons — plus
 > drift checks (contract/tokens/coherence/**consistency**) + brownfield
 > `assess` + a concurrency lock + agent integration + DESIGN law + project-type awareness +
 > **portable install across Claude Code (`/flow`), Codex CLI (`$flow`), and Antigravity (`agy` CLI /
 > IDE)** + a **Windows/Codex runner launcher** (`flow.cmd`, routes around WSL-bash path failures).
-> **19 test suites / 367 checks green.** MIT.
+> **20 test suites / 412 checks green.** MIT.
 
 ## What ships
 

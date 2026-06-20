@@ -473,7 +473,7 @@ def _now(con):
 USAGE_COLS = ("epoch_s", "session_id", "cycle_id", "project", "command", "args",
               "exit_code", "gate_pass", "duration_s", "stage_from", "stage_to", "card",
               "project_type", "mode", "flow_version", "tier", "host", "read_only",
-              "gate_fail_reason")
+              "gate_fail_reason", "ephemeral")
 
 
 def _events_path(a):
@@ -486,7 +486,7 @@ def _global_log_path():
 
 def _coerce_event(o):
     row = {c: o.get(c) for c in USAGE_COLS}
-    for k in ("gate_pass", "read_only"):
+    for k in ("gate_pass", "read_only", "ephemeral"):
         v = row.get(k)
         if isinstance(v, bool):
             row[k] = 1 if v else 0
@@ -542,6 +542,11 @@ def cmd_rollup(con, a):
 def cmd_usage(con, a):
     src = _global_log_path() if getattr(a, "global_", False) else _events_path(a)
     w = "WHERE src=?"
+    # Default-exclude throwaway/test runs so the view reflects real builds. COALESCE handles old
+    # rows (ephemeral NULL -> 0); the project-name fallback excludes legacy `tmp.*` runs that
+    # predate the field (no log rewrite). `--include-ephemeral` shows everything.
+    if not getattr(a, "include_ephemeral", False):
+        w += " AND NOT (COALESCE(ephemeral,0)=1 OR project LIKE 'tmp.%')"
     pr = (src,)
     total = con.execute(f"SELECT COUNT(*) FROM usage_event {w}", pr).fetchone()[0]
     if not total:
@@ -561,6 +566,32 @@ def cmd_usage(con, a):
                           f"{w} AND cycle_id<>'' AND (card<>'' OR command='card')", pr).fetchone()[0]
     dwell = con.execute(f"SELECT stage_to, COUNT(*), AVG(duration_s) FROM usage_event "
                         f"{w} AND command='next' AND stage_to<>'' GROUP BY stage_to ORDER BY stage_to", pr).fetchall()
+    # Wall-clock time spent IN each stage, reconstructed from stage transitions: a `next` event's
+    # epoch is the moment you LEFT stage_from / ENTERED stage_to. dwell(S) = (exit S) - (enter S),
+    # per cycle, averaged across cycles. Unlike duration_s (the runner's own exec time ~1-2s) this
+    # is real lead-time and answers "where do builds stall". Abandoned stages (no exit) are skipped.
+    trans = con.execute(f"SELECT cycle_id, stage_from, stage_to, epoch_s FROM usage_event "
+                        f"{w} AND command='next' AND cycle_id<>'' AND epoch_s IS NOT NULL "
+                        f"ORDER BY cycle_id, epoch_s", pr).fetchall()
+    _enter, _exit = {}, {}
+    for cyc_id, sf, st, es in trans:
+        if st:
+            _enter.setdefault(cyc_id, {}).setdefault(st, es)   # first entry into st
+        if sf:
+            _exit.setdefault(cyc_id, {})[sf] = es              # last exit from sf
+    _wall = {}
+    for cyc_id, stages in _enter.items():
+        for stg, ein in stages.items():
+            eout = _exit.get(cyc_id, {}).get(stg)
+            if eout is not None and eout >= ein:
+                _wall.setdefault(stg, []).append(eout - ein)
+    stage_wall = sorted((stg, len(v), sum(v) / len(v)) for stg, v in _wall.items())
+    def _dur(s):
+        s = int(s)
+        if s >= 86400: return f"{s/86400:.1f}d"
+        if s >= 3600:  return f"{s/3600:.1f}h"
+        if s >= 60:    return f"{s/60:.1f}m"
+        return f"{s}s"
     cmds = con.execute(f"SELECT command, COUNT(*) FROM usage_event {w} GROUP BY command ORDER BY COUNT(*) DESC", pr).fetchall()
     med = times[len(times) // 2] if times else 0
     if getattr(a, "summary", False):   # one compact line for `recall` to append
@@ -578,7 +609,8 @@ def cmd_usage(con, a):
             "gate_fail_rate_pct": round(fail_rate, 1), "gate_fail": gate_fail, "gate_total": gate_total,
             "cycles_started": cycles_started, "cycles_reached_cards": reached,
             "cycle_time_s": {"min": times[0] if times else 0, "median": med, "max": times[-1] if times else 0},
-            "stage_dwell": [{"stage": s, "n": c, "avg_s": round(v or 0, 1)} for s, c, v in dwell],
+            "stage_exec_time": [{"stage": s, "n": c, "avg_s": round(v or 0, 1)} for s, c, v in dwell],
+            "stage_dwell": [{"stage": s, "n": c, "avg_s": round(v, 1)} for s, c, v in stage_wall],
             "commands": [{"command": c, "n": n} for c, n in cmds],
         }))
         return 0
@@ -589,9 +621,15 @@ def cmd_usage(con, a):
     print(f"  cycles reached cards: {reached}  (abandonment proxy: {cycles_started - reached} not yet at cards)")
     if times:
         print(f"  cycle-time (s):       min={times[0]} median={med} max={times[-1]}")
-    print("  per-stage dwell (avg duration_s of 'next'):")
+    print("  per-stage command exec time (avg duration_s of 'next' - runner overhead, NOT lead-time):")
     for s, c, v in dwell:
         print(f"    {s:<12} n={c} avg={(v or 0):.0f}s")
+    print("  per-stage dwell (wall-clock: avg real time spent IN the stage, from transitions):")
+    if stage_wall:
+        for s, c, v in stage_wall:
+            print(f"    {s:<12} n={c} avg={_dur(v)}")
+    else:
+        print("    (no completed stage transitions yet)")
     print("  commands:")
     for c, n in cmds:
         print(f"    {c:<12} {n}")
@@ -734,6 +772,8 @@ def build_parser():
     pu = sub.add_parser("usage", help="print usage analytics from usage_event")
     pu.add_argument("--global", dest="global_", action="store_true", help="read the device-global log instead of this project")
     pu.add_argument("--json", action="store_true")
+    pu.add_argument("--include-ephemeral", dest="include_ephemeral", action="store_true",
+                    help="include throwaway/test runs (temp-dir or tmp.* projects), excluded by default")
     pu.add_argument("--summary", action="store_true", help="one compact line (for `recall` to append); silent on no data")
     ppr = sub.add_parser("prune", help="cap each JSONL sink to its last N lines (crash-safe; resets the mirror for that sink)")
     ppr.add_argument("--keep", type=int, help="lines to keep (default 5000)")

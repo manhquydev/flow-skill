@@ -223,12 +223,33 @@ done_def_for_type() {
 
 _now() { date +%s 2>/dev/null || echo 0; }
 
-# Identity of THIS invocation. Strong (hard-refusable) via FLOW_SESSION_ID, else a real tty;
-# weak (warn-only, never self-block) via host+PPID when neither is available.
+# First non-empty explicit/AI-harness session id, auto-derived with NO operator action. The
+# cascade makes the lock hard-refusable in agent sessions (where no tty exists and operators
+# never export FLOW_SESSION_ID): an explicit override wins, then the harness-injected id of
+# whichever engine is driving. | and newlines are stripped so the id cannot corrupt the
+# pipe-delimited lock line. Empty output = no stable id available (fall back to tty/ppid).
+_session_env_id() {
+  local v
+  for v in "${FLOW_SESSION_ID:-}" "${CLAUDE_CODE_SESSION_ID:-}" "${CODEX_SESSION_ID:-}" \
+           "${CODEX_THREAD_ID:-}" "${AGY_SESSION_ID:-}" "${ANTIGRAVITY_SESSION_ID:-}"; do
+    [ -n "$v" ] && { printf '%s' "$(printf '%s' "$v" | tr -d '\r\n|')"; return; }
+  done
+}
+
+# Raw session id for the usage-log `session_id` field (auto-derived; never empty).
+_session_id() {
+  local s; s="$(_session_env_id)"
+  if [ -n "$s" ]; then printf '%s' "$s"; return; fi
+  local t; t="$(tty 2>/dev/null || true)"
+  if [ -n "$t" ] && [ "$t" != "not a tty" ]; then printf '%s' "$t"; return; fi
+  printf 'ppid:%s:%s' "$(uname -n 2>/dev/null || echo host)" "${PPID:-0}"
+}
+
+# Identity of THIS invocation for the lock. Strong (hard-refusable) via an explicit/harness
+# session id, else a real tty; weak (warn-only, never self-block) via host+PPID otherwise.
 flow_lock_owner() {
-  # Strip | and newlines from a user-supplied id so it cannot corrupt the pipe-delimited
-  # lock line (a mid-field | would mis-split on read-back and break self/foreign matching).
-  if [ -n "${FLOW_SESSION_ID:-}" ]; then printf 'sid:%s' "$(printf '%s' "$FLOW_SESSION_ID" | tr -d '\r\n|')"; return; fi
+  local s; s="$(_session_env_id)"
+  if [ -n "$s" ]; then printf 'sid:%s' "$s"; return; fi
   local t; t="$(tty 2>/dev/null || true)"
   if [ -n "$t" ] && [ "$t" != "not a tty" ]; then printf 'tty:%s' "$t"; return; fi
   printf 'ppid:%s:%s' "$(uname -n 2>/dev/null || echo host)" "${PPID:-0}"
@@ -261,6 +282,14 @@ lock_acquire() { # $1 = cmd label
   if _read_lock; then
     age=$(( $(_now) - LOCK_TS )); [ "$age" -lt 0 ] && age=0
     if [ "$LOCK_OWNER" = "$me" ]; then _write_lock "$1"; return 0; fi          # my own session
+    # Dead-process reclaim: if the lock's owner PID is on THIS host and no longer alive, reclaim
+    # immediately rather than waiting out the TTL. Gated on same-host (a PID is meaningless across
+    # hosts); kill -0 works on macOS/Linux/Git-Bash. PID reuse only ever DEFERS a reclaim (safe).
+    local myhost; myhost="$(uname -n 2>/dev/null || echo host)"
+    if [ -n "$LOCK_PID" ] && [ "$LOCK_HOST" = "$myhost" ] && ! kill -0 "$LOCK_PID" 2>/dev/null; then
+      echo "NOTE: reclaiming a flow lock from a dead session [$LOCK_OWNER] (pid $LOCK_PID no longer alive)."
+      _write_lock "$1"; return 0
+    fi
     if [ "$age" -ge "$FLOW_LOCK_TTL" ]; then
       echo "NOTE: reclaiming a STALE flow lock from [$LOCK_OWNER] (${age}s old >= ${FLOW_LOCK_TTL}s TTL)."
       _write_lock "$1"; return 0
@@ -422,8 +451,8 @@ cmd_next() {
     mkdir -p "$FLOW_DIR"
     cp "$TEMPLATE_DIR/00-idea.md" "$FLOW_DIR/00-idea.md"
     seed_law_files
-    # New build cycle starts here -> stamp a cycle id the usage log groups events under.
-    { mkdir -p "$LOG_DIR" && printf '%s-%s\n' "$(_now)" "$(uname -n 2>/dev/null | cut -c1-12 || echo host)" > "$CYCLE_FILE"; } 2>/dev/null || true
+    # Cycle id (idempotent): reuse one already stamped by a prior assess so assess->plan is ONE cycle.
+    _ensure_cycle
     FLOW_LOG_STAGE_TO="00-idea"
     echo "PASS: unlocked stage 00 -> flow/00-idea.md"
     echo "Fill it in, check its gate boxes, then run '/flow next'."
@@ -966,9 +995,10 @@ assess_scan() {
 }
 
 cmd_assess() {
-  # F2: brownfield/assessment mode. Scaffold + gate a current-state map of an EXISTING codebase
+  # Brownfield/assessment mode. Scaffold + gate a current-state map of an EXISTING codebase
   # BEFORE planning. Reuses the stage gate machinery (unchecked boxes / [FILL]). Operator-gated.
   mkdir -p "$FLOW_DIR"
+  _ensure_cycle   # brownfield entry point also gets a cycle id (was previously next-only)
   local f="$FLOW_DIR/00-inspect.md"
   if [ ! -f "$f" ]; then
     if [ ! -f "$TEMPLATE_DIR/00-inspect.md" ]; then echo "FAIL: assess template missing at $TEMPLATE_DIR/00-inspect.md"; return 1; fi
@@ -1340,10 +1370,31 @@ _log_is_readonly() { # $1 = command -> true|false (does it mutate the flow plan?
   esac
 }
 
+# Stamp a cycle id once per project (idempotent). Groups usage-log events into one build cycle.
+# Covers ALL entry points - assess, next, or any command on a pre-existing project - so cycle
+# analytics are no longer blind on brownfield. One cycle per project dir (ADR decision).
+_ensure_cycle() {
+  [ -f "$CYCLE_FILE" ] && return 0
+  { mkdir -p "$LOG_DIR" && printf '%s-%s\n' "$(_now)" "$(uname -n 2>/dev/null | cut -c1-12 || echo host)" > "$CYCLE_FILE"; } 2>/dev/null || true
+}
+
+# Is this project a throwaway/test run? True when the root is named like an mktemp dir (tmp.*)
+# or sits under the system temp dir. Lets analytics default-exclude dogfood/test noise.
+_is_ephemeral() {
+  case "$(basename "$ROOT" 2>/dev/null)" in tmp.*) echo 1; return ;; esac
+  local d
+  for d in "${TMPDIR:-}" "${TEMP:-}" "${TMP:-}" /tmp /var/tmp; do
+    [ -n "$d" ] || continue
+    case "$ROOT" in "$d"/*|"$d") echo 1; return ;; esac
+  done
+  echo 0
+}
+
 # Build + append one event. $1 = exit code. Wrapped by the caller in { } 2>/dev/null || true.
 _log_event() {
   _log_disabled && return 0
-  local ec="${1:-0}" now ts dur gp ro ver proj host cyc args
+  _ensure_cycle
+  local ec="${1:-0}" now ts dur gp ro ver proj host cyc args eph gfr
   now="$(_now)"; ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo '')"
   dur=$(( now - ${FLOW_LOG_START:-$now} )); [ "$dur" -lt 0 ] && dur=0
   case "$FLOW_LOG_CMD" in next|check) [ "$ec" -eq 0 ] && gp=true || gp=false ;; *) gp=null ;; esac
@@ -1352,16 +1403,20 @@ _log_event() {
   host="$(uname -n 2>/dev/null | cut -c1-16 || echo host)"
   cyc="$(cat "$CYCLE_FILE" 2>/dev/null | tr -d '\r\n' || echo '')"
   args="$(_mask_secrets "$FLOW_LOG_ARGS")"
+  eph="$(_is_ephemeral)"
+  # bound the reason so the compact global line stays small (atomic-append friendly) even when
+  # a future gate emits a long reason string.
+  gfr="$(printf '%s' "${FLOW_LAST_GATE_FAIL:-}" | cut -c1-120)"
   mkdir -p "$LOG_DIR" 2>/dev/null || true
   # FULL line -> per-project
-  printf '{"ts":"%s","epoch_s":%s,"session_id":"%s","cycle_id":"%s","project":"%s","command":"%s","args":"%s","exit_code":%s,"gate_pass":%s,"duration_s":%s,"stage_from":"%s","stage_to":"%s","card":"%s","project_type":"%s","mode":"%s","flow_version":"%s","tier":"%s","host":"%s","read_only":%s,"gate_fail_reason":"%s"}\n' \
-    "$ts" "$now" "$(_json_str "${FLOW_SESSION_ID:-}")" "$cyc" "$(_json_str "$proj")" "$(_json_str "$FLOW_LOG_CMD")" "$(_json_str "$args")" "$ec" "$gp" "$dur" "$FLOW_LOG_STAGE_FROM" "$FLOW_LOG_STAGE_TO" "$(_json_str "$FLOW_LOG_CARD")" "$(get_project_type)" "$(cat "$MODE_FILE" 2>/dev/null | tr -d '\r' || echo teach)" "$ver" "${FLOW_ENGINE_TIER:-builtin}" "$(_json_str "$host")" "$ro" "$(_json_str "${FLOW_LAST_GATE_FAIL:-}")" \
+  printf '{"ts":"%s","epoch_s":%s,"session_id":"%s","cycle_id":"%s","project":"%s","command":"%s","args":"%s","exit_code":%s,"gate_pass":%s,"duration_s":%s,"stage_from":"%s","stage_to":"%s","card":"%s","project_type":"%s","mode":"%s","flow_version":"%s","tier":"%s","host":"%s","read_only":%s,"gate_fail_reason":"%s","ephemeral":%s}\n' \
+    "$ts" "$now" "$(_json_str "$(_session_id)")" "$cyc" "$(_json_str "$proj")" "$(_json_str "$FLOW_LOG_CMD")" "$(_json_str "$args")" "$ec" "$gp" "$dur" "$FLOW_LOG_STAGE_FROM" "$FLOW_LOG_STAGE_TO" "$(_json_str "$FLOW_LOG_CARD")" "$(get_project_type)" "$(cat "$MODE_FILE" 2>/dev/null | tr -d '\r' || echo teach)" "$ver" "${FLOW_ENGINE_TIER:-builtin}" "$(_json_str "$host")" "$ro" "$(_json_str "${FLOW_LAST_GATE_FAIL:-}")" "$eph" \
     >> "$EVENTS_FILE" 2>/dev/null || true
-  # COMPACT line -> device-global (no args/host/stage_from/type/mode -> stays small, <PIPE_BUF, race-safe append)
+  # COMPACT line -> device-global (no args/host/stage_from/type/mode -> stays small, race-safe append)
   if [ -n "${HOME:-}" ]; then
     mkdir -p "$(dirname "$GLOBAL_LOG")" 2>/dev/null || true
-    printf '{"ts":"%s","epoch_s":%s,"session_id":"%s","cycle_id":"%s","project":"%s","command":"%s","exit_code":%s,"gate_pass":%s,"duration_s":%s,"stage_to":"%s","flow_version":"%s","read_only":%s}\n' \
-      "$ts" "$now" "$(_json_str "${FLOW_SESSION_ID:-}")" "$cyc" "$(_json_str "$proj")" "$(_json_str "$FLOW_LOG_CMD")" "$ec" "$gp" "$dur" "$FLOW_LOG_STAGE_TO" "$ver" "$ro" \
+    printf '{"ts":"%s","epoch_s":%s,"session_id":"%s","cycle_id":"%s","project":"%s","command":"%s","exit_code":%s,"gate_pass":%s,"duration_s":%s,"stage_to":"%s","flow_version":"%s","read_only":%s,"gate_fail_reason":"%s","ephemeral":%s}\n' \
+      "$ts" "$now" "$(_json_str "$(_session_id)")" "$cyc" "$(_json_str "$proj")" "$(_json_str "$FLOW_LOG_CMD")" "$ec" "$gp" "$dur" "$FLOW_LOG_STAGE_TO" "$ver" "$ro" "$(_json_str "$gfr")" "$eph" \
       >> "$GLOBAL_LOG" 2>/dev/null || true
   fi
   return 0
@@ -1388,7 +1443,11 @@ cmd_usage() {
     FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" prune "$@"
     return 0
   fi
-  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" rollup >/dev/null 2>&1 || true
+  # forward --global to the rollup step too, else `usage --global` queries a src that was
+  # never ingested into the usage_event mirror and falsely reports "no events".
+  local rollup_global=""
+  case " $* " in *" --global "*) rollup_global="--global" ;; esac
+  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" rollup $rollup_global >/dev/null 2>&1 || true
   FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" usage "$@"
   return 0
 }
