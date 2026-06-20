@@ -1383,7 +1383,7 @@ _ensure_cycle() {
 # Normalize a path for prefix comparison across POSIX + Git-Bash-on-Windows: backslashes ->
 # slashes, lowercase (Windows is case-insensitive), and the Windows drive form `C:/` -> `/c/`
 # (Git Bash reports $ROOT as `/c/...` but $TEMP/$TMP as `C:\...` — without this they never match).
-_norm_path() { printf '%s' "${1:-}" | tr 'A-Z\\' 'a-z/' | sed -E 's#^([a-z]):/#/\1/#'; }
+_norm_path() { printf '%s' "${1:-}" | tr 'A-Z\\' 'a-z/' | sed -E 's#^([a-z]):/#/\1/#; s#(.)/+$#\1#'; }
 _is_ephemeral() {
   case "$(basename "$ROOT" 2>/dev/null)" in tmp.*) echo 1; return ;; esac
   local d rp; rp="$(_norm_path "$ROOT")"
