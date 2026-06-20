@@ -37,6 +37,8 @@ the usage-log is a correct, honest, decision-grade signal. All changes are backw
 
 Tests: 20 suites / 413 checks green (`tests/test_flow_usage_log.sh` §9–§14, plus updated
 concurrency §L/§M and schema-version assertion). Built and gated through `/flow` itself.
-A pre-tag adversarial review fixed two MED issues: Windows `$TEMP` ephemeral-path
-normalization (`C:\` vs `/c/`) and `_json_str` now strips all control characters.
+A pre-tag adversarial review fixed two MED issues: cross-platform ephemeral-path
+normalization (Windows `C:\` vs `/c/`, and macOS trailing-slash `$TMPDIR` — the latter
+caught by CI on macOS, fixed in `_norm_path`) and `_json_str` now strips all control
+characters. CI green on macOS · Ubuntu · Windows.
 (plan in `flow-telemetry-v011/`, research in `plans/260620-flow-telemetry-assessment/`).
