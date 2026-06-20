@@ -41,6 +41,7 @@ the harness) with reality before stage 01. Greenfield projects skip it and start
 |---|---|---|---|---|
 | Build card | `fullstack-developer` | `bmad-dev-story` / `bmad-quick-dev` | inline | `harness story update --status in_progress` |
 | UI card | `ui-ux-designer` | — | inline + `law/DESIGN.md` | review vs DESIGN.md |
+| Repair / diagnostic | `debugger` | — | inline root-cause + fresh same-ladder subagent | `harness intervention add` |
 | Review | `code-reviewer` | `bmad-code-review` (3-layer adversarial) | inline | `harness intervention add` on red |
 | Deploy | `deploy` skill | — | manual guide | — |
 | Verify-live | `tester` / `web-testing` | `bmad-qa-generate-e2e-tests` | curl/Playwright | `harness story update --e2e 1` + `trace` |
@@ -72,6 +73,14 @@ Return: the drafted artifact + status (DONE/DONE_WITH_CONCERNS/BLOCKED/NEEDS_CON
   detailed in `adversarial-review.md` (Phase 4).
 - **Build via fullstack-developer:** one card = one scoped session. Pass the card's Scope +
   Allowed files + the contract shapes it consumes. It must honor shapes exactly.
+- **Repair / diagnostic via debugger:** detect-first ladder entry — NOT a hard dependency.
+  Dispatch `Task(subagent_type="debugger")` with a scoped brief: task description, the failing
+  card file, test output, and `## Verify` acceptance criteria. NO session history (context
+  isolation per orchestration-protocol). If `debugger` is ABSENT in the host, degrade to inline
+  root-cause analysis + a fresh same-ladder (Claude) subagent for the redraw. A missing agent
+  changes WHO diagnoses, never whether `## Verify` + `flow.sh check` must pass for real.
+  Escalation order: debugger (Claude diagnostic) -> Codex (if USABLE) -> Antigravity (if USABLE)
+  -> operator.
 - **Verify-live:** the proof is the LIVE surface (deployed URL, real curl), not "tests pass".
   Record `story update --e2e 1` + a `trace` only after the live check.
 

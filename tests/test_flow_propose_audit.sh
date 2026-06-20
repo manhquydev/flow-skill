@@ -77,6 +77,25 @@ out="$(FLOW_PROJECT_ROOT="$SB" bash "$RUN" recall 2>&1)"; has "$out" "health:" "
 out="$(FLOW_PROJECT_ROOT="$SB" bash "$RUN" retro 2>&1)"; has "$out" "Harness proposes" "retro surfaces deterministic proposals"
 rm -rf "$SB"
 
+echo "H) security-class review lens: security-class branch names security-reviewer; default stays code-reviewer"
+AR_CONTENT="$(cat "$HERE/../skills/flow/references/adversarial-review.md")"
+has "$AR_CONTENT" "security-reviewer" "adversarial-review names security-reviewer for security-class cards"
+has "$AR_CONTENT" "code-reviewer" "adversarial-review names code-reviewer as the non-security default"
+# security-reviewer must be the AGENT (subagent_type), not mistaken for a skill
+has "$AR_CONTENT" "subagent_type" "security-reviewer referenced as Task subagent (AGENT, not SKILL)"
+# ck-security must appear only as skill/inline, never as the delegated subagent name
+has "$AR_CONTENT" "ck-security" "ck-security documented as SKILL (inline only)"
+# degrade rung present
+has "$AR_CONTENT" "Portability degrade rung" "degrade rung stated for when security-reviewer is absent"
+# HALT must not be releasable by lens
+has "$AR_CONTENT" "NEVER releases the Tier-C operator HALT" "lens explicitly cannot release the Tier-C HALT"
+# no-defang applies to security dispatch
+has "$AR_CONTENT" "No-defang rule applies to the security dispatch" "no-defang rule explicitly applied to security dispatch"
+# gate parity: lens informs only
+has "$AR_CONTENT" "INFORMS triage" "gate-parity: lens informs triage, never decides"
+# default (non-security) path must not be broken: code-reviewer still the base
+no  "$AR_CONTENT" "security-reviewer.*non-security" "security-reviewer does NOT appear on the non-security path"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

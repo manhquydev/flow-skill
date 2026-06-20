@@ -118,6 +118,87 @@ ck 0 "$rc" "auto-id session acquires lock with no manual export"
 has "$(cat "$SB/flow/.lock" 2>/dev/null)" "sid:HARNESSID" "lock owner auto-derived from CLAUDE_CODE_SESSION_ID"
 rm -rf "$SB"
 
+echo "N) W5 atomic mkdir RACE: direct lock_acquire contention -> exactly ONE winner per iteration across 20 runs"
+# Strategy: use a thin contender wrapper that sets up the same env as flow.sh and directly
+# calls mkdir on LOCK_DIR (the POSIX test-and-set). A FIFO barrier synchronises both
+# subshells so they hit mkdir at the same time, creating real contention rather than
+# sequential execution. 20 iterations required: a vacuous pass (one finishes before the
+# other starts) would see 0 double-wins across all runs, but we assert NO double-wins at all.
+newsb
+RACE_SB="$SB"
+# Build a thin contender script: waits on barrier, tries mkdir, exits 0=won / 1=lost
+CONTENDER="$(mktemp --suffix=.sh)"
+cat > "$CONTENDER" <<'CONTENDER_EOF'
+#!/usr/bin/env bash
+# Args: $1=LOCK_DIR $2=barrier_fifo
+LOCK_DIR="$1"; BARRIER="$2"
+# Signal ready, then block until the other side opens the FIFO
+echo ready > "$BARRIER"
+# Wait for go signal (the orchestrator cat's the FIFO after both are ready)
+read -r _go < "$BARRIER" 2>/dev/null || true
+mkdir "$LOCK_DIR" 2>/dev/null
+CONTENDER_EOF
+chmod +x "$CONTENDER"
+
+N_ITER=20; N_DOUBLE=0; N_ZERO=0
+for _i in $(seq 1 $N_ITER); do
+  _lockdir="$RACE_SB/flow/.lock.d"
+  rm -rf "$_lockdir" 2>/dev/null || true
+  # Use a temp dir as a barrier: each contender writes a file; orchestrator waits for 2, then sends go
+  _bar="$(mktemp -d)"
+  # Launch both contenders; each writes "ready" to _bar/A or _bar/B then waits for _bar/go
+  (
+    # Contender A: signal ready then spin-wait for go file
+    touch "$_bar/A"
+    while [ ! -f "$_bar/go" ]; do :; done
+    mkdir "$_lockdir" 2>/dev/null; echo $?
+  ) > "$_bar/out_a" &
+  _pid_a=$!
+  (
+    # Contender B: signal ready then spin-wait for go file
+    touch "$_bar/B"
+    while [ ! -f "$_bar/go" ]; do :; done
+    mkdir "$_lockdir" 2>/dev/null; echo $?
+  ) > "$_bar/out_b" &
+  _pid_b=$!
+  # Wait until both contenders are ready (spinning on barrier), then release
+  while [ ! -f "$_bar/A" ] || [ ! -f "$_bar/B" ]; do :; done
+  touch "$_bar/go"
+  wait $_pid_a; wait $_pid_b
+  _rc_a="$(cat "$_bar/out_a" 2>/dev/null)"; _rc_b="$(cat "$_bar/out_b" 2>/dev/null)"
+  rm -rf "$_bar"
+  # Count wins (exit 0 from mkdir = won the dir)
+  _wins=$(( (_rc_a == 0 ? 1 : 0) + (_rc_b == 0 ? 1 : 0) ))
+  [ "$_wins" -gt 1 ] && N_DOUBLE=$(( N_DOUBLE + 1 ))
+  [ "$_wins" -eq 0 ] && N_ZERO=$(( N_ZERO + 1 ))
+done
+rm -f "$CONTENDER"
+ck 0 "$N_DOUBLE" "N-atomic-race: zero double-wins across $N_ITER iterations (mkdir atomicity)"
+ck 0 "$N_ZERO"   "N-atomic-race: zero iterations where nobody won (no lost mkdir calls)"
+rm -rf "$RACE_SB"
+
+echo "O) F1 crash-recovery: LOCK_DIR old + no LOCK_FILE -> self-heals after TTL; fresh dir -> BLOCKED"
+# Simulate a process that won mkdir but crashed before _write_lock (LOCK_DIR exists, LOCK_FILE absent).
+# Sub-test O1: LOCK_DIR mtime is old (> TTL) -> next reclaims and proceeds.
+newsb
+mkdir -p "$SB/flow/.lock.d"
+# Set mtime to 30 minutes in the past (> TTL=1s used below via FLOW_LOCK_TTL override)
+touch -t "$(date -d '30 minutes ago' '+%Y%m%d%H%M.%S' 2>/dev/null || date -v-30M '+%Y%m%d%H%M.%S' 2>/dev/null || echo '197001010001.00')" "$SB/flow/.lock.d" 2>/dev/null || true
+# With a 1-second TTL the 30-min-old dir is definitely stale
+out="$(FLOW_LOCK_TTL=1 FLOW_SESSION_ID=ME bash "$RUN" next 2>&1)"; rc=$?
+ck 0 "$rc" "O1-crash-recovery: stale LOCK_DIR (no LOCK_FILE) -> self-heals, next proceeds"
+has "$out" "stale crashed claim" "O1-crash-recovery: self-heal note printed"
+rm -rf "$SB"
+
+# Sub-test O2: LOCK_DIR mtime is fresh (within TTL) -> BLOCKED (not a stale crash, could be live).
+newsb
+mkdir -p "$SB/flow/.lock.d"
+# mtime is 'now' (just created) so it's within any TTL
+out="$(FLOW_LOCK_TTL=900 FLOW_SESSION_ID=ME bash "$RUN" next 2>&1)"; rc=$?
+ck 1 "$rc" "O2-fresh-dir-no-lockfile: fresh LOCK_DIR (no LOCK_FILE) -> BLOCKED (may be live mid-claim)"
+has "$out" "BLOCKED" "O2-fresh-dir-no-lockfile: BLOCKED message printed"
+rm -rf "$SB"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

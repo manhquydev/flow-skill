@@ -2,7 +2,7 @@
 
 *Read this in [English](README.md).*
 
-[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 19 bộ test / 367 check trên macOS · Ubuntu · Windows
+[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 21 bộ test / 458 check trên macOS · Ubuntu · Windows
 
 `/flow` đưa một sản phẩm từ **ý tưởng đến bằng chứng "done" thật** qua các **cổng (gate) trung
 thực** — một URL đã deploy cho web, "cài + chạy được" cho CLI, public API + coverage cho library,
@@ -11,15 +11,20 @@ harness bền vững** (intake/story/trace/decision/backlog), điều phối age
 (GPT-5.x) engine thứ hai + Antigravity (Gemini-3) engine thứ ba khác nhà cung cấp** = gate đối kháng
 ba mô hình), và nhận biết loại dự án.
 
-> Trạng thái: **v0.10.0** — engine + **vòng tri thức** bền vững khép kín (recall · audit/propose · KB
+> Trạng thái: **v0.12.0** — engine + **vòng tri thức** bền vững khép kín (recall · audit/propose · KB
 > liên-dự-án) + capture tự động tại gate + **usage log cơ học khép vòng phản hồi** (mỗi lần chạy `flow.sh`
 > tự ghi JSONL; `recall` hiện digest usage, `propose` cảnh báo stage hay fail, `/flow usage [--prune]` →
-> cycle-time/tỷ lệ fail gate/dwell; chỉ lưu cục bộ) +
+> cycle-time/tỷ lệ fail gate/dwell; chỉ lưu cục bộ).
+> **v0.11 làm cho telemetry tin cậy** — `usage --global`, `cycle_id` tại mọi điểm vào, dwell theo đồng hồ thực,
+> `session_id` tự động, lock PID-liveness, loại trừ test run, lý do fail gate toàn thiết bị.
+> **v0.12 nâng sâu orchestration** — `debugger` trong repair ladder, `security-reviewer` tại Review,
+> lock nguyên tử (TOCTOU-safe + tự phục hồi sau crash), exit code `_python` trung thực,
+> dwell chuyển tiếp cho analytics global, và kế toán cycle read-only trung thực —
 > drift checks (contract/tokens/coherence/**consistency**) + chế độ
 > brownfield `assess` + concurrency lock + tích hợp agent + DESIGN law + nhận biết loại dự án +
 > **cài đặt portable trên Claude Code (`/flow`), Codex CLI (`$flow`) và Antigravity (`agy` CLI /
 > IDE)** + **launcher runner cho Windows/Codex** (`flow.cmd`, tránh lỗi path của WSL-bash).
-> **19 bộ test / 367 check xanh.** MIT.
+> **21 bộ test / 427 check xanh.** MIT.
 
 ## Triết lý cốt lõi
 - **"Done" = bằng chứng thật ngoài đời**, không phải "tests pass" / "đã merge". Mỗi card khai báo

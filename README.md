@@ -2,7 +2,7 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 20 test suites / 413 checks on macOS · Ubuntu · Windows
+[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 21 test suites / 458 checks on macOS · Ubuntu · Windows
 
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
@@ -11,18 +11,21 @@ durable harness layer (intake/story/trace/decision/backlog), agent orchestration
 **Codex (GPT-5.x) second engine + Antigravity (Gemini-3) third engine** = a three-model adversarial
 gate), and project-type awareness.
 
-> Status: **v0.11.0** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
+> Status: **v0.12.0** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
 > cross-project KB) + gate-fired capture + a **mechanical usage log** wired into a closed feedback loop
 > (every `flow.sh` invocation self-recorded to JSONL; `recall` surfaces a usage digest, `propose` flags
 > chronically-failing stages, `/flow usage [--prune]` → cycle-time/gate fail-rate/dwell; local-only).
 > **v0.11 makes that telemetry trustworthy** — working `usage --global`, brownfield `cycle_id` at every
 > entry point, **wall-clock** per-stage dwell, auto-derived `session_id` + PID-liveness lock (hard-blocks
-> for real now), ephemeral test-run exclusion, and device-wide gate-fail reasons — plus
+> for real now), ephemeral test-run exclusion, and device-wide gate-fail reasons.
+> **v0.12 deepens orchestration** — `debugger` wired into the two-strikes repair ladder, `security-reviewer`
+> layered into Review, atomic lock with TOCTOU-safe acquire + crash self-heal, honest `_python` exit code,
+> per-stage dwell forwarded for global analytics, and honest read-only cycle accounting — plus
 > drift checks (contract/tokens/coherence/**consistency**) + brownfield
 > `assess` + a concurrency lock + agent integration + DESIGN law + project-type awareness +
 > **portable install across Claude Code (`/flow`), Codex CLI (`$flow`), and Antigravity (`agy` CLI /
 > IDE)** + a **Windows/Codex runner launcher** (`flow.cmd`, routes around WSL-bash path failures).
-> **20 test suites / 413 checks green.** MIT.
+> **21 test suites / 427 checks green.** MIT.
 
 ## What ships
 

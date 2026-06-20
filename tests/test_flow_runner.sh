@@ -56,6 +56,26 @@ printf '# C-002 — next\nstatus: todo\ndeps: C-1\n## Scope\nb\n## Allowed files
 has "$(bash "$RUN" ready)" "BUILDABLE C-002" "short dep id C-1 resolves to done C-001"
 rm -rf "$SB"
 
+echo "F) _python: returns non-zero exit when no python3/python on PATH; exit 0 + path when present"
+# Extract _python directly from flow.sh so the test tracks the real implementation.
+# Sourcing the full script is unsafe (triggers dispatch); sed-extract + eval is the clean approach.
+_PYTHON_DEF="$(sed -n '/^_python()/,/^}/p' "$RUN")"
+# No-interpreter case: shadow PATH inside the subshell after bash itself is loaded.
+no_py_out="$(bash -c "PATH=/nonexistent; $_PYTHON_DEF; _python; echo exit=\$?")"
+ck "exit=1" "$(printf '%s' "$no_py_out" | grep 'exit=')" "_python exit is non-zero when no interpreter on PATH"
+ck "" "$(printf '%s' "$no_py_out" | grep -v 'exit=')" "_python stdout is empty when no interpreter found"
+# Real-interpreter case: current shell has python available (skip gracefully if truly absent).
+real_py="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+if [ -n "$real_py" ]; then
+  real_out="$(bash -c "$_PYTHON_DEF; _python; echo exit=\$?")"
+  real_path="$(printf '%s' "$real_out" | grep -v 'exit=')"
+  real_exit="$(printf '%s' "$real_out" | grep 'exit=')"
+  ck "exit=0" "$real_exit" "_python exit 0 when real python present"
+  has "$real_path" "python" "_python prints interpreter path when present"
+else
+  echo "  skip [_python real-interpreter checks] (no python on this PATH)"
+fi
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

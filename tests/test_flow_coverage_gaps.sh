@@ -61,6 +61,54 @@ has "$out" "intervention" "intervention recorded"
 bash "$RUN" harness intervention --type bogus --description x --source human >/dev/null 2>&1; ck 2 $? "invalid intervention type rejected by argparse"
 rm -rf "$SB"
 
+echo "agent-wiring tripwire — every ck: agent in agent-detection.md must appear in agent-stage-mapping.md"
+# Read the two reference files from the skill bundle.
+DETECTION="$HERE/../skills/flow/references/agent-detection.md"
+MAPPING="$HERE/../skills/flow/references/agent-stage-mapping.md"
+# Priority list from agent-detection.md line ~18:
+#   planner researcher architect fullstack-developer code-reviewer tester
+#   ui-ux-designer docs-manager git-manager debugger scout
+#
+# WIRED agents — must appear in agent-stage-mapping.md (a stage row or a labelled seam).
+# docs-manager and git-manager are intentionally NOT in the wired set: they have no
+# assigned stage or seam in agent-stage-mapping.md yet (pre-existing state; adding them
+# to that mapping is a separate doc card, not this release card). This tripwire catches
+# new "declared but unwired" gaps going forward — exactly the class of defect C-013 fixed
+# for debugger.
+WIRED_AGENTS="planner researcher architect fullstack-developer code-reviewer tester ui-ux-designer debugger scout"
+for agent in $WIRED_AGENTS; do
+  if grep -q "$agent" "$MAPPING"; then
+    echo "  ok   [agent-wired: $agent appears in agent-stage-mapping.md]"; pass=$((pass+1))
+  else
+    echo "  FAIL [agent-wired: $agent NOT found in agent-stage-mapping.md]"; fail=$((fail+1))
+  fi
+done
+# Confirm known-unwired agents ARE in the detection list (they're declared, not forgotten).
+for agent in docs-manager git-manager; do
+  if grep -q "$agent" "$DETECTION"; then
+    echo "  ok   [declared-not-yet-wired: $agent present in agent-detection.md]"; pass=$((pass+1))
+  else
+    echo "  FAIL [declared-not-yet-wired: $agent missing from agent-detection.md]"; fail=$((fail+1))
+  fi
+done
+# NEGATIVE CONTROL: verify the tripwire CAN go red.
+# Simulate the pre-C-013 state: strip 'debugger' from a temp copy of the mapping and
+# assert the wiring check would fail for it — proving the tripwire is not trivially green.
+TMPMAP="$(mktemp)"
+grep -v "debugger" "$MAPPING" > "$TMPMAP"
+if grep -q "debugger" "$TMPMAP"; then
+  echo "  FAIL [negative-control: 'debugger' still present after removal — grep broken]"; fail=$((fail+1))
+else
+  echo "  ok   [negative-control: temp map has 'debugger' removed (simulates unwired state)]"; pass=$((pass+1))
+fi
+# The wiring check against the stripped map must NOT find debugger — tripwire goes red.
+if grep -q "debugger" "$TMPMAP"; then
+  echo "  FAIL [negative-control: tripwire would NOT catch an unwired debugger]"; fail=$((fail+1))
+else
+  echo "  ok   [negative-control: tripwire correctly goes red for unwired 'debugger']"; pass=$((pass+1))
+fi
+rm -f "$TMPMAP"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

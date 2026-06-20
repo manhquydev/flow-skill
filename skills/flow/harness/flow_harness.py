@@ -561,6 +561,7 @@ def cmd_usage(con, a):
     cyc = con.execute(f"SELECT cycle_id, MAX(epoch_s)-MIN(epoch_s) FROM usage_event "
                       f"{w} AND cycle_id<>'' GROUP BY cycle_id", pr).fetchall()
     cycles_started = len(cyc)
+    build_cycles, diag_cycles = _count_build_cycles(con, w, pr)
     times = sorted(r[1] for r in cyc if r[1] is not None)
     reached = con.execute(f"SELECT COUNT(DISTINCT cycle_id) FROM usage_event "
                           f"{w} AND cycle_id<>'' AND (card<>'' OR command='card')", pr).fetchone()[0]
@@ -570,19 +571,29 @@ def cmd_usage(con, a):
     # epoch is the moment you LEFT stage_from / ENTERED stage_to. dwell(S) = (exit S) - (enter S),
     # per cycle, averaged across cycles. Unlike duration_s (the runner's own exec time ~1-2s) this
     # is real lead-time and answers "where do builds stall". Abandoned stages (no exit) are skipped.
-    trans = con.execute(f"SELECT cycle_id, stage_from, stage_to, epoch_s FROM usage_event "
+    #
+    # Legacy rows (pre-fix compact global lines) lack stage_from. Best-effort: infer it from the
+    # preceding row's stage_to, partitioned strictly by (project, cycle_id) ordered by epoch_s.
+    # Where a real stage_from exists it always wins; inference fires only when the field is absent.
+    # Inferred dwell is approximate (re-entries / idle gaps acknowledged); exact rows are unaffected.
+    trans = con.execute(f"SELECT cycle_id, project, stage_from, stage_to, epoch_s FROM usage_event "
                         f"{w} AND command='next' AND cycle_id<>'' AND epoch_s IS NOT NULL "
-                        f"ORDER BY cycle_id, epoch_s", pr).fetchall()
-    _enter, _exit = {}, {}
-    for cyc_id, sf, st, es in trans:
+                        f"ORDER BY project, cycle_id, epoch_s", pr).fetchall()
+    _prev_stage_to: dict = {}   # key=(project, cycle_id) -> stage_to of last processed row
+    _enter, _exit = {}, {}      # key=(project, cycle_id) to prevent cross-project bleed on --global
+    for cyc_id, proj_name, sf, st, es in trans:
+        pkey = (proj_name or "", cyc_id)
+        # Infer stage_from from prior row's stage_to when the field is absent (legacy compact rows).
+        sf_effective = sf if sf else _prev_stage_to.get(pkey)
+        _prev_stage_to[pkey] = st if st else _prev_stage_to.get(pkey)
         if st:
-            _enter.setdefault(cyc_id, {}).setdefault(st, es)   # first entry into st
-        if sf:
-            _exit.setdefault(cyc_id, {})[sf] = es              # last exit from sf
+            _enter.setdefault(pkey, {}).setdefault(st, es)   # first entry into st
+        if sf_effective:
+            _exit.setdefault(pkey, {})[sf_effective] = es    # last exit from sf_effective
     _wall = {}
-    for cyc_id, stages in _enter.items():
+    for pkey, stages in _enter.items():
         for stg, ein in stages.items():
-            eout = _exit.get(cyc_id, {}).get(stg)
+            eout = _exit.get(pkey, {}).get(stg)
             if eout is not None and eout >= ein:
                 _wall.setdefault(stg, []).append(eout - ein)
     stage_wall = sorted((stg, len(v), sum(v) / len(v)) for stg, v in _wall.items())
@@ -599,16 +610,50 @@ def cmd_usage(con, a):
                          f"FROM usage_event {w} AND command IN ('next','check') AND stage_to<>'' AND gate_pass IS NOT NULL "
                          f"GROUP BY stage_to HAVING f>0 ORDER BY f DESC LIMIT 1", pr).fetchone()
         tfs = f"{tf[0]}({tf[1]}/{tf[2]})" if tf else "none"
-        print(f"USAGE (mechanical log): cycles={cycles_started} reached-cards={reached} "
+        print(f"USAGE (mechanical log): cycles={cycles_started} build-intent={build_cycles} diagnostic-only={diag_cycles} reached-cards={reached} "
               f"| cycle-time s min/med/max={times[0] if times else 0}/{med}/{times[-1] if times else 0} "
               f"| gate fail-rate={fail_rate:.0f}% | top-fail-stage={tfs}")
         return 0
+    # optional --builds-only: restrict cycle timing metrics to build cycles only
+    builds_only = getattr(a, "builds_only", False)
+    if builds_only and build_cycles < cycles_started:
+        # Identify build cycle_ids from the already-fetched _count_build_cycles data.
+        # Re-query to get per-cycle timing for build cycles only.
+        cycle_rows = con.execute(
+            f"SELECT cycle_id, read_only, command, MAX(epoch_s)-MIN(epoch_s) AS dur "
+            f"FROM usage_event {w} AND cycle_id<>'' GROUP BY cycle_id",
+            pr
+        ).fetchall()
+        # For each cycle, check if any event in it is non-read_only.
+        # We use the already-computed cycle event classification via _count_build_cycles logic
+        # but here per-cycle (need per-cycle decision).
+        # Efficient: aggregate read_only flag per cycle from the JSONL-derived table.
+        build_times = []
+        for row in cycle_rows:
+            cid, ro, cmd, dur = row
+            # Check if this cycle has any build event: query its events
+            # (small: cycles typically have few events)
+            cycle_evs = con.execute(
+                f"SELECT read_only, command FROM usage_event {w} AND cycle_id=?",
+                list(pr) + [cid]
+            ).fetchall()
+            if any(not _is_readonly_event(ro_e, cmd_e) for ro_e, cmd_e in cycle_evs):
+                if dur is not None:
+                    build_times.append(dur)
+        times_display = sorted(build_times)
+        med_display = times_display[len(times_display) // 2] if times_display else 0
+        display_count = build_cycles
+    else:
+        times_display, med_display, display_count = times, med, cycles_started
     if getattr(a, "json", False):
         print(json.dumps({
             "src": src, "events_total": total,
             "gate_fail_rate_pct": round(fail_rate, 1), "gate_fail": gate_fail, "gate_total": gate_total,
-            "cycles_started": cycles_started, "cycles_reached_cards": reached,
-            "cycle_time_s": {"min": times[0] if times else 0, "median": med, "max": times[-1] if times else 0},
+            "cycles_started": cycles_started,
+            "cycles_build_intent": build_cycles,
+            "cycles_diagnostic_only": diag_cycles,
+            "cycles_reached_cards": reached,
+            "cycle_time_s": {"min": times_display[0] if times_display else 0, "median": med_display, "max": times_display[-1] if times_display else 0},
             "stage_exec_time": [{"stage": s, "n": c, "avg_s": round(v or 0, 1)} for s, c, v in dwell],
             "stage_dwell": [{"stage": s, "n": c, "avg_s": round(v, 1)} for s, c, v in stage_wall],
             "commands": [{"command": c, "n": n} for c, n in cmds],
@@ -617,10 +662,10 @@ def cmd_usage(con, a):
     print(f"flow usage - {src}")
     print(f"  events total:         {total}")
     print(f"  gate fail-rate:       {fail_rate:.0f}%  ({gate_fail}/{gate_total} next|check failed)")
-    print(f"  cycles started:       {cycles_started}")
+    print(f"  cycles started:       {cycles_started}   (build-intent: {build_cycles} · diagnostic-only: {diag_cycles})")
     print(f"  cycles reached cards: {reached}  (abandonment proxy: {cycles_started - reached} not yet at cards)")
-    if times:
-        print(f"  cycle-time (s):       min={times[0]} median={med} max={times[-1]}")
+    if times_display:
+        print(f"  cycle-time (s):       min={times_display[0]} median={med_display} max={times_display[-1]}")
     print("  per-stage command exec time (avg duration_s of 'next' - runner overhead, NOT lead-time):")
     for s, c, v in dwell:
         print(f"    {s:<12} n={c} avg={(v or 0):.0f}s")
@@ -634,6 +679,53 @@ def cmd_usage(con, a):
     for c, n in cmds:
         print(f"    {c:<12} {n}")
     return 0
+
+
+# C-012: READ-TIME build-intent classification (FR2 logging is UNCHANGED; this is rollup-only).
+# A cycle is a build cycle iff it has >=1 non-read_only event.
+# Primary: use the already-logged `read_only` field.
+# Fallback (legacy rows lacking the field): classify by command name via the same allowlist
+# that _log_is_readonly in flow.sh uses: status|recall|ready|usage|tokens|coherence|
+# consistency|contract|constitution|doctor|design|help are read-only; everything else is not.
+_READONLY_CMDS = frozenset({
+    "status", "recall", "ready", "usage", "tokens", "coherence",
+    "consistency", "contract", "constitution", "doctor", "design", "help",
+    "-h", "--help", "",
+})
+
+
+def _is_readonly_event(ro, cmd):
+    """Return True iff this usage event is read-only (no build mutation).
+    ro: the read_only column value (1/0/True/False/None); cmd: the command string.
+    Primary: use `ro` when present. Fallback for legacy rows (ro=None): classify by command name.
+    """
+    if ro is not None:
+        # Already logged: 1/True = read_only, 0/False = not read_only
+        return bool(ro)
+    # Legacy row: COALESCE by command name
+    return (cmd or "").strip().lower() in _READONLY_CMDS
+
+
+def _count_build_cycles(con, where_clause, params):
+    """Count build cycles (>=1 non-read_only event) and diagnostic-only cycles.
+    Retroactive: works on legacy rows lacking read_only via command-name COALESCE.
+    Returns (build_count, diagnostic_count).
+    """
+    rows = con.execute(
+        f"SELECT cycle_id, read_only, command FROM usage_event "
+        f"{where_clause} AND cycle_id<>''",
+        params
+    ).fetchall()
+    # Group events by cycle_id; a cycle is build-intent if any event is non-read_only.
+    cycle_has_build: dict = {}   # cycle_id -> bool
+    for cid, ro, cmd in rows:
+        if cid not in cycle_has_build:
+            cycle_has_build[cid] = False
+        if not _is_readonly_event(ro, cmd):
+            cycle_has_build[cid] = True
+    build_count = sum(1 for v in cycle_has_build.values() if v)
+    diag_count = sum(1 for v in cycle_has_build.values() if not v)
+    return build_count, diag_count
 
 
 def _usage_gate_fail_stages(con):
@@ -775,6 +867,8 @@ def build_parser():
     pu.add_argument("--include-ephemeral", dest="include_ephemeral", action="store_true",
                     help="include throwaway/test runs (temp-dir or tmp.* projects), excluded by default")
     pu.add_argument("--summary", action="store_true", help="one compact line (for `recall` to append); silent on no data")
+    pu.add_argument("--builds-only", dest="builds_only", action="store_true",
+                    help="filter cycle timing metrics to build-intent cycles only (excludes diagnostic-only)")
     ppr = sub.add_parser("prune", help="cap each JSONL sink to its last N lines (crash-safe; resets the mirror for that sink)")
     ppr.add_argument("--keep", type=int, help="lines to keep (default 5000)")
     ppr.add_argument("--global", dest="global_", action="store_true", help="also prune the device-global log")

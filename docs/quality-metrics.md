@@ -1,7 +1,39 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.11.0** (2026-06-20).
+Updated as the skill evolves. Current: **v0.12.0** (2026-06-20).
+
+## v0.12.0 — telemetry truth + orchestration depth (2026-06-20)
+
+Six improvements across three themes (C-011 to C-015) plus a CI tripwire for agent-wiring gaps (C-016).
+All backward-compatible. Built through `/flow`'s own card-based process.
+
+- **telemetry-truth (C-011):** `usage --global` per-stage dwell now works end-to-end — compact global
+  line carries `stage_from`; harness infers dwell for legacy rows by partitioning on `(project,cycle_id)`.
+- **telemetry-truth (C-012):** read-time build-intent vs diagnostic-only cycle breakdown using the
+  existing `read_only` field — retroactively correct across existing logs, no schema change.
+- **orchestration-depth (C-013):** `debugger` agent wired into the two-strikes repair ladder
+  (detection.md listed it, stage-mapping.md's Repair row did not — closed). Explicit degrade rung.
+- **orchestration-depth (C-014):** `security-reviewer` layered into the Review seam as an advisory
+  pass (informs triage; never auto-releases a Tier-C HALT; absent-safe).
+- **engine-hardening (C-015 W5):** atomic `mkdir`-guard lock acquire (TOCTOU-safe); crash-recovery
+  self-heal (`kill -0` dead-PID reclaim before each acquire). FR4 metadata preserved.
+- **engine-hardening (C-015 W6):** `_python` exit code propagated to callers (was always 0).
+- **agent-wiring tripwire (C-016):** new test block in `test_flow_coverage_gaps.sh` — asserts all
+  wired ck: agents appear in `agent-stage-mapping.md`; negative control proves it goes red when an
+  agent is unwired (the exact C-013 defect would have been caught at CI time).
+
+Suite **21 suites / 458 checks** green (20→21 suites; 413→458 checks; run on 2026-06-20).
+Coherence clean (0.11.0 → 0.12.0). Tripwire negative-control verified: `debugger` removed from a
+temp copy of the mapping → assertion fails for `debugger` specifically.
+
+| New / updated test | Suite | What changed |
+|---|---|---|
+| §F `_python` exit code | `test_flow_runner.sh` | +4 checks (honest non-zero on no interpreter, path on present) |
+| Round 7 repair-ladder order | `test_flow_scenarios.sh` | +1 check (debugger before codex in auto-run.md) |
+| Agent-wiring tripwire + negative-control | `test_flow_coverage_gaps.sh` | +13 checks (was 14 → 27) |
+| §N atomic race + §O crash-recovery | `test_flow_concurrency_lock.sh` | +10 checks (was 26 → 36) |
+| §15-§19 global dwell + C-012 classification | `test_flow_usage_log.sh` | +27 checks (was 27 → 54) |
 
 ## v0.11.0 — usage-log telemetry correctness (2026-06-20)
 

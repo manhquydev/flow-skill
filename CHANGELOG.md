@@ -4,6 +4,56 @@ All notable changes to the flow skill. Versions follow the `version:` field in
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 
+## 0.12.0 — 2026-06-20 — telemetry truth + orchestration depth
+
+Six improvements across three themes, plus a new CI tripwire that catches "declared but unwired"
+agent gaps before they ship. All changes are backward-compatible (optional fields, additive seams,
+no gate-contract change).
+
+**telemetry-truth**
+
+- **`usage --global` per-stage dwell now works.** The compact global-sink line carries `stage_from`
+  for new rows; for legacy rows the harness infers dwell by partitioning `next`-transition pairs on
+  `(project, cycle_id)`. The device-wide dwell view now reflects real stage time instead of
+  always zero. [C-011]
+- **Honest cycle accounting.** `flow usage` now breaks cycles into build-intent vs diagnostic-only
+  using the existing `read_only` field: a session that only ran `status`/`recall`/`usage` is counted
+  separately from one that advanced a gate or touched a card. The FR2 logging path is unchanged;
+  reclassification happens at read-time and is retroactively correct across the existing log. [C-012]
+
+**orchestration-depth**
+
+- **`debugger` wired into the two-strikes repair ladder.** When a same-ladder agent returns BLOCKED
+  a second time, the repair order is now: `debugger` (Claude diagnostic, scoped brief) → Codex
+  (if USABLE) → Antigravity (if USABLE) → operator. Previously the `debugger` agent was listed in
+  `agent-detection.md` but absent from `agent-stage-mapping.md`'s Repair row — a declared-but-unwired
+  gap. The degrade rung ("if `debugger` absent → inline root-cause + fresh same-ladder subagent")
+  is explicit and tested. [C-013]
+- **Security-class Review lens.** `security-reviewer` is layered into the Review seam alongside
+  `code-reviewer` — it runs as an advisory pass (informing triage, flagging OWASP/secrets/injection
+  patterns) but never releases a Tier-C operator HALT on its own: the gate still judges. The lens
+  is absent-safe (degrade to `code-reviewer` only when `security-reviewer` is not in the host
+  registry). [C-014]
+
+**engine-hardening**
+
+- **Atomic `mkdir`-guard concurrency lock, TOCTOU-safe.** The lock acquire now uses a single
+  `mkdir` (atomic on POSIX + NTFS) instead of a test-then-create sequence, closing the acquire
+  race. FR4 metadata (session_id, PID, timestamp) is written inside the directory after acquire,
+  and a crash-recovery self-heal (`kill -0` dead-PID reclaim) runs before each acquire attempt.
+  The existing lock TTL and unlock command are unchanged. [C-015 W5]
+- **Honest `_python` exit code.** The `_python` dispatcher now propagates the Python subprocess
+  exit code to the caller instead of always returning 0; callers that relied on the swallowed exit
+  code degrade gracefully (the harness is optional). [C-015 W6]
+
+**agent-wiring tripwire (this card)**
+
+- New test block in `tests/test_flow_coverage_gaps.sh` asserts that every ck: agent named in
+  `references/agent-detection.md`'s priority list appears in `agent-stage-mapping.md` as either a
+  stage row entry OR an explicitly-labelled repair/diagnostic/review seam. The test is backed by a
+  negative-control proof: the assertion turns red if any agent is removed from the wiring. The exact
+  `debugger`-unwired defect fixed in C-013 would have been caught by this tripwire at CI time.
+
 ## 0.11.0 — 2026-06-20 — usage-log telemetry correctness
 
 Self-assessment of the shipped usage-log (driven by `/flow` on flow itself) audited real logs

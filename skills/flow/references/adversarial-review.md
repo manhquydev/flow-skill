@@ -5,6 +5,38 @@ bless. "No 'looks good' allowed. Zero findings triggers a halt: re-analyze, or e
 nothing was found." (BMAD adversarial-review pattern.) Prefer `bmad-code-review` when
 present; else `code-reviewer`; else run the three lenses yourself as separate passes.
 
+## Security-class lens selection
+
+When a card is **security-class** (auth, authorization, admin exposure, tenancy, payments,
+data migration, removing/weakening validation — same trigger as `auto-run.md` Tier-C),
+the Review gate uses the **`security-reviewer` AGENT** (STRIDE/OWASP, secrets, injection,
+SSRF) as the primary acceptance lens, **layered with `code-reviewer`**. Non-security cards
+stay with the generic `code-reviewer` — no change to that path.
+
+**Agent vs skill:** `security-reviewer` is an **AGENT** (`Task(subagent_type="security-reviewer")`)
+invoked in subagent isolation — it sees the diff, contract, and acceptance only. `ck-security`
+is a **SKILL** (main-context Skill tool, no subagent isolation); it may be used as an optional
+inline pass by the orchestrator, but it is **never** the delegated review subagent.
+
+**Portability degrade rung** (detect-first, gate identical on every rung):
+1. `security-reviewer` AGENT present → run it layered with `code-reviewer` (primary path).
+2. `security-reviewer` absent → `code-reviewer` runs an explicit STRIDE/OWASP checklist
+   covering the Tier-C keyword list (auth, authz, tenancy, payments, injection, secrets, SSRF).
+3. Neither available → inline security review against the Tier-C keyword list by the orchestrator.
+
+**Gate parity — the lens INFORMS triage; it NEVER auto-fails or auto-passes a card.** A
+`security-reviewer` "looks fine" verdict is advisory evidence fed into the same triage table
+below. The Review gate still decides.
+
+**Critical: the lens NEVER releases the Tier-C operator HALT.** The security-class HALT
+(`auto-run.md:13,57`) is triggered by CLASSIFICATION and resolved ONLY by written operator
+acknowledgment in `DEBT.md`. A `security-reviewer` clean verdict can NEVER substitute for, or
+auto-release, that HALT — it is advisory evidence for the operator, not a gate key.
+
+**No-defang rule applies to the security dispatch.** Hand the `security-reviewer` the diff,
+the contract, and the card's acceptance — never add "don't flag X" or "treat as minor at
+most". The same defang prohibition above governs the security dispatch equally.
+
 ## Don't defang the reviewer (controller-side input)
 
 The "must find issues" rule above governs the reviewer's **output**. It is defeated at the source if
@@ -51,7 +83,8 @@ self-bias.
   judges; a Codex `needs-attention` never auto-fails a card and a Codex `approve` never auto-passes
   one. Apply the "do not blindly accept findings" rules to Codex output too.
 - **When to spend it (cost gate — the SAME three triggers as `codex-integration.md`).** Run the
-  Codex lens only on: a **security-class card review**, a **two-strikes** review deadlock, or an
+  Codex lens only on: a **security-class card review** (which also triggers the `security-reviewer`
+  specialist lens — see `## Security-class lens selection` above), a **two-strikes** review deadlock, or an
   **explicit operator opt-in** — and only when the tier is USABLE. A suspicious same-model "all
   clear" (zero findings) is a good reason to *ask the operator to opt in* to a cross-check, **not**
   an automatic trigger — auto-firing on every zero-findings card would blow past the cost gate.

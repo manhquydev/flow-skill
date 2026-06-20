@@ -55,6 +55,20 @@ has "$(bash "$RUN" mode)" "work" "mode persists as work"
 bash "$RUN" mode teach >/dev/null; has "$(bash "$RUN" mode)" "teach" "mode resets to teach"
 rm -rf "$SB"
 
+echo "Round 7 - repair ladder order: debugger named before codex escalation in auto-run.md"
+AUTORUN="$HERE/../skills/flow/references/auto-run.md"
+# First repair-ladder debugger line (strike-1 repair entry)
+dbg_line="$(grep -n 'subagent_type="debugger"' "$AUTORUN" | head -1 | cut -d: -f1)"
+# First codex escalation line (strike-2 deadlock -> Codex)
+cdx_line="$(grep -n 'strike 2.*Codex\|Codex.*fresh-engine repair' "$AUTORUN" | head -1 | cut -d: -f1)"
+if [ -n "$dbg_line" ] && [ -n "$cdx_line" ] && [ "$dbg_line" -lt "$cdx_line" ]; then
+  echo "  ok   [repair-ladder-debugger-before-codex: debugger L$dbg_line < codex-escalation L$cdx_line]"
+  pass=$((pass+1))
+else
+  echo "  FAIL [repair-ladder-debugger-before-codex: debugger L${dbg_line:-MISSING} codex-escalation L${cdx_line:-MISSING}]"
+  fail=$((fail+1))
+fi
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

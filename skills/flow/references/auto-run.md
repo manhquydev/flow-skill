@@ -9,7 +9,7 @@ principles below. Operator chose: **Tier-A auto-merge green cards; halt at secur
 | Tier | What | Action |
 |---|---|---|
 | **A** | Card built, review green, verify-live passed, no security-class concern | **Auto-merge without asking.** Log PR URL + merged SHA in `AUTO-LOG.md`. |
-| **B** | Built but review found fixable issues, or verify ambiguous | First repair = a **fresh same-ladder subagent** (Claude). If THAT repair is still red — the **two-strikes deadlock** — THEN try the next USABLE cross-vendor engine as a fresh-engine repair before escalating: **Codex** (`codex:codex-rescue`) first, then **Antigravity/Gemini-3** (`antigravity-integration.md`) if Codex is unusable or also red; else escalate to operator. (A cross-vendor engine may come in earlier ONLY on a security-class card or explicit operator opt-in — the cost gate. Do NOT call a billable engine on the first red of an ordinary card.) |
+| **B** | Built but review found fixable issues, or verify ambiguous | First repair = **`Task(subagent_type="debugger")`** with scoped brief (task + card + test output + acceptance; no session history). If `debugger` is absent, degrade to inline root-cause + fresh same-ladder (Claude) subagent. If THAT repair is still red — the **two-strikes deadlock** — THEN try the next USABLE cross-vendor engine: **Codex** (`codex:codex-rescue`) first, then **Antigravity/Gemini-3** (`antigravity-integration.md`) if Codex is unusable or also red; else escalate to operator. (A cross-vendor engine may come in earlier ONLY on a security-class card or explicit operator opt-in — the cost gate. Do NOT call a billable engine on the first red of an ordinary card.) |
 | **C** | Security-class touch (auth, authorization, admin exposure, tenancy, payments, data migration, removing validation) OR a debt skip | **HALT.** Operator must accept the exposure in writing in `DEBT.md`. Never planner-decided. |
 
 ## Loop per card (serial by default; parallel only when `/flow ready` says safe)
@@ -22,7 +22,12 @@ for each todo card in card-number order:
   2. agent builds to contract, touches only allowed files, runs ## Verify for real
   3. review the diff (code-reviewer or bmad-code-review 3-layer; see adversarial-review.md).
        On a security-class card, add a USABLE cross-vendor lens (Codex, and/or Antigravity/Gemini-3).
-       red (strike 1) -> repair by a FRESH same-ladder (Claude) subagent
+       red (strike 1) -> repair: spawn Task(subagent_type="debugger") with a SCOPED BRIEF
+         (task + failing card file + test output + ## Verify acceptance; NO session history).
+         Debugger diagnoses root cause and returns a fix recommendation or revised implementation.
+         Degrade rung: if `debugger` is ABSENT in the host, run inline root-cause analysis then
+         spawn a FRESH same-ladder (Claude) subagent for the redraw. A missing `debugger` changes
+         WHO diagnoses, never whether ## Verify + flow.sh check must pass for real.
        still red (strike 2 / deadlock) -> Codex fresh-engine repair if USABLE, then Antigravity if
          USABLE, else escalate
        green -> continue
