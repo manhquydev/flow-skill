@@ -4,6 +4,39 @@ All notable changes to the flow skill. Versions follow the `version:` field in
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 
+## 0.12.2 — 2026-06-21 — language-aware review
+
+Two improvements closing the last v0.12 backlog item. All backward-compatible.
+
+**language-specialist Review lens [C-021]**
+
+- **`typescript-reviewer` dispatched for `.ts`/`.js` files.** When the file set under review
+  contains TypeScript or JavaScript source, the Review seam now routes to `typescript-reviewer`
+  as a specialist pass layered on top of the standard `code-reviewer`. The specialist findings
+  INFORM triage; they never auto-pass or auto-fail the gate (gate-parity preserved).
+- **`python-reviewer` dispatched for `.py` files.** Same pattern: `python-reviewer` runs as an
+  advisory specialist alongside `code-reviewer` when `.py` files are in scope.
+- **Composes with the security lens.** The language-specialist pass stacks with the existing
+  `security-reviewer` lens (C-014) — both can fire in the same Review invocation; neither
+  blocks the other.
+- **Detect-first degrade.** When the specialist agent is absent or returns empty output, the
+  review falls back to `code-reviewer`-only; a missing specialist is never treated as an
+  approval. Documented as a "Specialist absent" degrade rung in `adversarial-review.md`.
+- **Both agents wired** in `agent-stage-mapping.md` (Review seam) and listed in
+  `agent-detection.md` (ck: priority list), so the existing agent-wiring tripwire
+  (`test_flow_coverage_gaps.sh`) guards them automatically. +12 checks.
+
+**Portability fix: POSIX `sed -E` replaces GNU-only `grep -oP` in the agent-wiring tripwire [C-018 latent defect]**
+
+- **Root cause.** The C-018 tripwire (`test_flow_coverage_gaps.sh`) used `grep -oP` with a
+  Perl-compatible regex to parse the derived agent set from `agent-detection.md`. GNU `grep -P`
+  is not available on macOS BSD grep — a CI target. This was a latent portability defect
+  introduced in v0.12.1: the tripwire passed on Linux/Windows (GNU grep) but would have failed
+  on macOS CI with `grep: invalid option -- P`.
+- **Fix.** The parse was rewritten using POSIX `sed -E`, which is supported on both BSD (macOS)
+  and GNU (Linux/Windows) grep environments. No change to what the tripwire asserts — only the
+  tool used to extract the agent list changed.
+
 ## 0.12.1 — 2026-06-21 — v0.12 polish round
 
 Three polish items closing the v0.12 backlog. All backward-compatible.

@@ -37,6 +37,46 @@ auto-release, that HALT — it is advisory evidence for the operator, not a gate
 the contract, and the card's acceptance — never add "don't flag X" or "treat as minor at
 most". The same defang prohibition above governs the security dispatch equally.
 
+## Language-specialist lens selection
+
+When a card's changed files have a detectable primary language, the Review gate adds the
+matching **language-specialist AGENT** as a layered lens alongside `code-reviewer`:
+
+- `.ts / .tsx / .js / .jsx` extensions → **`typescript-reviewer` AGENT** (type-safety, async
+  correctness, Node/web idioms).
+- `.py` extensions → **`python-reviewer` AGENT** (PEP 8, type hints, Pythonic idioms,
+  security via Bandit lens).
+- No dominant language-match → generic **`code-reviewer`** only (no specialist layer).
+
+Detect the primary language from the card's `## Allowed files` list (majority extension wins;
+mixed-language cards with no majority default to `code-reviewer`).
+
+**The specialist is LAYERED with `code-reviewer`** — it is an additional reviewer, not a
+replacement. Running both gives two review angles on the same diff; the gate's triage table
+weighs findings from both.
+
+**Composes with the security lens.** A security-class TypeScript card triggers
+`security-reviewer` + `typescript-reviewer` + `code-reviewer` — all three run. The lenses
+are additive. Security-class detection (`## Security-class lens selection`) and language
+detection are independent: each is evaluated separately, and the resulting set is the union.
+
+**Portability degrade rungs** (detect-first, gate identical on every rung):
+1. Language-specialist AGENT present → run it layered with `code-reviewer` (primary path).
+2. Specialist absent → `code-reviewer` runs an explicit checklist targeting the primary
+   language's known failure modes (e.g. TypeScript: `any` escapes, unhandled promise
+   rejections, missing strict-mode; Python: bare `except`, missing type hints, mutable
+   default args).
+3. Neither available → inline language-aware checklist run by the orchestrator.
+
+**Gate parity — the specialist lens INFORMS triage; it NEVER auto-fails or auto-passes a
+card.** A `typescript-reviewer` or `python-reviewer` verdict is advisory evidence fed into
+the same triage table below. The Review gate still decides. A clean specialist verdict never
+substitutes for the acceptance audit or the three-layer review structure.
+
+**No-defang rule applies to the specialist dispatch.** Hand the specialist the diff, the
+contract, and the card's acceptance — never add "don't flag X" or "the team already chose
+this pattern". The same defang prohibition in the next section governs every lens equally.
+
 ## Don't defang the reviewer (controller-side input)
 
 The "must find issues" rule above governs the reviewer's **output**. It is defeated at the source if

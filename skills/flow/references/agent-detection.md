@@ -15,7 +15,7 @@ do NOT assume. Also glob for project-local definitions when unsure:
 ## Priority order (operator chose: ck: first, bmad alternative)
 
 For each stage, pick the FIRST available:
-1. **ck: agent** (primary) — planner, researcher, architect, fullstack-developer, code-reviewer, tester, ui-ux-designer, docs-manager, git-manager, debugger, scout.
+1. **ck: agent** (primary) — planner, researcher, architect, fullstack-developer, code-reviewer, typescript-reviewer, python-reviewer, tester, ui-ux-designer, docs-manager, git-manager, debugger, scout.
 2. **bmad-* skill** (alternative) — bmad-prd, bmad-create-architecture, bmad-spec, bmad-create-story, bmad-dev-story, bmad-code-review, bmad-check-implementation-readiness, bmad-market-research, bmad-technical-research, bmad-qa-generate-e2e-tests.
 3. **built-in fallback** — you (Claude) do it inline, or spawn a generic `Explore`/`general-purpose` agent. Output shape must match the agent path so the gate is identical.
 

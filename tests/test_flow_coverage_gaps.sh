@@ -70,8 +70,10 @@ MAPPING="$HERE/../skills/flow/references/agent-stage-mapping.md"
 # The canonical line has the form:
 #   1. **ck: agent** (primary) — agent1, agent2, ..., agentN.
 # Extract it, strip markdown formatting, split on comma/space to get individual agent names.
-DERIVED_AGENTS="$(grep -oP '(?<=— ).*(?=\.)' "$DETECTION" | grep 'planner' | \
-  sed 's/,/ /g' | tr -s ' ')"
+# POSIX-portable parse (NO `grep -oP` — that is GNU-only and ABSENT on macOS BSD grep, a CI
+# target; flow.sh:1291 itself documents "grep -P unsupported on macOS BSD grep"). Select the ck:
+# priority line, strip up to "— ", drop the trailing ".", commas -> spaces, then squeeze.
+DERIVED_AGENTS="$(grep 'planner' "$DETECTION" | sed -E 's/.*— //; s/\.[^.]*$//; s/,/ /g' | tr -s ' ')"
 # Accepted exceptions: agents declared in agent-detection.md but intentionally assigned no
 # stage row (e.g. a meta-agent with no buildflow stage seam). Currently none — docs-manager
 # and git-manager are genuinely wired as of C-018.
@@ -125,6 +127,23 @@ else
   echo "  ok   [negative-control: tripwire correctly goes red for unwired 'debugger']"; pass=$((pass+1))
 fi
 rm -f "$TMPMAP"
+
+echo "C-021 language-specialist lens — routing documented and both reviewers wired"
+ADVREVIEW="$HERE/../skills/flow/references/adversarial-review.md"
+# Assert the language-lens routing rules are documented in adversarial-review.md.
+has "$(cat "$ADVREVIEW")" "typescript-reviewer" "C-021: typescript-reviewer referenced in adversarial-review.md"
+has "$(cat "$ADVREVIEW")" "python-reviewer"     "C-021: python-reviewer referenced in adversarial-review.md"
+has "$(cat "$ADVREVIEW")" "Language-specialist lens selection" "C-021: Language-specialist lens section present in adversarial-review.md"
+has "$(cat "$ADVREVIEW")" "INFORMS triage" "C-021: gate-parity wording present (INFORMS triage, never auto-pass/fail)"
+has "$(cat "$ADVREVIEW")" "Composes with the security lens" "C-021: composes-with note present"
+# Assert detect-first degrade rung is documented.
+has "$(cat "$ADVREVIEW")" "Specialist absent" "C-021: detect-first degrade rung stated (specialist absent path)"
+# Assert both reviewers are wired in agent-stage-mapping.md.
+has "$(cat "$MAPPING")" "typescript-reviewer" "C-021: typescript-reviewer wired in agent-stage-mapping.md"
+has "$(cat "$MAPPING")" "python-reviewer"     "C-021: python-reviewer wired in agent-stage-mapping.md"
+# Assert both reviewers appear in agent-detection.md ck: priority list (so tripwire guards them).
+has "$(cat "$DETECTION")" "typescript-reviewer" "C-021: typescript-reviewer in agent-detection.md ck: list"
+has "$(cat "$DETECTION")" "python-reviewer"     "C-021: python-reviewer in agent-detection.md ck: list"
 
 echo
 echo "RESULT: $pass passed, $fail failed"

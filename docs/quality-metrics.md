@@ -1,7 +1,32 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.12.1** (2026-06-21).
+Updated as the skill evolves. Current: **v0.12.2** (2026-06-21).
+
+## v0.12.2 — language-aware review (2026-06-21)
+
+Two improvements closing the last v0.12 backlog item (C-021) plus a v0.12.1 latent portability
+fix. All backward-compatible. Docs/manifest/test-count only — no engine logic changes.
+
+- **language-specialist Review lens (C-021):** `typescript-reviewer` dispatched for `.ts`/`.js`
+  files; `python-reviewer` dispatched for `.py` files — each layered on top of `code-reviewer`
+  as an advisory specialist pass. Composes with the existing `security-reviewer` lens (C-014).
+  Findings INFORMS triage; never auto-pass or auto-fail (gate-parity preserved). Detect-first
+  degrade: absent specialist falls back to `code-reviewer`-only, never treated as approval. Both
+  agents wired in `agent-stage-mapping.md` (Review seam) and `agent-detection.md` (ck: list).
+- **Portability fix — POSIX `sed -E` replaces GNU-only `grep -oP` (C-018 latent defect):**
+  The v0.12.1 agent-wiring tripwire used `grep -oP` (Perl-compatible regex) to parse the derived
+  agent set from `agent-detection.md`. GNU `grep -P` is unsupported on macOS BSD grep (a CI
+  target). This was a latent defect: the tripwire passed on Linux/Windows (GNU grep) but would
+  have failed on macOS CI. Rewritten with POSIX `sed -E` — no change to assertions, only to the
+  extraction tool.
+
+Suite **20 suites / 479 checks** green (suite count unchanged; 467→479 checks; run on 2026-06-21).
+Coherence clean (0.12.1 → 0.12.2).
+
+| Changed check count | Suite | What changed |
+|---|---|---|
+| 42 (was 30) | `test_flow_coverage_gaps.sh` | +12 checks: C-021 language-specialist lens routing (adversarial-review.md + agent-stage-mapping.md + agent-detection.md assertions for typescript-reviewer and python-reviewer) |
 
 ## v0.12.1 — v0.12 polish round (2026-06-21)
 
@@ -19,7 +44,7 @@ Docs/manifest/test-count only — no engine logic changes.
 - **engine hygiene (C-019):** advisory-probe tempdir cleaned on SIGINT and early-return via a
   dual `RETURN`+`EXIT` guard (no leftover temps).
 
-Suite **20 suites / 467 checks** green (suite count unchanged; 458→467 checks; run on 2026-06-21).
+Suite **20 suites / 467 checks** green at time of release (suite count unchanged; 458→467 checks; run on 2026-06-21).
 Coherence clean (0.12.0 → 0.12.1).
 
 | Changed check count | Suite | What changed |
@@ -326,7 +351,7 @@ DF-4 (trace-tier nag) + DF-5 (allowed-files containment) tracked.
 | `test_flow_scenarios.sh` | 15 | the 6 buildflow validation rounds (mechanical) + repair-ladder order (debugger before codex) |
 | `test_flow_project_types.sh` | 20 | project-type get/set, per-type done-evidence, skip hardening |
 | `test_flow_gate_wording.sh` | 13 | Research/Contract gates project-type aware, web path preserved |
-| `test_flow_coverage_gaps.sh` | 30 | retro, ready (deps), auto preflight, harness decision/tool/intervention, agent-wiring tripwire (derived set) |
+| `test_flow_coverage_gaps.sh` | 42 | retro, ready (deps), auto preflight, harness decision/tool/intervention, agent-wiring tripwire (derived set), C-021 language-specialist lens routing |
 | `test_flow_concurrency_lock.sh` | 36 | session lock, TTL reclaim, foreign-lock refusal, force/unlock, atomic mkdir race, crash-recovery self-heal |
 | `test_flow_recall.sh` | 22 | recall reads debt/retro/prev-card/friction/backlog/playbooks |
 | `test_flow_gate_capture.sh` | 13 | gate-fired durable capture (intake/decision reminders) |
@@ -341,7 +366,7 @@ DF-4 (trace-tier nag) + DF-5 (allowed-files containment) tracked.
 | `test_flow_constitution.sh` | 25 | per-project invariants: structure, `\|`-safe markers (loud sentinel-collision guard), NOT in cmd_next, recall surfacing |
 | `test_flow_antigravity_integration.sh` | 29 | Antigravity third-engine doc-contract + install wiring: exit-code-lies → route on non-empty output, interactive default, data/cost gate, gate parity, liveness-probe shape, ~/.gemini install homes |
 | `test_flow_usage_log.sh` | 59 | mechanical usage log + closed loop: full+compact event, mask, no-fail, disable envs, cycle_id+stage carry, idempotent rollup, `flow usage`; v2: migration 007, `usage --summary`, recall digest (+disabled), gate_fail_reason, `--prune`, usage→propose; C-017: `~approx` dwell label + `--builds-only` count + dead-var proof |
-| **Total (dev)** | **467** | all green (`bash tests/run_all.sh`), 20 suites |
+| **Total (dev)** | **479** | all green (`bash tests/run_all.sh`), 20 suites |
 
 **Command coverage:** ~100% of runner commands now have a dedicated assertion (was 14/15;
 `retro`/`ready`/`auto` + harness `decision`/`tool`/`intervention` gaps closed 2026-06-13).

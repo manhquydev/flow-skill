@@ -2,7 +2,7 @@
 
 *Read this in [English](README.md).*
 
-[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 20 bộ test / 467 check trên macOS · Ubuntu · Windows
+[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 20 bộ test / 479 check trên macOS · Ubuntu · Windows
 
 `/flow` đưa một sản phẩm từ **ý tưởng đến bằng chứng "done" thật** qua các **cổng (gate) trung
 thực** — một URL đã deploy cho web, "cài + chạy được" cho CLI, public API + coverage cho library,
@@ -11,7 +11,7 @@ harness bền vững** (intake/story/trace/decision/backlog), điều phối age
 (GPT-5.x) engine thứ hai + Antigravity (Gemini-3) engine thứ ba khác nhà cung cấp** = gate đối kháng
 ba mô hình), và nhận biết loại dự án.
 
-> Trạng thái: **v0.12.1** — engine + **vòng tri thức** bền vững khép kín (recall · audit/propose · KB
+> Trạng thái: **v0.12.2** — engine + **vòng tri thức** bền vững khép kín (recall · audit/propose · KB
 > liên-dự-án) + capture tự động tại gate + **usage log cơ học khép vòng phản hồi** (mỗi lần chạy `flow.sh`
 > tự ghi JSONL; `recall` hiện digest usage, `propose` cảnh báo stage hay fail, `/flow usage [--prune]` →
 > cycle-time/tỷ lệ fail gate/dwell; chỉ lưu cục bộ).
@@ -26,7 +26,10 @@ ba mô hình), và nhận biết loại dự án.
 > IDE)** + **launcher runner cho Windows/Codex** (`flow.cmd`, tránh lỗi path của WSL-bash).
 > **v0.12.1** đóng vòng polish v0.12: nhãn dwell `~approx` + `--builds-only`, git-manager + docs-manager
 > wired, tripwire tự suy agent từ agent-detection.md, quy tắc re-run full suite sau repair, guard tempdir SIGINT.
-> **20 bộ test / 467 check xanh.** MIT.
+> **v0.12.2** bổ sung lens Review nhận biết ngôn ngữ (typescript-reviewer/.ts·.js + python-reviewer/.py,
+> xếp lớp với code-reviewer, kết hợp với security lens, degrade detect-first, gate-parity giữ nguyên) và
+> sửa lỗi tiềm ẩn v0.12.1 (tripwire dùng `grep -oP` chỉ GNU; viết lại bằng POSIX `sed -E` để CI macOS BSD grep chạy được).
+> **20 bộ test / 479 check xanh.** MIT.
 
 ## Triết lý cốt lõi
 - **"Done" = bằng chứng thật ngoài đời**, không phải "tests pass" / "đã merge". Mỗi card khai báo

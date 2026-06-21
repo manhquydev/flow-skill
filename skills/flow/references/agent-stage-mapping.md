@@ -42,7 +42,7 @@ the harness) with reality before stage 01. Greenfield projects skip it and start
 | Build card | `fullstack-developer` | `bmad-dev-story` / `bmad-quick-dev` | inline | `harness story update --status in_progress` |
 | UI card | `ui-ux-designer` | — | inline + `law/DESIGN.md` | review vs DESIGN.md |
 | Repair / diagnostic | `debugger` | — | inline root-cause + fresh same-ladder subagent | `harness intervention add` |
-| Review | `code-reviewer` | `bmad-code-review` (3-layer adversarial) | inline | `harness intervention add` on red |
+| Review | `code-reviewer` (+ `typescript-reviewer` or `python-reviewer` layered — see language-specialist lens) | `bmad-code-review` (3-layer adversarial) | inline | `harness intervention add` on red |
 | Deploy / git ship | `git-manager` | — | inline commit + PR guide | `harness story update --status implemented` |
 | Docs sync | `docs-manager` | — | inline doc update | — |
 | Verify-live | `tester` / `web-testing` | `bmad-qa-generate-e2e-tests` | curl/Playwright | `harness story update --e2e 1` + `trace` |
@@ -50,6 +50,11 @@ the harness) with reality before stage 01. Greenfield projects skip it and start
 **Portability degrade rungs for git-manager and docs-manager:**
 - `git-manager` absent → inline: operator runs `git commit` + `git push` + opens PR manually following the durable-hook pattern. Gate (PR merged, SHA logged in `AUTO-LOG.md`) is identical.
 - `docs-manager` absent → inline: Claude updates docs directly after card implementation; gate (impacted docs under `docs/` match the code change) is identical.
+
+**Portability degrade rungs for the language-specialist Review lens** (`adversarial-review.md` §Language-specialist lens selection):
+- `typescript-reviewer` or `python-reviewer` AGENT present → run it layered with `code-reviewer` for `.ts/.tsx/.js/.jsx` or `.py` cards respectively. Gate (triage table, adversarial verdict) is identical.
+- Specialist absent → `code-reviewer` runs an explicit language-targeted checklist (TypeScript: `any` escapes, unhandled promises, strict mode; Python: bare `except`, missing type hints, mutable defaults). Gate is identical.
+- No dominant language → `code-reviewer` only; no specialist layer. Gate is identical.
 
 ## Scoped prompt template (use for EVERY delegation)
 
