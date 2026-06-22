@@ -4,6 +4,32 @@ All notable changes to the flow skill. Versions follow the `version:` field in
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 
+## 0.13.1 — 2026-06-23 — real-usage fixes (harness CLI forgiveness + monorepo root guard)
+
+Two defects found by auditing flow's OWN telemetry from two real builds it drove
+(`D:\project\CMC`, 118 invocations; `D:\project\AI20K\C2-App-001`, 214 — its heaviest
+real project). Both caused silent loss/fragmentation of durable data. Backward-compatible.
+
+**Harness CLI forgiveness + non-silent errors** — in both projects, `flow harness
+trace/decision/intake` calls were silently dropped to argparse **exit-2** (the durable
+record never reached `harness.db`) because agents typed natural variants the parser
+rejected. Now `trace` accepts the underscore variants (`--actions_taken`, `--files_changed`,
+`--files_read`) and `--card` as an alias of `--story`; and **any** parse failure prints a
+guiding "common forms" hint to stderr instead of a bare usage line, so a bad call is
+actionable rather than a silent data loss. Canonical hyphen flags are unchanged.
+
+**Monorepo dual-root guard** — running flow from a monorepo subdir (e.g. `frontend/`)
+silently minted a **second** `.flow` root with its own `cycle_id` and `project` label,
+fragmenting telemetry and double-counting cards (the real C2-App-001 failure mode). The
+runner now resolves the root by adopting the nearest **ancestor** flow project (one that
+has `flow/` or `cards/`) when the CWD has none of its own — printing a one-line note to
+stderr. A subdir with its own `flow/`/`cards/` (a deliberate sub-project) and an explicit
+`FLOW_PROJECT_ROOT` are both respected unchanged.
+
+New suites `tests/test_flow_harness_args.sh` (6) + `tests/test_flow_monorepo_root.sh` (9).
+Capability-erosion audit across v0.3→v0.13 (separate pass): **no erosion** — every past
+command/gate/telemetry-field/agent-tier/test suite is still present and unweakened.
+
 ## 0.13.0 — 2026-06-22 — multi-agent worktree workspaces
 
 A new `flow.sh workspace` command family that lets one operator run several agents

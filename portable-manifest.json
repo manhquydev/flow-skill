@@ -1,6 +1,6 @@
 {
   "name": "flow",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "buildflow gated build harness: idea to real done-evidence through honest gates (web|cli|library|skill), with a durable harness layer and agent orchestration (ck: + bmad + Codex second engine + Antigravity/Gemini-3 third engine). Portable across Claude Code (/flow), Codex CLI ($flow), and Antigravity (agy CLI / IDE).",
   "type": "skill",
   "plugin": ".claude-plugin/plugin.json",

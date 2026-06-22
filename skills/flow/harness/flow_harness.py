@@ -820,9 +820,13 @@ def build_parser():
     pss.add_parser("verify-all")
 
     pt = sub.add_parser("trace", help="record an agent task execution trace (auto-scored)")
-    pt.add_argument("--summary", required=True); pt.add_argument("--intake", type=int); pt.add_argument("--story")
-    pt.add_argument("--agent"); pt.add_argument("--actions"); pt.add_argument("--files-read", dest="files_read")
-    pt.add_argument("--files-changed", dest="files_changed"); pt.add_argument("--decisions"); pt.add_argument("--errors")
+    pt.add_argument("--summary", required=True); pt.add_argument("--intake", type=int); pt.add_argument("--story", "--card")
+    # Accept the natural underscore variants + --card as a --story alias: agents in the wild
+    # (real CMC/C2-App-001 logs) typed --actions_taken/--files_changed/--files_read/--card and lost
+    # the trace to argparse exit-2. These aliases make those calls succeed instead of silently dropping.
+    pt.add_argument("--agent"); pt.add_argument("--actions", "--actions_taken")
+    pt.add_argument("--files-read", "--files_read", dest="files_read")
+    pt.add_argument("--files-changed", "--files_changed", dest="files_changed"); pt.add_argument("--decisions"); pt.add_argument("--errors")
     pt.add_argument("--outcome", choices=D.TRACE_OUTCOMES); pt.add_argument("--duration", type=int)
     pt.add_argument("--tokens", type=int); pt.add_argument("--friction"); pt.add_argument("--notes")
     pt.add_argument("--lane", choices=D.LANES, help="lane hint when no --story")
@@ -886,7 +890,22 @@ def main(argv):
     forwarded = _maybe_forward_to_rust(argv)
     if forwarded is not None:
         return forwarded
-    a = build_parser().parse_args(argv)
+    try:
+        a = build_parser().parse_args(argv)
+    except SystemExit as e:
+        # argparse exits 2 on a bad/missing flag, having printed a terse usage line. In real use
+        # (CMC/C2-App-001 logs) that silently dropped durable decisions/traces. Add a guiding hint
+        # of the common forms so the failure is actionable, then preserve argparse's exit code.
+        if e.code not in (None, 0):
+            sys.stderr.write(
+                "flow-harness: command not accepted. Common forms (flags accept - or _; --card = --story):\n"
+                "  intake   --type <new_spec|bug|chore|...> --summary \"...\" [--flags auth,data_model]\n"
+                "  story    add --id C-NNN --title \"...\" --lane <normal|high_risk|...>\n"
+                "  trace    --summary \"...\" [--story C-NNN] [--agent X] [--actions \"...\"] [--files-changed \"...\"] [--outcome completed]\n"
+                "  decision add --id <slug> --title \"...\" [--doc flow/04-adr.md]\n"
+                "see harness/README.md for the full contract.\n"
+            )
+        raise
     con = _db.connect(db_path=a.db)
     a._db_path = a.db or _db.default_db_path()
     dispatch = {

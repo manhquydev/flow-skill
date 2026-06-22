@@ -29,7 +29,7 @@ Disable the durable layer entirely with `FLOW_HARNESS_DISABLE=1` (engine still r
 |---|---|
 | `intake --type <t> --summary <s> [--flags ...] [--lane ...] [--narrow-scope]` | Task specification + risk classification |
 | `story add\|update\|verify\|verify-all` | Task state + Verification (mechanical proof) |
-| `trace --summary ... [--story ...] --outcome ...` | Observability + Failure attribution (auto-scored tier) |
+| `trace --summary ... [--story\|--card C-NNN] [--agent ...] [--actions ...] [--files-changed ...] --outcome ...` | Observability + Failure attribution (auto-scored tier). Flags accept `-` or `_` (`--actions_taken`, `--files_changed`, `--files_read`) and `--card` is an alias of `--story`. A bad/missing flag prints a guiding "common forms" hint (not a silent exit-2). |
 | `decision add\|verify\|outcome` | Project memory (durable ADR row + companion markdown); `outcome` closes the predicted-vs-actual loop |
 | `backlog add\|close` | Entropy auditing + harness self-improvement (growth rule) |
 | `audit` | Entropy/drift score (0-100) + findings (orphaned/unverified/stale records) |

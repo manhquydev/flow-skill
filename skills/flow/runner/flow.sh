@@ -21,7 +21,33 @@ TEMPLATE_DIR="$SCRIPT_DIR/../_templates"
 LAW_DIR="$SCRIPT_DIR/../law"
 PLAYBOOKS_DIR="$SCRIPT_DIR/../playbooks"
 GLOBAL_KB_DIR="${FLOW_GLOBAL_KB:-${HOME:-}/.claude/flow/playbooks}"   # cross-project knowledge tier (set -u safe if HOME unset)
-ROOT="${FLOW_PROJECT_ROOT:-$PWD}"
+# Root resolution (monorepo dual-root guard). An explicit FLOW_PROJECT_ROOT always wins. Otherwise,
+# if the CWD is NOT itself a flow project (no flow/ planning dir and no cards/) but an ANCESTOR is,
+# adopt that ancestor — so running flow from a monorepo subdir (e.g. frontend/) does NOT silently
+# mint a SECOND, fragmented .flow root with its own cycle_id (the real C2-App-001 failure mode).
+# A subdir that has its own flow/ or cards/ is a deliberate sub-project and is left untouched.
+FLOW_ROOT_ADOPTED=""
+if [ -n "${FLOW_PROJECT_ROOT:-}" ]; then
+  ROOT="$FLOW_PROJECT_ROOT"
+else
+  ROOT="$PWD"
+  if [ ! -d "$PWD/flow" ] && [ ! -d "$PWD/cards" ]; then
+    _rd="$PWD"; _rn=0
+    while [ "$_rn" -lt 24 ]; do
+      _rp="$(dirname "$_rd")"; [ "$_rp" = "$_rd" ] && break    # reached filesystem root
+      _rd="$_rp"; _rn=$((_rn + 1))
+      # Require a REAL flow signature, not just a dir literally named flow/ or cards/ (a bare 'flow/'
+      # working folder — common, e.g. ~/flow — must NOT be adopted): a stage artifact, run-state, or
+      # an actual card file. This keeps the walk from attaching telemetry to the wrong ancestor.
+      if [ -f "$_rd/flow/00-idea.md" ] || [ -f "$_rd/flow/00-inspect.md" ] || [ -d "$_rd/.flow" ] \
+         || { [ -d "$_rd/cards" ] && ls "$_rd"/cards/C-*.md >/dev/null 2>&1; }; then
+        ROOT="$_rd"; FLOW_ROOT_ADOPTED="$_rd"; break
+      fi
+    done
+    unset _rd _rp _rn
+  fi
+fi
+[ -n "$FLOW_ROOT_ADOPTED" ] && printf 'note: using flow root %s (CWD is inside it; no flow/ here). Set FLOW_PROJECT_ROOT to override.\n' "$FLOW_ROOT_ADOPTED" >&2
 FLOW_DIR="$ROOT/flow"
 CARDS_DIR="$ROOT/cards"
 MODE_FILE="$ROOT/MODE"
