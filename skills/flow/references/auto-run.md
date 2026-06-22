@@ -67,6 +67,13 @@ parallel, each in its own worktree/session. Merge back in card-number order, one
 running the merged app once between merges. A merge conflict means the overlap check was
 gamed — stop and re-plan. Cards needing the deployed app (contract-tests, e2e) are serial.
 
+**Human-driven `/flow workspace` coexists with this auto loop.** `auto` provisions a worktree per
+card internally (`git worktree add ../<project>-C-NNN -b card/C-NNN`); `/flow workspace add card/C-NNN`
+uses the *same* `card/C-NNN` branch naming, so if a human and an `auto` run ever target one card,
+git's own "a branch can only be checked out in one worktree" refusal is the guard — the second
+`add` fails verbatim rather than double-creating. Run `/flow workspace doctor` after an `auto` run
+to reconcile any worktree it left as an orphan tree (no side-file record).
+
 ## Security-class halt (never silent, never planner-decided)
 auth · authorization · admin-surface exposure · tenancy · payments · data loss/migration ·
 removing/weakening validation. On any: stop, write the `DEBT.md` line with the concrete

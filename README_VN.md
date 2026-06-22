@@ -11,7 +11,11 @@ harness bền vững** (intake/story/trace/decision/backlog), điều phối age
 (GPT-5.x) engine thứ hai + Antigravity (Gemini-3) engine thứ ba khác nhà cung cấp** = gate đối kháng
 ba mô hình), và nhận biết loại dự án.
 
-> Trạng thái: **v0.12.2** — engine + **vòng tri thức** bền vững khép kín (recall · audit/propose · KB
+> Trạng thái: **v0.13.0** — thêm **workspace đa-agent bằng git worktree** (`/flow workspace add|list|enter|remove|check|doctor`):
+> chạy nhiều agent (Claude/Codex/Antigravity, nhiều terminal) song song mà không dính bẫy "một agent đổi nhánh →
+> mọi terminal đổi theo" — mỗi agent một `git worktree`, git là registry sống, side-file gọn `.flow/workspaces.jsonl`
+> giữ vendor/card/port/task, cấp port-offset riêng, kiểm tra trùng allowed-files, dọn an toàn. Trên nền —
+> engine + **vòng tri thức** bền vững khép kín (recall · audit/propose · KB
 > liên-dự-án) + capture tự động tại gate + **usage log cơ học khép vòng phản hồi** (mỗi lần chạy `flow.sh`
 > tự ghi JSONL; `recall` hiện digest usage, `propose` cảnh báo stage hay fail, `/flow usage [--prune]` →
 > cycle-time/tỷ lệ fail gate/dwell; chỉ lưu cục bộ).

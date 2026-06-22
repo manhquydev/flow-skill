@@ -789,6 +789,14 @@ cmd_retro() {
   return 0
 }
 
+# Print the non-empty lines under a card's '## Allowed files' section. Single source of truth for
+# the allowed-files invariant: cmd_ready advertises them and 'workspace check' computes overlap
+# from the SAME extraction (so the two can never diverge on what a card claims to own).
+_card_allowed_files() { # $1 = card file
+  [ -f "$1" ] || return 0
+  awk '/^## Allowed files/{f=1; next} f && /^## /{f=0} f && NF{print}' "$1"
+}
+
 cmd_ready() {
   if ! planning_complete; then
     echo "FAIL: planning not complete - no cards to schedule yet."
@@ -817,7 +825,7 @@ cmd_ready() {
     done
     if [ "$ok" -eq 1 ]; then
       echo "  BUILDABLE $id  (deps: ${deps:-none})"
-      awk '/^## Allowed files/{f=1; next} f && /^## /{f=0} f && NF{print}' "$f" | sed 's/^/      allowed: /'
+      _card_allowed_files "$f" | sed 's/^/      allowed: /'
     else
       echo "  blocked   $id  (deps not all done: ${deps:-none})"
     fi
@@ -1382,6 +1390,327 @@ EOF
   return 0
 }
 
+# ---------- workspace (multi-agent worktree layer) ----------
+# Lets a HUMAN orchestrate several agents (Claude/Codex/Antigravity, many terminals) in PARALLEL
+# without the "one agent switches branch -> every terminal flips" trap: each agent gets its own
+# git worktree (own HEAD/index/files, shared object store). git IS the registry (git worktree list
+# is the live truth); this side-file only carries the 4 things git cannot know (vendor/card/port/
+# task). Append-only JSONL, last-record-per-branch wins; a torn final line is skipped. The single
+# coarse flow/.lock guards only the sub-millisecond registry append on add/remove - never the agent
+# run. git's own refusal to check out one branch in two worktrees is the strongest collision lock.
+WS_FILE="$LOG_DIR/workspaces.jsonl"
+
+_ws_dirname() { # $1 = branch -> sibling dir name (branch '/' sanitized)
+  printf '%s-%s' "$(basename "$ROOT" 2>/dev/null || echo proj)" "$(printf '%s' "$1" | tr '/' '-' | tr -cd 'A-Za-z0-9._-')"
+}
+_ws_path() { printf '%s/%s' "$(dirname "$ROOT")" "$(_ws_dirname "$1")"; }   # sibling of the main repo
+
+_ws_default_vendor() { # best-effort from the engine tier / harness session env; '-' if unknown
+  case "${FLOW_ENGINE_TIER:-}" in
+    claude*|ck*) echo claude; return ;; codex*) echo codex; return ;;
+    antigravity*|agy*|gemini*) echo antigravity; return ;;
+  esac
+  [ -n "${CLAUDE_CODE_SESSION_ID:-}" ] && { echo claude; return; }
+  [ -n "${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}" ] && { echo codex; return; }
+  [ -n "${AGY_SESSION_ID:-}${ANTIGRAVITY_SESSION_ID:-}" ] && { echo antigravity; return; }
+  echo "-"
+}
+
+# One physical line per event. Fixed field order (extractors below rely on it). Returns 1 if the
+# append fails so add/remove can WARN (git stays truth) instead of pretending it persisted.
+_ws_record_append() { # path branch vendor sid card task owned port status
+  mkdir -p "$LOG_DIR" 2>/dev/null || true
+  _ignore_run_state
+  printf '{"worktree_path":"%s","branch":"%s","vendor":"%s","agent_session_id":"%s","card_id":"%s","task_label":"%s","owned_files_glob":"%s","port_offset":%s,"created_at":%s,"status":"%s"}\n' \
+    "$(_json_str "$1")" "$(_json_str "$2")" "$(_json_str "$3")" "$(_json_str "$4")" "$(_json_str "$5")" \
+    "$(_json_str "$6")" "$(_json_str "$7")" "$8" "$(_now)" "$9" >> "$WS_FILE" 2>/dev/null || return 1
+  return 0
+}
+
+# Latest-per-branch ACTIVE records. Lines lacking both branch+status (a torn final printf on a
+# disk-full write) are skipped, last valid record per branch wins.
+_ws_active_records() {
+  [ -f "$WS_FILE" ] || return 0
+  awk '
+    /"branch":"/ && /"status":"/ { b=$0; sub(/.*"branch":"/,"",b); sub(/".*/,"",b); last[b]=$0 }
+    END { for (b in last) { s=last[b]; st=s; sub(/.*"status":"/,"",st); sub(/".*/,"",st); if (st=="active") print last[b] } }
+  ' "$WS_FILE"
+}
+_ws_latest_by_branch() { # $1 = branch -> latest record (any status), or empty
+  [ -f "$WS_FILE" ] || return 0
+  awk -v want="$1" '
+    /"branch":"/ && /"status":"/ { b=$0; sub(/.*"branch":"/,"",b); sub(/".*/,"",b); if (b==want) line=$0 }
+    END { if (line!="") print line }
+  ' "$WS_FILE"
+}
+_ws_max_active_port() { # max port_offset among active records, or -1 if none (so +1 = 0 for the first)
+  _ws_active_records | awk '
+    { p=$0; sub(/.*"port_offset":/,"",p); sub(/[^0-9-].*/,"",p); if (p!="") { n=p+0; if (!seen || n>m) { m=n; seen=1 } } }
+    END { print (seen ? m : -1) }'
+}
+_ws_get()     { printf '%s' "$1" | sed -nE "s/.*\"$2\":\"([^\"]*)\".*/\1/p"; }       # quoted no-comma field
+_ws_get_num() { printf '%s' "$1" | sed -nE "s/.*\"$2\":(-?[0-9]+).*/\1/p"; }          # numeric field
+_ws_get_task(){ printf '%s' "$1" | sed -nE 's/.*"task_label":"(.*)","owned_files_glob":.*/\1/p'; }  # may hold commas
+# Normalize allowed-files lines into sorted comparable path tokens (bullets/backticks/commas stripped).
+# tr (not sed s/../\n/) splits whitespace -> newlines: BSD sed does NOT expand \n in a replacement.
+_ws_tokens()  { sed -E 's/^[[:space:]]*-[[:space:]]*//' | tr -s ' \t' '\n' | tr -d '`,' | grep . | sort -u; }
+
+# Re-printable cd + per-worktree env block (print, never spawn: POSIX sh under Git Bash cannot
+# reliably re-parent a terminal across the 3-OS / flow.cmd surface).
+_ws_print_enter() { # branch wt vendor port
+  local branch="$1" wt="$2" vendor="$3" port="$4" baseport
+  baseport="${FLOW_WORKSPACE_BASEPORT:-3000}"
+  echo "  cd \"$wt\""
+  case "$vendor" in codex) echo "  export CODEX_HOME=\"$wt/.codex\"   # isolate Codex history/config per worktree" ;; esac
+  echo "  export PORT=\$(( $baseport + $port ))   # = $(( baseport + port )) (per-worktree; avoids dev-server clash)"
+  case "$vendor" in
+    claude)      echo "  # launch in this dir: claude    (or from the main repo: claude --worktree $branch)" ;;
+    codex)       echo "  # launch in this dir: codex \"<task>\"" ;;
+    antigravity) echo "  # open this dir as an Antigravity workspace/Project, assign one agent" ;;
+    *)           echo "  # launch your agent with this dir as its working directory" ;;
+  esac
+}
+
+_ws_add() {
+  local branch="" card="" vendor="" task="" copyenv=0
+  branch="${1:-}"; shift 2>/dev/null || true
+  case "$branch" in ""|--*) echo 'usage: /flow workspace add <branch> [--card C-NNN] [--vendor claude|codex|antigravity] [--task "..."] [--copy-env]'; return 1 ;; esac
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --card)    shift; card="${1:-}" ;;
+      --vendor)  shift; vendor="${1:-}" ;;
+      --task)    shift; task="${1:-}" ;;
+      --copy-env) copyenv=1 ;;
+      *) echo "workspace add: unknown arg '$1'"; return 1 ;;
+    esac
+    shift 2>/dev/null || true
+  done
+  [ -n "$vendor" ] || vendor="$(_ws_default_vendor)"
+  lock_acquire workspace || return 1
+  local wt addout rc
+  wt="$(_ws_path "$branch")"
+  if git -C "$ROOT" show-ref --verify --quiet "refs/heads/$branch" 2>/dev/null; then
+    addout="$(git -C "$ROOT" worktree add "$wt" "$branch" 2>&1)"; rc=$?     # existing branch: check it out
+  else
+    addout="$(git -C "$ROOT" worktree add "$wt" -b "$branch" 2>&1)"; rc=$?  # new branch
+  fi
+  if [ "$rc" -ne 0 ]; then
+    printf '%s\n' "$addout"          # relay git's reason VERBATIM (e.g. already used by worktree)
+    echo "FAIL: git worktree add failed (above is git's reason)."
+    return 1
+  fi
+  local port owned=""
+  port=$(( $(_ws_max_active_port) + 1 ))    # lock-held: serialized adds get distinct ports by construction
+  if [ -n "$card" ]; then
+    local cf; cf="$(resolve_card_file "$card")"
+    [ -n "$cf" ] && [ -f "$cf" ] && owned="$(_card_allowed_files "$cf" | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//')"
+  fi
+  if ! _ws_record_append "$wt" "$branch" "$vendor" "$(_session_id)" "$card" "$task" "$owned" "$port" active; then
+    echo "WARNING: worktree created but registry append failed - run '/flow workspace doctor' to reconcile (git still holds the tree)."
+  fi
+  if [ "$copyenv" -eq 1 ]; then
+    local ef base
+    for ef in "$ROOT"/.env "$ROOT"/.env.*; do
+      [ -f "$ef" ] || continue
+      base="$(basename "$ef")"; cp "$ef" "$wt/$base" 2>/dev/null && echo "  copied $base -> worktree (copy, never symlink)"
+    done
+  fi
+  echo "PASS: created worktree for '$branch' (vendor ${vendor:-?}, port-offset $port) -> $wt"
+  _ws_print_enter "$branch" "$wt" "$vendor" "$port"
+  echo "  (tracked in .flow/workspaces.jsonl; see 'workspace list' / 'workspace doctor')"
+  return 0
+}
+
+_ws_list() {
+  lock_warn
+  echo "flow workspace - live worktrees (git is the registry; side-file adds vendor/card/port/task)"
+  local td; td="$(mktemp -d)"; _register_td "$td"
+  git -C "$ROOT" worktree list --porcelain 2>/dev/null | awk '
+    /^worktree /{p=substr($0,10)}
+    /^HEAD /{h=substr($2,1,12)}
+    /^branch /{b=$2; sub(/^refs\/heads\//,"",b)}
+    /^detached/{b="(detached)"}
+    /^$/{ if(p!=""){print p"\t"b"\t"h; p="";b="";h=""} }
+    END{ if(p!=""){print p"\t"b"\t"h} }
+  ' > "$td/wt"
+  printf '  %-22s %-12s %-8s %-9s %-5s %s\n' BRANCH VENDOR CARD HEAD PORT TASK
+  local seen=" " p b h rec vendor card port task
+  while IFS="$(printf '\t')" read -r p b h; do
+    [ -n "$p" ] || continue
+    rec="$(_ws_latest_by_branch "$b")"
+    vendor="-"; card="-"; port="-"; task=""
+    if [ -n "$rec" ] && [ "$(_ws_get "$rec" status)" = "active" ]; then
+      vendor="$(_ws_get "$rec" vendor)"; vendor="${vendor:--}"
+      card="$(_ws_get "$rec" card_id)"; card="${card:--}"
+      port="$(_ws_get_num "$rec" port_offset)"; port="${port:--}"
+      task="$(_ws_get_task "$rec")"
+    fi
+    seen="$seen$b "
+    printf '  %-22s %-12s %-8s %-9s %-5s %s\n' "$b" "$vendor" "$card" "$h" "$port" "$task"
+  done < "$td/wt"
+  local orphans="" line ob
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    ob="$(_ws_get "$line" branch)"
+    case "$seen" in *" $ob "*) : ;; *) orphans="$orphans        $ob (vendor $(_ws_get "$line" vendor), card $(_ws_get "$line" card_id))
+" ;; esac
+  done <<EOF
+$(_ws_active_records)
+EOF
+  rm -rf "$td"
+  if [ -n "$orphans" ]; then
+    echo
+    echo "  ORPHAN RECORDS (active in registry, no live worktree - run 'workspace doctor'):"
+    printf '%s' "$orphans"
+  fi
+  return 0
+}
+
+_ws_enter() {
+  local branch="${1:-}"
+  [ -n "$branch" ] || { echo "usage: /flow workspace enter <branch>"; return 1; }
+  local rec; rec="$(_ws_latest_by_branch "$branch")"
+  if [ -z "$rec" ] || [ "$(_ws_get "$rec" status)" != "active" ]; then
+    echo "workspace: no active record for branch '$branch' (see 'workspace list')."; return 1
+  fi
+  local wt vendor port
+  wt="$(_ws_get "$rec" worktree_path)"; vendor="$(_ws_get "$rec" vendor)"; port="$(_ws_get_num "$rec" port_offset)"
+  echo "workspace '$branch' (vendor ${vendor:--}) - paste to re-enter:"
+  _ws_print_enter "$branch" "$wt" "$vendor" "${port:-0}"
+  return 0
+}
+
+_ws_remove() {
+  local branch="" force=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --force) force=1 ;;
+      --*) echo "workspace remove: unknown arg '$1'"; return 1 ;;
+      *) [ -z "$branch" ] && branch="$1" || { echo "workspace remove: extra arg '$1'"; return 1; } ;;
+    esac
+    shift
+  done
+  [ -n "$branch" ] || { echo "usage: /flow workspace remove <branch> [--force]"; return 1; }
+  lock_acquire workspace || return 1
+  local rec wt rmout rc
+  rec="$(_ws_latest_by_branch "$branch")"
+  wt="$(git -C "$ROOT" worktree list --porcelain 2>/dev/null | awk -v want="$branch" \
+        '/^worktree /{p=substr($0,10)} /^branch /{b=$2; sub(/^refs\/heads\//,"",b); if(b==want) print p}')"
+  [ -n "$wt" ] || wt="$(_ws_get "$rec" worktree_path)"
+  if [ -z "$wt" ]; then echo "workspace: no worktree found for branch '$branch'."; return 1; fi
+  if [ "$force" -eq 1 ]; then
+    rmout="$(git -C "$ROOT" worktree remove --force "$wt" 2>&1)"; rc=$?
+  else
+    rmout="$(git -C "$ROOT" worktree remove "$wt" 2>&1)"; rc=$?
+  fi
+  if [ "$rc" -ne 0 ]; then
+    printf '%s\n' "$rmout"           # relay git's dirty/in-use refusal VERBATIM
+    echo "FAIL: git worktree remove refused (commit/clean the tree, or re-run with --force)."
+    return 1
+  fi
+  # tombstone ONLY on clean success (git is truth; a failed remove changed nothing)
+  local vendor card port
+  vendor="$(_ws_get "$rec" vendor)"; card="$(_ws_get "$rec" card_id)"; port="$(_ws_get_num "$rec" port_offset)"
+  _ws_record_append "$wt" "$branch" "${vendor:--}" "$(_session_id)" "$card" "" "" "${port:-0}" removed \
+    || echo "WARNING: worktree removed but tombstone append failed (doctor will show it as an orphan tree-free branch)."
+  git -C "$ROOT" worktree prune 2>/dev/null || true
+  echo "PASS: removed worktree for '$branch' ($wt) and pruned stale metadata."
+  return 0
+}
+
+_ws_check() {
+  local branch="" card=""
+  branch="${1:-}"; shift 2>/dev/null || true
+  case "$branch" in ""|--*) echo "usage: /flow workspace check <branch> [--card C-NNN]"; return 1 ;; esac
+  while [ $# -gt 0 ]; do case "$1" in --card) shift; card="${1:-}" ;; *) echo "workspace check: unknown arg '$1'"; return 1 ;; esac; shift 2>/dev/null || true; done
+  local found=0
+  if git -C "$ROOT" worktree list --porcelain 2>/dev/null | awk '/^branch /{b=$2; sub(/^refs\/heads\//,"",b); print b}' | grep -qxF "$branch"; then
+    echo "  [x] branch '$branch' is already checked out in a worktree (git refuses a second checkout of it)."
+    found=1
+  fi
+  if [ -n "$card" ]; then
+    local cf; cf="$(resolve_card_file "$card")"
+    if [ -n "$cf" ] && [ -f "$cf" ]; then
+      local td; td="$(mktemp -d)"; _register_td "$td"
+      _card_allowed_files "$cf" | _ws_tokens > "$td/mine"
+      local rec ob ocard ocf shared
+      while IFS= read -r rec; do
+        [ -n "$rec" ] || continue
+        ob="$(_ws_get "$rec" branch)"; [ "$ob" = "$branch" ] && continue
+        ocard="$(_ws_get "$rec" card_id)"; [ -n "$ocard" ] || continue
+        ocf="$(resolve_card_file "$ocard")"; [ -f "$ocf" ] || continue
+        _card_allowed_files "$ocf" | _ws_tokens > "$td/other"
+        shared="$(comm -12 "$td/mine" "$td/other" 2>/dev/null | grep . || true)"
+        if [ -n "$shared" ]; then
+          echo "  [x] allowed-files overlap with active card $ocard (branch $ob) - NOT parallel-safe:"
+          printf '%s\n' "$shared" | sed 's/^/        /'
+          found=1
+        fi
+      done <<EOF
+$(_ws_active_records)
+EOF
+      rm -rf "$td"
+    fi
+  fi
+  if [ "$found" -eq 0 ]; then
+    echo "PASS: '$branch' is parallel-safe (branch free${card:+, no allowed-files overlap with active cards}). Semantic honesty still belongs to gate-rules.md."
+    return 0
+  fi
+  echo "FLAGGED: resolve the above before launching an agent on '$branch'."
+  return 1
+}
+
+_ws_doctor() {
+  echo "flow workspace doctor - reconcile git worktrees vs registry (advisory; never deletes)"
+  local td; td="$(mktemp -d)"; _register_td "$td"
+  local pcl; pcl="$(git -C "$ROOT" worktree list --porcelain 2>/dev/null)"
+  printf '%s\n' "$pcl" | awk '/^branch /{b=$2; sub(/^refs\/heads\//,"",b); print b}' | sort -u > "$td/live_all"
+  printf '%s\n' "$pcl" | awk '/^worktree /{n++} /^branch /{b=$2; sub(/^refs\/heads\//,"",b); if(n>1) print b}' | sort -u > "$td/live_linked"
+  _ws_active_records > "$td/active"
+  awk '{b=$0; sub(/.*"branch":"/,"",b); sub(/".*/,"",b); print b}' "$td/active" | sort -u > "$td/recbranch"
+  local drift=0 warn=0 nact
+  nact="$(grep -c . "$td/active" 2>/dev/null)"; nact="${nact:-0}"
+
+  local prun; prun="$(printf '%s\n' "$pcl" | awk '/^worktree /{p=substr($0,10)} /^prunable/{print "  [x] prunable tree: "p} /^locked/{print "  [i] locked tree:   "p}')"
+  if [ -n "$prun" ]; then printf '%s\n' "$prun"; printf '%s\n' "$prun" | grep -q '\[x\]' && drift=1; fi
+  local orec; orec="$(comm -23 "$td/recbranch" "$td/live_all" | grep . || true)"
+  if [ -n "$orec" ]; then echo "  [x] ORPHAN RECORDS (active in registry, no live worktree - crashed terminal?):"; printf '%s\n' "$orec" | sed 's/^/        /'; drift=1; fi
+  local otree; otree="$(comm -13 "$td/recbranch" "$td/live_linked" | grep . || true)"
+  if [ -n "$otree" ]; then echo "  [x] ORPHAN TREES (live worktree, no active record - created outside flow / by auto):"; printf '%s\n' "$otree" | sed 's/^/        /'; drift=1; fi
+  local pdup; pdup="$(awk '{p=$0; sub(/.*"port_offset":/,"",p); sub(/[^0-9-].*/,"",p); print p}' "$td/active" | sort | uniq -d | grep . || true)"
+  if [ -n "$pdup" ]; then echo "  [!] duplicate port_offset across active workspaces (advisory): $(printf '%s ' $pdup)"; warn=1; fi
+  local maxw="${FLOW_WORKSPACE_MAX:-4}"
+  if [ "$nact" -gt "$maxw" ]; then echo "  [!] $nact active workspaces exceeds FLOW_WORKSPACE_MAX=$maxw (realistic solo ceiling is 3-4; advisory)."; warn=1; fi
+  rm -rf "$td"
+
+  if [ "$drift" -eq 0 ]; then
+    echo "  PASS: no drift ($nact active workspace(s)$([ "$warn" -eq 1 ] && echo '; advisory warnings above'))."
+    return 0
+  fi
+  echo "FLAGGED: reconcile above - 'workspace remove <branch>' (clean tree) or 'git worktree prune'; an orphan record clears on its branch's next add/remove."
+  return 1
+}
+
+cmd_workspace() {
+  local sub="${1:-}"; shift 2>/dev/null || true
+  case "$sub" in
+    add|list|enter|remove|check|doctor) : ;;
+    *) echo "usage: /flow workspace add|list|enter|remove|check|doctor"; return 1 ;;
+  esac
+  if ! command -v git >/dev/null 2>&1; then
+    echo "workspace: git not found - worktree isolation unavailable (serial builds still work)."
+    case "$sub" in add|remove) return 1 ;; *) return 0 ;; esac
+  fi
+  case "$sub" in
+    add)    _ws_add "$@" ;;
+    list)   _ws_list ;;
+    enter)  _ws_enter "$@" ;;
+    remove) _ws_remove "$@" ;;
+    check)  _ws_check "$@" ;;
+    doctor) _ws_doctor ;;
+  esac
+}
+
 usage() {
   cat <<'EOF'
 flow.sh - buildflow gate runner (mechanical layer)
@@ -1397,6 +1726,7 @@ usage: bash flow.sh <command> [args]
   project-type [t]  Show or set project type (web|cli|library|skill); adapts done-evidence
   skip <stage> --reason  Advance past a gate that has a matching open DEBT (non-security only)
   ready             List buildable todo cards + parallel-safety hint
+  workspace <verb>  Multi-agent worktree isolation: add|list|enter|remove|check|doctor (one worktree per agent)
   auto              Preflight an autonomous run (orchestration in SKILL.md)
   recall            Read back prior knowledge (debt/retro/playbooks/prev-card/harness) before working
   unlock            Clear this project's concurrency lock (after a crashed/abandoned session)
@@ -1416,6 +1746,8 @@ env:
   FLOW_SESSION_ID   stable id per session -> enables HARD refusal of concurrent sessions
   FLOW_LOCK_TTL     seconds a lock stays fresh (default 900); older locks auto-reclaim
   FLOW_FORCE=1      take over a foreign lock (use only if the other session is truly gone)
+  FLOW_WORKSPACE_BASEPORT  base port for the per-worktree PORT hint (default 3000)
+  FLOW_WORKSPACE_MAX       advisory ceiling of active workspaces before 'workspace doctor' warns (default 4)
 
 exit: 0 = pass/advanced, 1 = gate fail / usage error
 EOF
@@ -1558,6 +1890,7 @@ case "$cmd" in
   project-type)   cmd_project_type "${1:-}" ;;
   skip)           cmd_skip "$@" ;;
   ready)          cmd_ready ;;
+  workspace)      cmd_workspace "$@" ;;
   auto)           cmd_auto ;;
   recall)         cmd_recall ;;
   unlock)         cmd_unlock ;;

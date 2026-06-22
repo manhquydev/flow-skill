@@ -4,6 +4,39 @@ All notable changes to the flow skill. Versions follow the `version:` field in
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 
+## 0.13.0 — 2026-06-22 — multi-agent worktree workspaces
+
+A new `flow.sh workspace` command family that lets one operator run several agents
+(Claude Code / Codex / Antigravity, many terminals) in **parallel without the
+"one agent switches branch → every terminal flips" trap**. Each agent gets its own
+`git worktree` (own HEAD/index/files, shared object store); git stays the source of
+truth (`git worktree list`) and a lean append-only JSONL side-file
+(`.flow/workspaces.jsonl`, 10 fields) adds the four things git can't know:
+vendor, card, port-offset, task. Backward-compatible; advisory (not a `next` gate).
+
+**`workspace add|list|enter|remove|check|doctor`**
+- `add <branch> [--card C-NNN] [--vendor claude|codex|antigravity] [--task "…"] [--copy-env]` —
+  provisions a worktree (reuses an existing branch or `-b` a new one), derives a
+  **distinct per-worktree port-offset** under the held lock, appends one active record,
+  and prints a paste-ready `cd` + `PORT`/`CODEX_HOME` block. git's refusal to check out
+  one branch in two worktrees is relayed **verbatim** — that refusal is the real collision lock.
+- `list` — joins `git worktree list` with the registry: BRANCH/VENDOR/CARD/HEAD/PORT/TASK,
+  plus orphan-record callouts. `enter <branch>` re-prints a crashed terminal's env block.
+- `check <branch> [--card C-NNN]` — pre-flight: branch already claimed? + **allowed-files
+  overlap** vs other active cards (computed from the card's `## Allowed files`, the same
+  invariant `/flow ready` uses — no second declaration surface).
+- `remove <branch> [--force]` — safe teardown: relays git's dirty refusal verbatim,
+  **never auto-forces**, tombstones only on clean success, then prunes.
+- `doctor` — reconciles orphan trees / orphan records / prunable trees (exit 1 on drift);
+  duplicate-port and `>FLOW_WORKSPACE_MAX` (default 4) are advisory warnings, never blocking.
+
+New env: `FLOW_WORKSPACE_BASEPORT` (default 3000), `FLOW_WORKSPACE_MAX` (default 4).
+Internals reuse the existing atomic-mkdir lock + `_json_str`/`_now`/`_norm_path`; the
+line-820 `## Allowed files` extractor was lifted into a shared `_card_allowed_files`
+(cmd_ready unchanged). New suite `tests/test_flow_workspace.sh` (43 assertions incl.
+torn-line skip + concurrent-add registry integrity). Coexists with `/flow auto`'s internal
+`card/C-NNN` worktrees via identical branch naming.
+
 ## 0.12.2 — 2026-06-21 — language-aware review
 
 Two improvements closing the last v0.12 backlog item. All backward-compatible.

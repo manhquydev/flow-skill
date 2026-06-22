@@ -3,12 +3,12 @@ name: flow
 description: Run the buildflow gated build process from idea to real done-evidence. Walk gated stages (Idea->Research->Scope->PRD->ADR->Contract->Cards->Build->Review->Deploy/Ship->Verify->Retro), each with a honest gate that must pass before advancing. Adapts to project type (web|cli|library|skill). Use when starting or driving a real product build, when the user types /flow, /flow next, /flow card, /flow check, or asks to scope/plan/ship a project through gates. Kill at any gate is a valid outcome.
 user-invocable: true
 when_to_use: "User wants to build a real product end-to-end with discipline (idea -> a deployed URL for web, or installs+runs for a CLI/library/skill), or types any /flow command, or asks for a gated build process, scope decision, contract-first plan, or card-based shipping."
-argument-hint: "[ next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | auto | doctor | retro ]"
-keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deploy, vertical-slice, cli, library, skill]
+argument-hint: "[ next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | workspace add|list|enter|remove|check|doctor | auto | doctor | retro ]"
+keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deploy, vertical-slice, cli, library, skill, worktree, parallel-agents, workspace, multi-agent]
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.12.2"
+  version: "0.13.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD."
 ---
 
@@ -90,6 +90,7 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | `/flow check C-NNN` | `flow.sh check C-NNN` — validate a card; **then** you review diff-vs-scope, allowed-files drift, contract shapes, DESIGN.md for UI, and that evidence is real world-state |
 | `/flow mode teach\|work` | set who writes the artifacts (default `teach`) |
 | `/flow ready` | `flow.sh ready` — which todo cards are buildable + parallel-safety hint |
+| `/flow workspace add\|list\|enter\|remove\|check\|doctor` | `flow.sh workspace …` — **multi-agent worktree isolation** for running several agents (Claude/Codex/Antigravity, many terminals) in parallel WITHOUT the "one agent switches branch → every terminal flips" trap. Each agent gets its own `git worktree` (own HEAD/index/files, shared object store); git is the live registry (`git worktree list`) and a 10-field JSONL side-file (`.flow/workspaces.jsonl`) adds vendor/card/port/task. `add <branch> [--card C-NNN] [--vendor …] [--task …] [--copy-env]` provisions a worktree + distinct port-offset + paste-ready cd/env block; `list` shows who-is-where; `enter <branch>` re-prints a crashed terminal's env; `check <branch> [--card]` flags branch-claim + allowed-files overlap before you launch; `remove <branch> [--force]` tears down safely (never auto-forces); `doctor` reconciles orphan trees/records. Advisory layer; git's refusal to check out one branch twice is the real lock. |
 | `/flow auto` | `flow.sh auto` preflight, then drive the autonomous run (see AUTO principles) |
 | `/flow recall` | `flow.sh recall` — read back durable memory (open debt, recent retro, previous-card scope, harness friction/backlog, playbooks) **at the start of a stage/card** so you don't re-learn known pain |
 | `/flow usage` | `flow.sh usage` — roll up the mechanical usage log (JSONL flight-recorder of every invocation) into `usage_event` and print build analytics: cycle-time, gate fail-rate, per-stage dwell, cycle completion, command breakdown. `--global` for the device-wide view; `--prune [--keep N]` caps the log (crash-safe). Local-only; disable with `FLOW_LOG_DISABLE=1`/`DO_NOT_TRACK=1`. `recall` now surfaces a one-line usage digest and `retro`'s `propose` flags chronically-failing stages. |

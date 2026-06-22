@@ -11,7 +11,12 @@ durable harness layer (intake/story/trace/decision/backlog), agent orchestration
 **Codex (GPT-5.x) second engine + Antigravity (Gemini-3) third engine** = a three-model adversarial
 gate), and project-type awareness.
 
-> Status: **v0.12.2** — engine + a closed durable **knowledge loop** (recall · audit/propose ·
+> Status: **v0.13.0** — adds **multi-agent worktree workspaces** (`/flow workspace add|list|enter|remove|check|doctor`):
+> run several agents (Claude/Codex/Antigravity, many terminals) in parallel without the "one agent switches
+> branch → every terminal flips" trap — one `git worktree` per agent, git as the live registry, a lean
+> `.flow/workspaces.jsonl` side-file for vendor/card/port/task, per-worktree port-offsets, allowed-files
+> overlap checks, and safe teardown. Built on the existing —
+> engine + a closed durable **knowledge loop** (recall · audit/propose ·
 > cross-project KB) + gate-fired capture + a **mechanical usage log** wired into a closed feedback loop
 > (every `flow.sh` invocation self-recorded to JSONL; `recall` surfaces a usage digest, `propose` flags
 > chronically-failing stages, `/flow usage [--prune]` → cycle-time/gate fail-rate/dwell; local-only).
