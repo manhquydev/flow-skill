@@ -617,6 +617,28 @@ def cmd_usage(con, a):
               f"| cycle-time s min/med/max={times[0] if times else 0}/{med}/{times[-1] if times else 0} "
               f"| gate fail-rate={fail_rate:.0f}% | top-fail-stage={tfs}")
         return 0
+    # per-card dwell (wall-clock): time from an operator-marked 'card start' to the card's
+    # successful 'card done'. Both are command='card'; the verb lives in args ('start C-NNN' /
+    # 'done C-NNN'). Pair the earliest start with the latest SUCCESSFUL done per (project, cycle,
+    # card). Cards finished by hand-edit + '/flow check' (no 'card done' event) have no pair — the
+    # metric covers verb-tracked cards only. A failed/reverted 'card done' (exit_code != 0) is not
+    # a completion, so it never closes a dwell. NOTE: under --global this is empty by design — the
+    # compact global JSONL line omits args+card (kept small), so only the per-project view pairs them.
+    _crows = con.execute(
+        f"SELECT project, cycle_id, card, args, exit_code, epoch_s FROM usage_event "
+        f"{w} AND command='card' AND card<>'' AND epoch_s IS NOT NULL "
+        f"AND (args LIKE 'start%' OR args LIKE 'done%') ORDER BY epoch_s", pr).fetchall()
+    _cstart, _cdone = {}, {}
+    for _proj, _cyc, _card, _cargs, _cec, _ces in _crows:
+        _ckey = (_proj or "", _cyc or "", _card)
+        _act = (_cargs or "").strip().lower()
+        if _act.startswith("start"):
+            _cstart.setdefault(_ckey, _ces)          # earliest start (rows are epoch-ordered)
+        elif _act.startswith("done") and (_cec == 0):
+            _cdone[_ckey] = _ces                      # latest successful done
+    card_dwell = sorted(
+        (k[2], _cdone[k] - t0) for k, t0 in _cstart.items()
+        if k in _cdone and _cdone[k] >= t0)
     # optional --builds-only: restrict cycle timing metrics to build cycles only
     builds_only = getattr(a, "builds_only", False)
     if builds_only and build_cycles < cycles_started:
@@ -659,6 +681,7 @@ def cmd_usage(con, a):
             "cycle_time_s": {"min": times_display[0] if times_display else 0, "median": med_display, "max": times_display[-1] if times_display else 0},
             "stage_exec_time": [{"stage": s, "n": c, "avg_s": round(v or 0, 1)} for s, c, v in dwell],
             "stage_dwell": [{"stage": s, "n": c, "avg_s": round(v, 1)} for s, c, v in stage_wall],
+            "card_dwell": [{"card": c, "s": round(s, 1)} for c, s in card_dwell],
             "commands": [{"command": c, "n": n} for c, n in cmds],
         }))
         return 0
@@ -682,6 +705,12 @@ def cmd_usage(con, a):
             print(f"    {s:<12} n={c} avg={_dur(v)}")
     else:
         print("    (no completed stage transitions yet)")
+    print("  per-card dwell (wall-clock: 'card start' -> successful 'card done'):")
+    if card_dwell:
+        for c, s in card_dwell:
+            print(f"    {c:<12} {_dur(s)}")
+    else:
+        print("    (no card start->done pairs yet - mark cards with '/flow card start|done')")
     print("  commands:")
     for c, n in cmds:
         print(f"    {c:<12} {n}")

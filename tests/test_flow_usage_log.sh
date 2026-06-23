@@ -91,6 +91,18 @@ has "$u" "cycles started" "usage shows cycle count"
 has "$u" "cycle-time" "usage shows cycle-time"
 has "$u" "per-stage dwell" "usage shows per-stage dwell"
 
+echo "7b) per-card dwell: an operator-marked 'card start' -> successful 'card done' shows in usage"
+mkdir -p "$SB/cards"
+printf '# C-001 — x\nstatus: todo\ndeps: none\n## Scope\na\n## Allowed files\na\n## Verify\n- [x] x\n## Done-evidence\nu\n## Evidence\n$ curl https://x -> ok\n' > "$SB/cards/C-001.md"
+bash "$RUN" card start C-001 >/dev/null 2>&1; ck 0 $? "card start C-001 logs an event (exit 0)"
+bash "$RUN" card done  C-001 >/dev/null 2>&1; ck 0 $? "card done C-001 passes the gate (exit 0)"
+uj="$(bash "$RUN" usage --json 2>&1)"
+has "$uj" '"card_dwell"' "usage --json emits a card_dwell array"
+has "$uj" '"card": "C-001"' "card_dwell pairs the started+done card C-001"
+uh="$(bash "$RUN" usage 2>&1)"
+has "$uh" "per-card dwell" "usage human output shows the per-card dwell section"
+has "$uh" "C-001" "per-card dwell lists C-001"
+
 echo "8) v2 loop-closing: migration 007 + usage --summary + recall block + gate-reason + prune + propose"
 PY="$(command -v python || command -v python3)"
 ver="$("$PY" - "$SB/.flow/harness.db" <<'PY'

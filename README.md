@@ -2,7 +2,7 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 23 test suites / 538 checks on macOS · Ubuntu · Windows
+[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 25 test suites / 605 checks on macOS · Ubuntu · Windows
 
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
@@ -11,7 +11,20 @@ durable harness layer (intake/story/trace/decision/backlog), agent orchestration
 **Codex (GPT-5.x) second engine + Antigravity (Gemini-3) third engine** = a three-model adversarial
 gate), and project-type awareness.
 
-> Status: **v0.13.1** — real-usage hardening found by auditing flow's own telemetry on two real builds:
+> Status: **v0.16.1** — **legible card lifecycle**: `/flow card start|done` verbs — `start` marks a card
+> "in flight" via a portable `cards/.inflight` registry (operator-visible in-progress, never touches the
+> gated `status:` field); `done` is a CLI-owned flip gated by the SAME done-rules as `check` that **reverts**
+> rather than leave a hollow `done`. `/flow status` gains an "in flight" line and `/flow usage` gains
+> **per-card dwell** (start→done wall-clock). Both verbs are opt-in and coexist with hand-edit + `/flow check`.
+> Born from a 3-agent analysis of "is flow underusing ck:plan?" — flow already exceeds ck:plan on status
+> *rigor* (world-state done-gates + a CLI-mutated harness story); the one real gap was lifecycle *legibility*,
+> closed here natively with zero `ck`-CLI / server dependency (board / cross-plan deps were FOMO-cut).
+> **v0.14–0.15** add a **claudekit skill-layer** on top of the 13-agent orchestration: a curated per-stage
+> whitelist (`references/claudekit-skills.md`) answering "the kit has ~87 skills — which do I use when?",
+> with 5 high-ROI skills wired into their gate rituals (ck-predict@ADR · ck-scenario@Contract ·
+> review-pr + ck-security@Review · retro@Retro) — all opt-in, INFORM-only (a skill never passes a gate),
+> Claude-side-detected and silently degrading, so portability holds.
+> **v0.13.1** — real-usage hardening found by auditing flow's own telemetry on two real builds:
 > the durable **`harness` CLI** now accepts the natural flag variants agents actually type (`--actions_taken`,
 > `--files_changed`, `--card`) so traces/decisions stop silently dropping to argparse exit-2, and any bad
 > form prints a guiding hint instead of a silent drop; and running flow from a **monorepo subdir** now adopts
@@ -42,7 +55,7 @@ gate), and project-type awareness.
 > layered with code-reviewer, composes with security lens, detect-first degrade, gate-parity preserved) and
 > fixes a v0.12.1 latent portability defect (agent-wiring tripwire used GNU-only `grep -oP`; rewritten
 > with POSIX `sed -E` so macOS BSD grep CI passes).
-> **23 test suites / 538 checks green** on macOS · Ubuntu · Windows. MIT.
+> **25 test suites / 605 checks green** on macOS · Ubuntu · Windows. MIT.
 
 ## What ships
 
@@ -60,7 +73,7 @@ flow-skill/
 │   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
 ├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
 ├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 23 suites / 538 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args)
+├── tests/run_all.sh             # 25 suites / 605 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args)
 └── docs/                        # architecture + codebase summary
 ```
 
@@ -209,6 +222,7 @@ Quick start above is the common path; this is the full reference — all 25 comm
 | `/flow next` | Check the current gate; on pass, unlock the next stage (or start at 00) |
 | `/flow assess` | Brownfield: scaffold + gate a current-state assessment (`flow/00-inspect.md`) before planning |
 | `/flow card` | Create the next build card (after all planning gates pass) |
+| `/flow card start\|done C-NNN` | Optional: mark a card "in flight" / CLI-owned flip to `done` (gated like `check`, reverts on fail). Coexists with hand-edit. |
 | `/flow check C-NNN` | Validate a card (FILL/status/sections/done-evidence) |
 | `/flow mode [teach\|work]` | Show or set who writes the gate artifacts |
 | `/flow project-type [t]` | Show or set project type (`web\|cli\|library\|skill`); adapts done-evidence |
@@ -228,7 +242,7 @@ Quick start above is the common path; this is the full reference — all 25 comm
 | `/flow constitution` | Check operator-authored per-project invariants in `flow/constitution.md` (structure + grep-markers; advisory, **not** a `next` gate) |
 | `/flow promote <file>` | Copy a playbook into the cross-project KB (`~/.claude/flow/playbooks`) |
 | `/flow doctor` | Check the environment (bash/python/grep/git) across macOS/Linux/Windows |
-| `/flow usage [--global\|--prune]` | Roll up the JSONL usage log into build analytics: cycle-time, gate fail-rate, per-stage dwell, command breakdown (local-only) |
+| `/flow usage [--global\|--prune]` | Roll up the JSONL usage log into build analytics: cycle-time, gate fail-rate, per-stage + per-card dwell, command breakdown (local-only) |
 | `/flow retro` | Print the 3 retro questions |
 
 ## Modes
@@ -423,7 +437,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 23 suites / 538 checks (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is 25 suites / 605 checks (`bash tests/run_all.sh`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -440,7 +454,7 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 23 suites / 538 checks; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # 25 suites / 605 checks; needs bash (+ python for the harness/propose suites)
 ```
 
 ## Provenance

@@ -4,6 +4,25 @@ All notable changes to the flow skill. Versions follow the `version:` field in
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 
+## 0.16.1 — 2026-06-23 — per-card dwell metric + README sync (completes v0.16.0)
+
+Closes the loop on v0.16.0: the `card start` stamp is now turned into a real analytics number, and
+the user-facing docs are brought current (they had lagged at v0.13.1, three releases behind).
+
+- **Per-card dwell in `/flow usage`** — pairs each operator-marked `card start` with its successful
+  `card done` (both `command='card'`, the verb in `args`) per (project, cycle, card) and reports the
+  start→done wall-clock. Earliest start × latest *successful* done; a failed/reverted `done`
+  (exit_code≠0) never closes a dwell; cards finished by hand-edit + `check` (no `card done` event)
+  simply have no pair. Surfaced in both the human view and `--json` (`card_dwell`). Rollup-only —
+  the FR2 logging is unchanged; no new event type, no hot-path cost.
+- **README + README_VN synced v0.13.1 → v0.16.1** — status banner now covers the v0.14–0.15
+  claudekit skill-layer and the v0.16 card lifecycle; command tables document `card start|done` and
+  the per-card dwell line.
+
+New assertions in `test_flow_usage_log.sh` (end-to-end: real `card start`→`card done`→`usage`).
+Full suite green; coherence PASS. CI remains parked on the Azure-Pipelines migration (GitHub billing
+block) — tracked, not forgotten.
+
 ## 0.16.0 — 2026-06-23 — legible card lifecycle (operator-marked start + CLI-owned done)
 
 Closes the one real gap a 3-agent analysis found when the operator asked whether flow underuses
