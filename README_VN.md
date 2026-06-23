@@ -11,14 +11,14 @@ harness bền vững** (intake/story/trace/decision/backlog), điều phối age
 (GPT-5.x) engine thứ hai + Antigravity (Gemini-3) engine thứ ba khác nhà cung cấp** = gate đối kháng
 ba mô hình), và nhận biết loại dự án.
 
-> Trạng thái: **v0.16.2** — **vòng đời card dễ đọc**: hai verb `/flow card start|done` — `start` đánh dấu card
-> "đang làm" (in flight) qua registry portable `cards/.inflight` (hiện trạng thái in-progress cho operator,
-> KHÔNG đụng field `status:` được gate kiểm); `done` là cú flip do CLI sở hữu, gate y hệt `check` và **revert**
-> chứ không để lại "done rỗng". `/flow status` thêm dòng "in flight", `/flow usage` thêm **dwell theo card**
-> (wall-clock start→done). Cả hai verb opt-in, song song với sửa tay + `/flow check`. Sinh ra từ phân tích
-> 3-agent "flow có đang bỏ phí ck:plan không?" — flow vốn đã CHẶT hơn ck:plan về status (done bắt buộc
-> world-state + harness story do CLI đổi); khe hở thật duy nhất là *tính dễ đọc* của vòng đời, đã vá native,
-> không phụ thuộc `ck`-CLI/server (bảng kanban / cross-plan deps bị cắt vì FOMO).
+> Trạng thái: **v0.17.0** — **tích hợp sâu repository-harness v0.1.10**: đồng bộ lớp durable đã port của flow
+> với upstream và adopt **tool registry kind-aware**: đăng ký tool ngoài theo kind (`cli|binary|mcp|skill|http`)
+> + capability, dò hiện diện cơ học, và một stage có thể hỏi `query tools --capability X --status present`
+> rồi clean-skip nếu tool vắng (thuần stdlib, 0 dependency mới). Sửa **xung đột schema-005** tiềm ẩn (accessed-count
+> của flow vs tool-extensions của upstream): adopt `005` upstream nguyên bản, dời migration flow sang `009-012`,
+> migration runner thành column-idempotent, tự reconcile DB cũ khi `init` (không mất dữ liệu). Seam
+> `FLOW_HARNESS_BACKEND=rust` được **đóng băng + guard** (từ chối DB lineage-flow). Phạm vi do research đa-agent
+> + kiểm chứng ngoài; **score-context hoãn** có căn cứ (flow chưa có context-rules để chấm; port ngây thơ sẽ thưởng context-bloat).
 > **v0.14–0.15** thêm **tầng skill claudekit** trên 13-agent orchestration: whitelist theo stage có chọn lọc
 > (`references/claudekit-skills.md`) trả lời "kit ~87 skill — dùng cái gì khi nào?", với 5 skill ROI cao wire
 > vào gate ritual (ck-predict@ADR · ck-scenario@Contract · review-pr + ck-security@Review · retro@Retro) —

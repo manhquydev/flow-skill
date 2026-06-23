@@ -1,4 +1,4 @@
--- Harness schema - migration 008
+-- Harness schema - migration 012 (re-homed from 008; flow-specific, not in repository-harness).
 -- Mark throwaway/test runs so device-wide analytics aren't dominated by them. A run is
 -- ephemeral when its project root is under the system temp dir or named like an mktemp dir.
 -- Additive column; old JSONL lines without the field roll up as NULL and are treated as
@@ -7,4 +7,4 @@
 
 ALTER TABLE usage_event ADD COLUMN ephemeral INTEGER;
 
-INSERT INTO schema_version (version) VALUES (8);
+INSERT INTO schema_version (version) VALUES (12);

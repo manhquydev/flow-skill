@@ -45,6 +45,54 @@ def _current_version(con):
         return 0  # schema_version table not created yet
 
 
+def _table_exists(con, table):
+    row = con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+    ).fetchone()
+    return row is not None
+
+
+def _columns(con, table):
+    """Set of column names on `table`, or empty set if the table does not exist."""
+    if not _table_exists(con, table):
+        return set()
+    return {r[1] for r in con.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+_ADD_COLUMN_RE = re.compile(
+    r"^ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)", re.IGNORECASE
+)
+
+
+def _idempotent_statement(con, stmt):
+    """Return an idempotent form of one DDL statement, or None to skip it.
+
+    Migrations here are purely additive setup, and init/upgrade is meant to be safe to
+    re-run (incl. on legacy DBs whose schema_version numbering predates a reconciliation).
+    So we neutralize the three statement shapes that would otherwise crash on re-apply:
+      - ADD COLUMN on a column that already exists  -> skip
+      - CREATE TABLE/INDEX that already exists       -> IF NOT EXISTS
+      - INSERT INTO schema_version                   -> INSERT OR IGNORE (version is PK)
+    """
+    s = stmt.strip()
+    up = s.upper()
+    m = _ADD_COLUMN_RE.match(s)
+    if m:
+        table, col = m.group(1), m.group(2)
+        if col in _columns(con, table):
+            return None  # already added by an earlier run / reconciliation
+        return s
+    if up.startswith("CREATE TABLE ") and "IF NOT EXISTS" not in up:
+        return "CREATE TABLE IF NOT EXISTS " + s[len("CREATE TABLE "):]
+    if up.startswith("CREATE INDEX ") and "IF NOT EXISTS" not in up:
+        return "CREATE INDEX IF NOT EXISTS " + s[len("CREATE INDEX "):]
+    if up.startswith("CREATE UNIQUE INDEX ") and "IF NOT EXISTS" not in up:
+        return "CREATE UNIQUE INDEX IF NOT EXISTS " + s[len("CREATE UNIQUE INDEX "):]
+    if up.startswith("INSERT INTO SCHEMA_VERSION ") or up.startswith("INSERT INTO SCHEMA_VERSION("):
+        return "INSERT OR IGNORE INTO " + s[len("INSERT INTO "):]
+    return s
+
+
 def connect(db_path=None, root=None, auto_migrate=True):
     db_path = db_path or default_db_path(root)
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
@@ -81,18 +129,46 @@ def _apply_migration(con, sql):
     try:
         con.execute("BEGIN")
         for s in ddl:
-            con.execute(s)
+            stmt = _idempotent_statement(con, s)
+            if stmt is None:
+                continue
+            con.execute(stmt)
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")
         raise
 
 
+def _reconcile_legacy(con, migs):
+    """Heal DBs created before the schema-005 reconciliation.
+
+    flow once numbered its accessed-count migration as 005, the same number upstream
+    repository-harness uses for the inbound tool-registry extension. A DB built under the
+    old numbering recorded version 5 (= accessed-count) and carries usage migrations 006-008,
+    so the plain version>MAX gate skips the real 005 (tool-extensions, now re-homed) and the
+    `tool` table never gains its kind/capability/status columns. Detect that exact state
+    (the legacy `tool` table exists but lacks `kind`) and apply the tool-extensions DDL
+    directly. The statements are idempotent, so on a fresh or already-healed DB this is a
+    no-op (a fresh `tool` is created with `kind` by migration 005 in the normal loop)."""
+    if "kind" in _columns(con, "tool"):
+        return  # fresh or already healed
+    if not _table_exists(con, "tool"):
+        return  # nothing to heal yet; the normal loop will create tool + extensions
+    for version, path in migs:
+        if version != 5:
+            continue
+        with open(path, "r", encoding="utf-8") as fh:
+            _apply_migration(con, fh.read())
+        return
+
+
 def migrate(con):
     """Apply every migration whose version is above the current schema_version."""
+    migs = _migrations()
+    _reconcile_legacy(con, migs)
     cur = _current_version(con)
     applied = []
-    for version, path in _migrations():
+    for version, path in migs:
         if version <= cur:
             continue
         with open(path, "r", encoding="utf-8") as fh:

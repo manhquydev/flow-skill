@@ -4,6 +4,8 @@ Ported from repository-harness (docs/FEATURE_INTAKE.md + crates/harness-cli/src/
 No DB, no I/O - just rules, so it is trivially testable and reusable by both backends.
 """
 
+import re
+
 # ---- input types (where work lands) ----
 INPUT_TYPES = (
     "new_spec", "spec_slice", "change_request",
@@ -34,6 +36,31 @@ DECISION_STATUSES = ("proposed", "accepted", "superseded", "rejected")
 BACKLOG_STATUSES = ("proposed", "accepted", "implemented", "rejected")
 INTERVENTION_TYPES = ("correction", "override", "escalation", "approval")
 INTERVENTION_SOURCES = ("human", "reviewer", "ci", "agent")
+
+# ---- inbound tool registry (kind-aware), ported from repository-harness domain.rs ----
+# Kinds make the registry agent-generic: each runtime uses what it can orchestrate, and an
+# absent tool is a clean skip (presence is probed in _presence.py), never a failure.
+TOOL_KINDS = ("cli", "binary", "mcp", "skill", "http")
+TOOL_STATUSES = ("present", "missing", "unknown")
+
+# Fixed Runtime-Substrate responsibility vocabulary (the 11 from repository-harness). A tool is
+# registered as a provider of one responsibility so steps reason about purpose, not brand names.
+TOOL_RESPONSIBILITIES = (
+    "Task specification", "Context selection", "Tool access", "Project memory",
+    "Task state", "Observability", "Failure attribution", "Verification",
+    "Permissions", "Entropy auditing", "Intervention recording",
+)
+
+
+def normalize_capability(cap):
+    """Lowercase + kebab-case a capability label; '' if empty.
+
+    A capability is a workflow purpose ('edge-case-expansion'), not a tool name — so a step can
+    ask 'what is equipped for X' instead of pinning a brand. Non-alphanumeric runs collapse to a
+    single hyphen; leading/trailing hyphens are stripped. Idempotent."""
+    if not cap:
+        return ""
+    return re.sub(r"[^a-z0-9]+", "-", str(cap).strip().lower()).strip("-")
 
 
 def normalize_flags(flags):

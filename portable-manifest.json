@@ -1,6 +1,6 @@
 {
   "name": "flow",
-  "version": "0.16.2",
+  "version": "0.17.0",
   "description": "buildflow gated build harness: idea to real done-evidence through honest gates (web|cli|library|skill), with a durable harness layer and agent orchestration (ck: + bmad + Codex second engine + Antigravity/Gemini-3 third engine). Portable across Claude Code (/flow), Codex CLI ($flow), and Antigravity (agy CLI / IDE).",
   "type": "skill",
   "plugin": ".claude-plugin/plugin.json",
@@ -11,7 +11,7 @@
   "runtime": {
     "bash": "required (gate runner; Git Bash on Windows)",
     "python": "optional (durable harness layer; stdlib sqlite3, no pip install)",
-    "cargo": "optional (Rust harness power-path via FLOW_HARNESS_BACKEND=rust)"
+    "cargo": "not required (FLOW_HARNESS_BACKEND=rust seam is frozen + compat-guarded; refuses flow-lineage DBs)"
   },
   "install": {
     "global": "~/.claude/skills/flow (+ ~/.codex/skills/flow and ~/.agents/skills/flow when those harnesses exist)",
@@ -29,7 +29,7 @@
     "durable_layer": "skills/flow/harness/",
     "playbooks": "skills/flow/playbooks/"
   },
-  "tests": ["tests/test_flow_runner.sh", "tests/test_flow_harness.sh", "tests/test_flow_scenarios.sh", "tests/test_flow_project_types.sh", "tests/test_flow_gate_wording.sh", "tests/test_flow_coverage_gaps.sh", "tests/test_flow_concurrency_lock.sh", "tests/test_flow_recall.sh", "tests/test_flow_gate_capture.sh", "tests/test_flow_propose_audit.sh", "tests/test_flow_contract.sh", "tests/test_flow_tokens.sh", "tests/test_flow_coherence_kb.sh", "tests/test_flow_assess.sh", "tests/test_flow_codex_integration.sh", "tests/test_flow_consistency.sh", "tests/test_flow_accessed_count.sh", "tests/test_flow_constitution.sh", "tests/test_flow_antigravity_integration.sh"],
+  "tests": ["tests/test_flow_runner.sh", "tests/test_flow_harness.sh", "tests/test_flow_scenarios.sh", "tests/test_flow_project_types.sh", "tests/test_flow_gate_wording.sh", "tests/test_flow_coverage_gaps.sh", "tests/test_flow_concurrency_lock.sh", "tests/test_flow_recall.sh", "tests/test_flow_gate_capture.sh", "tests/test_flow_propose_audit.sh", "tests/test_flow_contract.sh", "tests/test_flow_tokens.sh", "tests/test_flow_coherence_kb.sh", "tests/test_flow_assess.sh", "tests/test_flow_codex_integration.sh", "tests/test_flow_consistency.sh", "tests/test_flow_accessed_count.sh", "tests/test_flow_constitution.sh", "tests/test_flow_antigravity_integration.sh", "tests/test_flow_schema_migration.sh", "tests/test_flow_tool_registry.sh"],
   "provenance": {
     "methodology": "ai20k-build-phase/buildflow (Tony, arealisticdreamer.com)",
     "harness": "repository-harness",

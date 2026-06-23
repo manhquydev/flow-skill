@@ -1,4 +1,4 @@
--- Harness schema - migration 006
+-- Harness schema - migration 010 (re-homed from 006; flow-specific, not in repository-harness).
 -- Mechanical usage-log mirror. The append-only JSONL sinks (.flow/events.jsonl full,
 -- ~/.claude/flow/usage.jsonl compact) are the source of truth; this table is a derived,
 -- queryable rollup for `flow usage` stats. Idempotency rests on UNIQUE(src,line_no):
@@ -39,4 +39,4 @@ CREATE TABLE rollup_cursor (
     updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
-INSERT INTO schema_version (version) VALUES (6);
+INSERT INTO schema_version (version) VALUES (10);

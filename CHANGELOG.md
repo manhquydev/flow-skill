@@ -4,6 +4,35 @@ All notable changes to the flow skill. Versions follow the `version:` field in
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 
+## 0.17.0 — 2026-06-24 — repository-harness v0.1.10 deep integration (schema reconcile + kind-aware tool registry)
+
+Reconciles flow's ported durable layer with freshly-pulled upstream `repository-harness`
+(Rust `harness-cli` v0.1.10) and adopts its headline capability. Research was multi-agent +
+verified-external (anti-FOMO): P1 confirmed aligned with 2025-26 tool-discovery practice
+(Anthropic Tool Search); P2 (score-context) **deferred** with evidence (flow has no context-rules
+surface to score against; a naive port would reward the context-bloat Chroma "Context Rot" measures).
+
+- **P0 — schema-005 collision fixed (latent data-corruption).** flow once numbered its accessed-count
+  migration `005`, colliding with upstream's `005-tool-extensions`. Adopted upstream's `005` verbatim
+  and **re-homed flow's migrations to 009-012** (accessed-count + usage-log mirror), restoring 001-005
+  as a faithful upstream port. The migration runner is now **column-idempotent** (skips an ADD COLUMN
+  whose column exists, `CREATE … IF NOT EXISTS`, `INSERT OR IGNORE` schema_version) and a **legacy
+  reconciliation** heals DBs built under the old numbering on the next `init` — no duplicate-column
+  crash, no data loss (verified against a seeded legacy DB).
+- **Rust seam frozen + guarded.** `_maybe_forward_to_rust` now **refuses** to forward a flow-lineage DB
+  (usage mirror present, or `schema_version >= 9`) to an external `harness-cli` — exit 2 with a guiding
+  message — since the lineages diverge past the shared 001-005 base. flow does not build/ship the binary.
+- **P1 — kind-aware inbound tool registry** (ported from upstream, pure stdlib, 0 new deps). `tool`
+  gains kind/capability/scan_target/status/checked_at; `tool register --kind cli|binary|mcp|skill|http
+  [--capability] [--scan-target]`, `tool check`, `tool remove`; `query tools --capability --status`.
+  Presence is probed mechanically (cli/binary on PATH incl. Windows PATHEXT, mcp/skill by path, http by
+  2s TCP) so a step asks "what is equipped for purpose X" and clean-skips an absent tool. Registration
+  always succeeds and records status (declared intent + last-scanned reality) — the old 4-arg
+  `register` stays back-compatible (kind defaults to cli).
+- **Tests:** new `test_flow_schema_migration.sh` (9: fresh + legacy-heal + idempotency + guard) and
+  `test_flow_tool_registry.sh` (16: 5 kinds + capability/status lookup + check + remove + back-compat),
+  both wired into `run_all.sh`. `test_flow_usage_log.sh` updated for the re-homed version numbers.
+
 ## 0.16.2 — 2026-06-23 — release-close polish (honesty + coverage punch-list)
 
 A 3-agent release-readiness audit found v0.16.1 had zero code blockers but four small

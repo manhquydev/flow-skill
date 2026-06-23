@@ -109,14 +109,14 @@ bash "$RUN" card done  C-002 >/dev/null 2>&1; ck 1 $? "card done C-002 fails the
 uj2="$(bash "$RUN" usage --json 2>&1)"
 no "$uj2" '"card": "C-002"' "a failed/reverted card done does NOT create a dwell pair"
 
-echo "8) v2 loop-closing: migration 007 + usage --summary + recall block + gate-reason + prune + propose"
+echo "8) v2 loop-closing: migration 011 + usage --summary + recall block + gate-reason + prune + propose"
 PY="$(command -v python || command -v python3)"
 ver="$("$PY" - "$SB/.flow/harness.db" <<'PY'
 import sqlite3,sys
 print(sqlite3.connect(sys.argv[1]).execute("select max(version) from schema_version").fetchone()[0])
 PY
 )"
-ck "8" "$ver" "migration 008 applied (schema_version 8)"
+ck "12" "$ver" "usage migrations re-homed to 009-012 applied (schema_version 12)"
 s="$(bash "$RUN" usage --summary 2>/dev/null)"
 has "$s" "USAGE (mechanical log)" "usage --summary prints one-line digest"
 SE="$HERE/.usageempty_$$"; rm -rf "$SE"; mkdir -p "$SE"

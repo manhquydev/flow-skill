@@ -11,14 +11,15 @@ durable harness layer (intake/story/trace/decision/backlog), agent orchestration
 **Codex (GPT-5.x) second engine + Antigravity (Gemini-3) third engine** = a three-model adversarial
 gate), and project-type awareness.
 
-> Status: **v0.16.2** — **legible card lifecycle**: `/flow card start|done` verbs — `start` marks a card
-> "in flight" via a portable `cards/.inflight` registry (operator-visible in-progress, never touches the
-> gated `status:` field); `done` is a CLI-owned flip gated by the SAME done-rules as `check` that **reverts**
-> rather than leave a hollow `done`. `/flow status` gains an "in flight" line and `/flow usage` gains
-> **per-card dwell** (start→done wall-clock). Both verbs are opt-in and coexist with hand-edit + `/flow check`.
-> Born from a 3-agent analysis of "is flow underusing ck:plan?" — flow already exceeds ck:plan on status
-> *rigor* (world-state done-gates + a CLI-mutated harness story); the one real gap was lifecycle *legibility*,
-> closed here natively with zero `ck`-CLI / server dependency (board / cross-plan deps were FOMO-cut).
+> Status: **v0.17.0** — **repository-harness v0.1.10 deep integration**: reconciled flow's ported durable
+> layer with upstream and adopted its **kind-aware inbound tool registry** — register external tools by
+> kind (`cli|binary|mcp|skill|http`) + capability, probe presence mechanically, and let a step ask
+> `query tools --capability X --status present` and clean-skip an absent tool (stdlib-only, 0 new deps).
+> Fixed a latent **schema-005 collision** (flow's accessed-count vs upstream's tool-extensions): adopted
+> upstream's `005` verbatim, re-homed flow's migrations to `009-012`, made the runner column-idempotent,
+> and auto-reconcile legacy DBs on `init` (no data loss). The `FLOW_HARNESS_BACKEND=rust` seam is **frozen
+> + guarded** (refuses flow-lineage DBs). Scope was multi-agent + verified-external research; **score-context
+> deferred** with evidence (no context-rules surface to score against; a naive port would reward context-bloat).
 > **v0.14–0.15** add a **claudekit skill-layer** on top of the 13-agent orchestration: a curated per-stage
 > whitelist (`references/claudekit-skills.md`) answering "the kit has ~87 skills — which do I use when?",
 > with 5 high-ROI skills wired into their gate rituals (ck-predict@ADR · ck-scenario@Contract ·

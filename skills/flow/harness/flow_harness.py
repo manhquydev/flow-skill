@@ -19,11 +19,55 @@ import sys
 
 import _db
 import _domain as D
+import _presence as P
+
+
+def _flow_lineage_db(argv):
+    """Path of a flow-lineage DB an external rust binary must not touch, else None.
+
+    flow's Python port re-homed its accessed-count/usage migrations to versions 009-012,
+    leaving 006-008 free. An upstream harness-cli only knows the shared 001-005 base; pointed
+    at such a DB it sees MAX(version) >= 9, applies nothing, and would silently diverge if it
+    later defines its own 006-008 (skipped because the version is already exceeded). The rust
+    seam is frozen for flow-lineage DBs — detect them by the usage mirror or a re-homed version."""
+    db_path = None
+    for i, tok in enumerate(argv):
+        if tok == "--db" and i + 1 < len(argv):
+            db_path = argv[i + 1]
+        elif tok.startswith("--db="):
+            db_path = tok.split("=", 1)[1]
+    if not db_path:
+        db_path = _db.default_db_path()
+    if not db_path or not os.path.exists(db_path):
+        return None  # fresh/absent DB: nothing to protect yet
+    try:
+        con = sqlite3.connect(db_path)
+        try:
+            has_usage = con.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='usage_event'"
+            ).fetchone() is not None
+            row = con.execute("SELECT MAX(version) FROM schema_version").fetchone()
+            maxv = (row[0] or 0) if row else 0
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return None  # best-effort: unreadable -> let the CLI decide, never break the python path
+    return db_path if (has_usage or maxv >= 9) else None
 
 
 def _maybe_forward_to_rust(argv):
     if os.environ.get("FLOW_HARNESS_BACKEND", "python").lower() != "rust":
         return None
+    conflict = _flow_lineage_db(argv)
+    if conflict:
+        sys.stderr.write(
+            "flow-harness: refusing to forward to the rust backend.\n"
+            f"  The DB at {conflict} uses flow's Python schema lineage (usage-log + re-homed\n"
+            "  migrations 009-012). An external harness-cli only knows the shared 001-005 base and\n"
+            "  would silently diverge on this DB. The rust seam is frozen for flow-lineage DBs.\n"
+            "  Use the Python backend (unset FLOW_HARNESS_BACKEND) for this project.\n"
+        )
+        return 2
     cli = os.environ.get("FLOW_HARNESS_CLI")
     if not cli:
         root = os.environ.get("FLOW_PROJECT_ROOT") or os.getcwd()
@@ -223,13 +267,60 @@ def cmd_backlog(con, a):
         return 0 if n else 1
 
 
+def _scan_tool_row(con, root, row):
+    """Probe one tool's presence and persist status + checked_at. Returns (status, detail)."""
+    status, detail = P.scan_tool_status(root, row.get("kind") or "cli",
+                                        row.get("command"), row.get("scan_target"))
+    con.execute("UPDATE tool SET status=?, checked_at=datetime('now') WHERE name=?",
+                (status, row["name"]))
+    con.commit()
+    return status, detail
+
+
 def cmd_tool(con, a):
-    if a.tool_cmd != "register":
-        print(f"FAIL: unknown tool subcommand '{a.tool_cmd}'"); return 1
-    _db.insert(con, "tool", name=a.name, command=a.command, description=a.description,
-               responsibility=a.responsibility, args=a.args)
-    print(f"PASS: tool '{a.name}' registered ({a.responsibility})")
-    return 0
+    root = os.environ.get("FLOW_PROJECT_ROOT") or os.getcwd()
+    if a.tool_cmd == "register":
+        kind = (getattr(a, "kind", None) or "cli").lower()
+        if kind not in D.TOOL_KINDS:
+            print(f"FAIL: unknown tool kind '{kind}' (use one of: {', '.join(D.TOOL_KINDS)})")
+            return 1
+        cap = D.normalize_capability(getattr(a, "capability", None)) or None
+        scan = getattr(a, "scan_target", None)
+        # Registry = declared intent + last-scanned reality: registration always succeeds and
+        # records the probed status. A tool may legitimately be registered before it is installed
+        # (it shows status=missing until `tool check` / a later register sees it). Presence is a
+        # query concern (`query tools --status present`), never a registration gate.
+        status, _detail = P.scan_tool_status(root, kind, a.command, scan)
+        con.execute("DELETE FROM tool WHERE name=?", (a.name,))  # upsert by PK name
+        _db.insert(con, "tool", name=a.name, command=a.command, description=a.description,
+                   responsibility=a.responsibility, args=a.args, kind=kind,
+                   capability=cap, scan_target=scan, status=status)
+        con.execute("UPDATE tool SET checked_at=datetime('now') WHERE name=?", (a.name,))
+        con.commit()
+        hint = "  (not found yet; shows missing until installed)" if status == "missing" else ""
+        print(f"PASS: tool '{a.name}' registered "
+              f"(kind={kind}, capability={cap or '-'}, status={status}){hint}")
+        return 0
+    if a.tool_cmd == "check":
+        where, params = ("WHERE name=?", (a.name,)) if getattr(a, "name", None) else ("", ())
+        data = _db.rows(con, f"SELECT name,kind,command,scan_target FROM tool {where} ORDER BY name", params)
+        if not data:
+            if getattr(a, "name", None):
+                print(f"FAIL: no tool named '{a.name}'"); return 1
+            print("(no tools registered)"); return 0
+        results = [(r["name"], *_scan_tool_row(con, root, r)) for r in data]
+        if getattr(a, "json", False):
+            print(json.dumps([{"name": n, "status": s, "detail": d} for n, s, d in results], indent=2))
+        else:
+            for n, s, d in results:
+                print(f"  {n:<20} {s:<8} {d}")
+        return 0
+    if a.tool_cmd == "remove":
+        cur = con.execute("DELETE FROM tool WHERE name=?", (a.name,)); con.commit()
+        if cur.rowcount:
+            print(f"PASS: tool '{a.name}' removed"); return 0
+        print(f"FAIL: no tool named '{a.name}'"); return 1
+    print(f"FAIL: unknown tool subcommand '{a.tool_cmd}'"); return 1
 
 
 def cmd_intervention(con, a):
@@ -285,14 +376,20 @@ def cmd_query(con, a):
             print("(no friction recorded)")
         return 0
     if a.query_cmd == "tools":
-        where, params = "", ()
+        clauses, params = [], []
         if a.responsibility:
-            where, params = "WHERE responsibility = ?", (a.responsibility,)
-        data = _db.rows(con, f"SELECT * FROM tool {where} ORDER BY name", params)
+            clauses.append("responsibility = ?"); params.append(a.responsibility)
+        if getattr(a, "capability", None):
+            clauses.append("capability = ?"); params.append(D.normalize_capability(a.capability))
+        if getattr(a, "status", None):
+            clauses.append("status = ?"); params.append(a.status)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        data = _db.rows(con, f"SELECT * FROM tool {where} ORDER BY name", tuple(params))
         if a.json:
             print(json.dumps(data, indent=2)); return 0
         for x in data:
-            print(f"  {x['name']:<20} {x['responsibility']:<22} {x['description']}")
+            print(f"  {x['name']:<20} {(x.get('kind') or 'cli'):<7} {(x.get('status') or 'unknown'):<8} "
+                  f"{(x.get('capability') or '-'):<22} {x['responsibility']}")
         if not data:
             print("(no tools registered)")
         return 0
@@ -879,9 +976,15 @@ def build_parser():
     b2 = pbs.add_parser("close"); b2.add_argument("--id", type=int, required=True); b2.add_argument("--outcome", required=True)
     b2.add_argument("--status", choices=D.BACKLOG_STATUSES, default="implemented")
 
-    ptl = sub.add_parser("tool", help="register a user/project tool"); ptl_s = ptl.add_subparsers(dest="tool_cmd", required=True)
+    ptl = sub.add_parser("tool", help="kind-aware inbound tool/capability registry"); ptl_s = ptl.add_subparsers(dest="tool_cmd", required=True)
     tr = ptl_s.add_parser("register"); tr.add_argument("--name", required=True); tr.add_argument("--command", required=True)
     tr.add_argument("--description", required=True); tr.add_argument("--responsibility", required=True); tr.add_argument("--args")
+    tr.add_argument("--kind", choices=D.TOOL_KINDS, default="cli", help="cli|binary|mcp|skill|http")
+    tr.add_argument("--capability", help="workflow purpose, kebab-cased (e.g. edge-case-expansion)")
+    tr.add_argument("--scan-target", dest="scan_target", help="path/URL probed for presence (mcp|skill|http)")
+    tc = ptl_s.add_parser("check", help="probe registered tools' presence; persist status + checked_at")
+    tc.add_argument("--name"); tc.add_argument("--json", action="store_true")
+    trm = ptl_s.add_parser("remove"); trm.add_argument("--name", required=True)
 
     pv = sub.add_parser("intervention", help="record a human/reviewer/ci/agent override")
     # --note is an additive alias for --description (both set a.description; eases the verb-grammar friction)
@@ -895,6 +998,7 @@ def build_parser():
     q2 = pqs.add_parser("backlog"); q2.add_argument("--open", action="store_true"); q2.add_argument("--closed", action="store_true"); q2.add_argument("--json", action="store_true")
     q3 = pqs.add_parser("friction"); q3.add_argument("--json", action="store_true")
     q4 = pqs.add_parser("tools"); q4.add_argument("--responsibility"); q4.add_argument("--json", action="store_true"); q4.add_argument("--summary", action="store_true")
+    q4.add_argument("--capability"); q4.add_argument("--status", choices=D.TOOL_STATUSES)
     q5 = pqs.add_parser("decisions"); q5.add_argument("--json", action="store_true")
 
     sub.add_parser("audit", help="entropy/drift audit: orphaned/unverified/stale records + a 0-100 score")

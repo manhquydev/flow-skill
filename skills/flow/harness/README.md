@@ -11,16 +11,16 @@ that fights context rot.
 | Backend | When | How |
 |---|---|---|
 | **python** (default) | always works; no install | `python flow_harness.py <cmd>` — stdlib `sqlite3` only |
-| **rust** (power-path) | scale/perf, or you already use repository-harness | `FLOW_HARNESS_BACKEND=rust` forwards argv to the compiled CLI |
+| **rust** (frozen seam) | only on a non-flow-lineage DB | `FLOW_HARNESS_BACKEND=rust` forwards argv to the compiled CLI |
 
-Build the Rust power-path:
-```bash
-cd D:/project/flow/repository-harness
-cargo build --release -p harness-cli
-export FLOW_HARNESS_BACKEND=rust
-export FLOW_HARNESS_CLI="$PWD/target/release/harness-cli"   # .exe on Windows
-```
-If `FLOW_HARNESS_BACKEND=rust` but no binary is found, the tool tells you how to build it.
+**The rust seam is frozen for flow-lineage DBs.** flow's Python port re-homed its
+accessed-count + usage-log migrations to versions 009-012 (leaving 006-008 free), so the schema
+diverges from upstream repository-harness beyond the shared 001-005 base. Forwarding a flow DB
+(usage mirror present, or `schema_version >= 9`) to an external `harness-cli` would silently
+diverge, so the python entrypoint **refuses** to forward in that case (exit 2, with a guiding
+message). Use the Python backend for flow projects. The seam stays in code as a compat-guarded
+power-path for non-flow DBs; flow does not build or ship the binary.
+
 Disable the durable layer entirely with `FLOW_HARNESS_DISABLE=1` (engine still runs).
 
 ## Commands ↔ Runtime-Substrate responsibility
@@ -34,9 +34,9 @@ Disable the durable layer entirely with `FLOW_HARNESS_DISABLE=1` (engine still r
 | `backlog add\|close` | Entropy auditing + harness self-improvement (growth rule) |
 | `audit` | Entropy/drift score (0-100) + findings (orphaned/unverified/stale records) |
 | `propose [--commit]` | Deterministic improvement proposals from repeated friction/interventions + audit drift (>=2 to fire) |
-| `tool register` | Tool access registry |
+| `tool register --kind <cli\|binary\|mcp\|skill\|http> [--capability <kebab>] [--scan-target <path\|url>]` · `tool check [--name]` · `tool remove --name` | Tool access registry (kind-aware inbound, ported from repository-harness 005). Registration always succeeds and records a probed presence `status` (present/missing/unknown); `tool check` re-probes. cli/binary resolve on PATH (PATHEXT-aware), mcp/skill by scan-target path, http by 2s TCP. An absent tool is a clean skip, never a failure. |
 | `intervention add` | Intervention recording (human/reviewer/ci/agent overrides) |
-| `query matrix\|backlog\|friction\|tools\|decisions` | Read durable state (incl. predicted-vs-actual decisions) |
+| `query matrix\|backlog\|friction\|tools\|decisions` | Read durable state (incl. predicted-vs-actual decisions). `query tools [--capability <kebab>] [--status present\|missing\|unknown] [--responsibility <r>]` is the mechanical "what is equipped for purpose X" lookup — a step asks for a capability and clean-skips when nothing is present. |
 
 ## Risk lanes (intake)
 `tiny` (docs/copy/narrow edits, smoke proof) · `normal` (story-sized, bounded blast radius)
@@ -104,7 +104,14 @@ stage_from→to, card, project_type, mode, flow_version, tier, host, read_only.
   failing stage, so "stage X fails often" is diagnosable. All best-effort / exit-code preserving.
 
 ## Files
-- `flow_harness.py` — CLI entrypoint + backend toggle.
-- `_domain.py` — pure rules (input types, lanes, hard gates, trace tiers). Testable in isolation.
-- `_db.py` — sqlite connection + migration runner.
-- `schema/00N-*.sql` — DDL, verbatim from repository-harness.
+- `flow_harness.py` — CLI entrypoint + backend toggle + compat guard.
+- `_domain.py` — pure rules (input types, lanes, hard gates, trace tiers, tool kinds/responsibilities,
+  capability normalization). Testable in isolation.
+- `_presence.py` — kind-aware tool presence probes (cli/binary on PATH+PATHEXT, mcp/skill by path,
+  http by 2s TCP). Pure stdlib; never raises. Ported from repository-harness `infrastructure.rs`.
+- `_db.py` — sqlite connection + idempotent migration runner + legacy reconciliation.
+- `schema/00N-*.sql` — DDL. **001-005 are a faithful port of repository-harness** (005 =
+  tool-extensions, kind-aware tool registry). **009-012 are flow-specific** (accessed-count +
+  usage-log mirror), re-homed off 005-008 so the upstream 005 number is free and the lineages no
+  longer collide. Migrations are column-idempotent and safe to re-run; an old DB built under the
+  pre-005 numbering is reconciled automatically on the next `init`.
