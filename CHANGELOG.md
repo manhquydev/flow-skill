@@ -4,6 +4,30 @@ All notable changes to the flow skill. Versions follow the `version:` field in
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 
+## 0.16.2 — 2026-06-23 — release-close polish (honesty + coverage punch-list)
+
+A 3-agent release-readiness audit found v0.16.1 had zero code blockers but four small
+honesty/coverage gaps worth closing before sealing the version. All fixed here:
+
+- **CI-badge honesty (README EN+VN)** — the front-door claim "checks green on macOS·Ubuntu·Windows"
+  implied a passing hosted CI, but GitHub Actions has been billing-blocked since v0.14.0 (every run
+  fails to start). Reworded to "green **locally** … hosted CI parked on the Azure-Pipelines migration",
+  so the README no longer contradicts the (red) badge. The CHANGELOG already disclosed this each release;
+  now the README does too.
+- **`command-dispatch.md` completed** — it billed itself the "exact mapping" but listed only 18 of the
+  runner's commands. Added the 9 missing rows (consistency, constitution, project-type, usage, skip, debt,
+  design, harness, doctor) so every runner verb has its documented duty.
+- **Per-card dwell: failed-`done` exclusion now tested** — the "a reverted/failed `card done` never closes
+  a dwell" guarantee was advertised but untested; added a negative end-to-end assertion (a gate-failed
+  `card done` produces no `card_dwell` pair).
+- **`--global` per-card-dwell empty-state message fixed** — it told users to "mark cards" even though the
+  metric is project-local by design (the compact global log omits card ids); now says so plainly under
+  `--global`.
+
+No behavior change beyond the dwell empty-state copy. Full suite green; coherence PASS. **This seals the
+v0.16 line.** Still parked (disclosed, not blocking the close): Azure CI org-setup + free grant; Phase-2
+`card archive`; `docs/` refresh (CHANGELOG remains the source of truth).
+
 ## 0.16.1 — 2026-06-23 — per-card dwell metric + README sync (completes v0.16.0)
 
 Closes the loop on v0.16.0: the `card start` stamp is now turned into a real analytics number, and

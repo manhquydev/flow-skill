@@ -709,6 +709,8 @@ def cmd_usage(con, a):
     if card_dwell:
         for c, s in card_dwell:
             print(f"    {c:<12} {_dur(s)}")
+    elif getattr(a, "global_", False):
+        print("    (per-card dwell is project-local only - the compact --global log omits card ids)")
     else:
         print("    (no card start->done pairs yet - mark cards with '/flow card start|done')")
     print("  commands:")

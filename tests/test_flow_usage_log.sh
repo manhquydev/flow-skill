@@ -102,6 +102,12 @@ has "$uj" '"card": "C-001"' "card_dwell pairs the started+done card C-001"
 uh="$(bash "$RUN" usage 2>&1)"
 has "$uh" "per-card dwell" "usage human output shows the per-card dwell section"
 has "$uh" "C-001" "per-card dwell lists C-001"
+# a failed/reverted 'card done' (empty evidence -> exit 1) must NOT close a dwell (the advertised guarantee)
+printf '# C-002 — y\nstatus: todo\ndeps: none\n## Scope\na\n## Allowed files\na\n## Verify\n- [ ] x\n## Done-evidence\nu\n## Evidence\n(empty until done)\n' > "$SB/cards/C-002.md"
+bash "$RUN" card start C-002 >/dev/null 2>&1
+bash "$RUN" card done  C-002 >/dev/null 2>&1; ck 1 $? "card done C-002 fails the gate (empty evidence -> exit 1)"
+uj2="$(bash "$RUN" usage --json 2>&1)"
+no "$uj2" '"card": "C-002"' "a failed/reverted card done does NOT create a dwell pair"
 
 echo "8) v2 loop-closing: migration 007 + usage --summary + recall block + gate-reason + prune + propose"
 PY="$(command -v python || command -v python3)"

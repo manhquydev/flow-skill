@@ -2,7 +2,7 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 25 test suites / 605 checks on macOS · Ubuntu · Windows
+[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 25 test suites / 607 checks, green locally on macOS · Ubuntu · Windows (Git Bash). Hosted CI is parked on the Azure-Pipelines migration (GitHub Actions billing-blocked).
 
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
@@ -11,7 +11,7 @@ durable harness layer (intake/story/trace/decision/backlog), agent orchestration
 **Codex (GPT-5.x) second engine + Antigravity (Gemini-3) third engine** = a three-model adversarial
 gate), and project-type awareness.
 
-> Status: **v0.16.1** — **legible card lifecycle**: `/flow card start|done` verbs — `start` marks a card
+> Status: **v0.16.2** — **legible card lifecycle**: `/flow card start|done` verbs — `start` marks a card
 > "in flight" via a portable `cards/.inflight` registry (operator-visible in-progress, never touches the
 > gated `status:` field); `done` is a CLI-owned flip gated by the SAME done-rules as `check` that **reverts**
 > rather than leave a hollow `done`. `/flow status` gains an "in flight" line and `/flow usage` gains
@@ -55,7 +55,7 @@ gate), and project-type awareness.
 > layered with code-reviewer, composes with security lens, detect-first degrade, gate-parity preserved) and
 > fixes a v0.12.1 latent portability defect (agent-wiring tripwire used GNU-only `grep -oP`; rewritten
 > with POSIX `sed -E` so macOS BSD grep CI passes).
-> **25 test suites / 605 checks green** on macOS · Ubuntu · Windows. MIT.
+> **25 test suites / 607 checks green locally** (macOS · Ubuntu · Windows via Git Bash) — hosted CI is parked on the Azure-Pipelines migration (GitHub Actions billing-blocked; the badge above reflects that). MIT.
 
 ## What ships
 
@@ -73,7 +73,7 @@ flow-skill/
 │   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
 ├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
 ├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 25 suites / 605 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args)
+├── tests/run_all.sh             # 25 suites / 607 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args)
 └── docs/                        # architecture + codebase summary
 ```
 
@@ -437,7 +437,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 25 suites / 605 checks (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is 25 suites / 607 checks (`bash tests/run_all.sh`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -454,7 +454,7 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 25 suites / 605 checks; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # 25 suites / 607 checks; needs bash (+ python for the harness/propose suites)
 ```
 
 ## Provenance
