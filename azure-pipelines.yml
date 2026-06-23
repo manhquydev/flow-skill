@@ -1,0 +1,69 @@
+# Azure Pipelines — free cross-OS CI for this PRIVATE repo, mirroring .github/workflows/ci.yml.
+#
+# WHY: GitHub-hosted Actions are billing-blocked on this private repo. Azure Pipelines' free tier
+# for PRIVATE projects gives 1 parallel job + 1,800 min/month on Microsoft-hosted agents that
+# include Ubuntu (GNU) + macOS (BSD) + Windows (Git Bash/MSYS) — the same three-way coverage the
+# flow suite needs (the macOS/BSD leg is the one a self-hosted Windows machine can never provide).
+# The GitHub repo stays private; Azure connects read-only via the Azure Pipelines GitHub App.
+# No payment, no making the repo public.
+#
+# ONE-TIME SETUP (operator, ~10 min + a grant wait):
+#   1. Sign in to https://dev.azure.com with any Microsoft account -> create a free organization.
+#   2. New project (Private) -> Pipelines -> Create pipeline -> GitHub -> authorize + pick
+#      manhquydev/mq_flow (installs the Azure Pipelines GitHub App on the private repo).
+#   3. "Existing Azure Pipelines YAML file" -> branch master -> path /azure-pipelines.yml -> Run.
+#   4. If the first run errors "No hosted parallelism has been purchased or granted", request the
+#      FREE private grant once: https://aka.ms/azpipelines-parallelism-request (a few business days).
+# After that, every push to master / every PR runs the full 3-OS matrix free.
+#
+# Parity with ci.yml: same Python 3.12, same `bash` shell on all three OS (the `bash:` step runs
+# Git Bash on the Windows agent), same dev suite + same install+e2e check against the installed copy.
+
+trigger:
+  branches:
+    include: [ master ]
+
+pr:
+  branches:
+    include: [ '*' ]
+
+jobs:
+  - job: test
+    displayName: 'flow CI'
+    strategy:
+      matrix:
+        linux:
+          imageName: 'ubuntu-latest'
+        mac:
+          imageName: 'macOS-latest'
+        windows:
+          imageName: 'windows-latest'
+    pool:
+      vmImage: $(imageName)
+    steps:
+      - task: UsePythonVersion@0
+        displayName: 'Set up Python 3.12 (durable harness layer)'
+        inputs:
+          versionSpec: '3.12'
+
+      - bash: |
+          echo "OS: $(uname -s)"
+          bash --version | head -1
+          python --version || python3 --version
+        displayName: 'Environment + tool versions'
+
+      - bash: bash skills/flow/runner/flow.sh doctor
+        displayName: 'flow doctor (environment check)'
+
+      - bash: bash tests/run_all.sh
+        displayName: 'Dev suite (93 checks)'
+
+      - bash: |
+          set -eu
+          PROJ="$(mktemp -d)"
+          echo "installing /flow into: $PROJ"
+          bash install.sh project "$PROJ"
+          RUN="$PROJ/.claude/skills/flow/runner/flow.sh"
+          test -f "$RUN" || { echo "FAIL: installed runner not found at $RUN"; exit 1; }
+          bash tests/e2e-installed-drive.sh "$RUN"
+        displayName: 'Install to temp project + e2e on the INSTALLED copy (22 checks)'
