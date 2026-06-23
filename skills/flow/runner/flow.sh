@@ -536,6 +536,8 @@ cmd_status() {
       st="$(card_status "$f")"
       echo "  $(basename "$f" .md): ${st:-?}"
     done
+    local infl_out; infl_out="$(inflight_display)"
+    [ -n "$infl_out" ] && { echo "  in flight (operator-marked via '/flow card start'):"; printf '%s\n' "$infl_out"; }
   else
     echo "cards: none yet"
   fi
@@ -602,7 +604,92 @@ cmd_next() {
   return 0
 }
 
+# ---- card lifecycle: operator-marked start + CLI-owned done (legible-lifecycle layer) ----
+# The card 'status:' field stays the 2-state todo|done the gate validates. "in flight" is a
+# transient the runner tracks in a side registry ($CARDS_DIR/.inflight: "<id> <epoch>"), so it
+# is PORTABLE (no python/harness needed to SHOW it) and never touches the gated frontmatter.
+# Both verbs COEXIST with hand-editing 'status:' + '/flow check' — they add convenience, they
+# do not replace it.
+_inflight_file() { echo "$CARDS_DIR/.inflight"; }
+
+_inflight_set() { # $1=id  -> record/refresh an in-flight start stamp (dedup by id)
+  local id="$1" infl; infl="$(_inflight_file)"; mkdir -p "$CARDS_DIR"
+  if [ -f "$infl" ]; then grep -v "^$id " "$infl" 2>/dev/null > "$infl.tmp" || true; mv -f "$infl.tmp" "$infl" 2>/dev/null || true; fi
+  printf '%s %s\n' "$id" "$(_now)" >> "$infl"
+}
+
+_inflight_clear() { # $1=id  -> drop an id (done/abandoned)
+  local id="$1" infl; infl="$(_inflight_file)"
+  [ -f "$infl" ] || return 0
+  grep -v "^$id " "$infl" 2>/dev/null > "$infl.tmp" || true; mv -f "$infl.tmp" "$infl" 2>/dev/null || true
+}
+
+_elapsed_human() { # $1=start-epoch -> "Xm"/"Xh"/"Xd" (integer; GNU/BSD-portable, no date -d/-r)
+  local start="${1:-0}" s now
+  case "$start" in ''|*[!0-9]*) start=0;; esac
+  now="$(_now)"; s=$(( now - start )); [ "$s" -lt 0 ] && s=0
+  if   [ "$s" -lt 3600 ];  then echo "$(( s / 60 ))m"
+  elif [ "$s" -lt 86400 ]; then echo "$(( s / 3600 ))h"
+  else echo "$(( s / 86400 ))d"; fi
+}
+
+inflight_display() { # emit a line per todo card still marked in flight (stale ids self-skip)
+  local infl id ts f; infl="$(_inflight_file)"
+  [ -f "$infl" ] || return 0
+  while read -r id ts; do
+    [ -n "$id" ] || continue
+    f="$(resolve_card_file "$id" 2>/dev/null)"
+    [ -n "$f" ] && [ -f "$f" ] || continue                   # card gone -> stale, skip
+    [ "$(card_status "$f")" = "todo" ] || continue            # only todo cards are "in flight"
+    printf '    %s (in flight, started %s ago)\n' "$id" "$(_elapsed_human "$ts")"
+  done < "$infl"
+}
+
+_set_card_status() { # $1=file $2=value -> rewrite the ^status: line (portable substitute; temp+mv)
+  local f="$1" v="$2"
+  sed "s/^status:.*/status: $v/" "$f" > "$f.tmp" 2>/dev/null || { rm -f "$f.tmp"; return 1; }
+  mv -f "$f.tmp" "$f" 2>/dev/null || { rm -f "$f.tmp"; return 1; }
+  return 0
+}
+
+cmd_card_start() { # mark a card actively in progress (operator-visible in_progress)
+  local arg="${1:-}"
+  if [ -z "$arg" ]; then echo "usage: /flow card start C-NNN"; return 1; fi
+  lock_acquire card || return 1
+  local file; file="$(resolve_card_file "$arg")"
+  if [ -z "$file" ] || [ ! -f "$file" ]; then echo "FAIL: card not found for '$arg' (looked for ${file:-?})"; return 1; fi
+  local id; id="$(basename "$file" .md)"; FLOW_LOG_CARD="$id"
+  if [ "$(card_status "$file")" = "done" ]; then echo "FAIL: $id is already done — nothing to start."; return 1; fi
+  _inflight_set "$id"
+  harness_call story update --id "$id" --status in_progress   # durable mirror (best-effort)
+  echo "PASS: $id marked in flight. Build it, then '/flow card done $id' (or hand-edit status: done + '/flow check $id')."
+  return 0
+}
+
+cmd_card_done() { # CLI-owned flip to done, gated by the SAME done-rules as '/flow check' (revert on fail)
+  local arg="${1:-}"
+  if [ -z "$arg" ]; then echo "usage: /flow card done C-NNN"; return 1; fi
+  lock_acquire card || return 1
+  local file; file="$(resolve_card_file "$arg")"
+  if [ -z "$file" ] || [ ! -f "$file" ]; then echo "FAIL: card not found for '$arg' (looked for ${file:-?})"; return 1; fi
+  local id orig; id="$(basename "$file" .md)"; FLOW_LOG_CARD="$id"; orig="$(card_status "$file")"
+  if [ -z "$orig" ]; then echo "FAIL: $id has no 'status:' line — run '/flow check $id' to see what's missing."; return 1; fi
+  if ! _set_card_status "$file" done; then echo "FAIL: could not write status for $id"; return 1; fi
+  if cmd_check "$id"; then            # cmd_check enforces evidence/verify AND records the durable done-trace
+    _inflight_clear "$id"
+    return 0
+  fi
+  _set_card_status "$file" "${orig:-todo}"   # NOT done — never leave a hollow 'done'
+  echo
+  echo "REVERTED: $id left at status '${orig:-todo}' — the done-gate above must pass first."
+  return 1
+}
+
 cmd_card() {
+  case "${1:-}" in
+    start) shift 2>/dev/null || true; cmd_card_start "${1:-}"; return $? ;;
+    done)  shift 2>/dev/null || true; cmd_card_done  "${1:-}"; return $? ;;
+  esac
   lock_acquire card || return 1
   if ! planning_complete; then
     echo "FAIL: finish planning first. All stages 00-05 must pass their gates before cards."
@@ -1910,7 +1997,7 @@ case "$cmd" in
   status|"")      cmd_status ;;
   next)           cmd_next ;;
   assess)         cmd_assess ;;
-  card)           cmd_card ;;
+  card)           cmd_card "$@" ;;
   check)          cmd_check "${1:-}" ;;
   mode)           cmd_mode "${1:-}" ;;
   project-type)   cmd_project_type "${1:-}" ;;

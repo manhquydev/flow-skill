@@ -8,7 +8,7 @@ keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deplo
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.15.0"
+  version: "0.16.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD."
 ---
 
@@ -87,6 +87,8 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | `/flow next` | `flow.sh next` — gate-check current stage; on pass, unlock next stage. **Then** you apply the semantic challenge for the stage just passed. |
 | `/flow assess` | `flow.sh assess` — **brownfield**: scaffold + gate a current-state assessment (`flow/00-inspect.md`, auto-scan seeded) for an EXISTING codebase before planning. Operator-reviewed. |
 | `/flow card` | `flow.sh card` — create next build card (only after all 6 planning gates pass) |
+| `/flow card start C-NNN` | `flow.sh card start` — mark a card **in flight** (operator-visible in-progress; shown in `/flow status`). Tracked in a portable `cards/.inflight` registry, never touches the gated `status:` field. Optional convenience — coexists with hand-editing. |
+| `/flow card done C-NNN` | `flow.sh card done` — CLI-owned flip of a card to `done`, gated by the SAME done-rules as `check` (real Evidence + checked Verify); **reverts** if the gate fails (never a hollow done). Coexists with hand-editing `status: done` + `/flow check`. |
 | `/flow check C-NNN` | `flow.sh check C-NNN` — validate a card; **then** you review diff-vs-scope, allowed-files drift, contract shapes, DESIGN.md for UI, and that evidence is real world-state |
 | `/flow mode teach\|work` | set who writes the artifacts (default `teach`) |
 | `/flow ready` | `flow.sh ready` — which todo cards are buildable + parallel-safety hint |

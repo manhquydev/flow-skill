@@ -4,6 +4,31 @@ All notable changes to the flow skill. Versions follow the `version:` field in
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 
+## 0.16.0 — 2026-06-23 — legible card lifecycle (operator-marked start + CLI-owned done)
+
+Closes the one real gap a 3-agent analysis found when the operator asked whether flow underuses
+ck:plan: flow already has a richer lifecycle than ck:plan (a 5-state harness story + world-state
+done-gates) but only ever SHOWED the operator a 2-state card (`todo|done`) — the "what am I
+mid-flight on" state was invisible, buried in the harness. ck:plan's value was never its drafter
+(a real twin of flow's planner — correctly stays dropped) but its *legible* status model. This
+borrows that legibility natively, portably, with zero `ck`-CLI / server dependency.
+
+**Two new verbs (both opt-in; they COEXIST with hand-editing `status:` + `/flow check`):**
+- `flow.sh card start C-NNN` — marks a card **in flight**. Tracked in a portable side registry
+  (`cards/.inflight`: `<id> <epoch>`) that never touches the gate-validated `status:` frontmatter,
+  so it shows even when python/harness is absent; best-effort mirrors to the harness story as
+  `in_progress`. The start stamp is the foundation for a future per-card dwell metric.
+- `flow.sh card done C-NNN` — a **CLI-owned** flip to `done` that removes the markdown-hand-edit
+  drift risk. It is gated by the SAME done-rules as `check` (real `## Evidence` + checked Verify)
+  and **reverts** to the prior status if the gate fails — never leaves a hollow `done`.
+
+`flow.sh status` now prints an "in flight" section listing started-but-not-done cards with elapsed
+time (GNU/BSD-portable integer math, no `date -d/-r`). Bare `/flow card` still creates as before
+(dispatch only intercepts `start`/`done`). New suite `test_flow_card_lifecycle.sh` (16 assertions);
+full suite green. **Deliberately NOT built** (adjudicated FOMO for flow's CLI-first single-cycle
+use): a visual kanban board, cross-plan/cross-cycle dependency graph, the `ck config ui` server,
+and `--html`/`--wiki` plan export. Analysis: `plans/260623-flow-ckplan-lifecycle-analysis/`.
+
 ## 0.15.0 — 2026-06-23 — claudekit skill-layer orchestration (Round-2: complete the wirings)
 
 Completes the skill layer started in 0.14.0 by wiring the remaining 3 high-ROI skills into

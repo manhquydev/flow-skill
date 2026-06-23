@@ -16,3 +16,6 @@ Thumbs.db
 MODE
 PROJECT_TYPE
 .flow/
+
+# transient test scratch dirs (usage-log dwell cross-project fixtures)
+tests/.dwell_xproj_*
