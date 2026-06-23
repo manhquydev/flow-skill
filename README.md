@@ -2,7 +2,7 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 20 test suites / 479 checks on macOS · Ubuntu · Windows
+[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 23 test suites / 538 checks on macOS · Ubuntu · Windows
 
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
@@ -11,11 +11,16 @@ durable harness layer (intake/story/trace/decision/backlog), agent orchestration
 **Codex (GPT-5.x) second engine + Antigravity (Gemini-3) third engine** = a three-model adversarial
 gate), and project-type awareness.
 
-> Status: **v0.13.0** — adds **multi-agent worktree workspaces** (`/flow workspace add|list|enter|remove|check|doctor`):
+> Status: **v0.13.1** — real-usage hardening found by auditing flow's own telemetry on two real builds:
+> the durable **`harness` CLI** now accepts the natural flag variants agents actually type (`--actions_taken`,
+> `--files_changed`, `--card`) so traces/decisions stop silently dropping to argparse exit-2, and any bad
+> form prints a guiding hint instead of a silent drop; and running flow from a **monorepo subdir** now adopts
+> the ancestor flow root instead of minting a fragmented second `.flow` root.
+> **v0.13.0** adds **multi-agent worktree workspaces** (`/flow workspace add|list|enter|remove|check|doctor`):
 > run several agents (Claude/Codex/Antigravity, many terminals) in parallel without the "one agent switches
 > branch → every terminal flips" trap — one `git worktree` per agent, git as the live registry, a lean
 > `.flow/workspaces.jsonl` side-file for vendor/card/port/task, per-worktree port-offsets, allowed-files
-> overlap checks, and safe teardown. Built on the existing —
+> overlap checks, and safe teardown. Built on the existing
 > engine + a closed durable **knowledge loop** (recall · audit/propose ·
 > cross-project KB) + gate-fired capture + a **mechanical usage log** wired into a closed feedback loop
 > (every `flow.sh` invocation self-recorded to JSONL; `recall` surfaces a usage digest, `propose` flags
@@ -37,7 +42,7 @@ gate), and project-type awareness.
 > layered with code-reviewer, composes with security lens, detect-first degrade, gate-parity preserved) and
 > fixes a v0.12.1 latent portability defect (agent-wiring tripwire used GNU-only `grep -oP`; rewritten
 > with POSIX `sed -E` so macOS BSD grep CI passes).
-> **20 test suites / 479 checks green.** MIT.
+> **23 test suites / 538 checks green** on macOS · Ubuntu · Windows. MIT.
 
 ## What ships
 
@@ -46,8 +51,8 @@ flow-skill/
 ├── skills/flow/                 # the installable skill  (-> ~/.claude/skills/flow)
 │   ├── SKILL.md                 # command dispatch + semantic gatekeeper + agent orchestration
 │   ├── runner/flow.sh           # gate engine (exit 0/1): status/next/assess/card/check/mode/project-type/
-│   │                            #   skip/ready/auto/recall/unlock/harness/debt/design/contract/tokens/
-│   │                            #   coherence/promote/doctor/retro
+│   │                            #   skip/ready/workspace/auto/recall/unlock/harness/debt/design/contract/
+│   │                            #   tokens/coherence/consistency/constitution/promote/doctor/usage/retro
 │   ├── _templates/              # 00-idea .. 05-contract + card (buildflow) + 00-inspect (brownfield)
 │   ├── law/                     # CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md
 │   ├── references/              # 16 semantic playbooks (gates, agents, codex/antigravity, loop, design, project-types)
@@ -55,7 +60,7 @@ flow-skill/
 │   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
 ├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
 ├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 20 suites / 479 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log)
+├── tests/run_all.sh             # 23 suites / 538 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args)
 └── docs/                        # architecture + codebase summary
 ```
 
@@ -196,7 +201,7 @@ and `chmod +x` the runner on macOS/Linux.
 
 ## Commands
 
-Quick start above is the common path; this is the full reference — all 22 commands the engine dispatches (`bash skills/flow/runner/flow.sh <command>`):
+Quick start above is the common path; this is the full reference — all 23 commands the engine dispatches (`bash skills/flow/runner/flow.sh <command>`):
 
 | Command | What it does |
 |---|---|
@@ -209,6 +214,7 @@ Quick start above is the common path; this is the full reference — all 22 comm
 | `/flow project-type [t]` | Show or set project type (`web\|cli\|library\|skill`); adapts done-evidence |
 | `/flow skip <stage> --reason` | Advance past a gate that has a matching open DEBT (non-security only) |
 | `/flow ready` | List buildable todo cards + a parallel-safety hint |
+| `/flow workspace add\|list\|enter\|remove\|check\|doctor` | **Multi-agent worktree isolation** — one `git worktree` per agent so several agents (Claude/Codex/Antigravity, many terminals) run in parallel without "one switches branch → all flip". `add` provisions a worktree + distinct port-offset + paste-ready cd/env block; `list` shows who's-where; `check` flags branch/allowed-files overlap before you launch; `remove`/`doctor` tear down + reconcile safely. git is the registry; a `.flow/workspaces.jsonl` side-file adds vendor/card/port/task |
 | `/flow auto` | Preflight an autonomous run (orchestration lives in SKILL.md) |
 | `/flow recall` | Read back prior knowledge (debt/retro/prev-card/friction/playbooks) before working |
 | `/flow unlock` | Clear this project's concurrency lock (after a crashed/abandoned session) |
@@ -257,6 +263,11 @@ Quick start above is the common path; this is the full reference — all 22 comm
 
 > **Concurrency:** one session per project. A `flow/.lock` refuses a second concurrent session
 > (export a stable `FLOW_SESSION_ID` for hard protection); `/flow unlock` clears a stale lock.
+>
+> **Monorepo root (v0.13.1):** running flow from a subdir (e.g. `frontend/`) that has no `flow/` of its
+> own automatically adopts the nearest ancestor flow project (a one-line note prints to stderr) instead of
+> minting a fragmented second `.flow` root. A subdir with its own `flow/`/`cards/` and an explicit
+> `FLOW_PROJECT_ROOT` are always respected.
 
 ## Knowledge loop & drift checks
 
@@ -410,7 +421,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 20 suites / 413 checks (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is 23 suites / 538 checks (`bash tests/run_all.sh`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -427,7 +438,7 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 20 suites / 413 checks; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # 23 suites / 538 checks; needs bash (+ python for the harness/propose suites)
 ```
 
 ## Provenance
