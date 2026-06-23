@@ -29,9 +29,22 @@ surface to score against; a naive port would reward the context-bloat Chroma "Co
   2s TCP) so a step asks "what is equipped for purpose X" and clean-skips an absent tool. Registration
   always succeeds and records status (declared intent + last-scanned reality) — the old 4-arg
   `register` stays back-compatible (kind defaults to cli).
-- **Tests:** new `test_flow_schema_migration.sh` (9: fresh + legacy-heal + idempotency + guard) and
-  `test_flow_tool_registry.sh` (16: 5 kinds + capability/status lookup + check + remove + back-compat),
-  both wired into `run_all.sh`. `test_flow_usage_log.sh` updated for the re-homed version numbers.
+- **Tests:** new `test_flow_schema_migration.sh` (11: fresh + legacy-heal + crash-at-v3 heal + idempotency
+  + guard) and `test_flow_tool_registry.sh` (19: 5 kinds + capability/status lookup + check + remove +
+  back-compat + responsibility-reject + http-scheme), both wired into `run_all.sh`. `test_flow_usage_log.sh`
+  updated for the re-homed version numbers. Full suite **27 suites / 633 checks**.
+- **Release-close audit hardening** (4-agent adversarial pass, edge + happy, distrusting the first run):
+  - BLOCKER fixed — `migrate()` now applies by **missing-version set** (not `version <= MAX`), so an init
+    crash between migrations 003 and 004 (reconcile inserting 005) can no longer skip 004 / drop the
+    `intervention` table. Regression test added.
+  - http presence probe now **only probes http/https** schemes (matches upstream) — a foreign-scheme or
+    bare-word `scan_target` no longer triggers a multi-second DNS/TCP stall.
+  - `tool register` now **validates `--responsibility`** against the fixed 11-vocab (like `--kind`), so a
+    typo can't silently break `query tools --responsibility` routing. The upsert is wrapped in an explicit
+    transaction (atomic replace).
+  - **Deferred / known low-probability edges** (revisit if observed): a `schema_version` row recorded while
+    base tables are absent is now self-healed for the common case but not guaranteed for hand-corrupted DBs;
+    `tool check` over many dead http rows scans them serially (2s each).
 
 ## 0.16.2 — 2026-06-23 — release-close polish (honesty + coverage punch-list)
 

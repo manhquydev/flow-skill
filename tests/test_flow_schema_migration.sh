@@ -83,6 +83,31 @@ has "$LEGOUT" "idem" "upgrade is idempotent across repeated init"
 has "$LEGOUT" "5, 6, 7, 8, 9, 10, 11, 12" "schema_version normalized to 1-12"
 rm -rf "$SB"
 
+echo "B2) crash-at-v3 (tool exists, no kind, intervention not yet created) heals all gaps"
+# Reproduces the reconcile-skips-004 trap: an init interrupted after 003. reconcile must not let
+# the version>MAX gate skip migration 004 (the intervention table).
+SB="$(mktemp -d)"; LEG="$SB/v3.db"
+V3OUT="$("$PY" - "$HDIR" "$LEG" <<'EOF'
+import sqlite3, os, sys
+hdir, dbp = sys.argv[1], sys.argv[2]
+sys.path.insert(0, hdir)
+import _db
+c = sqlite3.connect(dbp)
+for f in ["001-init.sql","002-story-verify.sql","003-tool-registry.sql"]:  # stop AFTER 003, before 004
+    c.executescript(open(os.path.join(hdir,"schema",f)).read())
+c.commit(); c.close()
+c=_db.connect(db_path=dbp)
+def has_table(c,t): return c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(t,)).fetchone() is not None
+def has_col(c,t,col): return col in {r[1] for r in c.execute(f"PRAGMA table_info({t})")}
+sv=sorted(r[0] for r in c.execute("SELECT version FROM schema_version"))
+print(has_table(c,"intervention"), has_col(c,"tool","kind"), sv)
+c.close()
+EOF
+)"
+has "$V3OUT" "True True" "v3-crash heal creates intervention table AND tool.kind (no skipped 004)"
+has "$V3OUT" "1, 2, 3, 4, 5, 9, 10, 11, 12" "all versions applied, no gap at 4"
+rm -rf "$SB"
+
 echo "C) rust backend-compat guard"
 SB="$(mktemp -d)"
 FLOW_PROJECT_ROOT="$SB" "$PY" "$H" init >/dev/null

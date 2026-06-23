@@ -1,7 +1,8 @@
 """SQLite durable layer for the flow harness (stdlib sqlite3 only).
 
-Schema lives in schema/00N-*.sql (verbatim from repository-harness) and is applied
-in order; each migration bumps schema_version, so init/upgrade is idempotent.
+Schema lives in schema/00N-*.sql (001-005 a faithful port of repository-harness; 009-012
+flow-specific: accessed-count + usage-log mirror) and is applied by missing-version set; each
+migration bumps schema_version and statements are idempotent, so init/upgrade is safe to re-run.
 DB path defaults to <FLOW_PROJECT_ROOT>/.flow/harness.db.
 """
 
@@ -162,20 +163,32 @@ def _reconcile_legacy(con, migs):
         return
 
 
+def _applied_versions(con):
+    try:
+        return {r[0] for r in con.execute("SELECT version FROM schema_version").fetchall()}
+    except sqlite3.OperationalError:
+        return set()
+
+
 def migrate(con):
-    """Apply every migration whose version is above the current schema_version."""
+    """Apply every migration whose version is not yet recorded in schema_version.
+
+    Set-membership, NOT version>MAX: a reconciliation that inserts a high version out of order,
+    or a crash that left a gap below the max, must still apply the missing lower migrations. E.g.
+    an init interrupted between 003 and 004, then healed by _reconcile_legacy inserting 005, must
+    still create migration 004 (the intervention table) — a `version <= MAX` gate would skip it."""
     migs = _migrations()
     _reconcile_legacy(con, migs)
-    cur = _current_version(con)
-    applied = []
+    applied = _applied_versions(con)
+    out = []
     for version, path in migs:
-        if version <= cur:
+        if version in applied:
             continue
         with open(path, "r", encoding="utf-8") as fh:
             sql = fh.read()
         _apply_migration(con, sql)
-        applied.append(version)
-    return applied
+        out.append(version)
+    return out
 
 
 def insert(con, table, **cols):

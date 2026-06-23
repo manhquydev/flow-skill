@@ -284,19 +284,36 @@ def cmd_tool(con, a):
         if kind not in D.TOOL_KINDS:
             print(f"FAIL: unknown tool kind '{kind}' (use one of: {', '.join(D.TOOL_KINDS)})")
             return 1
+        # Validate the responsibility against the fixed vocabulary (like --kind). Free text would
+        # fragment the "what is equipped for purpose X" lookup — a typo'd responsibility silently
+        # never matches `query tools --responsibility "<canonical>"`, defeating the registry.
+        if a.responsibility not in D.TOOL_RESPONSIBILITIES:
+            print(f"FAIL: unknown responsibility '{a.responsibility}'. Use one of: "
+                  f"{', '.join(D.TOOL_RESPONSIBILITIES)}")
+            return 1
         cap = D.normalize_capability(getattr(a, "capability", None)) or None
         scan = getattr(a, "scan_target", None)
-        # Registry = declared intent + last-scanned reality: registration always succeeds and
-        # records the probed status. A tool may legitimately be registered before it is installed
-        # (it shows status=missing until `tool check` / a later register sees it). Presence is a
-        # query concern (`query tools --status present`), never a registration gate.
+        # Registry = declared intent + last-scanned reality: registration always succeeds (for a
+        # valid kind/responsibility) and records the probed status. A tool may legitimately be
+        # registered before it is installed (status=missing until `tool check` / a later register
+        # sees it). Presence is a query concern (`query tools --status present`), never a gate.
         status, _detail = P.scan_tool_status(root, kind, a.command, scan)
-        con.execute("DELETE FROM tool WHERE name=?", (a.name,))  # upsert by PK name
-        _db.insert(con, "tool", name=a.name, command=a.command, description=a.description,
-                   responsibility=a.responsibility, args=a.args, kind=kind,
-                   capability=cap, scan_target=scan, status=status)
-        con.execute("UPDATE tool SET checked_at=datetime('now') WHERE name=?", (a.name,))
-        con.commit()
+        # Upsert by PK name: DELETE + INSERT + checked_at in one explicit transaction so a crash
+        # mid-upsert can never leave the row missing (atomic replace, not delete-then-maybe-insert).
+        try:
+            con.execute("BEGIN")
+            con.execute("DELETE FROM tool WHERE name=?", (a.name,))
+            cols = dict(name=a.name, command=a.command, description=a.description,
+                        responsibility=a.responsibility, args=a.args, kind=kind,
+                        capability=cap, scan_target=scan, status=status)
+            keys = [k for k, v in cols.items() if v is not None]
+            con.execute(f"INSERT INTO tool ({', '.join(keys)}) VALUES ({', '.join('?' for _ in keys)})",
+                        [cols[k] for k in keys])
+            con.execute("UPDATE tool SET checked_at=datetime('now') WHERE name=?", (a.name,))
+            con.execute("COMMIT")
+        except Exception:
+            con.execute("ROLLBACK")
+            raise
         hint = "  (not found yet; shows missing until installed)" if status == "missing" else ""
         print(f"PASS: tool '{a.name}' registered "
               f"(kind={kind}, capability={cap or '-'}, status={status}){hint}")

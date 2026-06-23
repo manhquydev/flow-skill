@@ -69,9 +69,15 @@ def _target_resolves(repo_root, target):
 
 
 def _http_reachable(target):
-    """True if a TCP connection to the target's host:port succeeds within 2s. Never raises."""
+    """True if a TCP connection to the target's host:port succeeds within 2s. Never raises.
+
+    Only http/https targets are probed (mirrors repository-harness): a non-http scheme or a
+    bare word is not a reachable-by-TCP endpoint, and probing it would trigger slow DNS/connect
+    on an unrelated host. Such targets fall through to the path-resolve fallback in scan_tool_status."""
+    if not (target.startswith("http://") or target.startswith("https://")):
+        return False
     try:
-        u = urlparse(target if "://" in target else "//" + target, scheme="http")
+        u = urlparse(target, scheme="http")
         host = u.hostname
         if not host:
             return False

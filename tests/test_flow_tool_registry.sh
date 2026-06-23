@@ -30,7 +30,11 @@ SKILLDIR="$SB/skills/ck-scenario"; mkdir -p "$SKILLDIR"
 has "$(py tool register --name ck-scenario --command 'skill:ck-scenario' --description 'edge cases' --responsibility 'Task specification' --kind skill --capability 'Edge Case Expansion' --scan-target "$SKILLDIR")" "status=present" "skill with resolving scan-target is present"
 has "$(py tool register --name ck-missing --command 'skill:nope' --description x --responsibility 'Task specification' --kind skill --scan-target '/no/such/skill/path')" "status=missing" "skill with bad path is missing"
 has "$(py tool register --name mcp-foo --command 'mcp:foo' --description x --responsibility 'Context selection' --kind mcp)" "status=unknown" "mcp without scan-target is unknown"
-has "$(py tool register --name web-svc --command 'http' --description x --responsibility 'External systems' --kind http --scan-target 'http://127.0.0.1:65500')" "status=missing" "http unreachable is missing"
+has "$(py tool register --name web-svc --command 'http' --description x --responsibility 'Verification' --kind http --scan-target 'http://127.0.0.1:65500')" "status=missing" "http unreachable is missing"
+py tool register --name badresp --command "$GIT" --description x --responsibility 'Nope Not Real' --kind cli >/dev/null 2>&1; ck 1 $? "invalid responsibility rejected (fixed vocab enforced)"
+# non-http scheme must NOT trigger a slow DNS/TCP probe: bounded + missing, never a multi-second stall
+t0=$(date +%s); py tool register --name ftp-svc --command 'x' --description x --responsibility 'Verification' --kind http --scan-target 'ftp://example.invalid' >/dev/null 2>&1; t1=$(date +%s)
+ck 0 $(( (t1-t0) > 3 ? 1 : 0 )) "non-http scan-target probe is fast (no foreign-scheme TCP stall)"
 
 echo "C) capability normalization"
 has "$(py query tools --capability edge-case-expansion --json)" '"name": "ck-scenario"' "'Edge Case Expansion' normalized to edge-case-expansion and queryable"
