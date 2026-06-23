@@ -201,7 +201,7 @@ and `chmod +x` the runner on macOS/Linux.
 
 ## Commands
 
-Quick start above is the common path; this is the full reference — all 23 commands the engine dispatches (`bash skills/flow/runner/flow.sh <command>`):
+Quick start above is the common path; this is the full reference — all 25 commands the engine dispatches (`bash skills/flow/runner/flow.sh <command>`):
 
 | Command | What it does |
 |---|---|
@@ -225,8 +225,10 @@ Quick start above is the common path; this is the full reference — all 23 comm
 | `/flow tokens` | `DESIGN.md` declared tokens vs CSS usage (design-system drift) |
 | `/flow coherence` | Version drift across declared version fields (doc-vs-code coherence) |
 | `/flow consistency` | Cross-artifact coverage: every PRD `FRn` claimed by a card (`implements:`) + served by a contract interface; numeric metric; placeholder sweep (advisory) |
+| `/flow constitution` | Check operator-authored per-project invariants in `flow/constitution.md` (structure + grep-markers; advisory, **not** a `next` gate) |
 | `/flow promote <file>` | Copy a playbook into the cross-project KB (`~/.claude/flow/playbooks`) |
 | `/flow doctor` | Check the environment (bash/python/grep/git) across macOS/Linux/Windows |
+| `/flow usage [--global\|--prune]` | Roll up the JSONL usage log into build analytics: cycle-time, gate fail-rate, per-stage dwell, command breakdown (local-only) |
 | `/flow retro` | Print the 3 retro questions |
 
 ## Modes

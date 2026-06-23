@@ -192,7 +192,7 @@ harness (không lệch giữa bản Claude Code và Codex).
 
 ## Lệnh (đầy đủ)
 
-"Bắt đầu nhanh" ở trên là đường đi thường gặp; đây là tham chiếu đầy đủ — cả 23 lệnh engine dispatch (`bash skills/flow/runner/flow.sh <command>`):
+"Bắt đầu nhanh" ở trên là đường đi thường gặp; đây là tham chiếu đầy đủ — cả 25 lệnh engine dispatch (`bash skills/flow/runner/flow.sh <command>`):
 
 | Lệnh | Làm gì |
 |---|---|
@@ -216,8 +216,10 @@ harness (không lệch giữa bản Claude Code và Codex).
 | `/flow tokens` | Token khai báo trong `DESIGN.md` vs CSS thực dùng (lệch design-system) |
 | `/flow coherence` | Lệch version giữa các trường version khai báo (doc-vs-code) |
 | `/flow consistency` | Phủ liên-artifact: mỗi `FRn` trong PRD phải được một card `implements:` và một interface trong contract phục vụ; success metric có số; quét placeholder (cố vấn) |
+| `/flow constitution` | Kiểm các bất biến per-dự-án operator tự viết trong `flow/constitution.md` (cấu trúc + grep-marker; cố vấn, **không** phải gate của `next`) |
 | `/flow promote <file>` | Copy một playbook vào KB liên-dự-án (`~/.claude/flow/playbooks`) |
 | `/flow doctor` | Kiểm môi trường (bash/python/grep/git) trên macOS/Linux/Windows |
+| `/flow usage [--global\|--prune]` | Tổng hợp usage-log JSONL thành analytics build: cycle-time, tỷ lệ fail gate, dwell theo stage, phân bố lệnh (chỉ lưu cục bộ) |
 | `/flow retro` | In 3 câu hỏi retro |
 
 ## Các chế độ (Modes)
