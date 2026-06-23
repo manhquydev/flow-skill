@@ -35,6 +35,14 @@ the harness) with reality before stage 01. Greenfield projects skip it and start
 | 04 ADR | `architect` | `bmad-create-architecture` | inline | `harness decision add` per ADR |
 | 05 Contract | `planner` | `bmad-spec` (5-field kernel) | inline | — |
 
+**Optional ck-skill enrichments per stage** (the skill layer on top of the agents above; the
+agent drafts, a skill adds a distinct verb): the curated whitelist + the rules (skill INFORMS,
+gate JUDGES; Claude-side detection; opt-in-with-prompt) live in **`references/claudekit-skills.md`**.
+Highest-value, deep-wired into the gate ritual: **`ck-predict` at ADR** (offer a 5-persona
+pre-decision debate before locking a non-trivial decision) and **`ck-scenario` at Contract**
+(offer 12-dim edge-case decomposition → acceptance + contract tests). Both are offered, degrade
+silently when absent, and never auto-pass a gate.
+
 ## Shipping (inside cards/)
 
 | Step | ck: (primary) | bmad (alt) | fallback | Durable hook |

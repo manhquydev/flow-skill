@@ -4,6 +4,38 @@ All notable changes to the flow skill. Versions follow the `version:` field in
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 
+## 0.14.0 — 2026-06-23 — claudekit skill-layer orchestration (Round-1)
+
+Flow already orchestrated claudekit at the **agent layer** (13 ck: agents, ck:→bmad→built-in
+degrade). This release extends the same seam to the **skill layer** — a curated per-stage
+whitelist answering "the kit has ~87 skills, which do I use when?". Built engine-design-first
+via a 3-agent flow-skill dev team (flow-internals + catalog-triage + synthesis/red-team); the
+red-teamer cut its own teammate's proposed `flow.sh suggest` verb as unproven ceremony, so
+Round-1 ships docs + wiring only, no runner change.
+
+**New `references/claudekit-skills.md`** — the single source of truth for the skill map: a
+<15-skill build whitelist (the ~60% marketing catalog curated out), each pinned to its stage and
+the **distinct verb** it adds beyond the wired agent (pure skill/agent twins deliberately
+dropped). Carries the binding rules, identical to the Codex/Antigravity seam: a skill **INFORMS**
+a stage and the gate **JUDGES** (never auto-pass/auto-fail); detection is **Claude-side** and
+degrades silently (the runner can't see the skill registry and the 5 install homes differ, so
+skill detection is never put in `flow.sh`); enrichments are **opt-in-with-prompt, off the hot
+path** (the constitution/Codex cost-gate discipline).
+
+**5 deep-wired high-ROI skills** at the gates where a miss is most expensive: `ck-predict` @ ADR
+(5-persona pre-decision debate), `ck-scenario` @ Contract (12-dim edge-case → acceptance +
+contract tests), `review-pr` @ Review/Ship, `ck-security` @ security-class cards (never
+auto-passes the Tier-C operator HALT), `retro` @ Retro. ck-predict@ADR and ck-scenario@Contract
+are wired into the gate ritual itself (`gate-rules.md`) this round; the rest are catalogued.
+
+**Cuts (FOMO, not ROI):** competing orchestrators (cook/vibe/ship/bootstrap run inside a stage),
+skill/agent twins, the `worktree` skill (dup of `flow.sh workspace`), `bmad-spec` as a gate (dup
+of `/flow consistency`), all marketing skills. Graph tool resolved to a single pick: **ck-graphify**
+(gkg not wired). New regression suite `tests/test_flow_claudekit_integration.sh` (27 clause-bound
+doc-contract assertions). Operator decisions deferred to Round-2: skill-invocation telemetry
+(lazy, off by default), the `suggest` verb (cut unless demand shown). Backward-compatible;
+additive only.
+
 ## 0.13.1 — 2026-06-23 — real-usage fixes (harness CLI forgiveness + monorepo root guard)
 
 Two defects found by auditing flow's OWN telemetry from two real builds it drove

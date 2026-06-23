@@ -8,7 +8,7 @@ keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deplo
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.13.1"
+  version: "0.14.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD."
 ---
 
@@ -192,6 +192,7 @@ Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, r
 - `references/command-dispatch.md` — exact mapping of each `/flow` command to runner call + your duties.
 - `references/agent-detection.md` — detect ck:/bmad agents + priority + fallback.
 - `references/agent-stage-mapping.md` — stage→agent map, scoped prompt template, durable hooks.
+- `references/claudekit-skills.md` — the **skill layer** on top of the agents: the curated per-stage ck-skill whitelist ("what to use when"), the 5 deep-wired high-ROI skills (ck-predict@ADR, ck-scenario@Contract, review-pr@Review/Ship, ck-security@security-cards, retro@Retro), and the binding rules (skill INFORMS / gate JUDGES; Claude-side detection + silent degrade; opt-in-with-prompt, off the hot path).
 - `references/codex-integration.md` — the Codex cross-vendor second-engine seam: detection (installed≠usable), cost gate, invocation surfaces, ReviewResult shape, gate parity.
 - `references/antigravity-integration.md` — the Antigravity (Gemini-3) cross-vendor third-engine seam: install homes, strict usability (exit code lies → route on non-empty output), interactive-default review, cost/data gate, gate parity.
 - `references/gate-rules.md` → "Cross-artifact consistency" — the semantic passes behind `/flow consistency` (hollow coverage, conflicting requirements, cut-list contradiction, terminology drift) that the runner's ID-based check can't judge.

@@ -69,6 +69,10 @@ Mechanical: each decision has why + rejected, NOT-doing list, covers storage/aut
 **Challenge:** Does each decision name a *real* rejected alternative (not a strawman)? Are
 data storage, auth approach, and deploy target all actually decided (not "TBD")? Is the
 NOT-doing list honest about what's deferred?
+- **Optional `ck-predict` (when present, non-trivial decision).** Before locking a risky
+  decision, offer a 5-persona debate (`ck-predict`) — it surfaces arch/security/perf/UX defects
+  when reversal is cheapest. Output INFORMS this challenge; it never passes the gate. Skip on a
+  trivial ADR (opt-in-with-prompt — see `claudekit-skills.md`).
 
 ## Stage 05 — Contract (the seam)
 Mechanical: every PRD feature -> >=1 interface, every interface has input+output shapes,
@@ -93,6 +97,11 @@ cli=command+flags+output/exit, library=public function+args+return, skill=comman
   **codex tier is USABLE**, an OPTIONAL opt-in **cross-model** check of the contract is the
   highest-value single Codex call in a run — a different engine breaks the same-model blind spot at
   the one artifact whose drift is most expensive downstream.
+- **Optional `ck-scenario` (when present).** Offer 12-dimension edge-case decomposition to
+  harden the seam: each case becomes an acceptance criterion + a per-type no-drift check, so the
+  contract is exhaustive before any card trusts it. Complements `/flow consistency` (it
+  *generates* cases; consistency checks *coherence*). INFORMS the gate; never auto-passes it.
+  Opt-in-with-prompt — see `claudekit-skills.md`.
 
 ## Card gate (`/flow check C-NNN`)
 Mechanical: no FILL, valid status, required sections, if done -> verify boxes checked +
