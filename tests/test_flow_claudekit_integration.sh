@@ -66,6 +66,37 @@ hasE "$REF/gate-rules.md" "ck-predict" "gate-rules ADR carries ck-predict"
 hasE "$REF/gate-rules.md" "ck-scenario" "gate-rules Contract carries ck-scenario"
 hasE "$REF/gate-rules.md" "INFORMS this challenge|INFORMS the gate" "gate-rules: skill INFORMS, not passes"
 
+# ---- Round-2: review-pr / ck-security / retro wired into their gate rituals ----
+RETRO="$HERE/../skills/flow/law/RETRO.md"
+AREV="$REF/adversarial-review.md"
+
+# review-pr: wired into the Review gate as a PR-context lens, opt-in, INFORM-only, distinct from code-reviewer.
+hasE "$AREV" "review-pr" "R2 review-pr: present in the Review gate"
+hasE "$AREV" "opt-in-with-prompt" "R2 review-pr/ck-security: opt-in-with-prompt at Review"
+hasE "$AREV" "the wired .code-reviewer. agent" "R2 review-pr: distinct from code-reviewer (not a twin)"
+hasE "$AREV" "INFORMS, never decides|never auto-passes a card" "R2 review-pr: gate parity (INFORM-only)"
+
+# ck-security: explicit opt-in offer that never auto-passes the Tier-C HALT.
+hasE "$AREV" "Offer .ck-security. on a security-class card" "R2 ck-security: explicit opt-in offer at Review"
+hasE "$AREV" "never auto-passes the Tier-C HALT|never auto-release" "R2 ck-security: never auto-passes Tier-C HALT"
+
+# retro: offered at the Retro gate, operator still authors the line (teach-mode rule holds).
+hasE "$RETRO" "retro. SKILL|the .retro. SKILL" "R2 retro: offered at the Retro gate"
+hasE "$RETRO" "operator still writes the line|never authors it" "R2 retro: operator still authors (teach-mode)"
+
+# Q1 lazy telemetry: ON, only at the wired gates, via existing harness verb, no new runner verb.
+hasE "$CAT" "Lazy capture .ON" "R2 telemetry: lazy capture ON"
+hasE "$CAT" "only at the 5 wired gates|Only at the 5 wired gates" "R2 telemetry: scoped to the 5 wired gates"
+hasE "$CAT" "harness intervention add" "R2 telemetry: reuses existing harness verb"
+# Q2 (no `suggest` verb) + no-new-runner-verb: guard the RUNNER itself, not just the prose.
+RUNNER="$HERE/../skills/flow/runner/flow.sh"
+lacks "$RUNNER" "cmd_suggest|^[[:space:]]*suggest\\)" "R2/Q2: runner has NO suggest verb (docs-only, decision Q2=no)"
+
+# stage map names the 3 newly-wired skills.
+hasE "$REF/agent-stage-mapping.md" "review-pr" "R2 stage map: names review-pr"
+hasE "$REF/agent-stage-mapping.md" "ck-security" "R2 stage map: names ck-security"
+hasE "$REF/agent-stage-mapping.md" "retro. at Retro|retro at Retro" "R2 stage map: names retro@Retro"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

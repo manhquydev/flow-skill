@@ -38,10 +38,13 @@ the harness) with reality before stage 01. Greenfield projects skip it and start
 **Optional ck-skill enrichments per stage** (the skill layer on top of the agents above; the
 agent drafts, a skill adds a distinct verb): the curated whitelist + the rules (skill INFORMS,
 gate JUDGES; Claude-side detection; opt-in-with-prompt) live in **`references/claudekit-skills.md`**.
-Highest-value, deep-wired into the gate ritual: **`ck-predict` at ADR** (offer a 5-persona
-pre-decision debate before locking a non-trivial decision) and **`ck-scenario` at Contract**
-(offer 12-dim edge-case decomposition → acceptance + contract tests). Both are offered, degrade
-silently when absent, and never auto-pass a gate.
+Deep-wired into the gate ritual (all opt-in-with-prompt, degrade silently, never auto-pass a
+gate): **`ck-predict` at ADR** (5-persona pre-decision debate) and **`ck-scenario` at Contract**
+(12-dim edge-case → acceptance + contract tests) — both in `gate-rules.md`; **`review-pr` +
+`ck-security` at the Review gate** (PR-context lens / STRIDE+OWASP on security-class cards) — in
+`adversarial-review.md`; **`retro` at Retro** (git-history numbers for the operator's line) — in
+`law/RETRO.md`. After any of these runs at its gate, record the lazy durable metric
+(`flow.sh harness intervention add`). Full whitelist + rules: `references/claudekit-skills.md`.
 
 ## Shipping (inside cards/)
 

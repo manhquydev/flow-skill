@@ -10,9 +10,16 @@
 > Applied leans: NO `suggest` verb, opt-in-with-prompt, **ck-graphify** (gkg not wired), lazy
 > logging off-by-default. Full suite green (all suites 0 failed), coherence PASS (0.14.0 ×3).
 > Adversarial review: APPROVE_WITH_NITS (gate-parity preserved, scope clean, no runner change);
-> the one terminology-drift NIT (review-pr label) was fixed. **Round-2 backlog:** wire
-> review-pr/ck-security/retro into their gate rituals; decide skill-invocation telemetry (Q1);
-> `suggest` verb only if demand shown (Q2).
+> the one terminology-drift NIT (review-pr label) was fixed.
+>
+> **Round-2 SHIPPED (v0.15.0, 2026-06-23, commit pending):** wired review-pr + ck-security into
+> the Review gate (`adversarial-review.md`) and retro into `law/RETRO.md`, all opt-in-with-prompt
+> / INFORM-only; ck-security never auto-passes the Tier-C HALT; retro keeps operator authorship.
+> Decisions adopted — Q1 telemetry = ON-but-lazy (only at the 5 wired gates via existing
+> `flow.sh harness intervention add`, no new runner verb), Q2 `suggest` verb = NO (guarded by a
+> runner assertion), Q3 = ck-graphify, Q4 = opt-in-with-prompt. Test 27→42; full suite 24/24
+> green; coherence PASS (0.15.0 ×3); review APPROVE_WITH_NITS (2 advisory NITs, one upgraded into
+> a real Q2 runner guard). Still no runner change. CI verification pending GitHub billing fix.
 
 ---
 

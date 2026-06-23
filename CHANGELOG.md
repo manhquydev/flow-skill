@@ -4,6 +4,33 @@ All notable changes to the flow skill. Versions follow the `version:` field in
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 
+## 0.15.0 — 2026-06-23 — claudekit skill-layer orchestration (Round-2: complete the wirings)
+
+Completes the skill layer started in 0.14.0 by wiring the remaining 3 high-ROI skills into
+their gate rituals and turning on lazy skill-telemetry. Docs+wiring only — still **no runner
+change**. Operator decisions adopted: Q1 telemetry = yes/lazy, Q2 `suggest` verb = no, Q3 graph
+tool = ck-graphify, Q4 = opt-in-with-prompt.
+
+**3 skills wired into their gate rituals** (all opt-in-with-prompt, INFORM-only, degrade silently):
+- `review-pr` @ Review — a new PR-context lens in `adversarial-review.md` (duplicate-work,
+  AI-slop, breaking-change, CI-blocker, `--fix`), distinct from the wired `code-reviewer` diff
+  lens (not a twin); offered only when the card ships as a GitHub PR, never on local-only builds.
+- `ck-security` @ security-class cards — an explicit opt-in offer in `adversarial-review.md`
+  (STRIDE+OWASP attacker personas); it **never auto-passes the Tier-C operator HALT** (the HALT
+  stays classification-triggered, operator-released in `DEBT.md`).
+- `retro` @ Retro — offered in `law/RETRO.md` for git-history numbers; the **operator still
+  writes the retro line** (teach-mode rule holds); distinct from the `journal-writer` narrative.
+
+**Lazy skill-telemetry ON (Q1).** After a deep-wired skill runs at its gate, its use is recorded
+via the **existing** `flow.sh harness intervention add` (the same durable-metric channel the
+Codex/Antigravity lenses use) — **only at the 5 wired gates**, never on every skill, never on the
+`cmd_next`/`cmd_check` hot path, no new runner verb. Feeds a future usage-weighted whitelist.
+
+Test suite `test_flow_claudekit_integration.sh` grows 27 → 42 clause-bound assertions (Round-2
+adds the 3 wirings + telemetry + no-new-verb guard). Full suite green; coherence PASS (0.15.0 ×3).
+Note: GitHub Actions CI is currently blocked by an account billing issue (jobs refuse to start) —
+local suite is the available ground truth until billing is restored.
+
 ## 0.14.0 — 2026-06-23 — claudekit skill-layer orchestration (Round-1)
 
 Flow already orchestrated claudekit at the **agent layer** (13 ck: agents, ck:→bmad→built-in

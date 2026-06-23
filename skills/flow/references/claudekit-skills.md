@@ -55,9 +55,11 @@ already-wired agent. Pure skill/agent twins are deliberately absent (see "Don't 
 
 ## The 5 deep-wired skills (offered inside the gate ritual)
 
-These are wired into the per-stage prose (`gate-rules.md` / `agent-stage-mapping.md`) because
-each sits at a gate where a miss is most expensive and adds a verb no wired agent provides.
-**Wired ≠ required**: each is offered, degrades silently, and only informs the gate.
+These are wired into the per-stage prose because each sits at a gate where a miss is most
+expensive and adds a verb no wired agent provides. **Wired ≠ required**: each is offered
+(opt-in-with-prompt), degrades silently, and only informs the gate. Wiring locations:
+ck-predict/ck-scenario → `gate-rules.md` (stages 04/05); review-pr + ck-security →
+`adversarial-review.md` (the Review gate); retro → `law/RETRO.md`.
 
 1. **ck-predict @ ADR** — before locking a non-trivial architecture decision, offer a 5-persona
    debate. Catches arch/security/perf/UX defects when reversal is cheapest. Output informs the
@@ -93,9 +95,12 @@ each sits at a gate where a miss is most expensive and adds a verb no wired agen
 - **Stack adapters** (backend/frontend/db/auth/payment/mobile/ui-* …) — surface only via
   `playbooks/<stack>.md` by project-type, never as a flat global menu.
 
-## Lazy capture (optional, off by default)
+## Lazy capture (ON — only at the 5 wired gates)
 
-If skill-invocation telemetry is enabled, record a skill use only at the 5 wired gates via
-`flow.sh harness …` (not on every skill, not on the hot path) so a later phase can rank the
-whitelist by what this operator actually reaches for (the `accessed_count` signal flow already
-uses). Until then the whitelist is static and curated by hand.
+Skill-invocation telemetry is **enabled, lazily**: after a deep-wired skill runs at its gate,
+record the use via the existing `flow.sh harness intervention add` (the same durable-metric
+channel the Codex/Antigravity lenses use — `adversarial-review.md` §S2). **Only at the 5 wired
+gates** — never on every skill, never on the `cmd_next`/`cmd_check` hot path, no new runner verb.
+Note whether the skill caught a class the wired agent missed; that signal lets a later phase rank
+the whitelist by what this operator actually reaches for (the `accessed_count` signal flow already
+uses). The whitelist stays hand-curated until then.

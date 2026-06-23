@@ -18,6 +18,13 @@ invoked in subagent isolation — it sees the diff, contract, and acceptance onl
 is a **SKILL** (main-context Skill tool, no subagent isolation); it may be used as an optional
 inline pass by the orchestrator, but it is **never** the delegated review subagent.
 
+**Offer `ck-security` on a security-class card (opt-in-with-prompt).** When a card is
+security-class and the `security-reviewer` agent is absent (or as an extra threat-model pass),
+offer the `ck-security` SKILL (STRIDE+OWASP attacker personas) — the operator confirms; it is not
+auto-fired. Its output INFORMS triage and **never auto-passes the Tier-C HALT** (see the Critical
+note below). After it runs, record the lazy durable metric via `flow.sh harness intervention add`
+(the wired-gate skill-telemetry — `claudekit-skills.md` §"Lazy capture"). See `claudekit-skills.md`.
+
 **Portability degrade rung** (detect-first, gate identical on every rung):
 1. `security-reviewer` AGENT present → run it layered with `code-reviewer` (primary path).
 2. `security-reviewer` absent → `code-reviewer` runs an explicit STRIDE/OWASP checklist
@@ -145,6 +152,23 @@ code lies (exit 0 + empty stdout even when unauthenticated), so route ONLY on no
 output, prefer the **interactive** path (IDE Agent Manager / real `agy` terminal, paste the
 `ReviewResult` back), and treat an empty Gemini result as **"review unavailable", never an approval**.
 Same parity rule: it INFORMS, never auto-passes/auto-fails. Log the same durable metric.
+
+## Optional lens — review-pr (PR-context, when the card ships as a GitHub PR)
+
+The three layers + cross-model lenses all review a **diff**. When the card's change lives as a
+**GitHub PR**, offer the `review-pr` SKILL as an additional lens — it adds the PR-context checks a
+diff-only review structurally can't see: duplicate prior work, AI-slop patterns, breaking-change
+detection across the whole PR, and CI-blocker triage (with optional `--fix`). It is **distinct from
+the wired `code-reviewer` agent** (diff lens), not a twin — see `claudekit-skills.md`.
+
+- **Opt-in-with-prompt.** Offer it when a PR exists; the operator confirms. Do not auto-fire it on
+  every card, and never on a local-only (no-remote) build.
+- **Gate parity — INFORMS, never decides.** `review-pr` findings feed the SAME triage below; a
+  clean `review-pr` never auto-passes a card and a flagged one never auto-fails it. The Review gate
+  still judges. The "do not defang the reviewer" rule applies — hand it the PR, not your verdict.
+- **Lazy durable metric (S2).** After it runs, record via `flow.sh harness intervention add`
+  whether it caught a class the diff lenses missed (this is the wired-gate skill-telemetry — see
+  `claudekit-skills.md` §"Lazy capture").
 
 ## Triage
 Group every finding by severity x actionability:
