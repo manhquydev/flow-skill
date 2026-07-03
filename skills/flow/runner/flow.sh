@@ -1835,10 +1835,16 @@ _run_with_timeout() { # $1 = seconds; $2 = command string (run via `sh -c`)
   local secs="$1" cmd="$2"
   if command -v timeout >/dev/null 2>&1; then timeout "$secs" sh -c "$cmd"; return $?; fi
   if command -v gtimeout >/dev/null 2>&1; then gtimeout "$secs" sh -c "$cmd"; return $?; fi
+  # Fallback (macOS ships neither by default): a killed process's own exit status (e.g. 143 from
+  # SIGTERM) is NOT 124, so track whether the watchdog actually fired via a flag file and force
+  # the GNU-timeout-compatible 124 in that case - callers only branch on the numeric 124 contract.
+  local flag; flag="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/.flow_timeout_$$")"
+  rm -f "$flag" 2>/dev/null
   sh -c "$cmd" & local pid=$!
-  ( sleep "$secs" 2>/dev/null; kill -TERM "$pid" 2>/dev/null ) & local watchdog=$!
+  ( sleep "$secs" 2>/dev/null; kill -TERM "$pid" 2>/dev/null && : > "$flag" 2>/dev/null ) & local watchdog=$!
   wait "$pid" 2>/dev/null; local rc=$?
   kill "$watchdog" 2>/dev/null; wait "$watchdog" 2>/dev/null
+  if [ -f "$flag" ]; then rm -f "$flag" 2>/dev/null; return 124; fi
   return "$rc"
 }
 
