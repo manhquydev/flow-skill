@@ -49,17 +49,19 @@ already-wired agent. Pure skill/agent twins are deliberately absent (see "Don't 
 | **web-testing** | Verify-live | Playwright/k6 e2e/load/a11y (distinct from `tester` unit verb) |
 | **docs-seeker** | Research/Build | fetch current library docs (llms.txt/context7) — version-drift guard |
 | **scout** | Assess/any | fast parallel file discovery (distinct from inline read) |
+| **ck-loop** | Build/Verify (Implement→Test→Audit→Fix) | mechanical iterate-to-numeric-target with per-iteration git commit/revert — the loop-engineering primitive flow lacked natively |
 
 > Graph tool: **ck-graphify** is the chosen impact-analysis tool (operator decision, 2026-06-23
 > — polyglot/doc-heavy brownfield fit, e.g. CMC Odoo). `gkg` is NOT wired; do not surface both.
 
-## The 5 deep-wired skills (offered inside the gate ritual)
+## The 6 deep-wired skills (offered inside the gate ritual)
 
 These are wired into the per-stage prose because each sits at a gate where a miss is most
 expensive and adds a verb no wired agent provides. **Wired ≠ required**: each is offered
 (opt-in-with-prompt), degrades silently, and only informs the gate. Wiring locations:
 ck-predict/ck-scenario → `gate-rules.md` (stages 04/05); review-pr + ck-security →
-`adversarial-review.md` (the Review gate); retro → `law/RETRO.md`.
+`adversarial-review.md` (the Review gate); retro → `law/RETRO.md`; ck-loop → the Build/Verify
+tail, plumbing via `flow.sh loop-prep`/`loop-log` (this file).
 
 1. **ck-predict @ ADR** — before locking a non-trivial architecture decision, offer a 5-persona
    debate. Catches arch/security/perf/UX defects when reversal is cheapest. Output informs the
@@ -75,6 +77,26 @@ ck-predict/ck-scenario → `gate-rules.md` (stages 04/05); review-pr + ck-securi
    threat-model. It informs; the **Tier-C operator HALT is never auto-passed** by a clean scan.
 5. **retro @ Retro** — offer a git-history numeric retrospective so the Retro line is backed by
    real commit/velocity numbers, not prose.
+6. **ck-loop @ Build/Verify (Implement→Test→Audit→Fix tail)** — when a fix needs more than one
+   experimental attempt against a single numeric target (failing-test count, lint errors, etc.),
+   offer `flow.sh loop-prep <card>` to set up an isolated worktree + Verify/Guard commands, then
+   invoke the `ck-loop` skill with the printed block (ck-loop stays the untouched execution
+   engine — flow supplies plumbing only). See "Loop vs two-strikes" below for when to reach for
+   this instead of the default repair path. The finished run is recorded via `flow.sh loop-log`
+   (NOT the `intervention` channel below — recording it twice would double-count the same event).
+
+## Loop vs two-strikes — the one "fix it" decision tree
+
+flow already has a bounded repair mechanism (two-strikes: one fresh-subagent repair attempt on a
+review deadlock, then escalate to a cross-model lens — `adversarial-review.md`). `ck-loop` is a
+different tool for a different situation; do not let operators reach for the wrong one:
+
+| Situation | Use | Why |
+|---|---|---|
+| Review BLOCKED twice, same model, no metric | two-strikes → cross-model lens | bounded disagreement, not a number |
+| One numeric verify command, needs >1 experimental attempt | `flow.sh loop-prep` + ck-loop | open iterate-to-target, git-tracked/revertable |
+| Drive failing-tests / lint / perf count to a threshold | ck-loop | Verify is a single number; Direction lower |
+| Single obvious fix, one retry | default auto repair | cheaper than spinning up a worktree+loop |
 
 ## Don't surface (cut on purpose — these add noise, not signal)
 

@@ -8,7 +8,7 @@ keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deplo
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.17.0"
+  version: "0.18.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD."
 ---
 
@@ -177,6 +177,9 @@ setting: **Tier-A auto-merge green cards; halt at security-class.** Per card: ti
 shipped) → world-state evidence → `status: done` → durable trace + `AUTO-LOG.md`.
 - **Tier A**: green + no security-class → auto-merge, no ask.
 - **Tier B**: fixable issues → one repair by a FRESH subagent (two-strikes), else escalate.
+  If the fix needs >1 experimental attempt against a single numeric target (not a review
+  disagreement), reach for `flow.sh loop-prep` + the `ck-loop` skill instead — see
+  "Loop vs two-strikes" in `references/claudekit-skills.md`.
 - **Tier C**: security-class (auth, authorization, admin exposure, tenancy, payments, data
   migration, removing validation) → **HALT.** Operator accepts the exposure in `DEBT.md`,
   in writing. Never planner-decided.
@@ -194,7 +197,7 @@ Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, r
 - `references/command-dispatch.md` — exact mapping of each `/flow` command to runner call + your duties.
 - `references/agent-detection.md` — detect ck:/bmad agents + priority + fallback.
 - `references/agent-stage-mapping.md` — stage→agent map, scoped prompt template, durable hooks.
-- `references/claudekit-skills.md` — the **skill layer** on top of the agents: the curated per-stage ck-skill whitelist ("what to use when"), the 5 deep-wired high-ROI skills (ck-predict@ADR, ck-scenario@Contract, review-pr@Review/Ship, ck-security@security-cards, retro@Retro), and the binding rules (skill INFORMS / gate JUDGES; Claude-side detection + silent degrade; opt-in-with-prompt, off the hot path).
+- `references/claudekit-skills.md` — the **skill layer** on top of the agents: the curated per-stage ck-skill whitelist ("what to use when"), the 6 deep-wired high-ROI skills (ck-predict@ADR, ck-scenario@Contract, review-pr@Review/Ship, ck-security@security-cards, retro@Retro, ck-loop@Build/Verify), the binding rules (skill INFORMS / gate JUDGES; Claude-side detection + silent degrade; opt-in-with-prompt, off the hot path), and the loop-vs-two-strikes decision matrix (`flow.sh loop-prep`/`loop-log` plumbing, ck-loop as the untouched execution engine).
 - `references/codex-integration.md` — the Codex cross-vendor second-engine seam: detection (installed≠usable), cost gate, invocation surfaces, ReviewResult shape, gate parity.
 - `references/antigravity-integration.md` — the Antigravity (Gemini-3) cross-vendor third-engine seam: install homes, strict usability (exit code lies → route on non-empty output), interactive-default review, cost/data gate, gate parity.
 - `references/gate-rules.md` → "Cross-artifact consistency" — the semantic passes behind `/flow consistency` (hollow coverage, conflicting requirements, cut-list contradiction, terminology drift) that the runner's ID-based check can't judge.

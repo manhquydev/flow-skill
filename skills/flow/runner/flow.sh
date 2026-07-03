@@ -1824,6 +1824,191 @@ cmd_workspace() {
   esac
 }
 
+# ---------- loop (thin ck-loop wrapper: plumbing only, no iteration logic here) ----------
+# ck-loop (installed ClaudeKit skill) is the untouched execution engine: verify-safety-screen,
+# stuck-detection, git commit/revert per iteration all live there. flow only (1) sets up an
+# isolated worktree + a numeric Verify command ck-loop can run, and (2) records the finished run.
+# Portable timeout wrapper: GNU `timeout` (Linux/Windows-Git-Bash) or `gtimeout` (macOS+coreutils)
+# when present; a background+watchdog-kill fallback otherwise (macOS ships neither by default).
+# Returns 124 on timeout, matching GNU timeout's convention, so callers can branch on it uniformly.
+_run_with_timeout() { # $1 = seconds; $2 = command string (run via `sh -c`)
+  local secs="$1" cmd="$2"
+  if command -v timeout >/dev/null 2>&1; then timeout "$secs" sh -c "$cmd"; return $?; fi
+  if command -v gtimeout >/dev/null 2>&1; then gtimeout "$secs" sh -c "$cmd"; return $?; fi
+  sh -c "$cmd" & local pid=$!
+  ( sleep "$secs" 2>/dev/null; kill -TERM "$pid" 2>/dev/null ) & local watchdog=$!
+  wait "$pid" 2>/dev/null; local rc=$?
+  kill "$watchdog" 2>/dev/null; wait "$watchdog" 2>/dev/null
+  return "$rc"
+}
+
+cmd_loop_prep() { # $1 = card id; [--metric failing-tests] [--iterations N] [--guard]
+  local card="${1:-}"; shift 2>/dev/null || true
+  case "$card" in ""|--*) echo 'usage: /flow loop-prep <C-NNN> [--metric failing-tests] [--iterations N] [--guard]'; return 1 ;; esac
+  local metric="failing-tests" iterations=10 guard=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --metric)     shift; metric="${1:-failing-tests}" ;;
+      --iterations) shift; iterations="${1:-10}" ;;
+      --guard)      guard=1 ;;
+      *) echo "loop-prep: unknown arg '$1'"; return 1 ;;
+    esac
+    shift 2>/dev/null || true
+  done
+  case "$metric" in
+    failing-tests) : ;;
+    *) echo "loop-prep: unsupported --metric '$metric' (only 'failing-tests' supported this round)"; return 1 ;;
+  esac
+  case "$iterations" in ''|*[!0-9]*|0) echo "loop-prep: --iterations must be a positive integer (got '$iterations')"; return 1 ;; esac
+  if ! command -v git >/dev/null 2>&1; then
+    echo "loop-prep: git not found - ck-loop requires an isolated git worktree."
+    return 1
+  fi
+  local cf; cf="$(resolve_card_file "$card")"
+  if [ -z "$cf" ] || [ ! -f "$cf" ]; then
+    echo "loop-prep: card '$card' not found (expected $cf) - run '/flow card' first."
+    return 1
+  fi
+  FLOW_LOG_CARD="$card"
+
+  # Scope = the card's OWN declared Allowed files (what it may edit), NOT the Verify target.
+  # Hardcoding Scope to tests/test_*.sh would let ck-loop edit only test files while measuring
+  # a failing-test count - the only way to "improve" that metric within such a Scope is to
+  # gut/weaken the assertions that caught the bug, not fix the source. Fall back to
+  # tests/test_*.sh only when the card declares no Allowed files at all (no better signal
+  # available); this fallback inherits the same reward-hacking risk, so it's a last resort.
+  local scope; scope="$(_card_allowed_files "$cf" | _ws_tokens | tr '\n' ' ' | sed -E 's/[[:space:]]+$//')"
+  [ -n "$scope" ] || scope="tests/test_*.sh"
+
+  local branch="loop/$card" wt
+  wt="$(_ws_path "$branch")"
+  if git -C "$ROOT" show-ref --verify --quiet "refs/heads/$branch" 2>/dev/null && ! [ -d "$wt" ]; then
+    echo "WARNING: branch '$branch' already exists but has no live worktree - loop-prep will check out and reuse WHATEVER is already committed there. If you didn't create this branch for a prior loop run, stop and investigate before continuing."
+  fi
+  # Check the worktree directly (git-dir resolves + branch identity) rather than grepping
+  # `git worktree list` output: on Windows/Git-Bash, `list` prints git's own normalized form
+  # (C:/Users/...) which does not string-match the /tmp/... form `_ws_path` computes for the
+  # same directory. The branch-identity check additionally guards against silently "reusing" a
+  # stale/unrelated git dir that happens to occupy this deterministic sibling path.
+  local reuse_head=""
+  if [ -d "$wt" ]; then reuse_head="$(git -C "$wt" symbolic-ref --short -q HEAD 2>/dev/null)"; fi
+  if [ -n "$reuse_head" ] && [ "$reuse_head" = "$branch" ]; then
+    echo "loop-prep: reusing existing worktree for '$branch' -> $wt"
+  elif [ -d "$wt" ]; then
+    echo "ABORT: $wt exists but is not this card's worktree (HEAD: '${reuse_head:-detached/unknown}', expected '$branch') - remove it or run 'workspace doctor', then retry."
+    return 1
+  else
+    _ws_add "$branch" --card "$card" || { echo "ABORT: worktree setup failed (see above) - fix the git error and retry."; return 1; }
+  fi
+
+  # Verify: sum each suite's own printed "RESULT: N passed, M failed" line (every tests/test_*.sh
+  # already ends with this identical line - no per-script changes needed). Direction=lower.
+  local verify_cmd
+  verify_cmd='total=0; for t in tests/test_*.sh; do n=$(bash "$t" 2>&1 | sed -nE "s/^RESULT: [0-9]+ passed, ([0-9]+) failed\$/\1/p"); total=$((total + ${n:-0})); done; echo "$total"'
+  local guard_cmd=""
+  [ "$guard" -eq 1 ] && guard_cmd='bash tests/run_all.sh >/dev/null 2>&1'
+
+  # Phase-0 self-check inside the worktree, mirroring ck-loop's own abort conditions so a fresh
+  # worktree never surprises ck-loop with a precondition it would have refused anyway.
+  if ! git -C "$wt" rev-parse --git-dir >/dev/null 2>&1; then
+    echo "ABORT: not a git worktree at $wt - re-run 'workspace doctor'."; return 1
+  fi
+  local dirty; dirty="$(git -C "$wt" status --porcelain 2>/dev/null)"
+  if [ -n "$dirty" ]; then
+    echo "ABORT: worktree has uncommitted changes - ck-loop requires a clean tree."
+    echo "  dirty paths:"; printf '%s\n' "$dirty" | sed 's/^/    /'
+    echo "  fix: commit/stash these (common cause: --copy-env or .flow/ inside the worktree; gitignore them or omit --copy-env)."
+    return 1
+  fi
+  if ! git -C "$wt" symbolic-ref -q HEAD >/dev/null 2>&1; then
+    echo "ABORT: worktree HEAD is detached - ck-loop requires a named branch. Re-run 'workspace add' with a branch name."
+    return 1
+  fi
+  if [ -f "$wt/loop-results.tsv.lock" ]; then
+    echo "ABORT: stale loop-results.tsv.lock in $wt - a previous ck-loop run may not have exited cleanly. Remove it after confirming no run is active."
+    return 1
+  fi
+  if ! ls "$wt"/tests/test_*.sh >/dev/null 2>&1; then
+    echo "ABORT: no tests/test_*.sh found under $wt - the Verify metric would match zero files."
+    return 1
+  fi
+  if ! ( cd "$wt" && eval "set -- $scope" && ls "$@" ) >/dev/null 2>&1; then
+    echo "ABORT: Scope glob '$scope' matches zero files under $wt - ck-loop would have nothing it's allowed to edit."
+    return 1
+  fi
+  local vtimeout="${FLOW_LOOP_VERIFY_TIMEOUT:-30}"
+  local t0 t1 dur out rc
+  t0="$(_now)"
+  out="$(cd "$wt" && _run_with_timeout "$vtimeout" "$verify_cmd" 2>&1)"; rc=$?
+  t1="$(_now)"; dur=$((t1 - t0))
+  if [ "$rc" -eq 124 ]; then
+    echo "ABORT: Verify dry-run timed out at ${vtimeout}s - a tests/test_*.sh suite may be hanging. Fix or exclude it, then retry."
+    return 1
+  fi
+  case "$out" in
+    ''|*[!0-9]*) echo "ABORT: Verify dry-run did not print a single integer (got: '$out'). Fix the aggregator or the failing suite's RESULT line."; return 1 ;;
+  esac
+  if [ "$rc" -ne 0 ]; then
+    echo "ABORT: Verify dry-run exited $rc (expected 0). Output: $out"; return 1
+  fi
+  if [ "$dur" -gt 30 ]; then
+    echo "WARNING: Verify dry-run took ${dur}s (ck-loop caps Verify at <30s). Consider narrowing --metric/Scope to the failing suite(s) only."
+  fi
+
+  echo "PASS: loop-prep ready for '$card' -> $wt (current failing-assertion count: $out)"
+  echo "  cd \"$wt\""
+  echo
+  echo "Goal: Drive flow-skill's failing test-assertion count to 0"
+  echo "Scope: $scope"
+  echo "Verify: $verify_cmd"
+  [ -n "$guard_cmd" ] && echo "Guard: $guard_cmd"
+  echo "Iterations: $iterations"
+  echo "Direction: lower"
+  echo "Min-Delta: 0"
+  echo
+  echo "(invoke the ck-loop skill with the block above; ck-loop reads its config from THIS message)"
+  return 0
+}
+
+# Deferred: a first-class `loop_run` table (migration 013) would give typed columns for
+# cross-loop trend queries instead of string-parsing the usage-log args field. Not built now -
+# no multi-metric/trend need yet (YAGNI); revisit only with real usage evidence, and remember
+# schema changes must be tested against a seeded pre-013 DB before shipping (v0.17.0 lesson).
+cmd_loop_log() { # $1 = card id; --iterations N --start M --end K --outcome converged|circuit-broke|no-improve
+  local card="${1:-}"; shift 2>/dev/null || true
+  case "$card" in ""|--*) echo 'usage: /flow loop-log <C-NNN> --iterations N --start M --end K --outcome converged|circuit-broke|no-improve'; return 1 ;; esac
+  # Validate card via resolve_card_file BEFORE it reaches FLOW_LOG_CARD, matching every other
+  # call site in this file (cmd_card*, cmd_loop_prep). Free-text here would otherwise bypass
+  # _mask_secrets (which only scrubs the args field, not card) - a card id is not a secrets
+  # channel, so reject anything that isn't a real card reference instead of logging it verbatim.
+  local cf; cf="$(resolve_card_file "$card")"
+  if [ -z "$cf" ] || [ ! -f "$cf" ]; then
+    echo "loop-log: card '$card' not found (expected $cf)"; return 1
+  fi
+  local iterations="" start="" end="" outcome=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --iterations) shift; iterations="${1:-}" ;;
+      --start)      shift; start="${1:-}" ;;
+      --end)        shift; end="${1:-}" ;;
+      --outcome)    shift; outcome="${1:-}" ;;
+      *) echo "loop-log: unknown arg '$1'"; return 1 ;;
+    esac
+    shift 2>/dev/null || true
+  done
+  FLOW_LOG_CARD="$card"
+  case "$iterations" in ''|*[!0-9]*) echo "usage: --iterations must be a non-negative integer"; return 1 ;; esac
+  case "$start"      in ''|*[!0-9]*) echo "usage: --start must be a non-negative integer"; return 1 ;; esac
+  case "$end"        in ''|*[!0-9]*) echo "usage: --end must be a non-negative integer"; return 1 ;; esac
+  echo "LOOP $card: $start->$end in $iterations iters ($outcome)"
+  case "$outcome" in
+    converged)     return 0 ;;
+    circuit-broke) return 1 ;;
+    no-improve)    return 2 ;;
+    *) echo "usage: --outcome must be converged|circuit-broke|no-improve (got '$outcome')"; return 1 ;;
+  esac
+}
+
 usage() {
   cat <<'EOF'
 flow.sh - buildflow gate runner (mechanical layer)
@@ -1840,6 +2025,8 @@ usage: bash flow.sh <command> [args]
   skip <stage> --reason  Advance past a gate that has a matching open DEBT (non-security only)
   ready             List buildable todo cards + parallel-safety hint
   workspace <verb>  Multi-agent worktree isolation: add|list|enter|remove|check|doctor (one worktree per agent)
+  loop-prep <card>  Plumbing for ck-loop: isolated worktree + numeric Verify command + param block (thin wrapper; ck-loop is the engine)
+  loop-log <card>   Record a finished ck-loop run (iterations/start/end/outcome) into usage-log telemetry
   auto              Preflight an autonomous run (orchestration in SKILL.md)
   recall            Read back prior knowledge (debt/retro/playbooks/prev-card/harness) before working
   unlock            Clear this project's concurrency lock (after a crashed/abandoned session)
@@ -2004,6 +2191,8 @@ case "$cmd" in
   skip)           cmd_skip "$@" ;;
   ready)          cmd_ready ;;
   workspace)      cmd_workspace "$@" ;;
+  loop-prep)      cmd_loop_prep "$@" ;;
+  loop-log)       cmd_loop_log "$@" ;;
   auto)           cmd_auto ;;
   recall)         cmd_recall ;;
   unlock)         cmd_unlock ;;

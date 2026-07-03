@@ -2,7 +2,7 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-**27 test suites / 633 checks, green locally on macOS · Ubuntu · Windows (Git Bash).** Hosted CI is parked on the Azure-Pipelines migration (GitHub Actions billing-blocked, so no live badge is shown to avoid a misleading red/stale status).
+**28 test suites / 680 checks, green locally on macOS · Ubuntu · Windows (Git Bash), and in hosted CI (GitHub Actions, green on `master`).**
 
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
@@ -11,7 +11,18 @@ durable harness layer (intake/story/trace/decision/backlog), agent orchestration
 **Codex (GPT-5.x) second engine + Antigravity (Gemini-3) third engine** = a three-model adversarial
 gate), and project-type awareness.
 
-> Status: **v0.17.0** — **repository-harness v0.1.10 deep integration**: reconciled flow's ported durable
+> Status: **v0.18.0** — **`ck-loop` loop-engineering integration**: flow's own "Implement→Test→Audit→Fix"
+> tail gained a mechanical verify→iterate→circuit-breaker primitive by wrapping the already-installed
+> `ck-loop` ClaudeKit skill — flow supplies plumbing only (`flow.sh loop-prep`/`loop-log`: isolated
+> worktree, a numeric Verify command, telemetry), ck-loop stays the untouched execution engine (git
+> commit/revert per iteration, stuck-detection, verify-safety-screen). Deep-wired as the 6th
+> claudekit-skills.md entry, with a loop-vs-two-strikes decision matrix so there's one clear "fix it"
+> path. Built via a full red-team → review → test → audit → fix pass (two independent adversarial
+> reviews beyond the standard code-review gate) that caught and fixed a **critical** design bug
+> (`Scope` was hardcoded to test files, which would have pushed ck-loop toward gutting tests rather
+> than fixing source), a **high**-severity missing timeout on the Verify dry-run (a hanging suite
+> could block the runner indefinitely), and a secret-masking bypass on `loop-log`'s card-id argument.
+> **v0.17.0** — **repository-harness v0.1.10 deep integration**: reconciled flow's ported durable
 > layer with upstream and adopted its **kind-aware inbound tool registry** — register external tools by
 > kind (`cli|binary|mcp|skill|http`) + capability, probe presence mechanically, and let a step ask
 > `query tools --capability X --status present` and clean-skip an absent tool (stdlib-only, 0 new deps).
@@ -56,7 +67,7 @@ gate), and project-type awareness.
 > layered with code-reviewer, composes with security lens, detect-first degrade, gate-parity preserved) and
 > fixes a v0.12.1 latent portability defect (agent-wiring tripwire used GNU-only `grep -oP`; rewritten
 > with POSIX `sed -E` so macOS BSD grep CI passes).
-> **27 test suites / 633 checks green locally** (macOS · Ubuntu · Windows via Git Bash) — hosted CI is parked on the Azure-Pipelines migration (GitHub Actions billing-blocked). MIT.
+> **28 test suites / 680 checks green locally** (macOS · Ubuntu · Windows via Git Bash) and in hosted GitHub Actions CI. MIT.
 
 ## What ships
 
@@ -66,7 +77,8 @@ flow-skill/
 │   ├── SKILL.md                 # command dispatch + semantic gatekeeper + agent orchestration
 │   ├── runner/flow.sh           # gate engine (exit 0/1): status/next/assess/card/check/mode/project-type/
 │   │                            #   skip/ready/workspace/auto/recall/unlock/harness/debt/design/contract/
-│   │                            #   tokens/coherence/consistency/constitution/promote/doctor/usage/retro
+│   │                            #   tokens/coherence/consistency/constitution/promote/doctor/usage/retro/
+│   │                            #   loop-prep/loop-log (ck-loop thin wrapper)
 │   ├── _templates/              # 00-idea .. 05-contract + card (buildflow) + 00-inspect (brownfield)
 │   ├── law/                     # CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md
 │   ├── references/              # 16 semantic playbooks (gates, agents, codex/antigravity, loop, design, project-types)
@@ -74,7 +86,7 @@ flow-skill/
 │   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
 ├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
 ├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 27 suites / 633 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args)
+├── tests/run_all.sh             # 28 suites / 680 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args/loop)
 └── docs/                        # architecture + codebase summary
 ```
 
@@ -209,13 +221,14 @@ and `chmod +x` the runner on macOS/Linux.
 /flow card             create a build card (after all planning gates pass)
 /flow check C-001      validate a card (done = real-world proof, not "tests pass")
 /flow auto             autonomous build run (Tier-A auto-merge green, halt at security-class)
+/flow loop-prep C-001  iterate-to-numeric-target: worktree + Verify/Guard for the ck-loop skill
 /flow contract|tokens|coherence|consistency   drift/coverage checks (path-resolution · design tokens · version · cross-artifact FR mapping)
 /flow doctor           environment check across macOS/Linux/Windows
 ```
 
 ## Commands
 
-Quick start above is the common path; this is the full reference — all 25 commands the engine dispatches (`bash skills/flow/runner/flow.sh <command>`):
+Quick start above is the common path; this is the full reference — all 27 commands the engine dispatches (`bash skills/flow/runner/flow.sh <command>`):
 
 | Command | What it does |
 |---|---|
@@ -231,6 +244,8 @@ Quick start above is the common path; this is the full reference — all 25 comm
 | `/flow ready` | List buildable todo cards + a parallel-safety hint |
 | `/flow workspace add\|list\|enter\|remove\|check\|doctor` | **Multi-agent worktree isolation** — one `git worktree` per agent so several agents (Claude/Codex/Antigravity, many terminals) run in parallel without "one switches branch → all flip". `add` provisions a worktree + distinct port-offset + paste-ready cd/env block; `list` shows who's-where; `check` flags branch/allowed-files overlap before you launch; `remove`/`doctor` tear down + reconcile safely. git is the registry; a `.flow/workspaces.jsonl` side-file adds vendor/card/port/task |
 | `/flow auto` | Preflight an autonomous run (orchestration lives in SKILL.md) |
+| `/flow loop-prep <card> [--metric][--iterations][--guard]` | Plumbing for the `ck-loop` skill — isolated worktree + a numeric Verify command derived from the card's own Allowed files + Phase-0 precondition self-check. ck-loop stays the untouched iteration engine. |
+| `/flow loop-log <card> --iterations N --start M --end K --outcome converged\|circuit-broke\|no-improve` | Record a finished ck-loop run into usage-log telemetry (0/1/2 exit codes) |
 | `/flow recall` | Read back prior knowledge (debt/retro/prev-card/friction/playbooks) before working |
 | `/flow unlock` | Clear this project's concurrency lock (after a crashed/abandoned session) |
 | `/flow harness <args>` | Passthrough to the durable layer CLI (intake/story/trace/decision/backlog/query/audit/propose) |
@@ -270,8 +285,9 @@ Quick start above is the common path; this is the full reference — all 25 comm
 **3. Run mode** — *how cards get built*
 - **manual** (default) — you drive: `/flow card` → build → `/flow check`.
 - **auto** — `/flow auto`: an autonomous run. **Tier-A** (green) auto-merges; **Tier-B** (fixable)
-  gets one repair by a fresh subagent (two-strikes); **Tier-C security-class** (auth, tenancy,
-  payments, data migration) **HALTS** for written risk acceptance in `DEBT.md`.
+  gets one repair by a fresh subagent (two-strikes) — or, if the fix needs >1 experimental attempt
+  against a single numeric target, `/flow loop-prep` + the `ck-loop` skill; **Tier-C security-class**
+  (auth, tenancy, payments, data migration) **HALTS** for written risk acceptance in `DEBT.md`.
 
 **4. Greenfield vs brownfield** — *new vs existing codebase*
 - **greenfield** (default) — start at `/flow next` (stage 00-idea).
@@ -438,7 +454,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 27 suites / 633 checks (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is 28 suites / 680 checks (`bash tests/run_all.sh`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -455,7 +471,7 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 27 suites / 633 checks; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # 28 suites / 680 checks; needs bash (+ python for the harness/propose suites)
 ```
 
 ## Provenance
