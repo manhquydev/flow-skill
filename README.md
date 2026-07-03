@@ -2,7 +2,7 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 27 test suites / 633 checks, green locally on macOS · Ubuntu · Windows (Git Bash). Hosted CI is parked on the Azure-Pipelines migration (GitHub Actions billing-blocked).
+**27 test suites / 633 checks, green locally on macOS · Ubuntu · Windows (Git Bash).** Hosted CI is parked on the Azure-Pipelines migration (GitHub Actions billing-blocked, so no live badge is shown to avoid a misleading red/stale status).
 
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
@@ -56,7 +56,7 @@ gate), and project-type awareness.
 > layered with code-reviewer, composes with security lens, detect-first degrade, gate-parity preserved) and
 > fixes a v0.12.1 latent portability defect (agent-wiring tripwire used GNU-only `grep -oP`; rewritten
 > with POSIX `sed -E` so macOS BSD grep CI passes).
-> **27 test suites / 633 checks green locally** (macOS · Ubuntu · Windows via Git Bash) — hosted CI is parked on the Azure-Pipelines migration (GitHub Actions billing-blocked; the badge above reflects that). MIT.
+> **27 test suites / 633 checks green locally** (macOS · Ubuntu · Windows via Git Bash) — hosted CI is parked on the Azure-Pipelines migration (GitHub Actions billing-blocked). MIT.
 
 ## What ships
 

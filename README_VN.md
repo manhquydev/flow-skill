@@ -2,7 +2,7 @@
 
 *Read this in [English](README.md).*
 
-[![CI](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml/badge.svg)](https://github.com/manhquydev/mq_flow/actions/workflows/ci.yml) — 27 bộ test / 633 check, xanh cục bộ trên macOS · Ubuntu · Windows (Git Bash). CI hosted đang chờ chuyển sang Azure Pipelines (GitHub Actions bị chặn billing).
+**27 bộ test / 633 check, xanh cục bộ trên macOS · Ubuntu · Windows (Git Bash).** CI hosted đang chờ chuyển sang Azure Pipelines (GitHub Actions bị chặn billing, nên không hiện badge live để tránh trạng thái đỏ/cũ gây hiểu lầm).
 
 `/flow` đưa một sản phẩm từ **ý tưởng đến bằng chứng "done" thật** qua các **cổng (gate) trung
 thực** — một URL đã deploy cho web, "cài + chạy được" cho CLI, public API + coverage cho library,
@@ -49,7 +49,7 @@ ba mô hình), và nhận biết loại dự án.
 > **v0.12.2** bổ sung lens Review nhận biết ngôn ngữ (typescript-reviewer/.ts·.js + python-reviewer/.py,
 > xếp lớp với code-reviewer, kết hợp với security lens, degrade detect-first, gate-parity giữ nguyên) và
 > sửa lỗi tiềm ẩn v0.12.1 (tripwire dùng `grep -oP` chỉ GNU; viết lại bằng POSIX `sed -E` để CI macOS BSD grep chạy được).
-> **27 bộ test / 633 check xanh cục bộ** (macOS · Ubuntu · Windows qua Git Bash) — CI hosted đang chờ chuyển sang Azure Pipelines (GitHub Actions bị chặn billing; badge ở trên phản ánh điều đó). MIT.
+> **27 bộ test / 633 check xanh cục bộ** (macOS · Ubuntu · Windows qua Git Bash) — CI hosted đang chờ chuyển sang Azure Pipelines (GitHub Actions bị chặn billing). MIT.
 
 ## Triết lý cốt lõi
 - **"Done" = bằng chứng thật ngoài đời**, không phải "tests pass" / "đã merge". Mỗi card khai báo
