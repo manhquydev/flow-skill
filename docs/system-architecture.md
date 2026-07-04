@@ -57,11 +57,20 @@ On-disk artifacts (in the project being built):
 | Path | Responsibility |
 |---|---|
 | `skills/flow/SKILL.md` | semantic-layer entry: dispatch + gatekeeper + orchestration |
-| `skills/flow/runner/flow.sh` | mechanical engine: lifecycle, gates, debt, design, harness passthrough |
+| `skills/flow/runner/flow.sh` | mechanical engine: lifecycle, gates, debt, design, harness passthrough, loop-engineering (ck-loop wrapper) |
 | `skills/flow/harness/` | durable layer (Python CLI + sqlite + Rust toggle) |
 | `skills/flow/_templates/` | the 7 gated artifacts (verbatim buildflow) |
 | `skills/flow/law/` | CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md |
 | `skills/flow/references/` | semantic playbooks (gates, agents, loop, design, auto) |
 | `skills/flow/playbooks/` | paid-for stack knowledge (read before, harvest after) |
-| `tests/` | 46 checks across runner / harness / scenarios |
+| `tests/` | 28 suites / 680 checks across runner / harness / scenarios / loop |
 | `install.sh` / `install.ps1` | install to ~/.claude or a project |
+
+## Deep-wired skills (pluggable agents + decision matrix)
+
+`/flow` ships 6 deep-wired ClaudeKit skills (opt-in, never in `cmd_next`/`cmd_check`):
+`ck-predict` (ADR), `ck-scenario` (Contract), `review-pr` (Review/Ship), `ck-security`
+(security-cards), `retro`, `ck-loop` (loop-engineering). **Loop vs two-strikes:** operators
+choose based on repair scope — `ck-loop` iterates toward a numeric metric (Implement→Test→Audit→Fix
+tail, worktree-isolated, 5-iteration stuck-break); two-strikes gates handle deadlock in review
+(bounded 2-pass escalation). Decision matrix in `references/claudekit-skills.md`.

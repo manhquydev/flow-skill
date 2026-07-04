@@ -33,7 +33,8 @@ flow-skill/
 ## Commands (`/flow ...`)
 `next` (gate-check + unlock stage) · `card` (new build card) · `check C-NNN` (validate card)
 · `status` · `mode teach|work` · `ready` (parallel-safe cards) · `auto` (autonomous run) ·
-`retro` · `harness <args>` (durable layer) · `debt add|list` · `design <file>` (UI check).
+`retro` · `loop-prep` / `loop-log` (ck-loop iteration) · `harness <args>` (durable layer)
+· `debt add|list` · `design <file>` (UI check).
 
 ## Key invariants
 - A gate passes only when mechanical (`flow.sh` exit 0) AND semantic (Claude) agree.
@@ -48,9 +49,9 @@ bash (Git Bash on Windows) for the engine; Python 3 + stdlib sqlite3 for the dur
 (optional Rust `harness-cli` power-path); no third-party install required.
 
 ## Tests
-`bash tests/run_all.sh` — 46 checks, all green. Covers gate pass/fail, lifecycle, card
-validation, intake classification, trace tiers, story verify, debt, design, the 6 buildflow
-scenario rounds, and graceful degrade.
+`bash tests/run_all.sh` — 28 suites / 680 checks, all green. Covers gate pass/fail, lifecycle,
+card validation, intake classification, trace tiers, story verify, debt, design, the 6 buildflow
+scenario rounds, loop-engineering (ck-loop wrapper), and graceful degrade.
 
 ## Status
 v1 complete: Phases 1-6 done (engine, durable layer, agent integration, loop/harness

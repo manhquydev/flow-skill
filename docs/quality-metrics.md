@@ -1,7 +1,43 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.12.2** (2026-06-21).
+Updated as the skill evolves. Current: **v0.18.0** (2026-07-04).
+
+## v0.18.0 — loop-engineering: ck-loop integration + red-team proof (2026-07-04)
+
+New capability: thin wrappers (`cmd_loop_prep`, `cmd_loop_log`) around the installed `ck-loop`
+ClaudeKit skill, giving flow's Implement→Test→Audit→Fix tail a mechanical verify→iterate→
+circuit-breaker engine. flow supplies plumbing only (worktree reuse, Verify metric derived from
+card's Allowed files, telemetry); ck-loop stays untouched. 6th deep-wired skill entry in
+`claudekit-skills.md` with a loop-vs-two-strikes decision matrix.
+
+**Red-team + CI pipeline** (2 independent adversarial reviewers + cross-OS CI) found and fixed:
+- **CRITICAL:** `Scope` hardcoded to `tests/test_*.sh` instead of deriving from card's
+  `## Allowed files`. Would have let ck-loop "improve" a metric by weakening tests instead of
+  fixing source. **Fix:** derive Scope via `_card_allowed_files()` + abort if glob matches zero files.
+- **HIGH:** no timeout on `cmd_loop_prep`'s dry-run Verify — a hanging suite could block indefinitely.
+  **Fix:** portable `_run_with_timeout()` helper (GNU timeout/gtimeout when present, background+watchdog
+  fallback otherwise).
+- **MEDIUM (security):** `loop-log` card-id argument bypassed secret-masking check. **Fix:** validate
+  via `resolve_card_file()` before logging.
+- **MEDIUM:** `loop-prep --iterations` unvalidated (inconsistent with loop-log). **Fix:** added same
+  numeric validation guard.
+- **CI-caught macOS bug:** timeout fallback returned raw SIGTERM 143 instead of GNU-compatible 124,
+  because the fallback code path was never executed locally (Windows Git Bash has real GNU timeout).
+  **Fix:** track watchdog kill via temp flag file, force 124 only if watchdog fired.
+
+**Test metrics:** assertions expanded 27 → 43 (6 new groups I–N covering each fix);
+**28 suites / 680 checks, 0 failures**; `flow coherence` PASS; CI green on Ubuntu/macOS/Windows.
+Commits: `e7fb7b1` (all fixes) + `65e29ce` (macOS portability fix), both pushed and CI-verified.
+
+**Lesson:** red-team pass on a single dev machine missed a platform-specific degradation path that
+only executed where the "faithful fallback" was genuinely exercised — cross-OS CI remains load-bearing.
+
+| Component | Before | After | Notes |
+|---|---|---|---|
+| Test suite | 27 test_flow_loop.sh assertions | 43 assertions | 6 new groups: Scope derivation, --iterations validation, Verify timeout, branch-reuse warning, loop-log card validation, real-Allowed-files fallback |
+| Commands | 25 verbs | 27 verbs | +loop-prep, +loop-log |
+| Overall | 20 suites / 467 checks | 28 suites / 680 checks | +8 test suites (incl. loop integration), +213 checks |
 
 ## v0.12.2 — language-aware review (2026-06-21)
 
