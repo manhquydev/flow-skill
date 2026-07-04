@@ -1,3 +1,18 @@
+---
+title: "flow skill cho Claude Code — engine-first, layer dần tới super-skill"
+status: superseded
+priority: P1
+created: 2026-06-13
+---
+
+> **Retired 2026-07-04**: this is the founding plan for flow-skill. Phases 1-2 (engine core,
+> durable harness) were checked off; phases 3-6 (agent integration, loop-harness-engineering,
+> design-law/playbooks, packaging/install/tests) were never checked here but were fully realized
+> through ~15 subsequent versioned plans (v0.4 Codex agent integration, v0.18.0 ck-loop =
+> literally "loop-harness-engineering", DESIGN.md/law + playbooks shipped early, install.sh +
+> 28-suite test harness both exist). Superseded by that cumulative shipped work; retired so
+> scans stop surfacing 62%-open as live unstarted work.
+
 # Plan: `/flow` skill cho Claude Code — engine-first, layer dần tới super-skill
 
 > Workspace phát triển: `D:\project\flow\flow-skill\`

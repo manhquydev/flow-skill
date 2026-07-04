@@ -1,13 +1,15 @@
 ---
 title: "flow v0.12 — telemetry truth + orchestration depth + engine hardening"
 description: "Six evidence-backed fixes (W1-W6) split into 5 cohesive cards across three theme groups."
-status: pending
+status: done
 priority: P2
 effort: 5 cards
 branch: master
 tags: [flow-skill, telemetry, orchestration, engine-hardening, v0.12]
 created: 2026-06-20
 ---
+
+> **Retired 2026-07-04**: shipped as v0.12.0/v0.12.1/v0.12.2 (see docs/journals and git history) — this plan's frontmatter status was never flipped after ship. Retired to stop watzup/project-management scans surfacing it as live work.
 
 # flow v0.12 — SCOPE + CARD PLAN
 

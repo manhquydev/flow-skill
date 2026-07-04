@@ -1,3 +1,14 @@
+---
+title: "deep-integration of repository-harness v0.1.10 into /flow"
+status: done
+priority: P1
+created: 2026-06-23
+---
+
+> **Retired 2026-07-04**: adding machine-readable frontmatter so watzup/project-management stop
+> flagging this as live work — the doc body below already states P0+P1 shipped 2026-06-24; P2 was
+> a deliberate YAGNI defer (no context-rules surface existed to score against), not abandoned work.
+
 # Plan: deep-integration of repository-harness v0.1.10 into /flow
 
 **Created:** 2026-06-23 · **Target flow version:** v0.17.0 · **Status:** P0+P1 BUILT & GREEN (2026-06-24); P2 deferred

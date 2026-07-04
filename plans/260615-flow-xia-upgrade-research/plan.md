@@ -1,3 +1,16 @@
+---
+title: "flow xia-upgrade research — decision report (2026-06-15)"
+status: superseded
+priority: P3
+created: 2026-06-15
+---
+
+> **Retired 2026-07-04**: the PORT-NOW recommendations from this research (`/flow constitution`,
+> accessed_count recall signal, assess repo-map ranking) all shipped in v0.7.0 (see
+> docs/journals + git history) — via direct implementation, not by checking off this plan's own
+> phase-01/02/03 boxes. Superseded by that shipped work; retired so scans stop treating the
+> unchecked boxes here as live/unstarted.
+
 # flow xia-upgrade research — decision report (2026-06-15)
 
 **Goal:** Research current (2025–26) trending tech/repos across 4 domains, score each as an
