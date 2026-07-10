@@ -1,9 +1,9 @@
 name: CI
 
 # Verify the /flow skill on a real macOS + Ubuntu + Linux + Windows matrix:
-#   - 93 dev checks (bash tests/run_all.sh)
+#   - dev checks (bash tests/run_all.sh) - count grows with the suite; see tests/run_all.sh output
 #   - a real install + 22 e2e checks against the INSTALLED copy (verifies the installer too)
-# = 115 checks per OS. shell: bash works on all three (Git Bash on Windows).
+# shell: bash works on all three (Git Bash on Windows).
 
 on:
   push:
@@ -44,7 +44,7 @@ jobs:
       - name: flow doctor (environment check)
         run: bash skills/flow/runner/flow.sh doctor
 
-      - name: Dev suite (93 checks)
+      - name: Dev suite (run_all.sh)
         run: bash tests/run_all.sh
 
       - name: Install to a temp project + e2e on the INSTALLED copy (22 checks)

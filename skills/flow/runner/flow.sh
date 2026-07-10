@@ -85,7 +85,12 @@ FLOW_LOG_STAGE_FROM=""; FLOW_LOG_STAGE_TO=""; FLOW_LOG_CARD=""; FLOW_LAST_GATE_F
 # verb's temp-file hygiene, which is the first caller that actually exercises a spaced TMPDIR).
 _CLEANUP_TDS=()
 _register_td()  { _CLEANUP_TDS+=("$1"); }
-_cleanup_tds()  { local d; for d in "${_CLEANUP_TDS[@]}"; do rm -rf "$d" 2>/dev/null; done; _CLEANUP_TDS=(); }
+# Guard the [@] expansion on array length first: bash < 4.4 (macOS ships 3.2.57 as /bin/bash)
+# treats a zero-element array as UNSET under `set -u`, so "${_CLEANUP_TDS[@]}" on an empty
+# array throws "unbound variable" and - since this runs inside the EXIT trap, ahead of
+# _log_event - silently broke telemetry for every single flow.sh invocation on macOS (found via
+# a real 3-OS CI run: ubuntu/windows ship bash >= 4.4, immune; macOS is not).
+_cleanup_tds()  { local d; if [ "${#_CLEANUP_TDS[@]}" -gt 0 ]; then for d in "${_CLEANUP_TDS[@]}"; do rm -rf "$d" 2>/dev/null; done; fi; _CLEANUP_TDS=(); }
 
 # Keep pure run-state (MODE / PROJECT_TYPE / .flow/) out of the host repo's git status.
 # Idempotent; only acts in a real git repo OR where a .gitignore already exists (so test
