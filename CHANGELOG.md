@@ -60,6 +60,32 @@ data (per-project events log, `cards/.inflight`, gate state) — no new infrastr
   `timeout`-guarded BLOCKED-gate regression case) wired into `run_all.sh`. Full suite:
   **31 suites / 799 checks**, all green.
 
+Also bundled (originally scoped as a separate 0.19.0, shipped together since both landed in the
+same cycle):
+
+- **New `flow.sh eval`**: behavioral proof for the semantic gate layer. Runs the real per-stage
+  `gate-rules.md` challenge text against 6 curated sound/hollow fixture pairs (Stage 01
+  fabricated-quote pattern, Stage 02 grade-laundering, card "merge≈shipped" evidence),
+  majority-votes a nonce-protected verdict (N=3, injection-resistant), prints a per-stage
+  scorecard. Opt-in and billable (clean zero-call skip if `claude` CLI absent); `--report`
+  re-reads a prior batch offline for free. Proves a fresh-judge lower bound, not the work-mode
+  self-challenge — see `references/gate-eval.md`. A Step-0 contract spike found `claude -p` runs
+  a full agentic loop with live tool access by default; locked down with `--tools ""`. Code
+  review caught and fixed a critical stdin-consumption batch-truncation bug, a shared-helper
+  space-path bug, an unanchored verdict-parse regex, and a misleading drift comparison across
+  differently-scoped batches.
+- **Post-ship hardening (found only by the first real 3-OS CI run, invisible to local
+  Windows/Linux testing):** macOS ships bash 3.2.57 as `/bin/bash` (bash < 4.4 treats a
+  zero-element array as unset under `set -u`) — `_cleanup_tds()`'s unconditional
+  `"${_CLEANUP_TDS[@]}"` threw "unbound variable" inside the EXIT trap on every single flow.sh
+  invocation on macOS, silently breaking telemetry entirely; fixed by guarding with
+  `${#arr[@]}` first. A new CI regression test called `timeout` directly, which macOS doesn't
+  ship (BSD userland); fixed with a small portable wrapper. `_run_with_timeout`'s macOS fallback
+  watchdog does not reliably bound a slow/stuck `claude` call on macOS specifically (confirmed
+  across 3 targeted fix attempts against real CI, root cause still unconfirmed without live
+  macOS access) — tracked as open debt (`DEBT.md`, opened 2026-07-10); scoped to the opt-in,
+  billable, never-auto-invoked `eval` verb only. Ubuntu + Windows CI fully green including e2e.
+
 ## 0.17.0 — 2026-06-24 — repository-harness v0.1.10 deep integration (schema reconcile + kind-aware tool registry)
 
 Reconciles flow's ported durable layer with freshly-pulled upstream `repository-harness`
