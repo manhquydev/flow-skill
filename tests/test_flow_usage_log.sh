@@ -27,7 +27,10 @@ has "$ev" '"command":"status"' "full event records the command"
 has "$ev" '"read_only":true' "status classified read_only"
 gl="$(cat "$SB/home/.claude/flow/usage.jsonl" 2>/dev/null)"
 has "$gl" '"command":"status"' "compact global event written"
-no  "$gl" '"args":' "compact line omits args (stays small)"
+# v0.20 Phase 1: the compact line now carries a constant "args" key on every row (needed for
+# card-dwell pairing), but a non-card command's value must stay empty - no raw/free-text args
+# leak into the compact global log for ordinary commands.
+has "$gl" '"card":"","args":""' "compact line: non-card command has an EMPTY args value (no raw-arg leak)"
 rm -rf "$SB"
 
 echo "2) secret-shaped args are masked before disk"
@@ -531,6 +534,132 @@ if printf '%s' "$dc_grep" | grep -q 'print\|f".*display_count\|f'"'"'.*display_c
 else
   echo "  FAIL [21c: display_count not found in any print — still dead or removed without grep proof]"; fail=$((fail+1))
 fi
+
+echo "22) v0.20 Phase 1: compact GLOBAL row gains card/args for command=card ONLY (dwell-blind fix)"
+PY="$(command -v python || command -v python3)"
+
+# 22a: a REAL card start/done pair (never hand-seeded literals — the writer path itself is
+# under test) writes card+args into the compact global row, and `usage --global` shows the
+# per-card dwell pair end-to-end.
+SB22A="$HERE/.p1_22a_$$"; rm -rf "$SB22A"; mkdir -p "$SB22A/cards" "$SB22A/home"
+export FLOW_PROJECT_ROOT="$SB22A"; export HOME="$SB22A/home"; export USERPROFILE="$SB22A/home"
+printf '# C-001 — scaffold\nstatus: todo\ndeps: none\n## Scope\none thing\n## Allowed files\ninfra/\n## Verify (run these before done)\n- [x] curl 200\n## Done-evidence (world-state proof)\nurl\n## Evidence (paste actual proof when done)\n$ curl https://x/healthz -> {"ok":true}\n' > "$SB22A/cards/C-001.md"
+FLOW_HARNESS_DISABLE=1 bash "$RUN" card start C-001 >/dev/null 2>&1
+sleep 1
+FLOW_HARNESS_DISABLE=1 bash "$RUN" card done C-001 >/dev/null 2>&1
+gstart="$(grep '"args":"start C-001"' "$HOME/.claude/flow/usage.jsonl" 2>/dev/null)"
+has "$gstart" '"card":"C-001"' "22a: compact global 'card start' row carries card=C-001"
+has "$gstart" '"args":"start C-001"' "22a: compact global 'card start' row carries bounded args"
+"$PY" "$HARN" rollup --global >/dev/null 2>&1
+u22a="$("$PY" "$HARN" usage --global 2>/dev/null)"
+has "$u22a" "C-001" "22a: 'usage --global' shows the C-001 per-card dwell pair from the compact log"
+rm -rf "$SB22A"
+
+# 22b: non-card commands still emit the constant "card":"","args":"" key shape (never omitted).
+SB22B="$HERE/.p1_22b_$$"; rm -rf "$SB22B"; mkdir -p "$SB22B/home"
+FLOW_PROJECT_ROOT="$SB22B" HOME="$SB22B/home" USERPROFILE="$SB22B/home" FLOW_HARNESS_DISABLE=1 bash "$RUN" status >/dev/null 2>&1
+gstatus="$(cat "$SB22B/home/.claude/flow/usage.jsonl" 2>/dev/null)"
+has "$gstatus" '"card":"","args":""' "22b: non-card command emits empty card/args (constant key shape)"
+rm -rf "$SB22B"
+
+# 22c: a TRULY mixed file — a legacy (pre-v0.20, no card/args keys) row sitting in the SAME
+# rollup batch as a real card start/done pair — rolls up clean and the new pair still dwells
+# (proves the legacy row's absent keys don't poison or block the pairing query for the rest of
+# the file, not just that a legacy-only file is tolerated).
+SB22C="$HERE/.p1_22c_$$"; rm -rf "$SB22C"; mkdir -p "$SB22C/home/.claude/flow"
+GLOG22C="$SB22C/home/.claude/flow/usage.jsonl"
+printf '{"ts":"2026-06-01T00:00:00Z","epoch_s":1,"session_id":"legacy","cycle_id":"c1","project":"mix","command":"status","exit_code":0,"gate_pass":null,"duration_s":1,"stage_from":"","stage_to":"","flow_version":"0.17.0","read_only":true,"gate_fail_reason":"","ephemeral":0}\n' > "$GLOG22C"
+printf '{"ts":"2026-07-01T00:00:00Z","epoch_s":100,"session_id":"s","cycle_id":"c2","project":"mix","command":"card","exit_code":0,"gate_pass":null,"duration_s":1,"stage_from":"","stage_to":"","flow_version":"0.20.0","read_only":false,"gate_fail_reason":"","ephemeral":0,"card":"C-001","args":"start C-001"}\n' >> "$GLOG22C"
+printf '{"ts":"2026-07-01T00:05:00Z","epoch_s":400,"session_id":"s","cycle_id":"c2","project":"mix","command":"card","exit_code":0,"gate_pass":null,"duration_s":1,"stage_from":"","stage_to":"","flow_version":"0.20.0","read_only":false,"gate_fail_reason":"","ephemeral":0,"card":"C-001","args":"done C-001"}\n' >> "$GLOG22C"
+FLOW_PROJECT_ROOT="$SB22C" HOME="$SB22C/home" USERPROFILE="$SB22C/home" "$PY" "$HARN" rollup --global >/dev/null 2>&1; rc22c=$?
+ck 0 "$rc22c" "22c: rollup of a legacy row mixed with a real new-format pair, same file, exits 0"
+u22c="$(FLOW_PROJECT_ROOT="$SB22C" HOME="$SB22C/home" USERPROFILE="$SB22C/home" "$PY" "$HARN" usage --global 2>/dev/null)"
+has "$u22c" "C-001" "22c: the new-format pair still dwells despite the legacy row sharing the file"
+rm -rf "$SB22C"
+
+# 22c2: a legacy-ONLY file (no dwell pairs possible yet) shows the capability-worded note.
+SB22C2="$HERE/.p1_22c2_$$"; rm -rf "$SB22C2"; mkdir -p "$SB22C2/home/.claude/flow"
+printf '{"ts":"2026-06-01T00:00:00Z","epoch_s":1,"session_id":"legacy","cycle_id":"c1","project":"old","command":"status","exit_code":0,"gate_pass":null,"duration_s":1,"stage_from":"","stage_to":"","flow_version":"0.17.0","read_only":true,"gate_fail_reason":"","ephemeral":0}\n' > "$SB22C2/home/.claude/flow/usage.jsonl"
+FLOW_PROJECT_ROOT="$SB22C2" HOME="$SB22C2/home" USERPROFILE="$SB22C2/home" "$PY" "$HARN" rollup --global >/dev/null 2>&1
+u22c2="$(FLOW_PROJECT_ROOT="$SB22C2" HOME="$SB22C2/home" USERPROFILE="$SB22C2/home" "$PY" "$HARN" usage --global 2>/dev/null)"
+has "$u22c2" "flow >= 0.20" "22c2: capability-worded note present when no card dwell pairs exist yet"
+rm -rf "$SB22C2"
+
+# 22d: a malformed-byte row anywhere in the global log must not abort the whole rollup
+# (errors="replace" decode tolerance).
+SB22D="$HERE/.p1_22d_$$"; rm -rf "$SB22D"; mkdir -p "$SB22D/home/.claude/flow"
+GLOG22D="$SB22D/home/.claude/flow/usage.jsonl"
+printf '{"ts":"t","epoch_s":1,"session_id":"a","cycle_id":"c","project":"p","command":"status","exit_code":0,"gate_pass":null,"duration_s":1,"stage_from":"","stage_to":"","flow_version":"0.19.0","read_only":true,"gate_fail_reason":"","ephemeral":0,"card":"","args":""}\n' > "$GLOG22D"
+printf '{"ts":"t","epoch_s":2,"session_id":"\xff\xfe","cycle_id":"c","project":"p","command":"status","exit_code":0,"gate_pass":null,"duration_s":1,"stage_from":"","stage_to":"","flow_version":"0.19.0","read_only":true,"gate_fail_reason":"","ephemeral":0,"card":"","args":""}\n' >> "$GLOG22D"
+printf '{"ts":"t","epoch_s":3,"session_id":"b","cycle_id":"c","project":"p","command":"status","exit_code":0,"gate_pass":null,"duration_s":1,"stage_from":"","stage_to":"","flow_version":"0.19.0","read_only":true,"gate_fail_reason":"","ephemeral":0,"card":"","args":""}\n' >> "$GLOG22D"
+FLOW_PROJECT_ROOT="$SB22D" HOME="$SB22D/home" USERPROFILE="$SB22D/home" "$PY" "$HARN" rollup --global >/dev/null 2>&1; rc22d=$?
+ck 0 "$rc22d" "22d: rollup with an invalid-UTF-8-byte row exits 0 (no UnicodeDecodeError)"
+u22d="$(FLOW_PROJECT_ROOT="$SB22D" HOME="$SB22D/home" USERPROFILE="$SB22D/home" "$PY" "$HARN" usage --global --json 2>/dev/null)"
+has "$u22d" '"events_total": 3' "22d: other (valid) rows around the malformed one still ingest"
+rm -rf "$SB22D"
+
+# 22e: a torn-with-a-newline FINAL 'card done' line (garbled but already \n-terminated — the
+# actual new cursor-hold branch this phase adds, flow_harness.py's `if n == total: break`) is
+# not permanently skipped: the cursor holds at the last GOOD line, a same-state re-rollup is
+# idempotent (no crash, no re-skip drift), and once the line is overwritten with its real
+# completed content (as the OS write eventually finishes), the next rollup picks it up.
+SB22E="$HERE/.p1_22e_$$"; rm -rf "$SB22E"; mkdir -p "$SB22E/home/.claude/flow"
+GLOG22E="$SB22E/home/.claude/flow/usage.jsonl"
+printf '{"ts":"t","epoch_s":1,"session_id":"a","cycle_id":"c","project":"p","command":"card","exit_code":0,"gate_pass":null,"duration_s":1,"stage_from":"","stage_to":"","flow_version":"0.20.0","read_only":false,"gate_fail_reason":"","ephemeral":0,"card":"C-001","args":"start C-001"}\n' > "$GLOG22E"
+printf '%s\n' '{"ts":"t","epoch_s":2,"session_id":"a"  GARBLED, still newline-terminated' >> "$GLOG22E"
+FLOW_PROJECT_ROOT="$SB22E" HOME="$SB22E/home" USERPROFILE="$SB22E/home" "$PY" "$HARN" rollup --global >/dev/null 2>&1; rc22e1=$?
+ck 0 "$rc22e1" "22e: rollup with a newline-terminated-but-garbled final line exits 0"
+u22e1="$(FLOW_PROJECT_ROOT="$SB22E" HOME="$SB22E/home" USERPROFILE="$SB22E/home" "$PY" "$HARN" usage --global --json 2>/dev/null)"
+has "$u22e1" '"events_total": 1' "22e: only the good first line rolled; the garbled final line held the cursor, not counted yet"
+# idempotent re-run: same file, no new lines — must not crash, drift, or double-count
+FLOW_PROJECT_ROOT="$SB22E" HOME="$SB22E/home" USERPROFILE="$SB22E/home" "$PY" "$HARN" rollup --global >/dev/null 2>&1; rc22e2=$?
+ck 0 "$rc22e2" "22e: idempotent re-rollup on the same held state exits 0"
+u22e2="$(FLOW_PROJECT_ROOT="$SB22E" HOME="$SB22E/home" USERPROFILE="$SB22E/home" "$PY" "$HARN" usage --global --json 2>/dev/null)"
+has "$u22e2" '"events_total": 1' "22e: idempotent re-rollup did not double-count or drift"
+# the line "completes" (the real content lands, as a real EXIT-trap append eventually would)
+printf '{"ts":"t","epoch_s":2,"session_id":"a","cycle_id":"c","project":"p","command":"card","exit_code":0,"gate_pass":null,"duration_s":1,"stage_from":"","stage_to":"","flow_version":"0.20.0","read_only":false,"gate_fail_reason":"","ephemeral":0,"card":"C-001","args":"done C-001"}\n' > "$GLOG22E.new"
+head -1 "$GLOG22E" > "$GLOG22E.fixed"; cat "$GLOG22E.new" >> "$GLOG22E.fixed"; mv "$GLOG22E.fixed" "$GLOG22E"; rm -f "$GLOG22E.new"
+FLOW_PROJECT_ROOT="$SB22E" HOME="$SB22E/home" USERPROFILE="$SB22E/home" "$PY" "$HARN" rollup --global >/dev/null 2>&1; rc22e3=$?
+ck 0 "$rc22e3" "22e: rollup after the line completes exits 0"
+u22e3="$(FLOW_PROJECT_ROOT="$SB22E" HOME="$SB22E/home" USERPROFILE="$SB22E/home" "$PY" "$HARN" usage --global 2>/dev/null)"
+has "$u22e3" "C-001" "22e: the once-held card done now pairs and shows dwell after completing + re-rolling"
+rm -rf "$SB22E"
+
+# 22e2: the PRE-EXISTING safety net (an unterminated — no trailing \n — final line, e.g. a
+# process killed mid-write before flushing the newline) is a distinct case from 22e above and
+# must still degrade safely (it never reaches the new branch; `lines[:-1]` drops it before the
+# loop even starts) — regression-guard so this phase's change doesn't disturb that older path.
+SB22E2="$HERE/.p1_22e2_$$"; rm -rf "$SB22E2"; mkdir -p "$SB22E2/home/.claude/flow"
+GLOG22E2="$SB22E2/home/.claude/flow/usage.jsonl"
+printf '{"ts":"t","epoch_s":1,"session_id":"a","cycle_id":"c","project":"p","command":"status","exit_code":0,"gate_pass":null,"duration_s":1,"stage_from":"","stage_to":"","flow_version":"0.20.0","read_only":true,"gate_fail_reason":"","ephemeral":0,"card":"","args":""}\n' > "$GLOG22E2"
+printf '%s' '{"ts":"t","epoch_s":2,"session_id":"a","cycle_id":"c","project":"p","command":"status' >> "$GLOG22E2"   # no trailing \n at all
+FLOW_PROJECT_ROOT="$SB22E2" HOME="$SB22E2/home" USERPROFILE="$SB22E2/home" "$PY" "$HARN" rollup --global >/dev/null 2>&1; rc22e2a=$?
+ck 0 "$rc22e2a" "22e2: rollup with an unterminated (no trailing newline) final line exits 0"
+rm -rf "$SB22E2"
+
+# 22f: union-shape worst-case row (all bounded fields at their cap) stays < 1024 bytes and is
+# a single printf emission (no partial/interleaved writes possible).
+SB22F="$HERE/.p1_22f_$$"; rm -rf "$SB22F"; mkdir -p "$SB22F/home"
+worst_line=$(bash -c "
+  source '$RUN' status >/dev/null 2>&1
+  unset FLOW_LOG_DISABLE
+  FLOW_LOG_CMD='card'
+  FLOW_LOG_CARD='C-001'
+  FLOW_LOG_ARGS='start C-001'
+  FLOW_LAST_GATE_FAIL=\"\$(printf 'x%.0s' \$(seq 1 120))\"
+  ROOT='$SB22F'; LOG_DIR='$SB22F/.flow'; GLOBAL_LOG='$SB22F/home/.claude/flow/usage.jsonl'
+  export HOME='$SB22F/home'
+  mkdir -p \"\$LOG_DIR\"
+  _log_event 1 >/dev/null 2>&1
+  tail -1 \"\$GLOBAL_LOG\"
+" 2>&1)
+wlen=${#worst_line}
+if [ "$wlen" -gt 0 ] && [ "$wlen" -lt 1024 ]; then
+  echo "  ok   [22f: worst-case union-shape row ${wlen}B < 1024B]"; pass=$((pass+1))
+else
+  echo "  FAIL [22f: worst-case union-shape row ${wlen}B (expected 1-1023): $worst_line]"; fail=$((fail+1))
+fi
+rm -rf "$SB22F"
 
 echo
 echo "RESULT: $pass passed, $fail failed"

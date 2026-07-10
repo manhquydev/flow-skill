@@ -31,10 +31,14 @@ flow-skill/
 ```
 
 ## Commands (`/flow ...`)
-`next` (gate-check + unlock stage) · `card` (new build card) · `check C-NNN` (validate card)
-· `status` · `mode teach|work` · `ready` (parallel-safe cards) · `auto` (autonomous run) ·
-`retro` · `loop-prep` / `loop-log` (ck-loop iteration) · `harness <args>` (durable layer)
-· `debt add|list` · `design <file>` (UI check).
+`resume` (read-only session-story brief: last session, in-flight + dwell, gate state, NEXT ->;
+run first when entering a project mid-cycle) · `next` (gate-check + unlock stage) · `card` (new
+build card) · `check C-NNN` (validate card) · `status` (NEXT -> line, stage dwell, card
+list/compact summary) · `mode teach|work` · `ready` (parallel-safe cards) · `auto` (autonomous
+run) · `retro` · `loop-prep` / `loop-log` (ck-loop iteration) · `harness <args>` (durable layer)
+· `debt add|list` · `design <file>` (UI check) · `usage [--global|--prune]` (telemetry analytics)
+· `eval` (behavioral gate proof) — plus coherence/consistency/constitution/contract/tokens/
+workspace/doctor/promote/unlock/project-type/skip. 30 verbs total; see README.md's full table.
 
 ## Key invariants
 - A gate passes only when mechanical (`flow.sh` exit 0) AND semantic (Claude) agree.
@@ -49,10 +53,13 @@ bash (Git Bash on Windows) for the engine; Python 3 + stdlib sqlite3 for the dur
 (optional Rust `harness-cli` power-path); no third-party install required.
 
 ## Tests
-`bash tests/run_all.sh` — 28 suites / 680 checks, all green. Covers gate pass/fail, lifecycle,
+`bash tests/run_all.sh` — 31 suites / 799 checks, all green. Covers gate pass/fail, lifecycle,
 card validation, intake classification, trace tiers, story verify, debt, design, the 6 buildflow
-scenario rounds, loop-engineering (ck-loop wrapper), and graceful degrade.
+scenario rounds, loop-engineering (ck-loop wrapper), behavioral gate proof (`eval`), the
+`resume`/`status` legibility surface, and graceful degrade.
 
 ## Status
-v1 complete: Phases 1-6 done (engine, durable layer, agent integration, loop/harness
-principles, DESIGN law + playbooks, packaging). See `plans/260613-1021-flow-skill-engine/`.
+v0.20.0. v1 core complete (Phases 1-6, see `plans/260613-1021-flow-skill-engine/`); ongoing
+releases add capability on top (durable-layer deep integration, cross-vendor agent tiers,
+usage-log telemetry, behavioral gate eval, mission-control legibility). See CHANGELOG.md and
+`docs/quality-metrics.md` for the per-release history.

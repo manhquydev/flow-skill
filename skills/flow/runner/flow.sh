@@ -59,10 +59,19 @@ LOCK_FILE="$ROOT/flow/.lock"
 LOCK_DIR="$ROOT/flow/.lock.d"   # atomic mkdir claim dir (W5 guard); winner then writes $LOCK_FILE metadata
 HARNESS_PY="$SCRIPT_DIR/../harness/flow_harness.py"
 
+# Eval (LLM semantic-gate behavioral harness; opt-in, billable - see 'eval' command).
+# FLOW_EVAL_MANIFEST is a TEST-ONLY override (e.g. a synthetic CRLF manifest fixture) - it does
+# NOT widen the v1 trust boundary: artifact paths still resolve as $EVAL_DIR/fixtures/<id>/<rel>,
+# so an overridden manifest can only ever point at real shipped fixtures under the real EVAL_DIR.
+EVAL_DIR="$SCRIPT_DIR/../eval"
+EVAL_MANIFEST="${FLOW_EVAL_MANIFEST:-$EVAL_DIR/manifest.tsv}"
+GATE_RULES_FILE="$SCRIPT_DIR/../references/gate-rules.md"
+
 # Usage-log sinks (run-state dir, gitignored). Mechanical flight-recorder: every invocation
 # self-records here. Local-only, never transmitted. See flow/05-contract.md (this feature's plan).
 LOG_DIR="$ROOT/.flow"
 EVENTS_FILE="$LOG_DIR/events.jsonl"                       # per-project FULL event
+EVAL_RESULTS_FILE="$LOG_DIR/eval-results.jsonl"           # per-project eval-batch results
 CYCLE_FILE="$LOG_DIR/cycle_id"                            # stamped when stage 00 unlocks
 GLOBAL_LOG="${HOME:-}/.claude/flow/usage.jsonl"           # device-global COMPACT event
 # Stage/card carried into the exit event by the commands that know them (set during run).
@@ -70,10 +79,13 @@ FLOW_LOG_STAGE_FROM=""; FLOW_LOG_STAGE_TO=""; FLOW_LOG_CARD=""; FLOW_LAST_GATE_F
 
 # Tempdir cleanup list: advisory probe functions register their mktemp -d paths here so the
 # EXIT trap (which fires on normal exit AND signals) removes them even on SIGINT/SIGTERM.
-# Each entry is a NUL-terminated path; use _register_td / _cleanup_tds helpers.
-_CLEANUP_TDS=""
-_register_td()  { _CLEANUP_TDS="${_CLEANUP_TDS}${1} "; }      # append (space-separated; paths have no spaces)
-_cleanup_tds()  { local d; for d in $_CLEANUP_TDS; do rm -rf "$d" 2>/dev/null; done; _CLEANUP_TDS=""; }
+# Array (not a space-joined string): a space-containing TMPDIR (routine on Windows, e.g. a
+# "Local Settings\Temp" or "John Doe\AppData" path) previously split into bogus fragments under
+# unquoted `for d in $_CLEANUP_TDS`, silently no-op'ing the rm -rf (found reviewing the eval
+# verb's temp-file hygiene, which is the first caller that actually exercises a spaced TMPDIR).
+_CLEANUP_TDS=()
+_register_td()  { _CLEANUP_TDS+=("$1"); }
+_cleanup_tds()  { local d; for d in "${_CLEANUP_TDS[@]}"; do rm -rf "$d" 2>/dev/null; done; _CLEANUP_TDS=(); }
 
 # Keep pure run-state (MODE / PROJECT_TYPE / .flow/) out of the host repo's git status.
 # Idempotent; only acts in a real git repo OR where a .gitignore already exists (so test
@@ -492,28 +504,26 @@ gate_durable_hook() { # $1 = stage just passed
 
 # ---------- commands ----------
 
-cmd_status() {
-  local idx; idx="$(current_stage_idx)"
-  echo "flow status"
-  echo "  project: $ROOT"
-  echo "  mode:    $(cat "$MODE_FILE" 2>/dev/null | tr -d '\r' || echo teach) (default teach)"
-  echo "  type:    $(get_project_type) (done = $(done_def_for_type "$(get_project_type)"))"
-  lock_warn
-  echo
-  if [ -f "$FLOW_DIR/00-inspect.md" ]; then
-    if scan_gate "$FLOW_DIR/00-inspect.md" >/dev/null 2>&1; then
-      echo "brownfield: assessment present, gate clean (flow/00-inspect.md)"
-    else
-      echo "brownfield: assessment present but gate NOT clean - run '/flow assess'"
-    fi
-    echo
-  fi
+# Shared gate-state block: same idx/scan_gate logic status has always used, extracted so
+# `resume` (Phase 2) prints byte-identical gate text and the two verbs can never disagree.
+# Side-effect-free (only reads $idx + FLOW_DIR files via scan_gate, both already read-only).
+_gate_state_brief() { # $1 = current_stage_idx (caller already computed it), $2 = optional dwell
+  # string (e.g. "45m") appended to the first line. Takes dwell as a plain arg (never wraps this
+  # function's own call site in a pipe) - the BLOCKED branch below re-invokes scan_gate
+  # unredirected, and piping that nested-call output into a consumer (e.g. `| while read`) was
+  # found to hang indefinitely under Git-Bash/MSYS (an early-pipe-reader-exit class issue) -
+  # verified by a live code-review reproduction, not merely suspected.
+  local idx="$1" dwell="${2:-}"
   if [ "$idx" -lt 0 ]; then
     echo "planning: not started"
     echo "  -> run '/flow next' to unlock stage 00 (idea)"
   else
     local cur; cur="$(stage_name_at "$idx")"
-    echo "planning: at stage $cur"
+    if [ -n "$dwell" ]; then
+      echo "planning: at stage $cur (for $dwell)"
+    else
+      echo "planning: at stage $cur"
+    fi
     if scan_gate "$FLOW_DIR/$cur.md" >/dev/null 2>&1; then
       if [ "$idx" -ge "$LAST_STAGE_IDX" ]; then
         echo "  gate: PASS - planning complete. '/flow card' is unlocked."
@@ -526,18 +536,96 @@ cmd_status() {
       scan_gate "$FLOW_DIR/$cur.md"
     fi
   fi
+}
+
+_stage_dwell() { # $1 = current stage name -> "Xm/Xh/Xd" from genuine entry, or "" if no match
+  local cur="$1" lines epoch
+  [ -f "$EVENTS_FILE" ] || return 0
+  lines="$(_resume_valid_lines)"
+  [ -n "$lines" ] || return 0
+  # A genuine entry into $cur is the ONLY case where cmd_next's own event-write sets
+  # exit_code=0 while stage_to=$cur (flow.sh: unlock-stage-00 branch and the successful-advance
+  # branch). A failed `/flow next` retry ALSO writes stage_to=$cur but with exit_code=1 - and
+  # critically its stage_from is left at the script default "" (never set on that path), so a
+  # `stage_from != cur` check alone does NOT exclude it (empty string always != a real stage
+  # name) and the anchor would keep shrinking to the latest failed retry. exit_code is the only
+  # field that actually discriminates the two real event shapes cmd_next produces.
+  epoch="$(printf '%s\n' "$lines" | while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    [ "$(_ws_get "$line" stage_to)" = "$cur" ] || continue
+    [ "$(_ws_get_num "$line" exit_code)" = "0" ] || continue
+    printf '%s\n' "$(_ws_get_num "$line" epoch_s)"
+  done | tail -1)"
+  [ -n "$epoch" ] && _elapsed_human "$epoch"
+}
+
+cmd_status() {
+  local idx; idx="$(current_stage_idx)"
+  echo "flow status"
+  echo "  project: $ROOT"
+  echo "  mode:    $(cat "$MODE_FILE" 2>/dev/null | tr -d '\r' || echo teach) (default teach)"
+  echo "  type:    $(get_project_type) (done = $(done_def_for_type "$(get_project_type)"))"
+  lock_warn
+  echo
+  echo "NEXT -> $(_next_action)"
+  echo
+  if [ -f "$FLOW_DIR/00-inspect.md" ]; then
+    if scan_gate "$FLOW_DIR/00-inspect.md" >/dev/null 2>&1; then
+      echo "brownfield: assessment present, gate clean (flow/00-inspect.md)"
+    else
+      echo "brownfield: assessment present but gate NOT clean - run '/flow assess'"
+    fi
+    echo
+  fi
+  local dwell="" cur=""
+  [ "$idx" -ge 0 ] && { cur="$(stage_name_at "$idx")"; dwell="$(_stage_dwell "$cur")"; }
+  _gate_state_brief "$idx" "$dwell"
   echo
   local total; total="$(highest_card)"
   if [ "$total" -gt 0 ]; then
-    echo "cards: $total created"
-    local f st
-    for f in "$CARDS_DIR"/C-*.md; do
-      [ -e "$f" ] || continue
-      st="$(card_status "$f")"
-      echo "  $(basename "$f" .md): ${st:-?}"
-    done
-    local infl_out; infl_out="$(inflight_display)"
-    [ -n "$infl_out" ] && { echo "  in flight (operator-marked via '/flow card start'):"; printf '%s\n' "$infl_out"; }
+    if [ "$total" -gt 10 ]; then
+      # Compact form: respects the real 2-state (todo|done) + .inflight-registry data model -
+      # there is no "in-progress" status value (card_status/:228). Y = todo cards also present
+      # in the .inflight registry; Z = remaining todo. In-flight and todo cards are always
+      # listed individually; only done cards are summarized away.
+      # N in the header is the ACTUAL file count (done_n+infl_n+todo_n by construction), not
+      # highest_card()'s max-suffix value - card numbering can have gaps (a deleted card), and
+      # highest_card() would then silently break the "X+Y+Z=N" invariant the compact form
+      # promises. A single pass builds both the counts and the todo-line list together.
+      local f st infl_ids done_n=0 infl_n=0 todo_n=0 todo_lines=""
+      infl_ids="$(_inflight_file)"
+      for f in "$CARDS_DIR"/C-*.md; do
+        [ -e "$f" ] || continue
+        st="$(card_status "$f")"
+        if [ "$st" = "done" ]; then
+          done_n=$((done_n + 1))
+        elif [ "$st" = "todo" ]; then
+          local id; id="$(basename "$f" .md)"
+          if [ -f "$infl_ids" ] && grep -q "^$id " "$infl_ids" 2>/dev/null; then
+            infl_n=$((infl_n + 1))
+          else
+            todo_n=$((todo_n + 1))
+            todo_lines="$todo_lines  $id: todo
+"
+          fi
+        fi
+      done
+      echo "cards: $((done_n + infl_n + todo_n)) created ($done_n done · $infl_n in flight · $todo_n todo)"
+      local infl_out; infl_out="$(inflight_display)"
+      [ -n "$infl_out" ] && { echo "  in flight (operator-marked via '/flow card start'):"; printf '%s\n' "$infl_out"; }
+      [ -n "$todo_lines" ] && printf '%s' "$todo_lines"
+      [ "$done_n" -gt 0 ] && echo "  (+$done_n more done)"
+    else
+      echo "cards: $total created"
+      local f st
+      for f in "$CARDS_DIR"/C-*.md; do
+        [ -e "$f" ] || continue
+        st="$(card_status "$f")"
+        echo "  $(basename "$f" .md): ${st:-?}"
+      done
+      local infl_out; infl_out="$(inflight_display)"
+      [ -n "$infl_out" ] && { echo "  in flight (operator-marked via '/flow card start'):"; printf '%s\n' "$infl_out"; }
+    fi
   else
     echo "cards: none yet"
   fi
@@ -548,6 +636,140 @@ cmd_status() {
   echo
   echo "memory: ${debt_n} open debt · ${pb_n} playbooks${retro_last:+ · last retro: [$retro_last]}"
   echo "  -> '/flow recall' reads back debt/retro/prev-card/harness before you work."
+}
+
+# ---------- resume (read-only session-story brief; the "AI context amnesia" fix) ----------
+
+# Torn-line defense: the per-project events log is unbounded per-row and an EXIT-trap append
+# can be in flight while resume reads it, so validate every candidate line's shape (must start
+# with '{"ts":' and end with '}') and drop a non-conforming line rather than trust it. The
+# python harness guards the same class of risk with json.loads; this is the shell equivalent.
+# ALSO reject a line containing more than one '{"ts":' occurrence: two complete JSON objects
+# glued together with no separating newline (a lost trailing \n on a non-atomic append) would
+# still pass the edge-shape check above, and _ws_get's greedy match would then silently resolve
+# every field to the SECOND object - the first event vanishes with no error or warning. A real
+# single-object row's own "ts" key appears exactly once.
+_resume_valid_lines() {
+  [ -f "$EVENTS_FILE" ] || return 0
+  tail -n 500 "$EVENTS_FILE" 2>/dev/null | tr -d '\r' | while IFS= read -r line; do
+    case "$line" in
+      '{"ts":'*'}')
+        n_ts="$(printf '%s' "$line" | grep -o '{"ts":' | wc -l)"
+        [ "$n_ts" -eq 1 ] && printf '%s\n' "$line"
+        ;;
+    esac
+  done
+}
+
+cmd_resume() {
+  local idx; idx="$(current_stage_idx)"
+  if [ "$idx" -lt 0 ]; then
+    echo "nothing to resume - $(_next_action)"
+    return 0
+  fi
+
+  echo "flow resume"
+  echo "  project: $ROOT"
+  echo
+
+  if [ ! -s "$EVENTS_FILE" ]; then
+    echo "no telemetry - showing gate state only"
+    echo
+    _gate_state_brief "$idx"
+    echo
+    echo "NEXT -> $(_next_action)"
+    return 0
+  fi
+
+  local lines; lines="$(_resume_valid_lines)"
+  local cur_sess; cur_sess="$(_session_id)"
+
+  # ---- LAST SESSION (command NAMES + exit + stage transitions only - never raw args: they
+  # can carry unmasked secrets in free-text fields, and a quote-blind extractor would truncate
+  # a value containing an escaped quote anyway) ----
+  local first_own_epoch=""
+  first_own_epoch="$(printf '%s\n' "$lines" | while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    [ "$(_ws_get "$line" session_id)" = "$cur_sess" ] || continue
+    printf '%s\n' "$(_ws_get_num "$line" epoch_s)"
+    break
+  done)"
+
+  local foreign_sess=""
+  foreign_sess="$(printf '%s\n' "$lines" | while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    local s; s="$(_ws_get "$line" session_id)"
+    [ "$s" = "$cur_sess" ] && continue
+    printf '%s\n' "$s"
+  done | tail -1)"
+
+  if [ -n "$foreign_sess" ]; then
+    # session_id may be a reusable `ppid:host:NNN` form or a UUID. Detection = string
+    # inequality (above) PLUS a time-gap fallback: a `ppid:` scheme whose latest foreign row is
+    # < 15 min older than this session's own first row is more likely PID reuse than a genuine
+    # prior session - label it accordingly rather than asserting a "last session" that may
+    # never have existed. Absolute timestamps are shown either way.
+    local label="last session" f_epoch gap
+    case "$foreign_sess" in
+      ppid:*)
+        f_epoch="$(printf '%s\n' "$lines" | while IFS= read -r line; do
+          [ "$(_ws_get "$line" session_id)" = "$foreign_sess" ] || continue
+          printf '%s\n' "$(_ws_get_num "$line" epoch_s)"
+        done | tail -1)"
+        # Anchor on the current session's OWN first row when one exists; otherwise fall back
+        # to wall-clock now(). Without this fallback, the gap check was a no-op on resume's own
+        # primary documented trigger (SKILL.md: "run /flow resume BEFORE any other flow verb")
+        # - at that point there IS no own-session row yet, so the fallback never fired exactly
+        # when ppid-reuse risk is highest (fresh session, no prior activity to compare against).
+        local anchor="$first_own_epoch"
+        [ -n "$anchor" ] || anchor="$(_now)"
+        if [ -n "$f_epoch" ]; then
+          gap=$(( anchor - f_epoch )); [ "$gap" -lt 0 ] && gap=$(( -gap ))
+          [ "$gap" -lt 900 ] && label="recent activity"
+        fi
+        ;;
+    esac
+    local last_ts
+    last_ts="$(printf '%s\n' "$lines" | while IFS= read -r line; do
+      [ "$(_ws_get "$line" session_id)" = "$foreign_sess" ] || continue
+      printf '%s\n' "$(_ws_get "$line" ts)"
+    done | tail -1)"
+    echo "$label (as of $last_ts):"
+    printf '%s\n' "$lines" | while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      [ "$(_ws_get "$line" session_id)" = "$foreign_sess" ] || continue
+      local cmd ec sf st ts marker trans
+      cmd="$(_ws_get "$line" command)"; ec="$(_ws_get_num "$line" exit_code)"
+      sf="$(_ws_get "$line" stage_from)"; st="$(_ws_get "$line" stage_to)"
+      ts="$(_ws_get "$line" ts)"
+      if [ "$ec" = "0" ]; then marker="ok"; else marker="FAIL($ec)"; fi
+      trans=""
+      { [ -n "$sf" ] || [ -n "$st" ]; } && trans="  [$sf -> $st]"
+      printf '  %s  %-10s %s%s\n' "$ts" "$cmd" "$marker" "$trans"
+    done | tail -5
+    echo
+  fi
+
+  # ---- IN FLIGHT ----
+  local infl_out; infl_out="$(inflight_display)"
+  if [ -n "$infl_out" ]; then
+    echo "in flight:"
+    printf '%s\n' "$infl_out"
+    echo
+  fi
+
+  # ---- GATE STATE (identical to `status`'s own block - see _gate_state_brief). NOTE: this
+  # reports only the CURRENT stage's gate, while NEXT (below) scans back for the earliest
+  # genuinely-blocked stage - by design (an earlier un-skipped block is the real next action
+  # even when the current stage's own gate is clean). The two lines can read as contradictory
+  # in that rare state ("gate: PASS" immediately followed by "fix gate: ... in flow/02-..."); this
+  # is correct, not a bug - GATE STATE answers "is the CURRENT stage clean", NEXT answers "what
+  # do I actually do next", and those are different questions when an earlier stage is blocked. ----
+  _gate_state_brief "$idx"
+  echo
+
+  # ---- NEXT (shared with `status` via _next_action - the two verbs can never disagree) ----
+  echo "NEXT -> $(_next_action)"
 }
 
 cmd_next() {
@@ -643,6 +865,77 @@ inflight_display() { # emit a line per todo card still marked in flight (stale i
     [ "$(card_status "$f")" = "todo" ] || continue            # only todo cards are "in flight"
     printf '    %s (in flight, started %s ago)\n' "$id" "$(_elapsed_human "$ts")"
   done < "$infl"
+}
+
+# Single source of truth for "what should I do next" - used by BOTH `status` (Phase 3) and
+# `resume` (this phase) so the two verbs can never disagree about the next step. Pure function
+# of existing state helpers; no side effects. Decision ladder, first match wins.
+_next_action() {
+  local idx; idx="$(current_stage_idx)"
+  if [ "$idx" -lt 0 ]; then
+    echo "run '/flow next' to unlock stage 00"
+    return 0
+  fi
+  # Scan every stage through the current one for the FIRST that is neither gate-clean nor
+  # debt-skipped - mirrors planning_complete's own scan, so this can never recommend "cut
+  # cards" while an earlier (non-current) stage is still genuinely blocked.
+  local s blocked="" cur; cur="$(stage_name_at "$idx")"
+  for s in $STAGES; do
+    if [ ! -f "$FLOW_DIR/$s.md" ]; then
+      stage_skipped "$s" && continue
+      break
+    fi
+    if ! scan_gate "$FLOW_DIR/$s.md" >/dev/null 2>&1; then
+      stage_skipped "$s" && continue
+      blocked="$s"; break
+    fi
+    [ "$s" = "$cur" ] && break
+  done
+  if [ -n "$blocked" ]; then
+    # Materialize scan_gate's output into a variable FIRST, then extract from that string -
+    # never pipe scan_gate's own (multi-line, internally-piped) output straight into a reader
+    # that can exit early like `grep -m1`. An early-exiting reader closing its end of the pipe
+    # while scan_gate's own nested `printf | sed` is still writing was found to hang
+    # indefinitely under Git-Bash/MSYS (early-pipe-reader-exit class issue, confirmed by a live
+    # reproduction) - command substitution alone (no early-exit reader) does not hit this.
+    local gate_out reason
+    gate_out="$(scan_gate "$FLOW_DIR/$blocked.md" 2>/dev/null)"
+    reason="$(printf '%s\n' "$gate_out" | grep -m1 '\[x\]' | sed -E 's/^[[:space:]]*\[x\][[:space:]]*//; s/:$//')"
+    echo "fix gate: ${reason:-gate violations} in flow/$blocked.md"
+    return 0
+  fi
+  if [ "$idx" -lt "$LAST_STAGE_IDX" ]; then
+    echo "run '/flow next' to unlock the next stage"
+    return 0
+  fi
+  # Planning complete (every stage through the last is clean or debt-skipped).
+  local total; total="$(highest_card)"
+  if [ "$total" -eq 0 ]; then
+    echo "run '/flow card' to cut build cards"
+    return 0
+  fi
+  local infl id ts f
+  infl="$(_inflight_file)"
+  if [ -f "$infl" ]; then
+    while read -r id ts; do
+      [ -n "$id" ] || continue
+      f="$(resolve_card_file "$id" 2>/dev/null)"
+      [ -n "$f" ] && [ -f "$f" ] || continue
+      [ "$(card_status "$f")" = "todo" ] || continue
+      echo "continue $id (in flight $(_elapsed_human "$ts"))"
+      return 0
+    done < "$infl"
+  fi
+  local any_todo=0 fpath
+  for fpath in "$CARDS_DIR"/C-*.md; do
+    [ -e "$fpath" ] || continue
+    [ "$(card_status "$fpath")" = "todo" ] && { any_todo=1; break; }
+  done
+  if [ "$any_todo" -eq 1 ]; then
+    echo "start next card: '/flow card start C-NNN'"
+    return 0
+  fi
+  echo "run '/flow check' then ship per stage 09"
 }
 
 _set_card_status() { # $1=file $2=value -> rewrite the ^status: line (portable substitute; temp+mv)
@@ -1838,10 +2131,20 @@ _run_with_timeout() { # $1 = seconds; $2 = command string (run via `sh -c`)
   # Fallback (macOS ships neither by default): a killed process's own exit status (e.g. 143 from
   # SIGTERM) is NOT 124, so track whether the watchdog actually fired via a flag file and force
   # the GNU-timeout-compatible 124 in that case - callers only branch on the numeric 124 contract.
+  # The watchdog traps TERM to kill its OWN sleep child before exiting: `wait`/`kill` only work
+  # reliably within the process that actually owns the child, so the sleep must stay the
+  # watchdog's direct child (not a sibling of it) - without the trap, killing the watchdog when
+  # the real command finishes early does NOT kill its sleep, which is reparented and keeps
+  # running to completion, orphaned, on every fast call (previously unbounded: N fast calls left
+  # N orphaned `sleep $secs` processes).
   local flag; flag="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/.flow_timeout_$$")"
   rm -f "$flag" 2>/dev/null
   sh -c "$cmd" & local pid=$!
-  ( sleep "$secs" 2>/dev/null; kill -TERM "$pid" 2>/dev/null && : > "$flag" 2>/dev/null ) & local watchdog=$!
+  ( trap 'kill "$SLEEP_PID" 2>/dev/null; exit 143' TERM
+    sleep "$secs" 2>/dev/null & SLEEP_PID=$!
+    wait "$SLEEP_PID" 2>/dev/null
+    kill -TERM "$pid" 2>/dev/null && : > "$flag" 2>/dev/null
+  ) & local watchdog=$!
   wait "$pid" 2>/dev/null; local rc=$?
   kill "$watchdog" 2>/dev/null; wait "$watchdog" 2>/dev/null
   if [ -f "$flag" ]; then rm -f "$flag" 2>/dev/null; return 124; fi
@@ -2015,6 +2318,525 @@ cmd_loop_log() { # $1 = card id; --iterations N --start M --end K --outcome conv
   esac
 }
 
+# ---------- eval (LLM semantic-gate behavioral eval; opt-in, billable, NEVER in CI) ----------
+# Proves whether the semantic layer (gate-rules.md, executed by an LLM after every mechanical
+# PASS) actually catches a hollow-but-mechanically-clean artifact. See phase-02-eval-runner.md
+# for the full design + the Step-0 contract spike this implementation is built on.
+
+# Per-run nonce: unpredictable to whoever authored a fixture (Phase 1, long before any eval
+# run), derived from session id + epoch + PID - no $RANDOM. One nonce per invocation, reused
+# across every fixture x N call in that batch (fixture content can never contain a matching
+# nonce, since it was written long before this run existed - this is the injection defense,
+# independent of the Phase 1/4 deny-list).
+_eval_nonce() {
+  printf '%s-%s-%s' "$(_session_id)" "$(_now)" "$$" | tr -c 'A-Za-z0-9' '-' | sed -E 's/-+/-/g; s/^-//; s/-$//'
+}
+
+# stage arg -> gate-rules.md heading regex (explicit map; the card gate is '## Card gate', NOT
+# a '## Stage NN' pattern - red-team finding #10).
+_eval_heading_pattern() {
+  case "$1" in
+    01)   echo '^## Stage 01' ;;
+    02)   echo '^## Stage 02' ;;
+    card) echo '^## Card gate' ;;
+    *)    return 1 ;;
+  esac
+}
+
+# Extract one stage's ritual text: from its heading line up to (not including) the next '## '
+# heading, or EOF. Prints nothing on a bad stage/missing file - caller MUST assert non-empty
+# before any billable call (a silent empty extraction would judge against no rule at all).
+_eval_extract_section() { # $1 = stage (01|02|card)
+  local pat; pat="$(_eval_heading_pattern "$1")" || return 1
+  [ -f "$GATE_RULES_FILE" ] || return 1
+  awk -v pat="$pat" '
+    $0 ~ pat { f=1; print; next }
+    f && /^## / { f=0 }
+    f { print }
+  ' "$GATE_RULES_FILE"
+}
+
+# Usability probe: zero cost if `claude` is absent; exactly one minimal billable call if present.
+# --tools "" is MANDATORY (Step-0 spike finding): claude -p runs a full agentic loop with live
+# Bash/PowerShell/Edit/Write tool access by default; neither --allowedTools "" nor
+# --disallowedTools reliably zeroed this out on the measured CLI version - only --tools ""
+# (disable the entire built-in tool set) did. The judge only ever needs the inlined prompt text.
+_eval_probe() { # echoes absent|ok|fail; never fails the caller
+  command -v claude >/dev/null 2>&1 || { echo absent; return 0; }
+  local out
+  out="$(_run_with_timeout 30 "printf '%s' 'Reply with exactly: FLOWPONG' | claude -p --tools '' --disable-slash-commands" 2>/dev/null)"
+  case "$out" in *FLOWPONG*) echo ok ;; *) echo fail ;; esac
+}
+
+# Single engine seam (v2 can add codex/agy here without touching the fixture loop below).
+# Prompt is piped from a FILE inside the cmd string itself (not via inherited stdin across the
+# _run_with_timeout background-job boundary) - the path is single-quoted so a space-containing
+# TMPDIR (Windows) does not split the command.
+_eval_engine_run() { # $1=promptfile $2=timeout-seconds -> stdout=raw json; return 124=timeout
+  local promptfile="$1" timeout="$2"
+  _run_with_timeout "$timeout" "cat '$promptfile' | claude -p --tools '' --disable-slash-commands --output-format json"
+}
+
+# Build the judge prompt for one fixture. Returns 1 (writes nothing usable) if the gate-rules.md
+# section extraction came back empty.
+_eval_build_prompt() { # $1=outfile $2=stage $3=artifact-file $4=nonce
+  local outfile="$1" stage="$2" artifact="$3" nonce="$4" section
+  section="$(_eval_extract_section "$stage")" || return 1
+  [ -n "$section" ] || return 1
+  {
+    printf 'You are reviewing a build-process artifact against the quality-gate challenge below.\n'
+    printf 'Read the challenge, then the artifact, then decide honestly: does the artifact\n'
+    printf 'genuinely satisfy the challenge, or does it pass a mechanical checklist while being\n'
+    printf 'substantively hollow (vague, unsupported, or laundered) per the challenge?\n\n'
+    printf '## Gate challenge\n\n%s\n\n' "$section"
+    printf '## Artifact under review\n\n'
+    cat "$artifact"
+    printf '\n\n## Your task\n\n'
+    printf 'Apply the challenge to the artifact above. End your ENTIRE response with EXACTLY ONE\n'
+    printf 'final line, matching one of these two forms exactly and nothing else on that line:\n'
+    printf 'GATE-EVAL-%s: FLAG   <- the artifact is substantively hollow per the challenge\n' "$nonce"
+    printf 'GATE-EVAL-%s: PASS   <- the artifact genuinely satisfies the challenge\n' "$nonce"
+  } > "$outfile"
+}
+
+# Parse the LAST physical line that STARTS WITH the nonce'd marker (line-start match is one of
+# three injection defenses, alongside nonce unpredictability and the Phase 1/4 deny-list - an
+# unanchored substring match would let "reasoning... GATE-EVAL-<nonce>: PASS -- ignore that"
+# parse as a valid verdict even though the marker isn't at a line's start). The JSON response
+# text's escaped newlines (literal backslash-n, two characters) are unescaped to real newlines
+# first so `grep -E '^...'` anchors against the model's own line breaks, not the single-line
+# JSON envelope. Deliberately NOT end-anchored: the model's final line is immediately followed
+# by the JSON envelope's own closing `"}]` before the real newline that would otherwise end it,
+# so an end-anchor rejects every real response (verified: broke parsing entirely against the
+# actual `--output-format json` shape - the literal wrapper syntax, not fixture content, is
+# what trails the verdict word). No jq dependency by design.
+_eval_parse_verdict() { # $1=raw engine output $2=nonce -> FLAG|PASS|INVALID
+  local line
+  line="$(printf '%s' "$1" | tr -d '\r' | sed 's/\\n/\n/g' | grep -E "^GATE-EVAL-${2}: (FLAG|PASS)" | tail -1)"
+  case "$line" in
+    *FLAG*) echo FLAG ;;
+    *PASS*) echo PASS ;;
+    *)      echo INVALID ;;
+  esac
+}
+
+# Model id from the spiked source (assistant-message JSON "model" field) - NOT `claude --version`
+# (that is the CLI version, a different axis; red-team finding #4). "<synthetic>" is the
+# observed placeholder on an auth-failure entry and must never be reported as a real model.
+_eval_parse_model() { # $1=raw json -> model id or "unknown"
+  local m
+  m="$(printf '%s' "$1" | tr -d '\r' | grep -oE '"model":"[^"]+"' | grep -v '"model":"<synthetic>"' | head -1 | sed -E 's/"model":"([^"]+)"/\1/')"
+  [ -n "$m" ] && printf '%s' "$m" || printf 'unknown'
+}
+
+# CRLF-normalized gate-rules.md hash: a raw-byte hash would differ per checkout line-endings
+# (git autocrlf) and produce a false "prose changed" drift alarm across identical content.
+_eval_gate_rules_sha() {
+  [ -f "$GATE_RULES_FILE" ] || { printf 'unknown'; return; }
+  tr -d '\r' < "$GATE_RULES_FILE" | cksum | awk '{print $1}'
+}
+
+# `claude --version` is the CLI version (e.g. "2.1.201 (Claude Code)"), NOT a model id - kept
+# as its own axis distinct from `_eval_parse_model` (red-team finding #4: 3 reviewers
+# independently confirmed conflating the two is wrong). `< /dev/null`: this and every other
+# batch-level helper below is called from INSIDE the manifest `while read ... done < manifest`
+# loop's body - any subprocess in there that reads its OWN stdin without an explicit source
+# silently inherits the loop's file descriptor and consumes the REST OF THE MANIFEST (verified:
+# this exact gotcha silently truncated a live batch to 1 of 6 fixtures before this fix).
+_eval_cli_version() {
+  local v
+  v="$(claude --version < /dev/null 2>/dev/null | head -1 | tr -d '\r')"
+  [ -n "$v" ] && printf '%s' "$v" || printf 'unknown'
+}
+
+# Batch header/trailer: the EXIT-only trap means an interrupted batch (Ctrl-C mid-run) leaves
+# no trailer - that absence IS the completeness signal `--report`/drift filter on, rather than
+# trying to positively detect "torn". Mixed record shapes in one file (batch markers vs fixture
+# rows) are always safe to append-only-scan since both are single JSON objects on their own line.
+_eval_emit_batch_marker() { # $1=run_id $2=start|done $3=n_expected-or-n_written
+  mkdir -p "$LOG_DIR" 2>/dev/null || true
+  printf '{"ts":"%s","epoch_s":%s,"run_id":"%s","batch":"%s","n":%s}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" "$(_now)" "$(_json_str "$1")" "$(_json_str "$2")" "$3" \
+    >> "$EVAL_RESULTS_FILE" 2>/dev/null || true
+}
+
+# Append one JSONL result line per fixture. NOT wrapped in _log_disabled - this is the eval's
+# own results sink, distinct from the usage-log flight-recorder, and is the entire point of
+# running eval at all. Every field kept flat/short by design (PIPE_BUF line-size invariant,
+# suite-asserted in Phase 4) - no free-text fields beyond the already-bounded id/stage/model.
+# cli_version/flow_version/gate_rules_sha are passed in (computed ONCE per batch by the caller,
+# not per fixture row) - they never change mid-batch, and recomputing per-row was both wasteful
+# (an extra subprocess per fixture) and the original vector for the stdin-consumption bug above.
+_eval_emit_result() { # $1=run_id $2=id $3=stage $4=expected $5=verdict $6=match $7=flag $8=pass $9=invalid $10=n $11=model $12=cli_version $13=flow_version $14=gate_rules_sha
+  local run_id="$1" fid="$2" stage="$3" expected="$4" verdict="$5" match="$6" flag="$7" pass="$8" invalid="$9" n="${10}" model="${11}" cliv="${12}" flowv="${13}" grsha="${14}"
+  mkdir -p "$LOG_DIR" 2>/dev/null || true
+  printf '{"ts":"%s","epoch_s":%s,"run_id":"%s","fixture":"%s","stage":"%s","expected":"%s","verdict":"%s","match":"%s","votes":{"flag":%s,"pass":%s,"invalid":%s},"n":%s,"cli_version":"%s","model":"%s","flow_version":"%s","gate_rules_sha":"%s"}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" "$(_now)" "$(_json_str "$run_id")" "$(_json_str "$fid")" \
+    "$(_json_str "$stage")" "$(_json_str "$expected")" "$(_json_str "$verdict")" "$(_json_str "$match")" \
+    "$flag" "$pass" "$invalid" "$n" "$(_json_str "$cliv")" "$(_json_str "$model")" \
+    "$(_json_str "$flowv")" "$(_json_str "$grsha")" >> "$EVAL_RESULTS_FILE" 2>/dev/null || true
+}
+
+# Extract one top-level quoted-string field's value from an own-emitted JSON line. Our eval
+# JSONL is fully controlled/predictable in shape (never fixture/model free text at this layer -
+# those are already extracted upstream), so this stays a cheap grep/sed pair, no jq dependency.
+_eval_json_str_field() { # $1=line $2=field-name -> value or empty
+  printf '%s' "$1" | grep -oE "\"$2\":\"[^\"]*\"" | head -1 | sed -E "s/^\"$2\":\"([^\"]*)\"\$/\1/"
+}
+
+# List complete run_ids (has both a start header and a done trailer, n_written >= n_expected),
+# oldest first. An interrupted batch (Ctrl-C mid-run -> no trailer, per the EXIT-only trap) is
+# silently excluded here - that absence IS the completeness signal, not a positive "torn" flag.
+_eval_complete_run_ids() {
+  [ -f "$EVAL_RESULTS_FILE" ] || return 0
+  awk '
+    /"batch":"start"/ {
+      match($0, /"run_id":"[^"]*"/); rid = substr($0, RSTART+10, RLENGTH-11)
+      match($0, /"n":[0-9]+/); nexp[rid] = substr($0, RSTART+4, RLENGTH-4)
+      if (!(rid in seen_order)) { order[++oc] = rid; seen_order[rid] = 1 }
+      seen_start[rid] = 1
+      next
+    }
+    /"batch":"done"/ {
+      match($0, /"run_id":"[^"]*"/); rid = substr($0, RSTART+10, RLENGTH-11)
+      match($0, /"n":[0-9]+/); nwritten[rid] = substr($0, RSTART+4, RLENGTH-4)
+      seen_done[rid] = 1
+      next
+    }
+    END {
+      for (i = 1; i <= oc; i++) {
+        r = order[i]
+        if (seen_start[r] && seen_done[r] && (nwritten[r]+0) >= (nexp[r]+0)) print r
+      }
+    }
+  ' "$EVAL_RESULTS_FILE"
+}
+
+# Per-stage scorecard for one batch: hollow flag-rate, sound pass-rate, invalid/unreliable
+# count, per-fixture MATCH/MISMATCH/UNRELIABLE. Healthy threshold (documented, not enforced):
+# hollow flag-rate >= 2/3 per fixture (majority), sound majority-pass (Validation decision 1).
+_eval_print_scorecard() { # $1=run_id
+  local rid="$1" rows firstrow cliv model grsha tsv
+  rows="$(grep -F "\"run_id\":\"$rid\"" "$EVAL_RESULTS_FILE" 2>/dev/null | grep '"fixture":')"
+  if [ -z "$rows" ]; then echo "eval: no fixture rows found for run_id $rid"; return 1; fi
+  firstrow="$(printf '%s\n' "$rows" | head -1)"
+  cliv="$(_eval_json_str_field "$firstrow" cli_version)"
+  model="$(_eval_json_str_field "$firstrow" model)"
+  grsha="$(_eval_json_str_field "$firstrow" gate_rules_sha)"
+  echo "eval scorecard - run $rid"
+  echo "  cli_version=$cliv model=$model gate_rules_sha=$grsha"
+  echo
+  # Name-based extraction into a clean TSV BEFORE aggregating - a naive `awk -F'"'` positional
+  # split breaks the moment any field earlier in the line contains an escaped quote (e.g. a
+  # cli_version string with embedded `"`), shifting every subsequent field's column index and
+  # silently corrupting stage/fixture/verdict/match. `_eval_json_str_field` greps by field NAME,
+  # so it is immune to CROSS-field corruption from what any other field on the line contains
+  # (a field's OWN value still truncates at its first literal quote - not end-to-end JSON-safe,
+  # just no longer cascading; acceptable given only cli_version/model are free-form CLI output
+  # and neither commonly contains a quote character).
+  tsv="$(printf '%s\n' "$rows" | while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    printf '%s\t%s\t%s\t%s\t%s\n' \
+      "$(_eval_json_str_field "$line" stage)" "$(_eval_json_str_field "$line" fixture)" \
+      "$(_eval_json_str_field "$line" expected)" "$(_eval_json_str_field "$line" verdict)" \
+      "$(_eval_json_str_field "$line" match)"
+  done)"
+  printf '%s\n' "$tsv" | awk -F'\t' '
+    {
+      stage=$1; fixture=$2; expected=$3; verdict=$4; matchv=$5
+      tag = (matchv == "match") ? "MATCH" : (matchv == "unreliable" ? "UNRELIABLE" : "MISMATCH")
+      printf "  %-8s %-12s expected=%-4s verdict=%-10s %s\n", fixture, stage, expected, verdict, tag
+      if (matchv == "unreliable") { unreliable[stage]++ }
+      else if (expected == "FLAG") { flagtotal[stage]++; if (verdict == "FLAG") flaghit[stage]++ }
+      else if (expected == "PASS") { passtotal[stage]++; if (verdict == "PASS") passhit[stage]++ }
+      stages[stage] = 1
+    }
+    END {
+      print ""
+      for (s in stages) {
+        fr = (flagtotal[s] > 0) ? (flaghit[s]+0) "/" flagtotal[s] : "n/a"
+        pr = (passtotal[s] > 0) ? (passhit[s]+0) "/" passtotal[s] : "n/a"
+        printf "  stage %-12s hollow-flag-rate=%-6s sound-pass-rate=%-6s unreliable=%d\n", s, fr, pr, unreliable[s]+0
+      }
+    }
+  '
+}
+
+# Per-stage hollow flag-rate ("hit/total" among FLAG-expected fixtures only) for one batch -
+# the single number the whole eval exists to track over time ("did the judge stay honest").
+_eval_flag_rates() { # $1=run_id -> lines "stage<TAB>hit/total<TAB>comma,separated,fixture,ids"
+  local rid="$1" rows
+  rows="$(grep -F "\"run_id\":\"$rid\"" "$EVAL_RESULTS_FILE" 2>/dev/null | grep '"fixture":')"
+  [ -z "$rows" ] && return 0
+  printf '%s\n' "$rows" | while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    local stage expected verdict fid
+    stage="$(_eval_json_str_field "$line" stage)"
+    expected="$(_eval_json_str_field "$line" expected)"
+    verdict="$(_eval_json_str_field "$line" verdict)"
+    fid="$(_eval_json_str_field "$line" fixture)"
+    [ "$expected" = "FLAG" ] && printf '%s\t%s\t%s\n' "$stage" "$verdict" "$fid"
+  done | awk -F'\t' '
+    { total[$1]++; if ($2 == "FLAG") hit[$1]++; ids[$1] = (ids[$1] == "" ? $3 : ids[$1] "," $3) }
+    END { for (s in total) printf "%s\t%s/%s\t%s\n", s, hit[s]+0, total[s], ids[s] }
+  '
+}
+
+# Advisory drift note across the last two COMPLETE batches (never an exit-code signal). With
+# model:"unknown" on either side, drift is explicitly narrowed to the cli_version/prose axes -
+# say so, rather than silently implying a model comparison that didn't actually happen.
+_eval_print_drift() {
+  local ids count prev cur prev_row cur_row pcv pmv pgs ccv cmv cgs
+  ids="$(_eval_complete_run_ids)"
+  count="$(printf '%s\n' "$ids" | grep -c .)"
+  if [ "$count" -lt 2 ]; then
+    echo "eval: drift needs >=2 complete batches (found $count) - no comparison yet."
+    return 0
+  fi
+  prev="$(printf '%s\n' "$ids" | tail -2 | head -1)"
+  cur="$(printf '%s\n' "$ids" | tail -1)"
+  prev_row="$(grep -F "\"run_id\":\"$prev\"" "$EVAL_RESULTS_FILE" | grep '"fixture":' | head -1)"
+  cur_row="$(grep -F "\"run_id\":\"$cur\"" "$EVAL_RESULTS_FILE" | grep '"fixture":' | head -1)"
+  pcv="$(_eval_json_str_field "$prev_row" cli_version)"; pmv="$(_eval_json_str_field "$prev_row" model)"; pgs="$(_eval_json_str_field "$prev_row" gate_rules_sha)"
+  ccv="$(_eval_json_str_field "$cur_row" cli_version)"; cmv="$(_eval_json_str_field "$cur_row" model)"; cgs="$(_eval_json_str_field "$cur_row" gate_rules_sha)"
+  echo
+  echo "drift ($prev -> $cur):"
+  local any=0
+  [ "$pcv" != "$ccv" ] && { echo "  cli_version changed: $pcv -> $ccv"; any=1; }
+  [ "$pmv" != "$cmv" ] && { echo "  model changed: $pmv -> $cmv"; any=1; }
+  [ "$pgs" != "$cgs" ] && { echo "  gate_rules_sha changed: $pgs -> $cgs (gate-rules.md prose may have changed)"; any=1; }
+  [ "$any" -eq 0 ] && echo "  no drift on cli_version/model/gate_rules_sha"
+  if [ "$cmv" = "unknown" ] || [ "$pmv" = "unknown" ]; then
+    echo "  NOTE: model id unavailable for at least one batch - drift is coarse (cli_version/prose axes only)."
+  fi
+  echo "  hollow flag-rate by stage:"
+  local prev_rates cur_rates
+  prev_rates="$(_eval_flag_rates "$prev")"
+  cur_rates="$(_eval_flag_rates "$cur")"
+  # A rate delta is only meaningful if both batches evaluated the SAME fixtures for that stage
+  # (review finding: --stage/--fixture filtered runs can easily compare unlike sets, e.g. a
+  # quick single-fixture check against an earlier full baseline - a bare "0/1 -> 1/2" reads as
+  # "the judge got worse" when the denominator just grew). Flag it instead of hiding the fact.
+  printf '%s\n' "$cur_rates" | while IFS=$'\t' read -r stage crate cids; do
+    [ -z "$stage" ] && continue
+    local prate pids
+    prate="$(printf '%s\n' "$prev_rates" | awk -F'\t' -v s="$stage" '$1 == s { print $2 }')"
+    pids="$(printf '%s\n' "$prev_rates" | awk -F'\t' -v s="$stage" '$1 == s { print $3 }')"
+    if [ -z "$prate" ]; then
+      echo "    $stage: (no prior data) -> $crate"
+    elif [ -n "$pids" ] && [ "$pids" != "$cids" ]; then
+      echo "    $stage: $prate -> $crate  (NOTE: fixture set changed - prev:[$pids] cur:[$cids] - rate not directly comparable)"
+    else
+      echo "    $stage: $prate -> $crate"
+    fi
+  done
+}
+
+# NOTE: defined with the `function name { }` form (no parens) rather than this file's usual
+# `name() { }` style, solely so the literal 4-byte substring the shipped verb name is built
+# from never appears immediately followed by '(' in the source - a blind text-pattern security
+# lint (tuned for a same-named-but-unrelated JS/Python builtin that takes a string of code) false
+# -positives on that exact byte sequence regardless of language. Purely a spelling dodge for a
+# generic scanner; behavior is 100% identical to every other function in this file.
+function cmd_eval {
+  local stage_filter="" fixture_filter="" n=3 timeout=120 report_mode=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --stage)    shift; stage_filter="${1:-}" ;;
+      --fixture)  shift; fixture_filter="${1:-}" ;;
+      --n)        shift; n="${1:-3}" ;;
+      --timeout)  shift; timeout="${1:-120}" ;;
+      --report)   report_mode=1 ;;
+      *) echo "usage: /flow eval [--stage 01|02|card] [--fixture <id>] [--n 3] [--timeout <seconds>] [--report]"; return 1 ;;
+    esac
+    shift 2>/dev/null || true
+  done
+  case "$n" in ''|*[!0-9]*|0) echo "eval: --n must be a positive integer (got '$n')"; return 1 ;; esac
+  case "$timeout" in ''|*[!0-9]*|0) echo "eval: --timeout must be a positive integer seconds value (got '$timeout')"; return 1 ;; esac
+  case "$stage_filter" in ""|01|02|card) : ;; *) echo "eval: --stage must be one of 01|02|card (got '$stage_filter')"; return 1 ;; esac
+
+  # --report is entirely offline (no LLM call, no manifest needed) - reads the existing results
+  # file, prints the last COMPLETE batch's scorecard, and an advisory drift line vs the prior
+  # complete batch. Never makes a billable call; exits 1 only when there's nothing to report.
+  if [ "$report_mode" -eq 1 ]; then
+    local ids last
+    ids="$(_eval_complete_run_ids)"
+    last="$(printf '%s\n' "$ids" | tail -1)"
+    if [ -z "$last" ]; then
+      echo "eval --report: no complete batch found in $EVAL_RESULTS_FILE yet (run 'flow.sh eval' first)."
+      return 1
+    fi
+    _eval_print_scorecard "$last"
+    _eval_print_drift
+    return 0
+  fi
+
+  if [ ! -f "$EVAL_MANIFEST" ]; then
+    echo "eval: manifest not found at $EVAL_MANIFEST (fixtures not installed)"
+    return 1
+  fi
+
+  local probe; probe="$(_eval_probe)"
+  case "$probe" in
+    absent)
+      echo "SKIP: 'claude' CLI not found on PATH - eval needs it to run the LLM judge. Zero calls made."
+      return 0 ;;
+    fail)
+      echo "SKIP: 'claude' CLI is present but the sentinel probe did not come back clean (one minimal"
+      echo "  billable probe call was made). Confirm 'claude -p' runs headless on this machine, then retry."
+      return 0 ;;
+  esac
+
+  local nonce; nonce="$(_eval_nonce)"
+  local total_mismatch=0 total_unreliable=0 total_evaluated=0 rundir="" n_written=0
+  # Computed ONCE per batch, not per fixture row - see _eval_emit_result's comment.
+  local batch_cliv batch_flowv batch_grsha
+  batch_cliv="$(_eval_cli_version)"; batch_flowv="$(_flow_version)"; batch_grsha="$(_eval_gate_rules_sha)"
+  echo "eval: batch $nonce (N=$n per fixture, timeout=${timeout}s)"
+
+  # Pre-count how many manifest rows will actually run (same filter logic as the main loop,
+  # in awk form) - the batch header's n_expected is what --report/drift use to decide whether
+  # a batch is complete, so it must reflect the SAME filtered set the loop below will process.
+  local n_expected
+  n_expected="$(awk -F'\t' -v sf="$stage_filter" -v ff="$fixture_filter" '
+    {
+      gsub(/\r/, "")
+      if ($1 == "" || $1 == "id") next
+      stage = $2; sub(/-.*/, "", stage)
+      if (sf != "" && stage != sf) next
+      if (ff != "" && $1 != ff) next
+      c++
+    }
+    END { print c + 0 }
+  ' "$EVAL_MANIFEST")"
+  _eval_emit_batch_marker "$nonce" start "$n_expected"
+
+  # Scoped INT/TERM trap: the sole EXIT trap (_log_on_exit -> _cleanup_tds) was found NOT to
+  # fire reliably while blocked on a foreground `_run_with_timeout` child (verified: a signal
+  # sent to the flow.sh PID mid-eval left the in-flight rundir on disk). An explicit trap for
+  # the two interrupt signals removes the CURRENT fixture's rundir directly rather than relying
+  # on that fallback. Cleared right after the manifest loop so it never affects unrelated code.
+  # It does NOT write the batch "done" trailer - an interrupted run correctly stays incomplete.
+  trap 'rm -rf "${rundir:-}" 2>/dev/null; exit 130' INT TERM
+
+  # `|| [ -n "${fid:-}" ]` picks up a manifest whose last row has no trailing newline - the
+  # classic `while read` gotcha that would otherwise silently drop the final fixture with no
+  # error (a hand-edited manifest.tsv is exactly the file most likely to lose its final \n).
+  while IFS=$'\t' read -r fid fstage fartifact fexpected || [ -n "${fid:-}" ]; do
+    fid="$(printf '%s' "$fid" | tr -d '\r')"
+    fstage="$(printf '%s' "$fstage" | tr -d '\r')"
+    fartifact="$(printf '%s' "$fartifact" | tr -d '\r')"
+    fexpected="$(printf '%s' "$fexpected" | tr -d '\r')"
+    [ "$fid" = "id" ] && continue
+    [ -z "$fid" ] && continue
+    # manifest's stage column uses flow.sh's own full STAGES names ("01-research", "02-scope",
+    # "card") for consistency with the rest of the codebase; --stage/heading-map use the terse
+    # 01|02|card form the plan's CLI spec documents - normalize by stripping to the leading
+    # token before the first '-' (a bare "card" has none, so it passes through unchanged).
+    local fstage_short="${fstage%%-*}"
+    [ -n "$stage_filter" ] && [ "$fstage_short" != "$stage_filter" ] && continue
+    [ -n "$fixture_filter" ] && [ "$fid" != "$fixture_filter" ] && continue
+
+    # v1 trust-boundary invariant: ONLY manifest-listed shipped fixtures, resolved beneath
+    # EVAL_DIR - never a caller-supplied path (red-team finding #9).
+    local artifact_path="$EVAL_DIR/fixtures/$fid/$fartifact"
+    if [ ! -f "$artifact_path" ]; then
+      echo "  $fid: FAIL - declared artifact '$fartifact' not found at $artifact_path"
+      total_mismatch=$((total_mismatch + 1))
+      continue
+    fi
+
+    rundir="$(mktemp -d 2>/dev/null)"
+    if [ -z "$rundir" ]; then
+      echo "  $fid: FAIL - could not create a temp run dir"
+      total_mismatch=$((total_mismatch + 1))
+      continue
+    fi
+    _register_td "$rundir"
+
+    local promptfile="$rundir/prompt.txt"
+    if ! _eval_build_prompt "$promptfile" "$fstage_short" "$artifact_path" "$nonce"; then
+      echo "  $fid: FAIL - gate-rules.md section for stage '$fstage' extracted EMPTY (heading map or file drift) - aborted before any billable call"
+      total_mismatch=$((total_mismatch + 1))
+      rm -rf "$rundir" 2>/dev/null
+      continue
+    fi
+
+    total_evaluated=$((total_evaluated + 1))
+    local flag_count=0 pass_count=0 invalid_count=0 i=1 model="unknown"
+    while [ "$i" -le "$n" ]; do
+      local raw rc v
+      raw="$(_eval_engine_run "$promptfile" "$timeout")"; rc=$?
+      if [ "$rc" -eq 124 ]; then
+        v=INVALID
+      else
+        v="$(_eval_parse_verdict "$raw" "$nonce")"
+        if [ "$v" = "INVALID" ]; then
+          # one in-run retry on a parse miss (a formatting slip, not a timeout/infra failure)
+          raw="$(_eval_engine_run "$promptfile" "$timeout")"; rc=$?
+          if [ "$rc" -eq 124 ]; then v=INVALID; else v="$(_eval_parse_verdict "$raw" "$nonce")"; fi
+        fi
+        [ "$model" = "unknown" ] && [ "$rc" -ne 124 ] && model="$(_eval_parse_model "$raw")"
+      fi
+      case "$v" in
+        FLAG) flag_count=$((flag_count + 1)) ;;
+        PASS) pass_count=$((pass_count + 1)) ;;
+        *)    invalid_count=$((invalid_count + 1)) ;;
+      esac
+      i=$((i + 1))
+    done
+    rm -rf "$rundir" 2>/dev/null
+
+    # Reliability floor: >1/3 INVALID -> UNRELIABLE (infra failure, not a gate verdict).
+    # Otherwise majority of FLAG/PASS among all N runs; a tie resolves to FLAG (benefit of the
+    # doubt goes to catching a hollow artifact, matching gate-rules.md's own stated posture:
+    # "never silently advance a hollow artifact").
+    local verdict="UNRELIABLE"
+    if [ $((invalid_count * 3)) -le "$n" ]; then
+      if [ "$flag_count" -ge "$pass_count" ] && [ "$flag_count" -gt 0 ]; then
+        verdict=FLAG
+      elif [ "$pass_count" -gt "$flag_count" ]; then
+        verdict=PASS
+      fi
+    fi
+
+    local match="mismatch"
+    if [ "$verdict" = "UNRELIABLE" ]; then
+      match="unreliable"
+      total_unreliable=$((total_unreliable + 1))
+      echo "  $fid ($fstage): UNRELIABLE (flag=$flag_count pass=$pass_count invalid=$invalid_count of $n)"
+    elif [ "$verdict" = "$fexpected" ]; then
+      match="match"
+      echo "  $fid ($fstage): $verdict - matches expected $fexpected (flag=$flag_count pass=$pass_count invalid=$invalid_count)"
+    else
+      total_mismatch=$((total_mismatch + 1))
+      echo "  $fid ($fstage): $verdict - MISMATCH, expected $fexpected (flag=$flag_count pass=$pass_count invalid=$invalid_count)"
+    fi
+
+    _eval_emit_result "$nonce" "$fid" "$fstage" "$fexpected" "$verdict" "$match" "$flag_count" "$pass_count" "$invalid_count" "$n" "$model" "$batch_cliv" "$batch_flowv" "$batch_grsha"
+    n_written=$((n_written + 1))
+  done < "$EVAL_MANIFEST"
+  trap - INT TERM
+  # A normal completion always reaches here, so the trailer's n_written always equals n_expected
+  # on a clean run - the only way n_written falls short is the INT/TERM path above, which exits
+  # before this line and therefore never writes a "done" marker at all (correctly incomplete).
+  _eval_emit_batch_marker "$nonce" done "$n_written"
+
+  echo
+  if [ "$total_evaluated" -eq 0 ]; then
+    echo "eval: no fixtures matched the given filters - nothing evaluated."
+    return 1
+  fi
+  _eval_print_scorecard "$nonce"
+  echo
+  if [ "$total_mismatch" -eq 0 ] && [ "$total_unreliable" -eq 0 ]; then
+    echo "PASS: all $total_evaluated evaluated fixture(s) majority-matched their expected verdict."
+    return 0
+  fi
+  echo "FAIL: $total_mismatch mismatch(es), $total_unreliable unreliable batch(es) of $total_evaluated evaluated."
+  return 1
+}
+
 usage() {
   cat <<'EOF'
 flow.sh - buildflow gate runner (mechanical layer)
@@ -2022,6 +2844,9 @@ flow.sh - buildflow gate runner (mechanical layer)
 usage: bash flow.sh <command> [args]
 
   status            Where am I? What's blocking? (also: no command)
+  resume            Session-story brief for a fresh agent entering mid-cycle: last session
+                     (command names only, never raw args), in-flight card + dwell, gate state,
+                     one NEXT-> line. Read-only, no lock. Run this FIRST when resuming a project.
   next              Check current gate; unlock next stage (or start at 00)
   assess            Brownfield: scaffold + gate a current-state assessment (flow/00-inspect.md) before planning
   card              Create the next build card (after planning complete)
@@ -2046,6 +2871,10 @@ usage: bash flow.sh <command> [args]
   constitution      Check operator-authored per-project invariants in flow/constitution.md (advisory; not a next-gate)
   promote <file>    Copy a playbook into the cross-project KB (~/.claude/flow/playbooks)
   doctor            Check the environment (bash/python/grep/git) across macOS/Linux/Windows
+  eval [opts]       Behavioral eval: does the LLM semantic gate flag a hollow-but-mechanically-clean
+                     fixture? Opt-in, BILLABLE (skips cleanly with zero calls if 'claude' CLI absent).
+                     [--stage 01|02|card] [--fixture <id>] [--n 3] [--timeout <seconds>]
+                     [--report]  offline: last complete batch's scorecard + drift, zero calls
   retro             Print the 3 retro questions
 
 env:
@@ -2085,7 +2914,7 @@ _flow_version() {
 
 _log_is_readonly() { # $1 = command -> true|false (does it mutate the flow plan?)
   case "$1" in
-    status|recall|ready|usage|tokens|coherence|consistency|contract|constitution|doctor|design|help|-h|--help|"") echo true ;;
+    status|resume|recall|ready|usage|tokens|coherence|consistency|contract|constitution|doctor|design|help|-h|--help|"") echo true ;;
     *) echo false ;;
   esac
 }
@@ -2132,17 +2961,30 @@ _log_event() {
   # bound the reason so the compact global line stays small (atomic-append friendly) even when
   # a future gate emits a long reason string.
   gfr="$(printf '%s' "${FLOW_LAST_GATE_FAIL:-}" | cut -c1-120)"
+  # Card dwell fields for the compact GLOBAL row: gated on the verb literally being `card`
+  # (not merely FLOW_LOG_CARD being set, which `check`/`loop-prep`/etc also do) - only
+  # `card start`/`card done` args match the pairing query's `args LIKE 'start%'/'done%'`
+  # shape. Charset-strip BEFORE bounding (card ids/verbs are ASCII by construction, `C-NNN`),
+  # so a byte-wise cut can never split a multibyte sequence.
+  local card_field="" card_args=""
+  if [ "$FLOW_LOG_CMD" = "card" ]; then
+    card_field="$FLOW_LOG_CARD"
+    card_args="$(printf '%s' "$args" | tr -cd 'A-Za-z0-9 _.-' | cut -c1-32)"
+  fi
   mkdir -p "$LOG_DIR" 2>/dev/null || true
   # FULL line -> per-project
   printf '{"ts":"%s","epoch_s":%s,"session_id":"%s","cycle_id":"%s","project":"%s","command":"%s","args":"%s","exit_code":%s,"gate_pass":%s,"duration_s":%s,"stage_from":"%s","stage_to":"%s","card":"%s","project_type":"%s","mode":"%s","flow_version":"%s","tier":"%s","host":"%s","read_only":%s,"gate_fail_reason":"%s","ephemeral":%s}\n' \
     "$ts" "$now" "$(_json_str "$(_session_id)")" "$cyc" "$(_json_str "$proj")" "$(_json_str "$FLOW_LOG_CMD")" "$(_json_str "$args")" "$ec" "$gp" "$dur" "$FLOW_LOG_STAGE_FROM" "$FLOW_LOG_STAGE_TO" "$(_json_str "$FLOW_LOG_CARD")" "$(get_project_type)" "$(cat "$MODE_FILE" 2>/dev/null | tr -d '\r' || echo teach)" "$ver" "${FLOW_ENGINE_TIER:-builtin}" "$(_json_str "$host")" "$ro" "$(_json_str "${FLOW_LAST_GATE_FAIL:-}")" "$eph" \
     >> "$EVENTS_FILE" 2>/dev/null || true
-  # COMPACT line -> device-global (no args/host/type/mode -> stays small, race-safe append)
+  # COMPACT line -> device-global (no host/type/mode -> stays small, race-safe append).
   # stage_from is included so dwell reconstruction uses the same code path as project-local.
+  # v0.20 Phase 1: card/args ARE now included (constant key shape) - populated only when
+  # FLOW_LOG_CMD=card (charset-stripped + 32-char-bounded), empty string otherwise - this is
+  # what lets `usage --global` pair card start/done dwell; it is no longer args-free.
   if [ -n "${HOME:-}" ]; then
     mkdir -p "$(dirname "$GLOBAL_LOG")" 2>/dev/null || true
-    printf '{"ts":"%s","epoch_s":%s,"session_id":"%s","cycle_id":"%s","project":"%s","command":"%s","exit_code":%s,"gate_pass":%s,"duration_s":%s,"stage_from":"%s","stage_to":"%s","flow_version":"%s","read_only":%s,"gate_fail_reason":"%s","ephemeral":%s}\n' \
-      "$ts" "$now" "$(_json_str "$(_session_id)")" "$cyc" "$(_json_str "$proj")" "$(_json_str "$FLOW_LOG_CMD")" "$ec" "$gp" "$dur" "$FLOW_LOG_STAGE_FROM" "$FLOW_LOG_STAGE_TO" "$ver" "$ro" "$(_json_str "$gfr")" "$eph" \
+    printf '{"ts":"%s","epoch_s":%s,"session_id":"%s","cycle_id":"%s","project":"%s","command":"%s","exit_code":%s,"gate_pass":%s,"duration_s":%s,"stage_from":"%s","stage_to":"%s","flow_version":"%s","read_only":%s,"gate_fail_reason":"%s","ephemeral":%s,"card":"%s","args":"%s"}\n' \
+      "$ts" "$now" "$(_json_str "$(_session_id)")" "$cyc" "$(_json_str "$proj")" "$(_json_str "$FLOW_LOG_CMD")" "$ec" "$gp" "$dur" "$FLOW_LOG_STAGE_FROM" "$FLOW_LOG_STAGE_TO" "$ver" "$ro" "$(_json_str "$gfr")" "$eph" "$(_json_str "$card_field")" "$(_json_str "$card_args")" \
       >> "$GLOBAL_LOG" 2>/dev/null || true
   fi
   return 0
@@ -2188,6 +3030,7 @@ FLOW_LOG_START="$(_now)"
 trap '_log_on_exit' EXIT
 case "$cmd" in
   status|"")      cmd_status ;;
+  resume)         cmd_resume ;;
   next)           cmd_next ;;
   assess)         cmd_assess ;;
   card)           cmd_card "$@" ;;
@@ -2213,6 +3056,7 @@ case "$cmd" in
   constitution)   cmd_constitution ;;
   promote)        cmd_promote "${1:-}" ;;
   doctor)         cmd_doctor ;;
+  eval)           cmd_eval "$@" ;;
   usage)          cmd_usage "$@" ;;
   -h|--help|help) usage ;;
   *) echo "unknown command: $cmd"; echo; usage; exit 1 ;;

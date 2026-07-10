@@ -1,0 +1,7 @@
+id	stage	artifact	expected
+f01a	01-research	flow/01-research.md	PASS
+f01b	01-research	flow/01-research.md	FLAG
+f02a	02-scope	flow/02-scope.md	PASS
+f02b	02-scope	flow/02-scope.md	FLAG
+fcda	card	cards/C-001.md	PASS
+fcdb	card	cards/C-001.md	FLAG

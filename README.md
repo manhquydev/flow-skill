@@ -2,7 +2,9 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-**28 test suites / 680 checks, green locally on macOS · Ubuntu · Windows (Git Bash), and in hosted CI (GitHub Actions, green on `master`).**
+**31 test suites / 799 checks, green locally on macOS · Ubuntu · Windows (Git Bash). Hosted CI
+(GitHub Actions) was green on `master` as of the last pushed commit (v0.18.0); v0.19.0 and
+v0.20.0 are local-verified only and have not yet been pushed through CI.**
 
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
@@ -11,7 +13,54 @@ durable harness layer (intake/story/trace/decision/backlog), agent orchestration
 **Codex (GPT-5.x) second engine + Antigravity (Gemini-3) third engine** = a three-model adversarial
 gate), and project-type awareness.
 
-> Status: **v0.18.0** — **`ck-loop` loop-engineering integration**: flow's own "Implement→Test→Audit→Fix"
+> Status: **v0.20.0** — **mission-control legibility: resume verb + status upgrade + per-card
+> dwell in `--global`.** Evidence-driven (1079-event dogfood telemetry: `status` is the
+> most-called verb, 287 calls, 2.8x `next`, yet had no next-action line or dwell; nothing gave a
+> fresh agent session a resume brief — the industry's top unsolved "AI context amnesia"
+> complaint; per-card dwell was blind in `usage --global` since the compact log row omitted
+> `card`/`args`). Composition of already-existing data, no new infrastructure: (1) new read-only
+> `flow.sh resume` — last session (command names only, never raw args), in-flight card + dwell,
+> gate state, one `NEXT ->` line; honest degradation on a fresh project or missing telemetry;
+> (2) `status` gains a `NEXT ->` header line (same shared `_next_action` helper as resume, so the
+> two verbs can never disagree), current-stage dwell, and a compact done/in-flight/todo summary
+> past 10 cards — anchor strings (`gate: PASS`, `cards: N created`, `planning: at stage`) frozen
+> for existing consumers, ≤10-card output byte-identical; (3) the compact global log row gains
+> `card`+`args` (bounded, charset-guarded) only for `command=card`, unblocking per-card dwell in
+> `usage --global`. Built via `ck:cook` per phase + an independent `code-reviewer` pass per phase
+> (the review cycle the operator asked for), which earned its keep: it caught a **critical
+> Windows/Git-Bash hang** — piping `_gate_state_brief`'s nested `scan_gate` output into a
+> `while read` consumer (and a pre-existing, now-higher-blast-radius `_next_action` reason-lookup
+> pipe) froze indefinitely whenever the current stage's gate was genuinely BLOCKED, an
+> early-pipe-reader-exit class issue under MSYS — fixed by eliminating both pipes in favor of
+> direct calls / pre-drained command substitution, with a `timeout`-guarded regression test added
+> so CI can never wedge on it again. It also caught a **critical dwell-anchor bug**: a failed
+> `/flow next` retry writes `stage_to=<same stage>` with `stage_from=""` (never set on that path),
+> so the original `stage_from != cur` filter didn't actually exclude failed retries — fixed by
+> anchoring on `exit_code=0` instead, the field that actually discriminates a genuine stage entry
+> from a failed retry. Plus a medium fix (compact-form N could drift from the real
+> done+in-flight+todo sum under sparse card numbering — now computed from the real count, not
+> `highest_card()`'s max-suffix value). 31 suites / 799 checks green (`run_all.sh`); `coherence`
+> and `consistency` PASS; not yet pushed through CI or installed to homes.
+>
+> **v0.19.0** — **`flow.sh eval`: behavioral proof for the semantic gate layer.** Until
+> now, `gate-rules.md`'s "flag a hollow-but-mechanically-clean artifact" promise had zero
+> behavioral proof — a hollow artifact passes the mechanical gate by design, and nothing
+> measured whether the LLM actually catches it. `eval` runs the real per-stage challenge text
+> against 6 curated sound/hollow fixture pairs (Stage 01 fabricated-quote pattern, Stage 02
+> grade-laundering, card "merge≈shipped" evidence), majority-votes a nonce-protected verdict (N=3,
+> injection-resistant — a fixture body literally cannot predict this run's nonce), and prints a
+> per-stage scorecard. Opt-in and billable (clean zero-call skip if `claude` CLI absent);
+> `--report` re-reads a prior batch offline for free. Honest scope: this proves a **fresh-judge
+> lower bound**, not the work-mode self-challenge (same model reviewing what it just authored) —
+> see `references/gate-eval.md`. Built via a full spike→build→review→fix pass: the Step-0 contract
+> spike found a **new** risk beyond the design's own red-team (`claude -p` runs a full agentic
+> loop with live tool access by default; locked down with `--tools ""`), and code review across
+> the 3 phases caught and fixed a **critical** silent-batch-truncation bug (a stdin-consumption
+> gotcha inside the manifest read loop), a shared-helper space-path bug (`_CLEANUP_TDS` silently
+> no-op'd on any space-containing TMPDIR — common on Windows), and a misleading-drift gap
+> (comparing batches that evaluated different fixture sets). Real smoke-tested against the actual
+> `claude` CLI on both a sound and a hollow fixture — correctly PASS and FLAG.
+> **v0.18.0** — **`ck-loop` loop-engineering integration**: flow's own "Implement→Test→Audit→Fix"
 > tail gained a mechanical verify→iterate→circuit-breaker primitive by wrapping the already-installed
 > `ck-loop` ClaudeKit skill — flow supplies plumbing only (`flow.sh loop-prep`/`loop-log`: isolated
 > worktree, a numeric Verify command, telemetry), ck-loop stays the untouched execution engine (git
@@ -67,7 +116,9 @@ gate), and project-type awareness.
 > layered with code-reviewer, composes with security lens, detect-first degrade, gate-parity preserved) and
 > fixes a v0.12.1 latent portability defect (agent-wiring tripwire used GNU-only `grep -oP`; rewritten
 > with POSIX `sed -E` so macOS BSD grep CI passes).
-> **28 test suites / 680 checks green locally** (macOS · Ubuntu · Windows via Git Bash) and in hosted GitHub Actions CI. MIT.
+> **31 test suites / 799 checks green locally** (macOS · Ubuntu · Windows via Git Bash). Hosted
+> GitHub Actions CI was green on `master` as of the last pushed commit (v0.18.0); v0.19.0 and
+> v0.20.0 not yet pushed through CI. MIT.
 
 ## What ships
 
@@ -86,7 +137,7 @@ flow-skill/
 │   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
 ├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
 ├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 28 suites / 680 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args/loop)
+├── tests/run_all.sh             # 31 suites / 799 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args/loop/eval/resume/status-legibility)
 └── docs/                        # architecture + codebase summary
 ```
 
@@ -228,11 +279,12 @@ and `chmod +x` the runner on macOS/Linux.
 
 ## Commands
 
-Quick start above is the common path; this is the full reference — all 27 commands the engine dispatches (`bash skills/flow/runner/flow.sh <command>`):
+Quick start above is the common path; this is the full reference — all 28 commands the engine dispatches (`bash skills/flow/runner/flow.sh <command>`):
 
 | Command | What it does |
 |---|---|
-| `/flow` *(status)* | Where am I? What's blocking? + a one-line memory summary |
+| `/flow resume` | **Read-only session-story brief for entering a project mid-cycle**: last session (command names only, never raw args), in-flight card + dwell, gate state, one `NEXT ->` line. Run this FIRST when picking up an existing project cold. |
+| `/flow` *(status)* | Where am I? What's blocking? A `NEXT ->` line (same helper as `resume`), current-stage dwell, card list (compact summary past 10 cards) + a one-line memory summary |
 | `/flow next` | Check the current gate; on pass, unlock the next stage (or start at 00) |
 | `/flow assess` | Brownfield: scaffold + gate a current-state assessment (`flow/00-inspect.md`) before planning |
 | `/flow card` | Create the next build card (after all planning gates pass) |
@@ -256,6 +308,8 @@ Quick start above is the common path; this is the full reference — all 27 comm
 | `/flow coherence` | Version drift across declared version fields (doc-vs-code coherence) |
 | `/flow consistency` | Cross-artifact coverage: every PRD `FRn` claimed by a card (`implements:`) + served by a contract interface; numeric metric; placeholder sweep (advisory) |
 | `/flow constitution` | Check operator-authored per-project invariants in `flow/constitution.md` (structure + grep-markers; advisory, **not** a `next` gate) |
+| `/flow eval [--stage 01\|02\|card] [--fixture <id>] [--n 3]` | **Behavioral proof for the semantic gate**: does the LLM actually flag a hollow-but-mechanically-clean fixture? Opt-in, **billable**, clean zero-call skip if `claude` CLI absent. See `references/gate-eval.md` (fresh-judge lower bound, not the work-mode self-challenge). |
+| `/flow eval --report` | Offline, zero calls: last complete batch's scorecard + drift vs the prior complete batch |
 | `/flow promote <file>` | Copy a playbook into the cross-project KB (`~/.claude/flow/playbooks`) |
 | `/flow doctor` | Check the environment (bash/python/grep/git) across macOS/Linux/Windows |
 | `/flow usage [--global\|--prune]` | Roll up the JSONL usage log into build analytics: cycle-time, gate fail-rate, per-stage + per-card dwell, command breakdown (local-only) |
@@ -454,7 +508,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 28 suites / 680 checks (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is 31 suites / 799 checks (`bash tests/run_all.sh`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -471,7 +525,7 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 28 suites / 680 checks; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # 31 suites / 799 checks; needs bash (+ python for the harness/propose suites)
 ```
 
 ## Provenance

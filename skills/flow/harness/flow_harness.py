@@ -620,34 +620,49 @@ def cmd_rollup(con, a):
             continue
         cur = con.execute("SELECT last_line FROM rollup_cursor WHERE src=?", (src,)).fetchone()
         last = cur[0] if cur else 0
-        with open(src, "r", encoding="utf-8") as fh:
+        # errors="replace": a single invalid byte anywhere in a shared, multi-writer log must
+        # not abort the WHOLE rollup - it degrades to a per-line json.loads failure below
+        # instead (one bad row skipped, not every row on the file).
+        with open(src, "r", encoding="utf-8", errors="replace") as fh:
             text = fh.read()
         lines = text.split("\n")
         lines = lines[:-1]  # drop trailing empty (after final \n) or a partial unterminated last line
         n = 0
+        total = len(lines)
+        cursor_advance = last
         for line in lines:
             n += 1
             if n <= last:
                 continue
             s = line.strip()
             if not s:
+                cursor_advance = n
                 continue
             try:
                 o = json.loads(s)
             except ValueError:
                 skipped += 1
+                # A torn line can only be the CURRENT final line of the file (an EXIT-trap
+                # append still in flight) - any earlier malformed line is real corruption, not
+                # a race, so it is skipped and the cursor still advances past it. The final
+                # line's cursor is held so a completing append is retried on the next rollup
+                # rather than being permanently skipped once `n` reaches it.
+                if n == total:
+                    break
+                cursor_advance = n
                 continue
             row = _coerce_event(o)
             vals = [src, n] + [row[c] for c in USAGE_COLS]
             c2 = con.execute(f"INSERT OR IGNORE INTO usage_event ({','.join(cols)}) VALUES ({ph})", vals)
             if c2.rowcount and c2.rowcount > 0:
                 rolled += 1
+            cursor_advance = n
         # advance the cursor monotonically only (never reset backward, e.g. when a sink is
         # truncated/empty on re-read) — correctness rests on UNIQUE(src,line_no) regardless.
-        if n > last:
+        if cursor_advance > last:
             con.execute("INSERT INTO rollup_cursor(src,last_line,updated_at) VALUES(?,?,datetime('now')) "
                         "ON CONFLICT(src) DO UPDATE SET last_line=excluded.last_line, updated_at=excluded.updated_at",
-                        (src, n))
+                        (src, cursor_advance))
     con.commit()
     print(json.dumps({"rolled": rolled, "skipped": skipped}))
     return 0
@@ -736,8 +751,11 @@ def cmd_usage(con, a):
     # 'done C-NNN'). Pair the earliest start with the latest SUCCESSFUL done per (project, cycle,
     # card). Cards finished by hand-edit + '/flow check' (no 'card done' event) have no pair — the
     # metric covers verb-tracked cards only. A failed/reverted 'card done' (exit_code != 0) is not
-    # a completion, so it never closes a dwell. NOTE: under --global this is empty by design — the
-    # compact global JSONL line omits args+card (kept small), so only the per-project view pairs them.
+    # a completion, so it never closes a dwell. Works under --global too as of v0.20 Phase 1: the
+    # compact global JSONL line now carries card/args for command=card rows (previously omitted,
+    # which made --global dwell permanently blind) - rows written before v0.20 still lack these
+    # fields and simply yield no pair, which is why the "no pairs yet" branch below is worded as
+    # a capability statement, not a claim that --global can never show dwell.
     _crows = con.execute(
         f"SELECT project, cycle_id, card, args, exit_code, epoch_s FROM usage_event "
         f"{w} AND command='card' AND card<>'' AND epoch_s IS NOT NULL "
@@ -824,7 +842,7 @@ def cmd_usage(con, a):
         for c, s in card_dwell:
             print(f"    {c:<12} {_dur(s)}")
     elif getattr(a, "global_", False):
-        print("    (per-card dwell is project-local only - the compact --global log omits card ids)")
+        print("    (per-card dwell requires rows written by flow >= 0.20 - older rows in this log predate the card/args fields)")
     else:
         print("    (no card start->done pairs yet - mark cards with '/flow card start|done')")
     print("  commands:")
@@ -909,7 +927,9 @@ def cmd_prune(con, a):
         if not os.path.isfile(src):
             print(json.dumps({"sink": src, "kept": 0, "dropped": 0, "note": "absent"}))
             continue
-        with open(src, "r", encoding="utf-8") as fh:
+        # errors="replace": same shared, multi-writer file `cmd_rollup` was hardened against
+        # (v0.20 Phase 1) - a single invalid byte here must not crash prune either.
+        with open(src, "r", encoding="utf-8", errors="replace") as fh:
             lines = fh.readlines()
         if len(lines) <= keep:
             print(json.dumps({"sink": src, "kept": len(lines), "dropped": 0}))

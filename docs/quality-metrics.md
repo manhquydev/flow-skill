@@ -1,7 +1,127 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.18.0** (2026-07-04).
+Updated as the skill evolves. Current: **v0.20.0** (2026-07-10).
+
+## v0.20.0 — mission-control legibility: resume verb + status upgrade + per-card dwell (2026-07-10)
+
+Evidence-driven (1079-event dogfood telemetry): `status` is the most-called verb (287 calls,
+2.8x `next`) yet had no next-action line or dwell; nothing gave a fresh agent session a resume
+brief (industry's top unsolved "AI context amnesia" complaint); per-card dwell was blind in
+`usage --global` since the compact log row omitted `card`/`args`. Pure composition of
+already-existing data (per-project events log, `cards/.inflight`, gate state) — no new
+infrastructure, no schema migration.
+
+Built in 3 phases, each via `ck:cook` → independent `code-reviewer` subagent pass → fix → re-test
+(the review cycle earned its keep every phase):
+
+- **Phase 1 (telemetry):** compact GLOBAL log row gains `card`+bounded `args` only for
+  `command=card`; `flow_harness.py`'s `cmd_rollup`/`cmd_prune` gain `errors="replace"` decode
+  tolerance + a cursor-hold on a final unparseable line. Review found two test-coverage
+  overclaims (fixtures that didn't actually exercise their claimed branch) and a `cmd_prune`
+  decode-crash bug missed by the original `cmd_rollup` fix — all fixed.
+- **Phase 2 (resume verb):** new read-only `flow.sh resume`. Review caught (1) the ppid-reuse
+  time-gap fallback was dead on its own primary trigger (fresh session, no own-row yet) — fixed
+  with a wall-clock anchor, verified live with spoofed `FLOW_SESSION_ID` values; (2) the
+  torn-line defense didn't catch two JSON objects glued together on one line (only the
+  no-trailing-newline case) — fixed to reject any line with >1 `{"ts":` occurrence.
+- **Phase 3 (status upgrade):** `NEXT ->` line (shared `_next_action` helper with `resume`),
+  stage dwell, >10-card compaction. Review caught two **CRITICAL** issues before ship:
+  1. A genuine Windows/Git-Bash **hang** — piping `_gate_state_brief`'s nested `scan_gate`
+     output into a `while read` consumer froze indefinitely whenever the current stage's gate
+     was BLOCKED (an early-pipe-reader-exit class MSYS issue). The review also traced this to a
+     **pre-existing, previously-undetected** Phase-2 bug in `_next_action`'s own
+     `scan_gate | grep -m1 | sed` reason-lookup, silently present since Phase 2 but confined to
+     the rarely-called `resume` — now exposed on the highest-traffic verb by this phase's own
+     wiring. Fixed by eliminating both pipes (direct call with the value passed as an arg;
+     pre-drained command substitution instead of a live pipe). Reproduced directly: hung
+     reliably on a fresh sandbox before the fix, fast + correct after — plus a
+     `timeout`-guarded regression test so CI can never wedge on this class again even if it
+     resurfaces on a different pipe shape.
+  2. A wrong **dwell anchor** — `_stage_dwell`'s filter (`stage_from != cur`) does not actually
+     exclude a failed `/flow next` retry, because that path never sets `stage_from` (stays at
+     its script default `""`, and `"" != cur` is always true). Dwell would have shrunk toward
+     the latest failed attempt on every hard stage — exactly the bug the design was meant to
+     prevent. Fixed by anchoring on `exit_code=0` instead, the field that actually discriminates
+     a genuine entry from a failed retry; the test fixture was rewritten to log a real entry via
+     an actual `/flow next` invocation rather than a hand-fabricated event shape.
+  3. Medium: the compact form's displayed card total could drift from the real
+     done+in-flight+todo sum under sparse card numbering; fixed to compute the displayed total
+     from the real per-file count instead of `highest_card()`'s max-suffix value.
+
+**Test metrics:** new suites `test_flow_resume.sh` (29 assertions) and
+`test_flow_status_legibility.sh` (24 assertions, incl. a `timeout`-guarded BLOCKED-gate
+regression case). **31 suites / 799 checks, 0 failures.**
+
+| Component | Before | After | Notes |
+|---|---|---|---|
+| Test suite | 29 suites / 729 checks | 31 suites / 799 checks | +2 suites (resume, status-legibility), +70 checks |
+| Commands | 29 verbs | 30 verbs | +`resume` |
+| Real bugs caught by review (not by my own testing) | — | 2 critical (hang + wrong dwell anchor), 1 medium, 1 low | both critical bugs were in code that had already passed its own author-written test suite |
+
+## v0.19.0 — `flow.sh eval`: behavioral proof for the semantic gate (2026-07-10)
+
+New capability: `flow.sh eval` runs the real per-stage `gate-rules.md` challenge text against
+6 curated sound/hollow fixture pairs (Stage 01 fabricated-quote pattern, Stage 02
+grade-laundering, card "merge≈shipped" evidence), majority-votes a nonce-protected verdict
+(N=3), and prints a per-stage scorecard. `--report` re-reads a prior batch offline (zero calls).
+
+**Step-0 contract spike found a risk beyond the design's own red-team**: `claude -p` runs a
+full agentic loop with live Bash/PowerShell/Edit tool access by default (verified: an
+unrestricted probe call executed a real shell command via a tool). Neither `--allowedTools ""`
+nor `--disallowedTools <list>` reliably disabled this on the measured CLI version (2.1.201) —
+only `--tools ""` (disable the entire built-in tool set) did, confirmed via zero `tool_use`
+events and zero filesystem side effects. Now mandatory on every judge invocation.
+
+**Post-implementation code review (2 passes, one per phase pair) found and fixed:**
+- **CRITICAL:** a stdin-consumption gotcha silently truncated a live batch to 1 of 6 fixtures —
+  `_eval_cli_version`'s `claude --version` call had no explicit stdin source, and since it ran
+  inside the manifest `while read ... done < manifest.tsv` loop's body, it inherited and drained
+  the loop's own file descriptor. **Fix:** `< /dev/null` + hoisted the call to run once per batch
+  (not once per fixture row) instead of inside the loop.
+- **HIGH:** interrupt cleanup didn't survive a signal mid-run; the shared `_register_td`/
+  `_cleanup_tds` helper (used by 8 call sites across the file) silently no-op'd on any
+  space-containing path (routine on Windows) because it stored paths as a space-joined string
+  iterated unquoted. **Fix:** converted to a bash array; added a scoped `INT`/`TERM` trap in
+  `cmd_eval`. Honest residual: mid-in-flight-call preemption is best-effort on this platform,
+  documented rather than oversold.
+- **MEDIUM:** an unanchored substring match in `_eval_parse_verdict` would let a marker buried
+  mid-prose parse as a valid verdict (not the documented whole-line match). **Fix:** line-start
+  anchor after unescaping the JSON response's literal `\n`.
+- **MEDIUM:** drift comparison silently produced a misleading delta when the two compared
+  batches evaluated different fixture sets for a stage (e.g. a `--fixture`-filtered smoke check
+  against an earlier full baseline) — a shrinking/growing denominator read as "the judge got
+  worse." **Fix:** `_eval_flag_rates` now tracks the fixture-id set per stage; a mismatch is
+  flagged in the drift output instead of silently presented as a clean number.
+- Also fixed: an off-by-one in run_id string extraction (stray leading quote corrupted every
+  `--report`/drift comparison), an awk empty-vs-zero display bug, and two independent
+  header-skip implementations (position-based vs value-based) that only agreed by coincidence.
+
+**Real (non-mocked) verification:** two live `claude -p` smoke-test calls — the sound card
+fixture (`fcda`) correctly returned `PASS`; the hollow card fixture (`fcdb`, reworded during
+Phase 1 review away from `gate-rules.md`'s own banned "tests pass"/"deployed successfully"
+phrases) correctly returned `FLAG` — a genuine semantic catch, not a keyword match. **A full
+6-fixture × N=3 baseline batch (18 calls + 1 probe, ~$6–7 at this machine's measured per-call
+cost) was NOT run in this session** — real money, deliberately left as an explicit operator
+decision rather than spent silently; `flow.sh eval` is ready to run it on request.
+
+**Cost finding (undocumented in the original plan):** this repo's large global `CLAUDE.md` +
+skill/agent/MCP declarations load as system-prompt context on every call regardless of prompt
+size (~50–60K cache-creation tokens) — measured ~$0.30–0.37/call with the default model under
+an OAuth/subscription session (`--bare`, the natural cost-cutter, requires an API key and isn't
+available here). Disclosed in `references/gate-eval.md` rather than assumed cheap.
+
+**Test metrics:** new suite `test_flow_eval.sh`, 49 assertions, mocked engine only (never calls
+a live LLM) — probe skip/fail paths, nonce nonce-injection resistance, majority-vote math,
+UNRELIABLE floor, the `_run_with_timeout` fallback regression, CRLF manifest, space-containing
+TMPDIR, no-ritual-copy guard, and the Phase 1 anti-leak guard. **29 suites / 729 checks, 0
+failures.**
+
+| Component | Before | After | Notes |
+|---|---|---|---|
+| Test suite | 0 (`eval` verb didn't exist) | 49 assertions (`test_flow_eval.sh`) | new suite covering mocked-engine plumbing, injection resistance, robustness cases |
+| Commands | 28 verbs | 29 verbs | +`eval` (`--stage`/`--fixture`/`--n`/`--timeout`/`--report`) |
+| Overall | 28 suites / 680 checks | 29 suites / 729 checks | +1 suite, +49 checks |
 
 ## v0.18.0 — loop-engineering: ck-loop integration + red-team proof (2026-07-04)
 

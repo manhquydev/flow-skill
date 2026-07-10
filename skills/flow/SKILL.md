@@ -3,12 +3,12 @@ name: flow
 description: Run the buildflow gated build process from idea to real done-evidence. Walk gated stages (Idea->Research->Scope->PRD->ADR->Contract->Cards->Build->Review->Deploy/Ship->Verify->Retro), each with a honest gate that must pass before advancing. Adapts to project type (web|cli|library|skill). Use when starting or driving a real product build, when the user types /flow, /flow next, /flow card, /flow check, or asks to scope/plan/ship a project through gates. Kill at any gate is a valid outcome.
 user-invocable: true
 when_to_use: "User wants to build a real product end-to-end with discipline (idea -> a deployed URL for web, or installs+runs for a CLI/library/skill), or types any /flow command, or asks for a gated build process, scope decision, contract-first plan, or card-based shipping."
-argument-hint: "[ next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | workspace add|list|enter|remove|check|doctor | auto | doctor | retro ]"
+argument-hint: "[ resume | next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | workspace add|list|enter|remove|check|doctor | auto | doctor | retro | eval --stage 01|02|card --fixture <id> --n 3 --report ]"
 keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deploy, vertical-slice, cli, library, skill, worktree, parallel-agents, workspace, multi-agent]
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.18.0"
+  version: "0.20.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD."
 ---
 
@@ -84,6 +84,7 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | You type | Skill does |
 |---|---|
 | `/flow` | `flow.sh status` — where am I, what's blocking, card states |
+| `/flow resume` | `flow.sh resume` — **read-only session-story brief for entering a project mid-cycle**: last session (command names only, never raw args), in-flight card + dwell, gate state, one `NEXT ->` line. No lock. Run this FIRST when picking up an existing project (see the dispatch rule below). |
 | `/flow next` | `flow.sh next` — gate-check current stage; on pass, unlock next stage. **Then** you apply the semantic challenge for the stage just passed. |
 | `/flow assess` | `flow.sh assess` — **brownfield**: scaffold + gate a current-state assessment (`flow/00-inspect.md`, auto-scan seeded) for an EXISTING codebase before planning. Operator-reviewed. |
 | `/flow card` | `flow.sh card` — create next build card (only after all 6 planning gates pass) |
@@ -101,6 +102,8 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | `/flow coherence` | `flow.sh coherence` — flag version drift across declared version fields (doc-vs-code coherence; advisory) |
 | `/flow consistency` | `flow.sh consistency` — audit cross-artifact coverage: every PRD `FRn` is claimed by a card (`implements:`) and served by a contract interface; numeric success metric; no leftover placeholders (advisory; run after the contract gate, before cards) |
 | `/flow constitution` | `flow.sh constitution` — check operator-authored per-project invariants in `flow/constitution.md` (structure + optional grep-markers); **advisory and NOT a `next` gate** — run it at the scope/PRD/contract seam, then apply the semantic challenge in `gate-rules.md` |
+| `/flow eval [--stage 01\|02\|card] [--fixture <id>] [--n 3] [--timeout <s>]` | `flow.sh eval` — **behavioral eval**: does the LLM semantic gate (`gate-rules.md`) actually flag a hollow-but-mechanically-clean fixture? Opt-in, **billable** (skips cleanly, zero calls, if `claude` CLI absent); prints a per-stage scorecard. See `references/gate-eval.md` for scope/cost/limitations. |
+| `/flow eval --report` | `flow.sh eval --report` — **offline**, zero calls: last complete batch's scorecard + drift vs the prior complete batch |
 | `/flow promote <file>` | `flow.sh promote <file>` — copy a playbook into the cross-project KB (`~/.claude/flow/playbooks`); `recall` then surfaces it everywhere |
 | `/flow project-type <web\|cli\|library\|skill>` | `flow.sh project-type` — set/read the project type that selects the per-type gate lens (`references/project-types.md`) |
 | `/flow skip <stage>` | `flow.sh skip` — advance past a gate that has a matching open `DEBT.md` line; **security-class skips are operator-only and HALT** (never auto-skipped) |
@@ -111,24 +114,30 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 
 ## Dispatch rules (how to behave for each command)
 
-1. **Always call `flow.sh` first** and read its exit code + output. Relay it faithfully. If it
+1. **Entering a project mid-cycle? Run `/flow resume` before any other flow verb.** If this is
+   a fresh session (no prior context in this conversation) and the project already has a
+   `flow/` or `cards/` dir, `resume` is the read-only session-story brief that replaces
+   re-deriving state from scratch — last session, in-flight card + dwell, gate state, one
+   `NEXT ->` line. Skip this only when you already have live context (e.g. you were the one who
+   just ran `next`/`card` this same session) — running it every single command is unnecessary.
+2. **Always call `flow.sh` first** and read its exit code + output. Relay it faithfully. If it
    reports **BLOCKED by another session's lock**, STOP and coordinate — never `FLOW_FORCE` past a
    live session; concurrent `/flow` runs corrupt the plan.
-2. **On `next`:** if the script FAILS, stop — report exactly what it listed (line numbers),
+3. **On `next`:** if the script FAILS, stop — report exactly what it listed (line numbers),
    and offer to help fill, but **never check a box or write an artifact on the operator's
    behalf** in `teach` mode. If the script PASSES, run the **semantic gate** for the stage
    just completed (see `references/gate-rules.md`). If you find hollow content (fabricated
    quotes, grade-laundering, a pain with no feature, an endpoint with no auth), tell the
    operator it mechanically passed but is qualitatively weak, and let them decide. Do not
    silently advance past a hollow artifact; do not silently block a sound one.
-3. **On `card`/`check`:** enforce the build-session laws in `law/CLAUDE.md` — one card per
+4. **On `card`/`check`:** enforce the build-session laws in `law/CLAUDE.md` — one card per
    session, touch only `## Allowed files`, contract is the seam, done = world-state proof.
    **Before authoring a new stage or card, run `/flow recall`** and treat its output (prior
    debt / retro / friction / previous-card scope) as context to apply, not noise.
-4. **Mode `work`:** interview the operator once, draft stages 00–05 yourself, pause only
+5. **Mode `work`:** interview the operator once, draft stages 00–05 yourself, pause only
    for scope sign-off, deliver the card set as one summary. Gates and done-rules are
    identical to `teach` — you still must pass every gate, you just also author.
-5. **Never** edit `_templates/` or `runner/flow.sh` during a project run. Read any file the
+6. **Never** edit `_templates/` or `runner/flow.sh` during a project run. Read any file the
    runner just created before editing it.
 
 ## The three rules under everything (from law/CLAUDE.md)
@@ -209,6 +218,9 @@ Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, r
 - `references/debt-and-halts.md` — `DEBT.md` ledger, security-class Tier-C halt, when a run halts.
 - `references/design-review-checklist.md` — UI card review (mechanical `flow.sh design` + semantic DESIGN.md).
 - `references/ui-patterns-tcr.md` — 7 UI patterns + T-C-R frame + pattern-choice priority rules.
+- `references/gate-eval.md` — `/flow eval` behavioral proof for the semantic layer: what it
+  measures (a fresh-judge lower bound, NOT the work-mode self-challenge), cost, thresholds,
+  and the honest authorship-bias limitation. Read before running or relaying a scorecard.
 - `harness/` — durable layer (`flow.sh harness ...`): intake/story/trace/decision/backlog. See `harness/README.md`. Read it back with `/flow recall` (open debt, retro, previous-card, friction, backlog, playbooks) — this is the capture→reuse loop.
 - `playbooks/` — paid-for stack knowledge: read before building a card on that stack, harvest the lesson after.
 - `_templates/` — the 7 artifacts the runner copies into `flow/` and `cards/`. Never edit during a run.

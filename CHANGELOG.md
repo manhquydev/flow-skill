@@ -4,6 +4,62 @@ All notable changes to the flow skill. Versions follow the `version:` field in
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 
+## 0.20.0 — 2026-07-10 — mission-control legibility (resume verb + status upgrade + per-card dwell)
+
+Evidence-driven (1079-event dogfood telemetry): `status` is the most-called verb (287, 2.8x
+`next`) yet had no next-action line or dwell; nothing gave a fresh agent session a resume brief
+(industry's top unsolved "AI context amnesia" complaint); per-card dwell was blind in `usage
+--global` because the compact log row omitted `card`/`args`. Composition of already-existing
+data (per-project events log, `cards/.inflight`, gate state) — no new infrastructure.
+
+- **New `flow.sh resume`** (read-only, no lock): last session (command names + exit + stage
+  transitions, absolute timestamps — **never raw args**, since `_mask_secrets` is keyword-only
+  and a quote-blind extractor would truncate escaped-quote values anyway), in-flight card(s) +
+  dwell, current gate state, exactly one `NEXT ->` recommendation. Honest degradation: fresh
+  project → "nothing to resume"; no telemetry → "no telemetry — showing gate state only" + gate
+  state + NEXT. Torn-line defense (rejects a truncated OR mid-corrupted glued-together final
+  log line). SKILL.md now instructs: run `/flow resume` first when entering a project mid-cycle.
+- **`status` upgrade**: first content line after the header is `NEXT -> <action>` (shared
+  `_next_action` helper with `resume` — the two verbs can never disagree); current-stage dwell
+  anchored on a genuine entry transition (`exit_code=0`, not a failed-`next` retry — see fix
+  below); card list compacts to `cards: N created (X done · Y in flight · Z todo)` past 10 cards
+  (in-flight + todo cards always listed individually, only `done` cards summarized). Existing
+  anchor strings (`gate: PASS`, `gate: BLOCKED`, `cards: N created`, `planning: at stage`) frozen
+  byte-for-byte for the two known consumer suites; ≤10-card output is byte-identical beyond the
+  two new lines.
+- **`usage --global` dwell-blind fix**: the compact GLOBAL log row gains `card` + a
+  charset-guarded, 32-char-bounded `args` field, populated ONLY when `command=card` (constant
+  key shape otherwise) — reuses the existing pairing reader, no schema migration. `flow_harness.py`'s
+  `cmd_rollup` (and `cmd_prune`, found missing by review) gain `errors="replace"` decode
+  tolerance + a cursor-hold on a final unparseable line so one bad byte can no longer kill the
+  whole rollup or permanently drop a torn-then-completed `card done` pairing.
+- **Caught and fixed during the per-phase code-review pass** (independent `code-reviewer`
+  subagent, one pass per phase):
+  - **Critical — Windows/Git-Bash hang.** Piping `_gate_state_brief`'s nested `scan_gate`
+    output into a `while read` consumer (a new Phase-3 construct) froze indefinitely whenever
+    the current stage's gate was genuinely BLOCKED — a Git-Bash/MSYS early-pipe-reader-exit
+    class issue. The review also found this was not new: the pre-existing Phase-2
+    `_next_action` reason-lookup pipe (`scan_gate | grep -m1 | sed`) had the identical latent
+    bug, previously confined to the rarely-called `resume`, now exposed on the highest-traffic
+    verb by this release's own `NEXT ->` wiring. Fixed by eliminating both pipes:
+    `_gate_state_brief` takes the dwell string as a plain arg and is called directly (no
+    subshell); `_next_action` captures `scan_gate`'s output into a variable first, then
+    greps/seds the already-drained string. A `timeout`-guarded regression test was added so CI
+    can never wedge on this class again.
+  - **Critical — wrong stage-dwell anchor.** A failed `/flow next` retry writes
+    `stage_to=<same stage>` but never sets `stage_from` (stays at its script default `""`), so
+    the original `stage_from != cur` filter did not actually exclude failed retries — dwell kept
+    shrinking toward the latest failure, the exact bug the design was meant to prevent. Fixed by
+    anchoring on `exit_code=0`, the field that actually discriminates a genuine entry from a
+    failed retry.
+  - **Medium** — the compact card-summary's displayed total could drift from the real
+    done+in-flight+todo sum under sparse card numbering (`highest_card()` returns the max
+    suffix, not a file count); now computed from the real per-file count.
+  - **Low** — a redundant double file-loop in the compaction branch merged into one pass.
+- **Tests**: new `test_flow_resume.sh` (29) and `test_flow_status_legibility.sh` (24, incl. a
+  `timeout`-guarded BLOCKED-gate regression case) wired into `run_all.sh`. Full suite:
+  **31 suites / 799 checks**, all green.
+
 ## 0.17.0 — 2026-06-24 — repository-harness v0.1.10 deep integration (schema reconcile + kind-aware tool registry)
 
 Reconciles flow's ported durable layer with freshly-pulled upstream `repository-harness`

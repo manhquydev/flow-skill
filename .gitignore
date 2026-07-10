@@ -19,3 +19,8 @@ PROJECT_TYPE
 
 # transient test scratch dirs (usage-log dwell cross-project fixtures)
 tests/.dwell_xproj_*
+
+# eval card-fixture ancestor-adoption marker dirs (deliberately empty; must ship
+# despite the .flow/ ignore rules above, so the fixture root looks self-contained)
+!skills/flow/eval/fixtures/*/.flow/
+!skills/flow/eval/fixtures/*/.flow/.gitkeep
