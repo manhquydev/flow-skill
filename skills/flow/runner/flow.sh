@@ -2379,12 +2379,19 @@ _eval_probe() { # echoes absent|ok|fail; never fails the caller
 }
 
 # Single engine seam (v2 can add codex/agy here without touching the fixture loop below).
-# Prompt is piped from a FILE inside the cmd string itself (not via inherited stdin across the
-# _run_with_timeout background-job boundary) - the path is single-quoted so a space-containing
-# TMPDIR (Windows) does not split the command.
+# Prompt is redirected from a FILE inside the cmd string itself (not via inherited stdin across
+# the _run_with_timeout background-job boundary) - the path is single-quoted so a
+# space-containing TMPDIR (Windows) does not split the command. A direct `< file` redirect (not
+# `cat file | claude`) is deliberate: a real 3-OS CI run found that when the timed command is a
+# PIPELINE, `sh -c "$cmd"`'s own PID (what the watchdog kills) is a shell juggling TWO child
+# processes (cat + claude) - on macOS's bash 3.2, killing that shell did not reliably reach the
+# still-running claude process, so a stuck/slow call ran unbounded past --timeout (real cost
+# risk: eval is billable). A single command with an input redirect has no such ambiguity - `sh
+# -c "single_command"` can exec-replace itself with that command on every shell tested, so the
+# watchdog's kill lands on the actual worker process directly, not a wrapper.
 _eval_engine_run() { # $1=promptfile $2=timeout-seconds -> stdout=raw json; return 124=timeout
   local promptfile="$1" timeout="$2"
-  _run_with_timeout "$timeout" "cat '$promptfile' | claude -p --tools '' --disable-slash-commands --output-format json"
+  _run_with_timeout "$timeout" "claude -p --tools '' --disable-slash-commands --output-format json < '$promptfile'"
 }
 
 # Build the judge prompt for one fixture. Returns 1 (writes nothing usable) if the gate-rules.md
