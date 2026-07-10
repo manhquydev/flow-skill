@@ -2142,12 +2142,17 @@ _run_with_timeout() { # $1 = seconds; $2 = command string (run via `sh -c`)
   # the real command finishes early does NOT kill its sleep, which is reparented and keeps
   # running to completion, orphaned, on every fast call (previously unbounded: N fast calls left
   # N orphaned `sleep $secs` processes).
+  # A bare `wait` (no PID arg) is used, not `wait "$SLEEP_PID"`: a real 3-OS CI run found the
+  # PID-argument form of `wait` on a job backgrounded INSIDE this subshell unreliable under
+  # macOS's bash 3.2 (the timeout never fired - the mock ran to full completion, unbounded) -
+  # a bare `wait` waiting on ALL of the subshell's own background jobs (here, only the one
+  # sleep) is the more portable form across bash versions.
   local flag; flag="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/.flow_timeout_$$")"
   rm -f "$flag" 2>/dev/null
   sh -c "$cmd" & local pid=$!
   ( trap 'kill "$SLEEP_PID" 2>/dev/null; exit 143' TERM
     sleep "$secs" 2>/dev/null & SLEEP_PID=$!
-    wait "$SLEEP_PID" 2>/dev/null
+    wait 2>/dev/null
     kill -TERM "$pid" 2>/dev/null && : > "$flag" 2>/dev/null
   ) & local watchdog=$!
   wait "$pid" 2>/dev/null; local rc=$?

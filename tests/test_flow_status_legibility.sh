@@ -12,6 +12,21 @@ has() { if printf '%s' "$1" | grep -q "$2"; then echo "  ok   [$3]"; pass=$((pas
 no()  { if printf '%s' "$1" | grep -q "$2"; then echo "  FAIL [$3] (unexpected: $2)"; fail=$((fail+1)); else echo "  ok   [$3]"; pass=$((pass+1)); fi; }
 count_lines() { printf '%s' "$1" | grep -c "$2" || true; }
 
+# Portable timeout: macOS ships neither `timeout` nor `gtimeout` by default (BSD userland, no
+# GNU coreutils) - a bare `timeout N cmd...` call exits 127 "command not found" there, which is
+# EXACTLY the class of platform gap this section's own regression test exists to guard against.
+# Same detect-then-fallback contract as flow.sh's own `_run_with_timeout` (flow.sh:2132).
+_portable_timeout() { # $1 = seconds, rest = command
+  local secs="$1"; shift
+  if command -v timeout >/dev/null 2>&1; then timeout "$secs" "$@"; return $?; fi
+  if command -v gtimeout >/dev/null 2>&1; then gtimeout "$secs" "$@"; return $?; fi
+  "$@" & local pid=$!
+  ( sleep "$secs" 2>/dev/null; kill -TERM "$pid" 2>/dev/null ) & local watchdog=$!
+  wait "$pid" 2>/dev/null; local rc=$?
+  kill "$watchdog" 2>/dev/null; wait "$watchdog" 2>/dev/null
+  return "$rc"
+}
+
 newsb() { SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/cards" "$SB/flow"; unset FLOW_LOG_DISABLE; }
 clean() { rm -rf "$SB" 2>/dev/null; unset FLOW_PROJECT_ROOT FLOW_SESSION_ID; }
 clean_stage() { printf '#%s\n## Gate\n- [x] ok\n\nreal content.\n' "$1" > "$SB/flow/$1.md"; }
@@ -119,7 +134,7 @@ clean_stage 00-idea; clean_stage 01-research
 # this is the genuinely-BLOCKED-current-stage state that was never exercised above (every
 # other section's fixtures are gate-clean via clean_stage).
 FLOW_SESSION_ID=SA bash "$RUN" next >/dev/null 2>&1   # advances into 02-scope (template, not clean)
-out="$(timeout 20 bash "$RUN" status 2>&1)"; rc=$?
+out="$(_portable_timeout 20 bash "$RUN" status 2>&1)"; rc=$?
 ck 0 "$rc" "status on a BLOCKED current stage returns (not 124=timeout, not a hang)"
 has "$out" "NEXT -> fix gate:" "NEXT-> reports the fix-gate action for the blocked stage"
 has "$out" "gate: BLOCKED -" "gate state still shown as BLOCKED"
