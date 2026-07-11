@@ -129,6 +129,23 @@ repaired complaint #3 flipped its verdict from 5/5 FLAG (pre-repair) to 2/3 PASS
 still a majority pass with one dissent, consistent with the fixture's other imperfections being
 left in place per the Risk Assessment).
 
+### Post-ship CI fixes (v0.21.0 line, no version bump)
+
+Two macOS-only CI regressions caught on the v0.21.0 push, fixed in commit `82a67c0`:
+
+- Retry now skips on `rc=124` timeout (same policy as rate-limit; both are infra, not formatting
+  slips). Without this, the retry hit the macOS `_run_with_timeout` watchdog-fallback DEBT
+  TWICE per vote — test E measured ~66s under a 20s cap. Ubuntu and Windows are unaffected
+  (both have real `timeout` binaries).
+- `_eval_prune_raw_dirs` refactored to eliminate `local` inside a piped-`while` subshell
+  (unreliable on macOS `/bin/bash 3.2.57`). The sorted list is materialized into a here-string
+  in the outer function shell, then split by newline and iterated in the current shell — no
+  piped subshell, no `local` inside a sub-subshell. Restores test U's `gibberish pruned` +
+  `4th-oldest pruned` assertions on the macOS leg.
+
+Lesson recorded: local-run success on bash 5.x (Windows Git Bash, Ubuntu) is not a substitute
+for testing the macOS bash-3.2 leg — the 3-OS CI matrix is the source of truth.
+
 ### Deferred, disclosed
 
 - macOS `_run_with_timeout` fallback watchdog debt (DEBT.md) — unchanged by this release, still
