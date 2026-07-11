@@ -138,10 +138,15 @@ Two macOS-only CI regressions caught on the v0.21.0 push, fixed in commit `82a67
   TWICE per vote — test E measured ~66s under a 20s cap. Ubuntu and Windows are unaffected
   (both have real `timeout` binaries).
 - `_eval_prune_raw_dirs` refactored to eliminate `local` inside a piped-`while` subshell
-  (unreliable on macOS `/bin/bash 3.2.57`). The sorted list is materialized into a here-string
-  in the outer function shell, then split by newline and iterated in the current shell — no
-  piped subshell, no `local` inside a sub-subshell. Restores test U's `gibberish pruned` +
-  `4th-oldest pruned` assertions on the macOS leg.
+  (unreliable on macOS `/bin/bash 3.2.57`). The sorted list is materialized into a real
+  **tempfile** (`mktemp`) in the outer function shell, then iterated with
+  `while read line < "$tmpf"` — a **redirect, NOT a pipe**, so the loop stays in the current
+  shell. The round-1 attempt (commit `82a67c0`) tried a `set --` with newline-IFS approach on
+  a `$(...)` here-string; that worked on bash 5.x (windows Git Bash + ubuntu) but silently
+  no-op'd on macOS 3.2, so the round-2 commit (`17677b1`) moved to the tempfile+redirect design
+  that is rock-solid across every bash version the 3-OS matrix has thrown at it. Restores test
+  U's `gibberish pruned` + `4th-oldest pruned` assertions on the macOS leg. **Do NOT "restore"
+  the here-string variant** thinking it was simpler — it did not survive the macOS-3.2 leg.
 
 Lesson recorded: local-run success on bash 5.x (Windows Git Bash, Ubuntu) is not a substitute
 for testing the macOS bash-3.2 leg — the 3-OS CI matrix is the source of truth.
