@@ -2,9 +2,10 @@
 
 *Read this in [English](README.md).*
 
-**31 bộ test / 799 check, xanh cục bộ trên macOS · Ubuntu · Windows (Git Bash). CI hosted (GitHub
-Actions) xanh trên `master` tính đến commit đã push gần nhất (v0.18.0); v0.19.0 và v0.20.0 mới chỉ
-verify cục bộ, chưa qua CI.**
+**31 bộ test, xanh trên ma trận CI 3 hệ điều hành (Ubuntu · macOS · Windows). CI hosted đã chuyển
+sang **Azure Pipelines** (miễn phí private, 1 parallel job / 1.800 phút/tháng) từ sau v0.21.0 —
+GitHub Actions đã cắt bỏ vì bị khóa billing/quota lặp lại trên repo private. Lần verify cuối trên
+GitHub Actions là run `29141602431` trên nhánh v0.21.0 = xanh 3/3 OS ngay trước khi chuyển đổi.**
 
 `/flow` đưa một sản phẩm từ **ý tưởng đến bằng chứng "done" thật** qua các **cổng (gate) trung
 thực** — một URL đã deploy cho web, "cài + chạy được" cho CLI, public API + coverage cho library,
@@ -13,7 +14,47 @@ harness bền vững** (intake/story/trace/decision/backlog), điều phối age
 (GPT-5.x) engine thứ hai + Antigravity (Gemini-3) engine thứ ba khác nhà cung cấp** = gate đối kháng
 ba mô hình), và nhận biết loại dự án.
 
-> Trạng thái: **v0.20.0** — **mission-control legibility: verb `resume` + nâng cấp `status` +
+> Trạng thái: **v0.21.0** (2026-07-11) — **eval-trust hardening + roadmap-A (express-lane)
+> BỊ KILL bằng số liệu.** Bản release 2 phần, cả hai đều dựa số thật từ baseline gate-eval
+> billable đầu tiên.
+>
+> **Phase 1 — eval robustness** (khởi nguồn từ storm 17/18 INVALID transient ngày 260710 mà
+> harness pre-v0.21 không thể postmortem): raw stdout+stderr+rc capture cả 2 attempt khi
+> vote cuối INVALID (envelope đã strip — không còn cwd/session_id/plugin paths — git-ignore
+> qua `_ignore_run_state`); circuit breaker first-UNRELIABLE (`invalid_count*3 > n` — bắt
+> đúng lớp storm 17/18, không chỉ all-INVALID) với cờ `aborted` chặn trailer `done` để
+> filtered aborted run không lọt vào `--report`/drift như "complete"; `--keep-going` là
+> escape hatch (worst case ~37 call ghi rõ cạnh flag); env `FLOW_EVAL_RETRY_BACKOFF`
+> (default 5s, test=0) + retry BỎ QUA khi rate-limit fired HOẶC attempt trước là timeout
+> (`rc=124`); field `rate_limited` best-effort neo vào `rate_limit_info.status` (advisory —
+> event `allowed` khỏe mạnh vẫn chứa `overageStatus:rejected` là field khác, grep ngây thơ
+> sẽ false-positive); prune raw-dir trước batch theo epoch nhúng trong `run_id` + guard
+> `FLOW_LOCK_TTL` cho run đồng thời/đang postmortem; `fid` sanitize trước khi chạm filesystem.
+>
+> **Phase 2 — sửa fixture f01a**: complaint #3 viết lại (dòng 38-41) thành online quote
+> mạch lạc với link thread-style tổng hợp; không còn khung "phỏng vấn hộ gia đình
+> paraphrase" mà judge đang FLAG là "laundered interview data".
+>
+> **Phase 3 — baseline chuẩn + kill A + docs**: batch canonical billable (run
+> `…-1783743592-…`) = **6/6 MATCH, 0 unreliable, 0 invalid, 18/18 parsed**. Judge
+> `claude-opus-4-7`, cli `2.1.201`, `gate_rules_sha 3672145322`. Elapsed ~14 phút. Đây là
+> baseline drift mà `eval --report` đọc. Roadmap A (express-lane) **KILL bằng số**: cycle
+> có ≥1 lần `next` thành công tới Cards 14/15 (93%); contract dwell median 40s (n=12;
+> "1.3h bottleneck" là artifact averaging của `usage --global`); "33% abandonment" =
+> exploration pokes + brownfield card-mode. Điều kiện re-trigger ghi ở
+> `docs/quality-metrics.md`.
+>
+> **Red-team trước ship** (3 lens hostile qua subagent `code-reviewer`, mọi finding phải có
+> `file:line`): 26 raw → 14 accepted (2 Critical, 5 High, 7 Medium). Bảng phân xử tại
+> `plans/260710-2354-v021-eval-trust-hardening/plan.md > ## Red Team Review`. Bắt gồm:
+> circuit breaker gốc KHÔNG bao giờ trigger trên chính storm 17/18 tạo ra nó (retrip
+> first-UNRELIABLE, không phải all-invalid), và raw-capture gốc chỉ stdout khi chữ ký storm
+> nằm ở stderr — cả hai sẽ ship dạng latent bug nếu không có pass này. **CI XANH 3/3 OS**
+> trên run `29141602431` sau 2 vòng fix cho DEBT retry-on-timeout của macOS + lỗi
+> portability prune loop trên bash 3.2. Audit `code-reviewer` sau-ship: 0 defect runtime,
+> 1 docs drift đã fix.
+>
+> **v0.20.0** — **mission-control legibility: verb `resume` + nâng cấp `status` +
 > per-card dwell trong `--global`.** Dựa trên bằng chứng (telemetry dogfood 1079 event): `status`
 > là verb được gọi nhiều nhất (287 lần, gấp 2.8x `next`) nhưng không có dòng next-action hay
 > dwell; không gì cho một phiên agent mới một bản tóm tắt để resume — than phiền "AI mất trí nhớ
@@ -109,9 +150,11 @@ ba mô hình), và nhận biết loại dự án.
 > **v0.12.2** bổ sung lens Review nhận biết ngôn ngữ (typescript-reviewer/.ts·.js + python-reviewer/.py,
 > xếp lớp với code-reviewer, kết hợp với security lens, degrade detect-first, gate-parity giữ nguyên) và
 > sửa lỗi tiềm ẩn v0.12.1 (tripwire dùng `grep -oP` chỉ GNU; viết lại bằng POSIX `sed -E` để CI macOS BSD grep chạy được).
-> **31 bộ test / 799 check xanh cục bộ** (macOS · Ubuntu · Windows qua Git Bash). CI hosted GitHub
-> Actions xanh trên `master` tính đến commit đã push gần nhất (v0.18.0); v0.19.0 và v0.20.0 chưa
-> qua CI. MIT.
+> **31 bộ test xanh trên ma trận CI 3 hệ điều hành** (Ubuntu · macOS · Windows). CI hosted đã
+> chuyển sang **Azure Pipelines** (miễn phí private, 1 parallel job / 1.800 phút/tháng) từ sau
+> v0.21.0 — GitHub Actions cắt bỏ do bị khóa billing/quota lặp lại trên repo private. Run
+> GitHub Actions cuối cùng là `29141602431` trên nhánh v0.21.0 = xanh 3/3 OS ngay trước khi
+> chuyển. MIT.
 
 ## Triết lý cốt lõi
 - **"Done" = bằng chứng thật ngoài đời**, không phải "tests pass" / "đã merge". Mỗi card khai báo

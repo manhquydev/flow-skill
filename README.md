@@ -2,9 +2,10 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-**31 test suites / 799 checks, green locally on macOS · Ubuntu · Windows (Git Bash). Hosted CI
-(GitHub Actions) was green on `master` as of the last pushed commit (v0.18.0); v0.19.0 and
-v0.20.0 are local-verified only and have not yet been pushed through CI.**
+**31 test suites, green on the 3-OS CI matrix (Ubuntu · macOS · Windows). Hosted CI runs on
+Azure Pipelines (free-tier private) after v0.21.0; GitHub Actions has been retired due to
+recurring billing/quota blocks on private repos. Last verified: v0.21.0 line, GitHub Actions
+run `29141602431` = green 3/3 OS immediately before the switch to Azure.**
 
 `/flow` takes a product from **idea to its real done-evidence** through honest gates — a
 deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
@@ -13,7 +14,47 @@ durable harness layer (intake/story/trace/decision/backlog), agent orchestration
 **Codex (GPT-5.x) second engine + Antigravity (Gemini-3) third engine** = a three-model adversarial
 gate), and project-type awareness.
 
-> Status: **v0.20.0** — **mission-control legibility: resume verb + status upgrade + per-card
+> Status: **v0.21.0** (2026-07-11) — **eval-trust hardening + roadmap-A (express-lane) KILLED
+> by data.** Two-part release, both evidence-driven from the first REAL gate-eval baseline.
+>
+> **Phase 1 — eval robustness** (motivated by a 260710 17/18-INVALID transient storm the
+> pre-v0.21 harness could not postmortem): raw stdout+stderr+rc capture for both attempts on
+> a final-INVALID vote (envelope stripped — no cwd/session/plugin paths — git-ignored via
+> `_ignore_run_state`); first-UNRELIABLE circuit breaker (`invalid_count*3 > n` — catches the
+> exact 17/18 storm class, not just all-INVALID) with an `aborted` flag guarding the batch
+> `done` trailer so a filtered aborted run cannot slip through `--report`/drift as complete;
+> `--keep-going` overrides (worst case ≈ 37 calls documented next to the flag);
+> `FLOW_EVAL_RETRY_BACKOFF` env (default 5s, tests 0) + retry skipped when rate-limit fired OR
+> when the previous attempt was a timeout (`rc=124`); best-effort `rate_limited` field anchored
+> to `rate_limit_info.status` (advisory — a healthy `allowed` event carries
+> `overageStatus:rejected` as a separate field, so naive grep would false-positive);
+> pre-batch raw-dir prune keyed off the epoch embedded in `run_id` with a `FLOW_LOCK_TTL`
+> guard for concurrent/in-postmortem runs; `fid` sanitized before touching filesystem.
+>
+> **Phase 2 — fixture f01a repair**: complaint #3 rewritten (lines 38-41) as a coherent online
+> quote with a synthetic thread-style link; no interview-paraphrase framing that the judge was
+> flagging as "laundered interview data".
+>
+> **Phase 3 — canonical baseline + A-kill + docs**: canonical billable batch (run
+> `…-1783743592-…`) = **6/6 MATCH, 0 unreliable, 0 invalid, 18/18 parsed**. Judge
+> `claude-opus-4-7`, cli `2.1.201`, `gate_rules_sha 3672145322`. Elapsed ~14 min. This is the
+> drift baseline `eval --report` reads. Roadmap A (express-lane) **KILLED with numbers**:
+> cycles with ≥1 successful `next` reach Cards at 14/15 (93%); contract dwell median 40s
+> (n=12; the "1.3h bottleneck" was a `usage --global` averaging artifact); "33% abandonment"
+> = exploration pokes + brownfield card-mode. Re-trigger condition logged in
+> `docs/quality-metrics.md`.
+>
+> **Red-team pre-ship** (3 hostile lenses via `code-reviewer` subagents, every finding
+> `file:line`-backed): 26 raw → 14 accepted (2 Critical, 5 High, 7 Medium). Adjudication
+> table in `plans/260710-2354-v021-eval-trust-hardening/plan.md > ## Red Team Review`. Catches
+> include the original breaker missing its own motivating 17/18 incident (retrip on
+> first-UNRELIABLE, not all-invalid) and the raw-capture spec being stdout-only when the storm
+> signature was stderr — both would have shipped as latent bugs without the pass. **CI GREEN
+> 3/3 OS** on run `29141602431` after 2 rounds of macOS-only fixes for the retry-on-timeout
+> DEBT interaction and a bash-3.2 prune-loop portability issue. Post-ship independent
+> `code-reviewer` audit found 0 runtime defects, 1 fixed docs drift.
+>
+> **v0.20.0** — **mission-control legibility: resume verb + status upgrade + per-card
 > dwell in `--global`.** Evidence-driven (1079-event dogfood telemetry: `status` is the
 > most-called verb, 287 calls, 2.8x `next`, yet had no next-action line or dwell; nothing gave a
 > fresh agent session a resume brief — the industry's top unsolved "AI context amnesia"
@@ -116,9 +157,11 @@ gate), and project-type awareness.
 > layered with code-reviewer, composes with security lens, detect-first degrade, gate-parity preserved) and
 > fixes a v0.12.1 latent portability defect (agent-wiring tripwire used GNU-only `grep -oP`; rewritten
 > with POSIX `sed -E` so macOS BSD grep CI passes).
-> **31 test suites / 799 checks green locally** (macOS · Ubuntu · Windows via Git Bash). Hosted
-> GitHub Actions CI was green on `master` as of the last pushed commit (v0.18.0); v0.19.0 and
-> v0.20.0 not yet pushed through CI. MIT.
+> **31 test suites green on the 3-OS CI matrix** (Ubuntu · macOS · Windows). Hosted CI moved to
+> **Azure Pipelines** (free-tier private, 1 parallel job / 1,800 min/mo) after v0.21.0 —
+> GitHub Actions retired because of recurring billing/quota blocks on private repos. The last
+> GitHub Actions run was `29141602431` on the v0.21.0 line = green 3/3 OS immediately before
+> the switch. MIT.
 
 ## What ships
 
