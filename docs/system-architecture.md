@@ -67,7 +67,7 @@ On-disk artifacts (in the project being built):
 | `skills/flow/law/` | CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md |
 | `skills/flow/references/` | semantic playbooks (gates, agents, loop, design, auto) |
 | `skills/flow/playbooks/` | paid-for stack knowledge (read before, harvest after) |
-| `tests/` | 31 suites / 799 checks across runner / harness / scenarios / loop / eval / resume / status-legibility |
+| `tests/` | 31 suites across runner / harness / scenarios / loop / eval (v0.21: raw-on-INVALID + circuit breaker + prune + envelope-strip added) / resume / status-legibility. CI matrix ubuntu+macos+windows is the source of truth. |
 | `install.sh` / `install.ps1` | install to ~/.claude or a project |
 
 ## Deep-wired skills (pluggable agents + decision matrix)

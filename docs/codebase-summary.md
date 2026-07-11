@@ -53,13 +53,18 @@ bash (Git Bash on Windows) for the engine; Python 3 + stdlib sqlite3 for the dur
 (optional Rust `harness-cli` power-path); no third-party install required.
 
 ## Tests
-`bash tests/run_all.sh` — 31 suites / 799 checks, all green. Covers gate pass/fail, lifecycle,
-card validation, intake classification, trace tiers, story verify, debt, design, the 6 buildflow
-scenario rounds, loop-engineering (ck-loop wrapper), behavioral gate proof (`eval`), the
-`resume`/`status` legibility surface, and graceful degrade.
+`bash tests/run_all.sh` — 31 suites, all green on the 3-OS CI matrix (ubuntu / macos / windows).
+Covers gate pass/fail, lifecycle, card validation, intake classification, trace tiers, story
+verify, debt, design, the 6 buildflow scenario rounds, loop-engineering (ck-loop wrapper),
+behavioral gate proof (`eval`, 22 sections incl. v0.21 raw-on-INVALID + circuit breaker +
+envelope strip + run_id-epoch prune), the `resume`/`status` legibility surface, and graceful
+degrade. Real numbers surface in each release's per-release journal note; CI matrix is the
+source of truth (`gh run view <id>`), not local-only runs.
 
 ## Status
-v0.20.0. v1 core complete (Phases 1-6, see `plans/260613-1021-flow-skill-engine/`); ongoing
-releases add capability on top (durable-layer deep integration, cross-vendor agent tiers,
-usage-log telemetry, behavioral gate eval, mission-control legibility). See CHANGELOG.md and
-`docs/quality-metrics.md` for the per-release history.
+v0.21.0 (2026-07-11, commit `17677b1` on the v0.21.0 line, CI GREEN 3/3 OS on run
+`29141602431`). v1 core complete (Phases 1-6, see `plans/260613-1021-flow-skill-engine/`);
+ongoing releases add capability on top (durable-layer deep integration, cross-vendor agent tiers,
+usage-log telemetry, behavioral gate eval + trust hardening, mission-control legibility,
+express-lane KILLED by data). See CHANGELOG.md and `docs/quality-metrics.md` for the per-release
+history + the roadmap-A anti-FOMO log.
