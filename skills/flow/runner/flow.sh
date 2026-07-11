@@ -2566,43 +2566,37 @@ _eval_prune_raw_dirs() { # $1=keep-count (default 3)
   local keep="${1:-3}" raw_root="$LOG_DIR/eval-raw"
   [ -d "$raw_root" ] || return 0
   local now; now="$(_now)"
-  # bash-3.2 (macOS /bin/bash 3.2.57) gotcha: `local` inside a piped-into `while read` loop lands
-  # in a subshell where its intent is unreliable across shell versions. Even sub-scoping aside,
-  # the whole pipeline runs in a subshell so any counter/state built inside dies when the pipe
-  # closes - reads that "worked" on ubuntu (bash 5.x) can silently no-op on the macos leg. This
-  # implementation therefore materializes the sorted list into a here-string first, then does
-  # ALL prune logic in the outer function shell (no piped subshell, no `local` in a sub-subshell).
-  # This is what the 260711 CI-3-OS run found: the pipelined variant left dirs undeleted on macos
-  # only, while ubuntu and windows agreed with the test expectations.
-  local sorted_lines
-  sorted_lines="$(
-    for d in $(ls -1 "$raw_root" 2>/dev/null); do
-      [ -d "$raw_root/$d" ] || continue
-      _ep="$(_eval_nonce_epoch "$d")"
-      case "$_ep" in ''|*[!0-9]*) _ep=0 ;; esac
-      printf '%s %s\n' "$_ep" "$d"
-    done | sort -rn -k1,1
-  )"
-  [ -z "$sorted_lines" ] && return 0
-  # Split into an array so the loop runs in the current shell (no pipeline subshell).
-  local IFS_SAVE="$IFS"
-  local i=0 line ep d age
-  IFS='
-'
-  set -- $sorted_lines
-  IFS="$IFS_SAVE"
-  for line in "$@"; do
+  # Bash-3.2 (macOS /bin/bash 3.2.57) - and BSD-tools compatibility - safe design:
+  # No `set --` with a custom IFS (unreliable on macos when the value comes from a `$(...)`
+  # subshell with a trailing newline), no `local` inside a pipeline subshell (also unreliable
+  # under bash 3.2), and no reliance on process substitution (unavailable in the /bin/bash 3.2
+  # POSIX mode some macos CI images run under). Instead: build the sorted list into a real temp
+  # file, then iterate the file with a plain `while read` in the CURRENT shell (using redirect,
+  # NOT a pipe - a pipe reintroduces the subshell). This is what the CI-3-OS matrix confirmed
+  # actually works everywhere.
+  local tmpf; tmpf="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/.flow_prune_$$")"
+  local d _ep
+  for d in $(ls -1 "$raw_root" 2>/dev/null); do
+    [ -d "$raw_root/$d" ] || continue
+    _ep="$(_eval_nonce_epoch "$d")"
+    case "$_ep" in ''|*[!0-9]*) _ep=0 ;; esac
+    printf '%s %s\n' "$_ep" "$d"
+  done | sort -rn -k1,1 > "$tmpf" 2>/dev/null
+  if [ ! -s "$tmpf" ]; then rm -f "$tmpf" 2>/dev/null; return 0; fi
+  local i=0 line ep dn age
+  # Iterate via redirect so the while loop stays in the current shell (no piped subshell).
+  while IFS= read -r line || [ -n "$line" ]; do
     i=$((i + 1))
     [ "$i" -le "$keep" ] && continue
-    ep="${line%% *}"; d="${line#* }"
+    ep="${line%% *}"; dn="${line#* }"
     case "$ep" in ''|*[!0-9]*) ep=0 ;; esac
-    # TTL guard: never prune something whose embedded epoch is within FLOW_LOCK_TTL of now.
     if [ "$ep" -gt 0 ]; then
       age=$((now - ep))
       [ "$age" -lt "$FLOW_LOCK_TTL" ] && continue
     fi
-    rm -rf "$raw_root/$d" 2>/dev/null || echo "eval: WARNING raw-prune failed to remove $raw_root/$d" 1>&2
-  done
+    rm -rf "$raw_root/$dn" 2>/dev/null || echo "eval: WARNING raw-prune failed to remove $raw_root/$dn" 1>&2
+  done < "$tmpf"
+  rm -f "$tmpf" 2>/dev/null
 }
 
 # Extract one top-level quoted-string field's value from an own-emitted JSON line. Our eval
