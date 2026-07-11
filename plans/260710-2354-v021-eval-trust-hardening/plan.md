@@ -5,7 +5,7 @@ description: >-
   capture, retry backoff, rate-limit visibility, batch circuit-breaker), repair
   the dirty f01a fixture, establish the canonical 6/6 baseline, and formally
   kill roadmap-A (express-lane) with evidence + re-trigger condition.
-status: pending
+status: completed
 priority: P2
 branch: master
 tags:
@@ -48,7 +48,7 @@ Evidence + decisions: `plans/reports/brainstorm-260710-2354-v021-eval-hardening-
 |-------|------|--------|
 | 1 | [Eval robustness (raw-on-INVALID + retry + rate-limit visibility)](./phase-01-eval-robustness-raw-on-invalid-retry-rate-limit-visibility.md) | Completed |
 | 2 | [Fixture f01a repair](./phase-02-fixture-f01a-repair.md) | Completed |
-| 3 | [Re-baseline + A-kill logging + docs](./phase-03-re-baseline-a-kill-logging-docs.md) | Pending |
+| 3 | [Re-baseline + A-kill logging + docs](./phase-03-re-baseline-a-kill-logging-docs.md) | Completed |
 
 ## Dependencies
 

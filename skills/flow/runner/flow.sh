@@ -2566,26 +2566,40 @@ _eval_prune_raw_dirs() { # $1=keep-count (default 3)
   local keep="${1:-3}" raw_root="$LOG_DIR/eval-raw"
   [ -d "$raw_root" ] || return 0
   local now; now="$(_now)"
-  # List "epoch dirname" pairs, sort DESC by epoch, drop first $keep, prune the rest but honor TTL.
-  # A dir whose name doesn't parse as a nonce (no epoch extractable) sorts as epoch=0 -> gets
-  # pruned first (which is what we want - it's residue from something outside our schema).
-  local sorted; sorted="$(
-    ls -1 "$raw_root" 2>/dev/null | while IFS= read -r d; do
+  # bash-3.2 (macOS /bin/bash 3.2.57) gotcha: `local` inside a piped-into `while read` loop lands
+  # in a subshell where its intent is unreliable across shell versions. Even sub-scoping aside,
+  # the whole pipeline runs in a subshell so any counter/state built inside dies when the pipe
+  # closes - reads that "worked" on ubuntu (bash 5.x) can silently no-op on the macos leg. This
+  # implementation therefore materializes the sorted list into a here-string first, then does
+  # ALL prune logic in the outer function shell (no piped subshell, no `local` in a sub-subshell).
+  # This is what the 260711 CI-3-OS run found: the pipelined variant left dirs undeleted on macos
+  # only, while ubuntu and windows agreed with the test expectations.
+  local sorted_lines
+  sorted_lines="$(
+    for d in $(ls -1 "$raw_root" 2>/dev/null); do
       [ -d "$raw_root/$d" ] || continue
-      local ep; ep="$(_eval_nonce_epoch "$d")"
-      case "$ep" in ''|*[!0-9]*) ep=0 ;; esac
-      printf '%s %s\n' "$ep" "$d"
+      _ep="$(_eval_nonce_epoch "$d")"
+      case "$_ep" in ''|*[!0-9]*) _ep=0 ;; esac
+      printf '%s %s\n' "$_ep" "$d"
     done | sort -rn -k1,1
   )"
-  [ -z "$sorted" ] && return 0
-  local i=0
-  printf '%s\n' "$sorted" | while IFS=' ' read -r ep d; do
+  [ -z "$sorted_lines" ] && return 0
+  # Split into an array so the loop runs in the current shell (no pipeline subshell).
+  local IFS_SAVE="$IFS"
+  local i=0 line ep d age
+  IFS='
+'
+  set -- $sorted_lines
+  IFS="$IFS_SAVE"
+  for line in "$@"; do
     i=$((i + 1))
     [ "$i" -le "$keep" ] && continue
+    ep="${line%% *}"; d="${line#* }"
+    case "$ep" in ''|*[!0-9]*) ep=0 ;; esac
     # TTL guard: never prune something whose embedded epoch is within FLOW_LOCK_TTL of now.
-    local age=$((now - ep))
-    if [ "$ep" -gt 0 ] && [ "$age" -lt "$FLOW_LOCK_TTL" ]; then
-      continue
+    if [ "$ep" -gt 0 ]; then
+      age=$((now - ep))
+      [ "$age" -lt "$FLOW_LOCK_TTL" ] && continue
     fi
     rm -rf "$raw_root/$d" 2>/dev/null || echo "eval: WARNING raw-prune failed to remove $raw_root/$d" 1>&2
   done
@@ -2923,7 +2937,12 @@ function cmd_eval {
       # that intent by skipping it on the one signal we now have that says "this is infra".
       local rl1; rl1="$(_eval_parse_rate_limited "$raw1")"
       [ "$rl1" = "true" ] && vote_rate_limited=true
-      if [ "$v" = "INVALID" ] && [ "$rl1" != "true" ]; then
+      # Skip the retry on rc=124 (timeout) the same way it's skipped on rate-limit: both are
+      # infra failures, not formatting slips. On the macOS watchdog-fallback lane where
+      # _run_with_timeout is documented not to bound a stuck call (DEBT.md), a retry here just
+      # waits another full stuck-call duration - test E on the 3-OS CI matrix reproduces this at
+      # ~66s (2x ~30s stuck calls + backoff) despite --timeout 3.
+      if [ "$v" = "INVALID" ] && [ "$rl1" != "true" ] && [ "$rc1" -ne 124 ]; then
         # Backoff then retry - env-injectable so tests can zero it; skipped when rc=124 (timeout
         # was infra, retry would timeout again) or when rate-limited (see above).
         if [ "$backoff" -gt 0 ]; then

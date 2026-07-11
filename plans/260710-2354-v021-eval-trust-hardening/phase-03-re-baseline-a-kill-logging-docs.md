@@ -1,9 +1,11 @@
 ---
 phase: 3
-title: "Re-baseline + A-kill logging + docs"
-status: pending
+title: Re-baseline + A-kill logging + docs
+status: completed
 priority: P2
-dependencies: [1, 2]
+dependencies:
+  - 1
+  - 2
 ---
 
 # Phase 3: Re-baseline + A-kill logging + docs
