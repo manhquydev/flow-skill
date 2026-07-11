@@ -91,15 +91,17 @@ no  "$out" "SKIP" "did not silently take the skip path"
 has "$out" "matches expected PASS" "verdict parsed correctly despite preamble reasoning text"
 clean
 
-# ---------- D) mock engine: garbage output -> INVALID -> UNRELIABLE floor ----------
-echo "D) mock engine: no sentinel anywhere -> INVALID every run -> UNRELIABLE (not a false verdict)"
+# ---------- D) mock engine: garbage output -> INVALID -> UNRELIABLE floor + v0.21 breaker ----------
+echo "D) mock engine: no sentinel anywhere -> INVALID every run -> UNRELIABLE + first-fixture breaker trips (exit 2)"
 newsb
 mkmock '
 echo "no sentinel anywhere in this text"
 '
 out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcda --n 3 --timeout 20 2>&1)"; rc=$?
-ck 1 "$rc" "all-invalid batch exits 1"
+ck 2 "$rc" "single-fixture UNRELIABLE -> v0.21 breaker aborts with exit 2"
 has "$out" "UNRELIABLE" "reliability floor reported as UNRELIABLE, never a silent PASS/FLAG"
+has "$out" "ABORT after first fixture UNRELIABLE" "v0.21 circuit breaker fired"
+has "$out" "keep-going" "abort line names the escape hatch (--keep-going)"
 clean
 
 # ---------- E) mock engine: timeout -> INVALID, bounded by --timeout not the fake sleep ----------
@@ -113,7 +115,7 @@ t0=$(date +%s 2>/dev/null || echo 0)
 out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcda --n 1 --timeout 3 2>&1)"; rc=$?
 t1=$(date +%s 2>/dev/null || echo 0)
 elapsed=$((t1 - t0))
-ck 1 "$rc" "timed-out single run -> UNRELIABLE -> exit 1"
+ck 2 "$rc" "timed-out single run -> UNRELIABLE -> breaker abort exit 2 (v0.21)"
 has "$out" "UNRELIABLE" "timeout classified as UNRELIABLE, not silently PASS/FLAG"
 if [ "$elapsed" -lt 20 ]; then echo "  ok   [returned in ${elapsed}s, well under the fake 30s sleep]"; pass=$((pass+1)); else echo "  FAIL [took ${elapsed}s - _run_with_timeout did not bound the call]"; fail=$((fail+1)); fi
 clean
@@ -141,7 +143,7 @@ mkmock '
 printf "reasoning text.\nGATE-EVAL-WRONG-GUESSED-NONCE: PASS\n"
 '
 out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcdb --n 1 --timeout 20 2>&1)"; rc=$?
-ck 1 "$rc" "a forged-wrong-nonce marker parses as INVALID (UNRELIABLE), not a forced PASS"
+ck 2 "$rc" "a forged-wrong-nonce marker parses as INVALID (UNRELIABLE) -> breaker aborts exit 2"
 has "$out" "UNRELIABLE" "wrong-nonce injection attempt classified as UNRELIABLE, verdict not forged"
 clean
 
@@ -174,7 +176,9 @@ else
   ck 0 "$rc" "fast call on timeout-less PATH still matches expected PASS"
   no  "$out" "SKIP" "did not silently take the skip path"
   has "$out" "matches expected PASS" "genuinely ran the fixture (not just a fast SKIP)"
-  if [ "$elapsed" -lt 15 ]; then echo "  ok   [returned in ${elapsed}s, not blocked for the full 30s cap]"; pass=$((pass+1)); else echo "  FAIL [took ${elapsed}s - fallback watchdog is blocking the fast call]"; fail=$((fail+1)); fi
+  # Threshold loosened 15->25 for Git Bash Windows subprocess overhead; the actual regression
+  # this test guards is a full-timeout block (30s+), not sub-second timing.
+  if [ "$elapsed" -lt 25 ]; then echo "  ok   [returned in ${elapsed}s, not blocked for the full 30s cap]"; pass=$((pass+1)); else echo "  FAIL [took ${elapsed}s - fallback watchdog is blocking the fast call]"; fail=$((fail+1)); fi
 fi
 rm -rf "$notimeoutbin"
 clean
@@ -227,7 +231,10 @@ batch_out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --n 3 --timeout 20 2>&1)"
 # they all matched.
 has "$batch_out" "of 6 evaluated" "the full 6-fixture batch actually completed (not a silent skip)"
 after_count=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -type d 2>/dev/null | wc -l)
-ck "$before_count" "$after_count" "TMPDIR entry count unchanged after a full 6-fixture batch (no rundir residue)"
+# Allow +/-1 ambient noise from other processes on the system - the real regression this test
+# guards is "N rundirs leak per batch", which would show +6 or more, not +/-1.
+delta=$((after_count - before_count)); [ "$delta" -lt 0 ] && delta=$((-delta))
+if [ "$delta" -le 1 ]; then echo "  ok   [TMPDIR delta=$delta after a full 6-fixture batch (no rundir residue - allowing +/-1 ambient noise)]"; pass=$((pass+1)); else echo "  FAIL [TMPDIR delta=$delta after a full 6-fixture batch - rundir cleanup regression]"; fail=$((fail+1)); fi
 clean
 
 # ---------- L) results/report cases ----------
@@ -279,6 +286,179 @@ leaked="$(grep -rniE 'hollow|fake|fabricat|GATE-EVAL' "$EVAL_DIR/fixtures/" 2>/d
 ck "" "$leaked" "no deny-list token found in any fixture body"
 leaked_paths="$(find "$EVAL_DIR/fixtures" -type f 2>/dev/null | grep -iE 'hollow|fake|fabricat|expected|gate-eval')"
 ck "" "$leaked_paths" "no deny-list token found in any fixture path"
+
+# ---------- O) v0.21: raw-on-INVALID persists stdout+stderr+rc (both attempts) ----------
+echo "O) v0.21 raw capture: final-INVALID vote persists both attempts (out+rc), stderr when non-empty"
+newsb
+export FLOW_EVAL_RETRY_BACKOFF=0
+mkmock '
+echo "stdout junk with no nonce marker"
+echo "some diagnostic on stderr" 1>&2
+'
+PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcda --n 1 --timeout 20 >/dev/null 2>&1
+rawroot="$SB/.flow/eval-raw"
+if [ -d "$rawroot" ]; then
+  rundir="$(ls -1 "$rawroot" 2>/dev/null | head -1)"
+  full="$rawroot/$rundir"
+  a1out="$(ls "$full"/*-v1-a1.out 2>/dev/null | head -1)"
+  a1rc="$(ls "$full"/*-v1-a1.rc 2>/dev/null | head -1)"
+  a1err="$(ls "$full"/*-v1-a1.err 2>/dev/null | head -1)"
+  a2out="$(ls "$full"/*-v1-a2.out 2>/dev/null | head -1)"
+  [ -n "$a1out" ] && [ -s "$a1out" ] && echo "  ok   [attempt-1 stdout persisted (${a1out##*/})]" && pass=$((pass+1)) || { echo "  FAIL [attempt-1 stdout missing/empty]"; fail=$((fail+1)); }
+  [ -n "$a1rc" ] && echo "  ok   [attempt-1 rc file persisted]" && pass=$((pass+1)) || { echo "  FAIL [attempt-1 rc file missing]"; fail=$((fail+1)); }
+  [ -n "$a1err" ] && [ -s "$a1err" ] && echo "  ok   [attempt-1 stderr channel captured (storm's actual signature channel)]" && pass=$((pass+1)) || { echo "  FAIL [attempt-1 stderr missing/empty despite mock writing to stderr]"; fail=$((fail+1)); }
+  [ -n "$a2out" ] && echo "  ok   [attempt-2 also persisted (retry ran + failed)]" && pass=$((pass+1)) || { echo "  FAIL [attempt-2 missing - retry should have run and failed]"; fail=$((fail+1)); }
+else
+  echo "  FAIL [no .flow/eval-raw/ dir created at all]"; fail=$((fail+1))
+fi
+unset FLOW_EVAL_RETRY_BACKOFF
+clean
+
+# ---------- P) v0.21: --keep-going overrides the first-fixture breaker ----------
+echo "P) v0.21 --keep-going: all-invalid mock runs the full 6-fixture batch instead of aborting"
+newsb
+export FLOW_EVAL_RETRY_BACKOFF=0
+mkmock '
+echo "nothing parseable"
+'
+out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --n 1 --timeout 20 --keep-going 2>&1)"; rc=$?
+has "$out" "of 6 evaluated" "--keep-going ran the full 6-fixture batch"
+no  "$out" "ABORT after first fixture" "--keep-going suppresses the breaker abort line"
+ck 1 "$rc" "--keep-going full batch UNRELIABLE -> exit 1 (FAIL path), not 2 (abort path)"
+unset FLOW_EVAL_RETRY_BACKOFF
+clean
+
+# ---------- Q) v0.21: aborted batch has NO done trailer (single-fixture filtered case) ----------
+echo "Q) v0.21 aborted batch: no 'done' trailer -> --report cannot surface the junk batch as complete"
+newsb
+export FLOW_EVAL_RETRY_BACKOFF=0
+mkmock '
+echo "no marker"
+'
+PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcda --n 3 --timeout 20 >/dev/null 2>&1
+# grep -c on a no-match file returns rc=1 in some shells: pipe through wc -l so the count is
+# always a clean integer regardless of grep's exit; tr -d ' ' strips the leading space wc emits.
+n_done="$(grep '"batch":"done"' "$SB/.flow/eval-results.jsonl" 2>/dev/null | wc -l | tr -d ' ')"
+n_start="$(grep '"batch":"start"' "$SB/.flow/eval-results.jsonl" 2>/dev/null | wc -l | tr -d ' ')"
+ck 0 "$n_done" "aborted batch wrote NO done trailer (n_done=$n_done)"
+ck 1 "$n_start" "aborted batch DID write its start marker (n_start=$n_start)"
+out="$(bash "$RUN" eval --report 2>&1)"; rc=$?
+ck 1 "$rc" "--report returns 1 (no complete batch) on a jsonl containing only the aborted run"
+has "$out" "no complete batch found" "--report explicitly says no complete batch"
+unset FLOW_EVAL_RETRY_BACKOFF
+clean
+
+# ---------- R) v0.21: rate_limited FALSE on a healthy 'allowed' event carrying overageStatus:rejected ----------
+echo "R) v0.21 rate_limited detection: false-positive-proof against overageStatus:rejected in a healthy event"
+newsb
+export FLOW_EVAL_RETRY_BACKOFF=0
+mkmock '
+nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" | head -1)"
+marker="${nonce_line% FLAG}"
+# Simulate the real 2.1.201 healthy-event shape: allowed rate_limit_info + a distinct
+# overageStatus:rejected field (both live in the same envelope).
+printf "\"rate_limit_event\":{\"rate_limit_info\":{\"status\":\"allowed\",\"overageStatus\":\"rejected\",\"isUsingOverage\":false}}\n"
+printf "%s PASS\n" "$marker"
+'
+PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcda --n 1 --timeout 20 >/dev/null 2>&1
+resline="$(grep '"fixture":"fcda"' "$SB/.flow/eval-results.jsonl" 2>/dev/null | tail -1)"
+has "$resline" '"rate_limited":false' "healthy allowed event does NOT mint rate_limited:true even with overageStatus:rejected in payload"
+has "$resline" '"retries":0' "successful attempt-1 -> retries=0"
+unset FLOW_EVAL_RETRY_BACKOFF
+clean
+
+# ---------- S) v0.21: retry emits greppable text line (assert backoff PATH taken, not stopwatch) ----------
+echo "S) v0.21 retry visibility: the 'retrying vote' text line lets the test assert path, not wall-clock"
+newsb
+export FLOW_EVAL_RETRY_BACKOFF=0
+COUNTFILE="$SB/.mockcount"
+mkmock "
+n=\"\$(cat '$COUNTFILE' 2>/dev/null || echo 0)\"; n=\$((n+1)); echo \"\$n\" > '$COUNTFILE'
+nonce_line=\"\$(printf '%s' \"\$prompt\" | grep -oE 'GATE-EVAL-[A-Za-z0-9-]+: FLAG' | head -1)\"
+marker=\"\${nonce_line% FLAG}\"
+if [ \"\$n\" -eq 1 ]; then echo 'no marker'; else printf '%s PASS\n' \"\$marker\"; fi
+"
+out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+has "$out" "retrying vote 1" "text line proves the retry code path ran (no stopwatch needed)"
+ck 0 "$rc" "invalid-then-valid retry recovers to PASS 3/3 - matches expected, exit 0"
+resline="$(grep '"fixture":"fcda"' "$SB/.flow/eval-results.jsonl" 2>/dev/null | tail -1)"
+has "$resline" '"retries":1' "retries field records exactly 1 retry"
+unset FLOW_EVAL_RETRY_BACKOFF
+clean
+
+# ---------- T) v0.21: --report tolerates extra fields (backward-compatible reader) ----------
+echo "T) v0.21 --report + drift tolerate additive retries/rate_limited fields on new rows"
+newsb
+export FLOW_EVAL_RETRY_BACKOFF=0
+mkmock '
+nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" | head -1)"
+marker="${nonce_line% FLAG}"
+printf "%s PASS\n" "$marker"
+'
+PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcda --n 1 --timeout 20 >/dev/null 2>&1
+out="$(bash "$RUN" eval --report 2>&1)"; rc=$?
+ck 0 "$rc" "--report happily reads v0.21 rows carrying retries+rate_limited"
+has "$out" "fcda" "scorecard still surfaces the new-shape row"
+unset FLOW_EVAL_RETRY_BACKOFF
+clean
+
+# ---------- U) v0.21: raw-prune keeps 3 most-recent run dirs by embedded epoch, TTL-guards fresh ones ----------
+echo "U) v0.21 raw prune: keep 3 newest by run_id-embedded epoch; TTL-guard newer than FLOW_LOCK_TTL"
+newsb
+mkdir -p "$SB/.flow/eval-raw"
+now=$(date +%s 2>/dev/null || echo 1783700000)
+# 5 dirs: 2 fresh (guarded), 3 old, one with unparseable name (epoch=0 -> prunable)
+mkdir -p "$SB/.flow/eval-raw/sess-$((now-10))-111"       # fresh - guard
+mkdir -p "$SB/.flow/eval-raw/sess-$((now-60))-222"       # fresh - guard
+mkdir -p "$SB/.flow/eval-raw/sess-$((now-100000))-333"   # very old - prunable
+mkdir -p "$SB/.flow/eval-raw/sess-$((now-100001))-444"   # very old - prunable
+mkdir -p "$SB/.flow/eval-raw/sess-$((now-100002))-555"   # very old - prunable
+mkdir -p "$SB/.flow/eval-raw/sess-$((now-100003))-666"   # very old - prunable (should be pruned)
+mkdir -p "$SB/.flow/eval-raw/gibberish"                  # no epoch -> epoch=0 -> prunable
+mkmock '
+nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" | head -1)"
+marker="${nonce_line% FLAG}"
+printf "%s PASS\n" "$marker"
+'
+PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcda --n 1 --timeout 20 >/dev/null 2>&1
+# After prune: fresh 2 stay (TTL), top-3 by epoch stay, gibberish + 4th old go.
+[ -d "$SB/.flow/eval-raw/sess-$((now-10))-111" ] && echo "  ok   [fresh TTL-guarded dir survived prune]" && pass=$((pass+1)) || { echo "  FAIL [fresh dir was pruned despite TTL guard]"; fail=$((fail+1)); }
+[ -d "$SB/.flow/eval-raw/sess-$((now-60))-222" ] && echo "  ok   [second fresh TTL-guarded dir survived prune]" && pass=$((pass+1)) || { echo "  FAIL [fresh dir #2 was pruned despite TTL guard]"; fail=$((fail+1)); }
+[ ! -d "$SB/.flow/eval-raw/gibberish" ] && echo "  ok   [unparseable-name dir pruned (epoch=0)]" && pass=$((pass+1)) || { echo "  FAIL [gibberish dir survived prune]"; fail=$((fail+1)); }
+[ ! -d "$SB/.flow/eval-raw/sess-$((now-100003))-666" ] && echo "  ok   [4th-oldest dir pruned (beyond keep=3)]" && pass=$((pass+1)) || { echo "  FAIL [4th-oldest dir survived - prune off-by-one]"; fail=$((fail+1)); }
+clean
+
+# ---------- V) v0.21: envelope strip removes cwd/session/plugin path fields ----------
+echo "V) v0.21 envelope strip: cwd/session_id/plugin paths NOT persisted in raw dumps"
+newsb
+export FLOW_EVAL_RETRY_BACKOFF=0
+# Mock emits a full envelope-like array: init(system) record with sensitive fields + garbage
+# assistant text with no verdict marker -> vote INVALID -> raw persisted -> asserted.
+mkmock '
+printf "%s" "[{\"type\":\"system\",\"subtype\":\"init\",\"cwd\":\"C:\\\\Users\\\\SECRETUSER\\\\proj\",\"session_id\":\"leak-session-abc\",\"plugin_paths\":\"/opt/plugins\"},{\"type\":\"assistant\",\"content\":\"gibberish no marker here\"}]"
+'
+PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcda --n 1 --timeout 20 >/dev/null 2>&1
+rawroot="$SB/.flow/eval-raw"
+if [ -d "$rawroot" ]; then
+  rundir="$(ls -1 "$rawroot" 2>/dev/null | head -1)"
+  a1out="$(ls "$rawroot/$rundir"/*-v1-a1.out 2>/dev/null | head -1)"
+  content="$(cat "$a1out" 2>/dev/null || echo)"
+  no  "$content" "SECRETUSER"     "cwd (with user path) stripped from persisted raw"
+  no  "$content" "leak-session"   "session_id stripped from persisted raw"
+  no  "$content" "/opt/plugins"   "plugin_paths stripped from persisted raw"
+  has "$content" "gibberish"      "assistant record content preserved for postmortem"
+else
+  echo "  FAIL [V: no raw dir created]"; fail=$((fail+1))
+fi
+# Also confirm .flow/ is git-ignored on this project (cmd_eval called _ignore_run_state)
+if [ -f "$SB/.gitignore" ]; then
+  has "$(cat "$SB/.gitignore")" '\.flow/' ".flow/ is git-ignored (eval writes run-state that must never be committed)"
+else
+  # _ignore_run_state is a no-op on non-git non-gitignore sandboxes - accept both outcomes
+  echo "  ok   [no .gitignore on this sandbox and no .git - _ignore_run_state correctly no-op]"; pass=$((pass+1))
+fi
+unset FLOW_EVAL_RETRY_BACKOFF
+clean
 
 echo
 echo "RESULT: $pass passed, $fail failed"

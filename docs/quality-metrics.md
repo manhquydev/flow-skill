@@ -293,6 +293,65 @@ stage — without it `top-fail-stage`/propose got no data). Independent code rev
 warning at the point of use). Suite **20 suites / 394 checks** green; coherence clean (0.9.0 → 0.10.0).
 Shipped to all 5 skill homes and verified by a live installed-runner `recall` showing the usage digest.
 
+## v0.21.0 — eval-trust hardening + roadmap-A killed by data (2026-07-11)
+
+### Roadmap A (express-lane / adaptive-ceremony) — KILLED WITH NUMBERS
+
+The v0.19+v0.20 roadmap was `B (gate-eval) → C (mission-control legibility) → A (express-lane)`,
+with A conditionally opened by "loosen the gate only with a gauge showing it's safe" (B). Both B
+and C shipped 260710. The instant B produced its first REAL data, A's premise dissolved.
+
+**Original justification for A** (roadmap brainstorm, 260710-0238):
+
+- "33% build-intent cycles abandoned before Cards" (7/21).
+- "Contract-stage dwell avg 1.3h" — cited as a possible bottleneck.
+
+**Same-day per-cycle telemetry mining** (`~/.claude/flow/usage.jsonl`, real projects only,
+tmp/ephemeral excluded):
+
+- Cycles with **≥1 successful `next`**: **14/15 reach Cards (93%)** — the pipeline, once
+  entered, essentially always completes.
+- 8 zero-next cycles: 1 = CMC brownfield working directly in card mode by design (83 events,
+  cards created); 7 = **exploration pokes** (only `status`/`assess`/`debt`, 1–9 events; never
+  intended to build). Real mid-pipeline abandonment = **1/15 (~7%)**.
+- **Contract dwell median 40s** (range 25–113s, n=12); the "1.3h avg" in `usage --global` was
+  a measurement artifact of a different pairing rule. Full pipeline 00→05 wall-clock ≈ **5 min**.
+
+**Verdict.** The signal express-lane was designed to relieve isn't a signal — it's exploration
+pokes + one brownfield card-mode workflow + a measurement artifact. Loosening ceremony now would
+lower quality without saving any time worth measuring.
+
+**Re-trigger condition** (logged so future FOMO can be answered from data, not vibes): revisit
+entry-activation only if, after ~15–20 new real cycles on v0.20's `resume`/`NEXT ->` legibility,
+zero-`next` poke cycles still dominate AND entry conversion (poke → `next`) hasn't moved. Until
+then, A stays killed.
+
+### Eval-trust hardening (built + measured this release)
+
+- First REAL gate-eval baseline (260710, run `…-1783701885-…`): **hollow-flag-rate 3/3 stages
+  100%**, 0 INVALID/18, all fixtures unanimous — semantic layer proven enforceable by a fresh
+  judge. Only mismatch = f01a "sound" fixture FLAGged 5/5 with defensible reasoning (dirty
+  fixture, gate right — one laundered `paraphrased-with-permission … subreddit-homepage-link`
+  complaint) → fixture repaired in Phase 2.
+- **Canonical v0.21.0 baseline** (260711, run `…-1783743592-…` on the hardened harness + repaired
+  f01a): **6/6 MATCH, 0 unreliable, 0 invalid**. Per-stage: `01-research hollow-flag-rate=1/1
+  sound-pass-rate=1/1`, `02-scope 1/1 1/1`, `card 1/1 1/1`. Judge = `claude-opus-4-7`, CLI
+  `2.1.201`, gate_rules_sha `3672145322`. Future drift vs this baseline surfaces as a delta on
+  `eval --report`. Storm mechanism did not recur; the raw-capture path is armed for the next one.
+- Preceding batch (`…-1783695631-…`) failed **17/18 INVALID** transiently — the whole reason
+  Phase 1 exists. Diagnostic signal was on stderr, discarded by the pre-v0.21 seam. See
+  `CHANGELOG.md 0.21.0` and `references/gate-eval.md → Failure modes and postmortem` for the
+  playbook. Next storm is postmortemable + cost-capped by design.
+- Red-team pass: 3 hostile lenses × `code-reviewer` subagents, all findings `file:line`-backed
+  (evidence filter enforced), 26 raw → **14 accepted after dedup** (2 Critical, 5 High, 7
+  Medium). No finding overturned the express-lane KILL — all were implementation-hardening.
+  The Criticals (breaker-misses-its-own-motivating-incident, stderr-blind raw capture) shipped
+  ONLY because they were caught at plan time, not build time.
+
+Anti-FOMO discipline held: no vector-DB memory, no standalone TUI dashboard, no `flow-as-MCP`,
+no model-specific routing. `rate_limited` field shipped as best-effort/advisory — an unverified
+throttled shape does not get promoted to authoritative drift signal.
+
 ## v0.9.0 — mechanical usage log + `flow usage` analytics (2026-06-18)
 
 flow gains a **mechanical usage log**: `flow.sh` self-records **every invocation** to append-only

@@ -2393,6 +2393,11 @@ _eval_engine_run() { # $1=promptfile $2=timeout-seconds -> stdout=raw json; retu
   local promptfile="$1" timeout="$2"
   _run_with_timeout "$timeout" "claude -p --tools '' --disable-slash-commands --output-format json < '$promptfile'"
 }
+# stderr capture note: callers doing raw-on-INVALID persistence redirect stderr at the OUTER
+# `$(...)` call site (`raw="$(_eval_engine_run ... 2> "$errfile")"`) - never inside the `sh -c`
+# command string above. Empirical: adding a `2> '$errfile'` inside the timed cmd breaks the
+# watchdog-fallback path in `_run_with_timeout` on the timeout-less-PATH lane (macOS DEBT lane).
+# Outer-scope redirection is exactly the same capture at zero cost to the timeout contract.
 
 # Build the judge prompt for one fixture. Returns 1 (writes nothing usable) if the gate-rules.md
 # section extraction came back empty.
@@ -2446,6 +2451,38 @@ _eval_parse_model() { # $1=raw json -> model id or "unknown"
   [ -n "$m" ] && printf '%s' "$m" || printf 'unknown'
 }
 
+# Best-effort rate-limit detection from the assistant-message envelope. ADVISORY only, never
+# authoritative: the empirically observed shape on cli 2.1.201 --output-format json is
+#   "rate_limit_event"{... "rate_limit_info":{"status":"allowed", ... "overageStatus":"rejected", ...}}
+# i.e. a HEALTHY "allowed" event already contains the substring "rejected" in a different key
+# (overageStatus). A naive `grep '"status":"' | grep -v allowed` therefore false-POSITIVES on
+# every healthy call, and free-prose fixture/model text can also mint the pattern. The parser
+# below therefore anchors specifically to `rate_limit_info`'s OWN `status` value, which is the
+# one field the throttled state actually reflects. The genuinely-throttled shape has never been
+# captured in this repo (red-team finding H5) - callers must document `rate_limited` as
+# best-effort/advisory (absence != not-rate-limited) and MUST NOT feed it into any authoritative
+# drift signal until a real throttled sample is added to the corpus.
+_eval_parse_rate_limited() { # $1=raw json -> "true" | "false"
+  local status
+  status="$(printf '%s' "$1" | tr -d '\r' \
+    | grep -oE '"rate_limit_info":\{"status":"[^"]+"' \
+    | head -1 \
+    | sed -E 's/.*"status":"([^"]+)"$/\1/')"
+  case "$status" in
+    ''|allowed) echo false ;;
+    *)          echo true ;;
+  esac
+}
+
+# Extract the epoch component from a run_id (nonce = <session>-<epoch>-<pid>, sanitized by
+# _eval_nonce so every field is [A-Za-z0-9] separated by single dashes; epoch is always the
+# second-to-last dash-separated token). Used by the raw-capture prune to sort deterministically
+# by embedded epoch instead of filesystem mtime - mtime is unreliable on FAT/network mounts and
+# can also be spoofed by a `touch`; the epoch baked in at batch start is not.
+_eval_nonce_epoch() { # $1=run_id -> epoch seconds (or empty)
+  printf '%s' "$1" | awk -F- 'NF>=2 { print $(NF-1) }'
+}
+
 # CRLF-normalized gate-rules.md hash: a raw-byte hash would differ per checkout line-endings
 # (git autocrlf) and produce a false "prose changed" drift alarm across identical content.
 _eval_gate_rules_sha() {
@@ -2466,10 +2503,13 @@ _eval_cli_version() {
   [ -n "$v" ] && printf '%s' "$v" || printf 'unknown'
 }
 
-# Batch header/trailer: the EXIT-only trap means an interrupted batch (Ctrl-C mid-run) leaves
-# no trailer - that absence IS the completeness signal `--report`/drift filter on, rather than
-# trying to positively detect "torn". Mixed record shapes in one file (batch markers vs fixture
-# rows) are always safe to append-only-scan since both are single JSON objects on their own line.
+# Batch header/trailer: the completeness signal `--report`/drift filter on is "start present +
+# done present + n_written >= n_expected". Two paths lead to a MISSING trailer (correctly
+# incomplete): (a) an interrupted batch (INT/TERM trap exits before this line, per the eval
+# verb's scoped trap); (b) v0.21 circuit breaker - a first-fixture UNRELIABLE trip sets the
+# aborted flag which skips the trailer emit below. Mixed record shapes in one file (batch
+# markers vs fixture rows) are always safe to append-only-scan since both are single JSON
+# objects on their own line.
 _eval_emit_batch_marker() { # $1=run_id $2=start|done $3=n_expected-or-n_written
   mkdir -p "$LOG_DIR" 2>/dev/null || true
   printf '{"ts":"%s","epoch_s":%s,"run_id":"%s","batch":"%s","n":%s}\n' \
@@ -2484,14 +2524,71 @@ _eval_emit_batch_marker() { # $1=run_id $2=start|done $3=n_expected-or-n_written
 # cli_version/flow_version/gate_rules_sha are passed in (computed ONCE per batch by the caller,
 # not per fixture row) - they never change mid-batch, and recomputing per-row was both wasteful
 # (an extra subprocess per fixture) and the original vector for the stdin-consumption bug above.
-_eval_emit_result() { # $1=run_id $2=id $3=stage $4=expected $5=verdict $6=match $7=flag $8=pass $9=invalid $10=n $11=model $12=cli_version $13=flow_version $14=gate_rules_sha
+_eval_emit_result() { # $1..$14 as before + $15=retries $16=rate_limited (true|false)
   local run_id="$1" fid="$2" stage="$3" expected="$4" verdict="$5" match="$6" flag="$7" pass="$8" invalid="$9" n="${10}" model="${11}" cliv="${12}" flowv="${13}" grsha="${14}"
+  local retries="${15:-0}" ratel="${16:-false}"
+  case "$retries" in ''|*[!0-9]*) retries=0 ;; esac
+  case "$ratel"   in true|false) : ;; *) ratel=false ;; esac
   mkdir -p "$LOG_DIR" 2>/dev/null || true
-  printf '{"ts":"%s","epoch_s":%s,"run_id":"%s","fixture":"%s","stage":"%s","expected":"%s","verdict":"%s","match":"%s","votes":{"flag":%s,"pass":%s,"invalid":%s},"n":%s,"cli_version":"%s","model":"%s","flow_version":"%s","gate_rules_sha":"%s"}\n' \
+  printf '{"ts":"%s","epoch_s":%s,"run_id":"%s","fixture":"%s","stage":"%s","expected":"%s","verdict":"%s","match":"%s","votes":{"flag":%s,"pass":%s,"invalid":%s},"n":%s,"cli_version":"%s","model":"%s","flow_version":"%s","gate_rules_sha":"%s","retries":%s,"rate_limited":%s}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" "$(_now)" "$(_json_str "$run_id")" "$(_json_str "$fid")" \
     "$(_json_str "$stage")" "$(_json_str "$expected")" "$(_json_str "$verdict")" "$(_json_str "$match")" \
     "$flag" "$pass" "$invalid" "$n" "$(_json_str "$cliv")" "$(_json_str "$model")" \
-    "$(_json_str "$flowv")" "$(_json_str "$grsha")" >> "$EVAL_RESULTS_FILE" 2>/dev/null || true
+    "$(_json_str "$flowv")" "$(_json_str "$grsha")" "$retries" "$ratel" >> "$EVAL_RESULTS_FILE" 2>/dev/null || true
+}
+
+# Strip the noisy `system`/`init` envelope from a raw --output-format json line before persisting
+# it: the init record carries cwd (which on this dev OS embeds the Windows username), a resumable
+# session_id, plugin/memory paths, apiKeySource - none of it useful for a gate-eval postmortem, all
+# of it undesirable when the raw dir is bulk-added to git on a client repo. Keep the assistant
+# `result`/`content` records and any rate_limit_event record; drop the rest. Best-effort: if the
+# strip fails for any reason the caller falls back to persisting the original blob (the diagnostic
+# value of SOMETHING recorded is greater than the privacy value of nothing), and the raw dir is
+# git-ignored via _ignore_run_state regardless.
+_eval_strip_envelope() { # $1=raw stdout blob -> stripped blob on stdout
+  # This is intentionally a hand-crafted sed-only strip (no jq): the input is a single-line array
+  # `[{obj},{obj},...]`. Match record objects containing "type":"assistant" or containing
+  # "rate_limit_event" and drop everything else. On failure just echo back the input.
+  local raw="$1" stripped
+  stripped="$(printf '%s' "$raw" | tr -d '\r' | awk '
+    { gsub(/\},\{/, "}\n{"); print }
+  ' | grep -E '"type":"assistant"|"rate_limit_event"|"type":"result"' | tr -d "\n")"
+  if [ -n "$stripped" ]; then printf '%s\n' "$stripped"; else printf '%s' "$raw"; fi
+}
+
+# Prune .flow/eval-raw/ to the N most-recent run dirs by run_id-embedded epoch (deterministic,
+# mount-independent, unforgeable). NEVER prune a dir whose embedded epoch is within FLOW_LOCK_TTL
+# seconds of now: a concurrent lock-free eval (cmd_eval takes no lock by design) or an
+# in-postmortem storm dir must not be removed under the feet of the operator diagnosing it.
+# Failures warn to stderr rather than silently swallow - this is diagnostic-critical, not a
+# telemetry sink.
+_eval_prune_raw_dirs() { # $1=keep-count (default 3)
+  local keep="${1:-3}" raw_root="$LOG_DIR/eval-raw"
+  [ -d "$raw_root" ] || return 0
+  local now; now="$(_now)"
+  # List "epoch dirname" pairs, sort DESC by epoch, drop first $keep, prune the rest but honor TTL.
+  # A dir whose name doesn't parse as a nonce (no epoch extractable) sorts as epoch=0 -> gets
+  # pruned first (which is what we want - it's residue from something outside our schema).
+  local sorted; sorted="$(
+    ls -1 "$raw_root" 2>/dev/null | while IFS= read -r d; do
+      [ -d "$raw_root/$d" ] || continue
+      local ep; ep="$(_eval_nonce_epoch "$d")"
+      case "$ep" in ''|*[!0-9]*) ep=0 ;; esac
+      printf '%s %s\n' "$ep" "$d"
+    done | sort -rn -k1,1
+  )"
+  [ -z "$sorted" ] && return 0
+  local i=0
+  printf '%s\n' "$sorted" | while IFS=' ' read -r ep d; do
+    i=$((i + 1))
+    [ "$i" -le "$keep" ] && continue
+    # TTL guard: never prune something whose embedded epoch is within FLOW_LOCK_TTL of now.
+    local age=$((now - ep))
+    if [ "$ep" -gt 0 ] && [ "$age" -lt "$FLOW_LOCK_TTL" ]; then
+      continue
+    fi
+    rm -rf "$raw_root/$d" 2>/dev/null || echo "eval: WARNING raw-prune failed to remove $raw_root/$d" 1>&2
+  done
 }
 
 # Extract one top-level quoted-string field's value from an own-emitted JSON line. Our eval
@@ -2656,21 +2753,27 @@ _eval_print_drift() {
 # -positives on that exact byte sequence regardless of language. Purely a spelling dodge for a
 # generic scanner; behavior is 100% identical to every other function in this file.
 function cmd_eval {
-  local stage_filter="" fixture_filter="" n=3 timeout=120 report_mode=0
+  local stage_filter="" fixture_filter="" n=3 timeout=120 report_mode=0 keep_going=0
   while [ $# -gt 0 ]; do
     case "$1" in
-      --stage)    shift; stage_filter="${1:-}" ;;
-      --fixture)  shift; fixture_filter="${1:-}" ;;
-      --n)        shift; n="${1:-3}" ;;
-      --timeout)  shift; timeout="${1:-120}" ;;
-      --report)   report_mode=1 ;;
-      *) echo "usage: /flow eval [--stage 01|02|card] [--fixture <id>] [--n 3] [--timeout <seconds>] [--report]"; return 1 ;;
+      --stage)      shift; stage_filter="${1:-}" ;;
+      --fixture)    shift; fixture_filter="${1:-}" ;;
+      --n)          shift; n="${1:-3}" ;;
+      --timeout)    shift; timeout="${1:-120}" ;;
+      --report)     report_mode=1 ;;
+      --keep-going) keep_going=1 ;;
+      *) echo "usage: /flow eval [--stage 01|02|card] [--fixture <id>] [--n 3] [--timeout <seconds>] [--keep-going] [--report]"; return 1 ;;
     esac
     shift 2>/dev/null || true
   done
   case "$n" in ''|*[!0-9]*|0) echo "eval: --n must be a positive integer (got '$n')"; return 1 ;; esac
   case "$timeout" in ''|*[!0-9]*|0) echo "eval: --timeout must be a positive integer seconds value (got '$timeout')"; return 1 ;; esac
   case "$stage_filter" in ""|01|02|card) : ;; *) echo "eval: --stage must be one of 01|02|card (got '$stage_filter')"; return 1 ;; esac
+  # Backoff between the in-run retry attempts. Default 5s; tests set 0 so the mock-suite is not
+  # slowed by 15s+ per degraded-path case across 3-OS CI. Bare-int validation only - a bogus
+  # value (`abc`) silently falls back to the default rather than aborting the batch.
+  local backoff="${FLOW_EVAL_RETRY_BACKOFF:-5}"
+  case "$backoff" in ''|*[!0-9]*) backoff=5 ;; esac
 
   # --report is entirely offline (no LLM call, no manifest needed) - reads the existing results
   # file, prints the last COMPLETE batch's scorecard, and an advisory drift line vs the prior
@@ -2705,11 +2808,24 @@ function cmd_eval {
   esac
 
   local nonce; nonce="$(_eval_nonce)"
-  local total_mismatch=0 total_unreliable=0 total_evaluated=0 rundir="" n_written=0
+  local total_mismatch=0 total_unreliable=0 total_evaluated=0 rundir="" n_written=0 aborted=0
   # Computed ONCE per batch, not per fixture row - see _eval_emit_result's comment.
   local batch_cliv batch_flowv batch_grsha
   batch_cliv="$(_eval_cli_version)"; batch_flowv="$(_flow_version)"; batch_grsha="$(_eval_gate_rules_sha)"
   echo "eval: batch $nonce (N=$n per fixture, timeout=${timeout}s)"
+
+  # Ensure .flow/ (which now hosts eval-raw/ postmortem dumps) is git-ignored on any project
+  # that runs eval. Previously only mode/project-type/next paths called this - a project where
+  # the operator only ever ran eval would end up with .flow/eval-raw/ (containing session ids,
+  # cwd paths, plugin paths from stripped-but-still-envelope-adjacent output) untracked but not
+  # ignored -> one `git add .` away from a remote. Idempotent - the helper is a no-op after the
+  # first write.
+  _ignore_run_state
+
+  # Pre-batch prune of the raw-capture dir - keeps disk bounded but respects concurrent runs
+  # (see helper's TTL guard). Runs BEFORE the new batch's own raw dir is created, so this batch's
+  # dir cannot be counted against or removed by its own prune.
+  _eval_prune_raw_dirs 3
 
   # Pre-count how many manifest rows will actually run (same filter logic as the main loop,
   # in awk form) - the batch header's n_expected is what --report/drift use to decide whether
@@ -2780,20 +2896,80 @@ function cmd_eval {
     fi
 
     total_evaluated=$((total_evaluated + 1))
-    local flag_count=0 pass_count=0 invalid_count=0 i=1 model="unknown"
+    local flag_count=0 pass_count=0 invalid_count=0 i=1 model="unknown" retries_sum=0 vote_rate_limited=false
+    # Filename-safe fixture id for raw-capture paths - manifest fid is only tr -d '\r'-cleaned
+    # (the v1 trust-boundary is READ-side only, but we are now WRITING keyed by it), so a
+    # hand-edited or FLOW_EVAL_MANIFEST-overridden manifest cannot traverse out of eval-raw/.
+    local fid_safe; fid_safe="$(printf '%s' "$fid" | tr -c 'A-Za-z0-9' '-' | sed -E 's/-+/-/g; s/^-//; s/-$//')"
+    [ -z "$fid_safe" ] && fid_safe="_"
     while [ "$i" -le "$n" ]; do
-      local raw rc v
-      raw="$(_eval_engine_run "$promptfile" "$timeout")"; rc=$?
+      local raw rc v raw1="" rc1=0 err1="" err2=""
+      # Attempt 1 - stderr captured at the OUTER redirection so it never enters the sh -c
+      # command string _eval_engine_run passes to _run_with_timeout (that broke the watchdog
+      # fallback on the timeout-less-PATH lane - see engine-run's note).
+      err1="$rundir/v${i}-a1.err"
+      raw="$(_eval_engine_run "$promptfile" "$timeout" 2>"$err1")"; rc=$?
+      raw1="$raw"; rc1="$rc"
       if [ "$rc" -eq 124 ]; then
         v=INVALID
       else
         v="$(_eval_parse_verdict "$raw" "$nonce")"
-        if [ "$v" = "INVALID" ]; then
-          # one in-run retry on a parse miss (a formatting slip, not a timeout/infra failure)
-          raw="$(_eval_engine_run "$promptfile" "$timeout")"; rc=$?
-          if [ "$rc" -eq 124 ]; then v=INVALID; else v="$(_eval_parse_verdict "$raw" "$nonce")"; fi
+        [ "$model" = "unknown" ] && model="$(_eval_parse_model "$raw")"
+      fi
+      # Rate-limit detection on attempt 1 - if a rate_limit_info.status != "allowed" was seen
+      # here, retry is worse than useless: the retry doubles spend, still lands inside the same
+      # window, and its own INVALID would trigger a second raw persist. The retry is documented
+      # as "for a formatting slip, not infra" (see the original in-run retry comment) - honor
+      # that intent by skipping it on the one signal we now have that says "this is infra".
+      local rl1; rl1="$(_eval_parse_rate_limited "$raw1")"
+      [ "$rl1" = "true" ] && vote_rate_limited=true
+      if [ "$v" = "INVALID" ] && [ "$rl1" != "true" ]; then
+        # Backoff then retry - env-injectable so tests can zero it; skipped when rc=124 (timeout
+        # was infra, retry would timeout again) or when rate-limited (see above).
+        if [ "$backoff" -gt 0 ]; then
+          echo "  $fid: retrying vote $i after ${backoff}s (parse-INVALID on attempt 1)"
+          sleep "$backoff" 2>/dev/null || true
+        else
+          echo "  $fid: retrying vote $i (parse-INVALID on attempt 1)"
         fi
+        err2="$rundir/v${i}-a2.err"
+        raw="$(_eval_engine_run "$promptfile" "$timeout" 2>"$err2")"; rc=$?
+        retries_sum=$((retries_sum + 1))
+        if [ "$rc" -eq 124 ]; then v=INVALID; else v="$(_eval_parse_verdict "$raw" "$nonce")"; fi
         [ "$model" = "unknown" ] && [ "$rc" -ne 124 ] && model="$(_eval_parse_model "$raw")"
+        local rl2; rl2="$(_eval_parse_rate_limited "$raw")"
+        [ "$rl2" = "true" ] && vote_rate_limited=true
+      fi
+      # If the vote's FINAL verdict is INVALID, persist BOTH attempts (both stdout+stderr+rc)
+      # to .flow/eval-raw/<run_id>/. Attempt 1 is where the rate-limit / hook-cancelled
+      # signature typically lives - the pre-v0.21 code discarded it, which is the whole reason
+      # this feature exists. Persistence is diagnostic-critical, so failures are LOUD (not the
+      # house `2>/dev/null || true` telemetry-sink pattern).
+      if [ "$v" = "INVALID" ]; then
+        local rawdir="$LOG_DIR/eval-raw/$nonce"
+        if mkdir -p "$rawdir" 2>/dev/null; then
+          local n_written_raw=0
+          local a1out="$rawdir/${fid_safe}-v${i}-a1.out"
+          local a1rc="$rawdir/${fid_safe}-v${i}-a1.rc"
+          if _eval_strip_envelope "$raw1" > "$a1out" 2>/dev/null; then n_written_raw=$((n_written_raw + 1)); fi
+          printf '%s\n' "$rc1" > "$a1rc" 2>/dev/null && n_written_raw=$((n_written_raw + 1))
+          if [ -f "$err1" ] && [ -s "$err1" ]; then
+            cp "$err1" "$rawdir/${fid_safe}-v${i}-a1.err" 2>/dev/null && n_written_raw=$((n_written_raw + 1))
+          fi
+          # Attempt 2 (only exists if retry ran)
+          if [ -n "$err2" ]; then
+            local a2out="$rawdir/${fid_safe}-v${i}-a2.out"
+            local a2rc="$rawdir/${fid_safe}-v${i}-a2.rc"
+            if _eval_strip_envelope "$raw" > "$a2out" 2>/dev/null; then n_written_raw=$((n_written_raw + 1)); fi
+            printf '%s\n' "$rc" > "$a2rc" 2>/dev/null && n_written_raw=$((n_written_raw + 1))
+            if [ -f "$err2" ] && [ -s "$err2" ]; then
+              cp "$err2" "$rawdir/${fid_safe}-v${i}-a2.err" 2>/dev/null && n_written_raw=$((n_written_raw + 1))
+            fi
+          fi
+          [ "$n_written_raw" -eq 0 ] && echo "eval: WARNING raw capture wrote 0 files under $rawdir" 1>&2
+        else
+          echo "eval: WARNING could not create raw-capture dir $rawdir" 1>&2
+        fi
       fi
       case "$v" in
         FLAG) flag_count=$((flag_count + 1)) ;;
@@ -2830,19 +3006,47 @@ function cmd_eval {
       echo "  $fid ($fstage): $verdict - MISMATCH, expected $fexpected (flag=$flag_count pass=$pass_count invalid=$invalid_count)"
     fi
 
-    _eval_emit_result "$nonce" "$fid" "$fstage" "$fexpected" "$verdict" "$match" "$flag_count" "$pass_count" "$invalid_count" "$n" "$model" "$batch_cliv" "$batch_flowv" "$batch_grsha"
+    _eval_emit_result "$nonce" "$fid" "$fstage" "$fexpected" "$verdict" "$match" "$flag_count" "$pass_count" "$invalid_count" "$n" "$model" "$batch_cliv" "$batch_flowv" "$batch_grsha" "$retries_sum" "$vote_rate_limited"
     n_written=$((n_written + 1))
+
+    # Circuit breaker: catches the 260710-class INVALID storm early. Trip when the FIRST
+    # evaluated fixture comes back UNRELIABLE (reliability floor: invalid_count*3 > n) - the
+    # motivating 17/18 storm satisfies this at fixture 1 even with one accidentally-parsed vote,
+    # which a naive `invalid_count == n` breaker would NOT have caught. --keep-going overrides.
+    # Order matters: verdict computed -> UNRELIABLE line printed -> result row emitted -> aborted
+    # flag set -> break. The `done` trailer below is aborted-flag-guarded so a bare break cannot
+    # accidentally mark this batch complete (a filtered-run --fixture would otherwise satisfy
+    # n_written == n_expected and poison --report/drift).
+    if [ "$total_evaluated" -eq 1 ] && [ "$verdict" = "UNRELIABLE" ] && [ "$keep_going" -eq 0 ]; then
+      local rawdir_abort="$LOG_DIR/eval-raw/$nonce"
+      local raw_count=0
+      [ -d "$rawdir_abort" ] && raw_count="$(find "$rawdir_abort" -type f 2>/dev/null | wc -l | tr -d ' ')"
+      echo "eval: ABORT after first fixture UNRELIABLE (INVALID storm class - retry+backoff already burned)."
+      echo "  raw capture: $rawdir_abort ($raw_count files)"
+      echo "  re-run with --keep-going to force full-batch execution."
+      aborted=1
+      break
+    fi
   done < "$EVAL_MANIFEST"
   trap - INT TERM
-  # A normal completion always reaches here, so the trailer's n_written always equals n_expected
-  # on a clean run - the only way n_written falls short is the INT/TERM path above, which exits
-  # before this line and therefore never writes a "done" marker at all (correctly incomplete).
-  _eval_emit_batch_marker "$nonce" done "$n_written"
+  # A normal (non-aborted) completion always reaches here. `aborted=1` from the circuit breaker
+  # SKIPS the trailer so an early-broken batch never satisfies --report's completeness check
+  # (n_written>=n_expected AND trailer present), even on a --fixture-filtered run where
+  # n_written could accidentally equal the filtered n_expected of 1.
+  if [ "$aborted" -eq 0 ]; then
+    _eval_emit_batch_marker "$nonce" done "$n_written"
+  fi
 
   echo
   if [ "$total_evaluated" -eq 0 ]; then
     echo "eval: no fixtures matched the given filters - nothing evaluated."
     return 1
+  fi
+  if [ "$aborted" -eq 1 ]; then
+    # No scorecard on an aborted batch - the batch is deliberately incomplete and the numbers
+    # would misrepresent what actually ran. --report will not surface this run (no trailer).
+    echo "ABORTED: circuit breaker tripped on first fixture UNRELIABLE - $total_evaluated of $n_expected fixtures evaluated."
+    return 2
   fi
   _eval_print_scorecard "$nonce"
   echo

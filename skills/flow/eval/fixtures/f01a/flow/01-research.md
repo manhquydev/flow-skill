@@ -37,8 +37,9 @@ Rule: INSPECT what already exists. Evidence required — links, quotes, screensh
    review dated within the last 6 months)
 3. > "Every month it's the same fight about who forgot to pay for internet. I don't need
    >  another budgeting app, I need someone to just tell me the number."
-   — attributed quote from a roommate-finance thread on the r/Roommates subreddit
-   (reddit.com/r/Roommates), paraphrased-with-permission during a pilot household interview
+   — reply on r/Roommates, thread "what bill split apps have worked for you long term"
+   (reddit.com/r/Roommates/comments/1a8j9k2m/what_bill_split_apps_have_worked_for_you/), posted
+   by u/threeway_hcol_split within the last 4 months
 
 ## GTM & business reality
 

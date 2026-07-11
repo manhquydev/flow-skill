@@ -4,6 +4,139 @@ All notable changes to the flow skill. Versions follow the `version:` field in
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 
+## 0.21.0 — 2026-07-11 — eval-trust hardening + express-lane kill (A killed by telemetry)
+
+Two-part release, both evidence-driven from the first REAL gate-eval baseline run.
+
+**Motivating incident (260710, run `…-1783695631-…`).** The very first real batch after v0.19
+shipped came back **17/18 INVALID** despite the existing in-run retry — the storm produced no
+usable votes and burned all 18 billable calls. The only diagnostic signal (`SessionEnd hook
+cancelled` ×18 on **stderr**) was thrown away because the seam captured stdout only. A single
+call + one full rerun immediately after came back clean (hollow-flag 3/3 stages 100%, 0
+INVALID/18) — mechanism unconfirmed at the time. The **next** storm has to be diagnosable, and
+the aborted-batch cost has to be capped. That's the whole shape of Phase 1.
+
+**Express-lane KILL (roadmap A → rejected by data).** Same-day per-cycle telemetry mining
+dissolved the original justification for an express-lane verb: cycles that ran ≥1 successful
+`next` reach Cards at **14/15 (93%)**, contract-stage dwell median is **40s** (n=12; the "1.3h
+bottleneck" was a measurement artifact of `usage --global` averaging), and "33% abandonment"
+decomposes into exploration pokes + CMC brownfield card-mode. Roadmap A is formally killed with
+a re-trigger condition; the anti-FOMO log entry captures the numbers so future FOMO can be
+answered directly. See `docs/quality-metrics.md` §A-kill.
+
+**Red-team pass** (3 hostile lenses, all findings `file:line`-backed, 26 raw → 14 accepted after
+dedup) drove the final Phase 1 spec: `.claude-plugin/plans/…/plan.md → ## Red Team Review`.
+
+### Phase 1 — eval robustness
+
+- **Raw capture on final-INVALID** — both attempts' `stdout` + `stderr` + `rc` persisted to
+  `.flow/eval-raw/<run_id>/<fixture>-v<vote>-a<attempt>.{out,err,rc}`. Envelope stripped down to
+  `assistant`/`result`/`rate_limit_event` records — `cwd` (which embeds the Windows username on
+  this dev OS), `session_id` (resumable via `claude --resume`), plugin/memory paths, `apiKeySource`
+  are all removed. `cmd_eval` now calls `_ignore_run_state` so `.flow/eval-raw/` is git-ignored
+  on any project that runs the verb (previously only next/card/skip paths ignored `.flow/`).
+- **Circuit breaker on first UNRELIABLE.** Trip after the FIRST fixture returns UNRELIABLE
+  (`invalid_count*3 > n` — the existing reliability floor), print an abort line naming the raw
+  dir + file count, set an `aborted` flag, and skip the `done` trailer so `--report`/drift never
+  surface the junk batch as canonical baseline (a `--fixture`-filtered aborted run would
+  otherwise satisfy `n_written == n_expected` and slip through). Distinct nonzero exit **2**.
+  `--keep-going` overrides; worst-case cost of `--keep-going` in a full storm is documented next
+  to the flag (≤ N_fixtures × n × 2 + probe ≈ 37 calls at defaults).
+- **Injectable backoff.** `FLOW_EVAL_RETRY_BACKOFF` env (default 5s, tests set 0) delays the
+  retry so it doesn't hammer the same window. Retry is now also **skipped when a rate-limit
+  signal fired on attempt 1** — the retry is documented for "a formatting slip, not infra"
+  (`flow.sh:2792`); retrying into a live rate-limit window just doubles spend. A greppable
+  `retrying vote N` line makes the retry path assertable via text, not stopwatch (existing
+  wall-clock asserts were already fragile on 3-OS CI).
+- **Rate-limit visibility (advisory).** New `_eval_parse_rate_limited` anchored to
+  `rate_limit_info`'s own `status` value. Empirical: on cli 2.1.201 a **healthy** `allowed` event
+  carries `"overageStatus":"rejected"` as a separate field in the same envelope — a naive
+  `grep '"status":"' | grep -v allowed` would false-positive on every healthy call, and fixture
+  prose could mint the string. Documented best-effort/advisory until a real throttled sample
+  lands in the corpus. Results rows gain `retries` (0/1 per fixture) + `rate_limited`
+  (`true|false`) — additive, PIPE_BUF < 4096B invariant preserved.
+- **Pre-batch raw-dir prune.** Keep the 3 newest run dirs by the **epoch embedded in `run_id`**
+  (deterministic, mount-independent, unforgeable by `touch` — mtime was ruled out because
+  Windows FAT/network mounts spoof it, and a `touch` of the storm dir would delete the very
+  evidence being diagnosed). TTL guard: never prune a dir whose embedded epoch is within
+  `FLOW_LOCK_TTL` (900s) seconds of now (guards a concurrent lock-free run — `cmd_eval`
+  deliberately takes no lock, so cross-run coordination is via epoch, not lock).
+- **Fixture-id sanitized for write paths.** The v1 trust boundary was read-side only; the new
+  raw-capture is the first write keyed by `fid`, so it is sanitized through the nonce charset
+  (`[A-Za-z0-9-]` collapsed) before touching the filesystem — a hand-edited or
+  `FLOW_EVAL_MANIFEST`-overridden manifest cannot traverse out of `eval-raw/`.
+- **Raw-write failure is LOUD**, not the file's usual `2>/dev/null || true` telemetry-sink
+  pattern — this is diagnostic-critical; a full disk (which correlates with long sessions →
+  storms) must not silently emit an empty raw dir the operator then reads as "engine returned
+  nothing".
+- **Invariant comments** at `_eval_emit_batch_marker` updated to reflect the two paths to a
+  missing trailer (INT/TERM + v0.21 breaker) instead of only the interrupt one.
+
+### Red-team findings that shaped the spec (14 accepted, ranked)
+
+- **Critical C1** — original spec of the breaker (all-INVALID first fixture) would NOT have
+  fired on the 17/18 storm (one vote parsed), so the trip condition became **first-UNRELIABLE**
+  (which the 17/18 case satisfies at fixture 1 by the reliability-floor math).
+- **Critical C2** — original spec captured stdout only; storm signature was on stderr.
+- **High H3** — `_eval_emit_batch_marker done` runs unconditionally after the loop; a bare
+  `break` still writes the trailer, and a `--fixture`-filtered aborted run then satisfies
+  `n_written == n_expected` → recorded COMPLETE, poisons the drift baseline. Fixed by the
+  `aborted` flag guard.
+- **High H4** — the earlier "no secrets in raw" claim was wrong; envelope carries cwd + session +
+  plugin paths; stripping is now real, `.flow/` is ignored explicitly.
+- **High H5** — `rate_limit_event` shape was guessed at plan time; empirical shows an `allowed`
+  event carries `overageStatus":"rejected"` → the parser is now anchored, the field is doc'd
+  as advisory.
+- **High H6** — hardcoded `sleep 5` was untestable + slow on 3-OS CI → `FLOW_EVAL_RETRY_BACKOFF`
+  env + text-based assert on the `retrying vote N` line.
+- **High H7** — the plan's 6/6 AC had no contingency for f01a resisting repair; Phase 3 gained
+  a fallback ship path (Phase 1 + docs = v0.21.0 with the canonical baseline deferred).
+- **Mediums** — cost math correction (worst case ≤7, not "~3"; `--keep-going` up to ~37);
+  prune-by-mtime → prune-by-epoch + TTL; write-path traversal via `fid` → sanitized; house
+  silent-sink pattern for raw writes → loud warning; phantom "both call sites" → the single call
+  site (`flow.sh:2833`) is named; Phase 2 `dependencies: []` → `[1]` + line range 36-41 → 38-41
+  + deny-list token note (test N will hard-fail a rewrite that names the pattern being tested).
+
+### Tests
+
+- Existing tests D/E/G updated for the v0.21 breaker (single-fixture UNRELIABLE now exits 2 with
+  a distinct ABORT line, previously exited 1 with UNRELIABLE line only).
+- New: **O** raw-capture persists stdout+stderr+rc for both attempts (with a mock that writes
+  stderr + exits 1 on empty stdout — proves the stderr channel this whole feature exists for);
+  **P** `--keep-going` full-batch override; **Q** aborted batch writes NO `done` trailer +
+  `--report` cannot surface it; **R** rate_limited false-positive-proof against
+  `overageStatus":"rejected"` in a healthy `allowed` event; **S** retry emits greppable
+  `retrying vote N` text line (path-asserted, not wall-clock); **T** `--report` tolerates
+  additive `retries`/`rate_limited` fields; **U** raw-prune keeps 3 newest by run_id epoch + TTL
+  guard for fresh dirs + prunes gibberish-named dirs (epoch=0); **V** envelope strip removes
+  cwd/session_id/plugin_paths from persisted raw.
+
+### Docs
+
+- `references/gate-eval.md` — new **Failure modes and postmortem (v0.21)** section: 260710
+  storm reconstruction, INVALID-storm playbook, no-lock caveat, `rate_limited` advisory framing.
+- `SKILL.md` — eval-verb doc updated with `--keep-going` + `FLOW_EVAL_RETRY_BACKOFF` + raw-capture
+  behavior.
+- `docs/quality-metrics.md` — new anti-FOMO §Roadmap A killed by data (numbers + re-trigger).
+
+### Canonical v0.21.0 baseline (billable, verified)
+
+Run `…-1783743592-…` (260711, 14 min, ~$6-7): **6/6 MATCH, 0 unreliable, 0 invalid, 18/18 calls
+parsed.** Per-stage `hollow-flag-rate 1/1 sound-pass-rate 1/1` across `01-research`, `02-scope`,
+`card`. Judge `claude-opus-4-7`, CLI `2.1.201`, `gate_rules_sha 3672145322`. Recorded in
+`.flow/eval-results.jsonl`; `eval --report` surfaces the drift-baseline. Fixture f01a's
+repaired complaint #3 flipped its verdict from 5/5 FLAG (pre-repair) to 2/3 PASS (post-repair,
+still a majority pass with one dissent, consistent with the fixture's other imperfections being
+left in place per the Risk Assessment).
+
+### Deferred, disclosed
+
+- macOS `_run_with_timeout` fallback watchdog debt (DEBT.md) — unchanged by this release, still
+  needs real macOS to diagnose.
+- Azure Pipelines operator setup — still parked.
+- A real throttled `rate_limit_info` sample so `rate_limited` can become authoritative rather
+  than best-effort — will land the next time a storm actually throttles.
+
 ## 0.20.0 — 2026-07-10 — mission-control legibility (resume verb + status upgrade + per-card dwell)
 
 Evidence-driven (1079-event dogfood telemetry): `status` is the most-called verb (287, 2.8x

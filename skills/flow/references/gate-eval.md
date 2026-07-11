@@ -131,3 +131,56 @@ yet (the same "measure, don't assume" discipline that gated this build in the fi
 - **Small fixture corpus (six)**: enough to prove the mechanism and give a real number, not
   enough for statistical confidence across every stage/failure-mode combination. Widening the
   corpus is a natural v1.x follow-up, not a v1 blocker.
+
+## Failure modes and postmortem (v0.21)
+
+### INVALID storms — the 260710 case
+
+The first real batch after v0.19 shipped came back **17/18 INVALID** (run `…-1783695631-…`). The
+retry doubled cost without recovery — attempt 2 landed in the same window — and the CLI's
+`session-lifecycle-hook cancelled` stderr line, the only diagnostic the storm actually produced,
+was thrown away because the pre-v0.21 seam captured stdout only. A single-call retry cleared the
+window; the mechanism was never confirmed at the time (rate-limit vs hook contention).
+
+**v0.21 changes that make the next storm postmortemable and cost-safe:**
+
+1. **Raw capture on final-INVALID.** Both attempts' stdout, stderr, and rc are persisted to
+   `.flow/eval-raw/<run_id>/<fixture>-v<vote>-a<attempt>.{out,err,rc}` (git-ignored via
+   `_ignore_run_state`; envelope stripped down to `result`/`assistant`/`rate_limit_event`
+   records — cwd, session_id, plugin/memory paths are removed).
+2. **Injectable backoff.** `FLOW_EVAL_RETRY_BACKOFF` env (default 5s) delays the retry so it
+   doesn't hammer the same window. Tests set `0` to keep CI fast.
+3. **Retry skip on rate-limit.** If attempt 1 carried a non-`allowed` `rate_limit_info.status`,
+   the retry is skipped (retry is documented for a *formatting slip*, not infra; retrying into a
+   live rate-limit window just doubles spend).
+4. **Circuit breaker.** The FIRST evaluated fixture coming back UNRELIABLE (`invalid_count*3 > n`)
+   aborts the batch with a distinct nonzero exit code (2) and NO `done` trailer written — the
+   junk batch is invisible to `--report`/drift, so it cannot poison the baseline. `--keep-going`
+   forces the full batch; document worst case (≤ N_fixtures × n × 2 + 1 probe ≈ 37 calls at
+   default 6 × 3).
+
+### Rate-limit visibility (advisory, best-effort)
+
+The rows persisted after v0.21 gain `retries` (0/1 per fixture) and `rate_limited`
+(`true`/`false` per fixture). `rate_limited` is anchored to the `rate_limit_info` record's own
+`status` value — this is important because on cli 2.1.201 a **healthy** `allowed` event carries
+`"overageStatus":"rejected"` as a separate field in the same envelope, and a naive
+`grep '"status":"' | grep -v allowed` false-positives on it. A genuinely-throttled shape has not
+yet been captured; treat `rate_limited` as best-effort advisory (absence ≠ not-throttled) until a
+real throttled sample is added to the corpus.
+
+### Concurrency caveat
+
+`cmd_eval` takes **no** flow lock (it is a read-mostly verb, and the raw/prune writes are the
+only cross-run writes it does). The pre-batch raw-prune keys off the epoch embedded in `run_id`
+(deterministic, mount-independent, unforgeable by `touch`) and honors a `FLOW_LOCK_TTL`-second
+guard so an in-flight or in-postmortem run's dir cannot be pruned under the operator's feet.
+
+### INVALID-storm playbook
+
+1. If `flow.sh eval` exits `2` and prints `ABORT after first fixture UNRELIABLE`, do NOT rerun
+   without `--keep-going` — read the named `raw capture` dir first.
+2. Attempt-1 `.err` is usually the diagnostic (hook-cancelled / rate-limit line lands there).
+3. If the storm was rate-limit: wait past the window (typically minutes), then rerun.
+4. If persistent: capture the `.err` line in a comment, escalate — this is when a throttled
+   `rate_limit_info` sample would land in the corpus and let `rate_limited` become authoritative.
