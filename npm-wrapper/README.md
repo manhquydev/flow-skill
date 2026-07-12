@@ -5,12 +5,35 @@ One-command installer that copies the [flow](https://github.com/manhquy/flow-ski
 - Pure Node — works on macOS, Linux, and Windows (cmd, PowerShell 5.1/7, Git Bash) with the same code path.
 - Interactive multi-select or non-interactive CI mode.
 - Preserves any user-added files in the destination outside the 6 subdirs the skill owns.
-- Ships with [npm provenance](https://docs.npmjs.com/generating-provenance-statements) via GitHub Actions trusted publishing.
+- Ships with [npm provenance](https://docs.npmjs.com/generating-provenance-statements) via GitHub Actions trusted publishing (from rc.2+).
+
+## Status — 2026-07-12
+
+- ✅ Code complete, 35/35 tests green, CI matrix green (ubuntu/macos/windows × Node 22/24).
+- ⏳ Not yet on npm registry. Repo public + renamed; transfer to `manhquy` account pending accept; first publish (`v0.1.0-rc.1`, manual, no provenance) queued.
+- ➡️ Once published, this section will disappear and `npx @manhquy/flow-skill@rc` becomes the canonical install path.
 
 ## Install
 
+**A. From the git repo (works today, no npm registry needed)**
+
+```bash
+git clone https://github.com/manhquydev/flow-skill.git
+cd flow-skill/npm-wrapper
+npm install
+npm run sync          # materializes skills/flow from ../skills/flow
+npm link              # exposes `flow-skill` as a global command
+
+flow-skill --yes --all --dry-run --json   # smoke check
+flow-skill                                # interactive install
 ```
-# Pre-release channel (current — v0.1.0-rc.N)
+
+To remove: `npm unlink -g @manhquy/flow-skill`.
+
+**B. Via npx (once published)**
+
+```
+# Pre-release channel (RC candidate — will exist after first publish)
 npx @manhquy/flow-skill@rc
 ```
 

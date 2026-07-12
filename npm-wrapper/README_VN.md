@@ -5,12 +5,35 @@ Trình cài đặt một-lệnh sao chép skill [flow](https://github.com/manhqu
 - Pure Node — chạy trên macOS, Linux, Windows (cmd, PowerShell 5.1/7, Git Bash) với cùng một code path.
 - Multi-select tương tác hoặc chế độ CI không tương tác.
 - Bảo toàn file người dùng đã thêm ngoài 6 subdir mà skill sở hữu.
-- Ship kèm [npm provenance](https://docs.npmjs.com/generating-provenance-statements) qua GitHub Actions trusted publishing.
+- Ship kèm [npm provenance](https://docs.npmjs.com/generating-provenance-statements) qua GitHub Actions trusted publishing (từ rc.2+).
+
+## Tình trạng — 2026-07-12
+
+- ✅ Code hoàn thiện, 35/35 test xanh, CI matrix xanh (ubuntu/macos/windows × Node 22/24).
+- ⏳ Chưa lên npm registry. Repo đã public + đã rename; transfer sang `manhquy` account đang chờ accept; first publish (`v0.1.0-rc.1`, thủ công, không có provenance) đang queued.
+- ➡️ Sau khi publish, section này sẽ biến mất và `npx @manhquy/flow-skill@rc` thành lệnh cài chính thức.
 
 ## Cài đặt
 
+**A. Từ git repo (chạy được ngay, không cần npm registry)**
+
+```bash
+git clone https://github.com/manhquydev/flow-skill.git
+cd flow-skill/npm-wrapper
+npm install
+npm run sync          # materialize skills/flow từ ../skills/flow
+npm link              # expose `flow-skill` như global command
+
+flow-skill --yes --all --dry-run --json   # smoke check
+flow-skill                                # cài tương tác
 ```
-# Kênh pre-release (hiện tại — v0.1.0-rc.N)
+
+Gỡ: `npm unlink -g @manhquy/flow-skill`.
+
+**B. Qua npx (sau khi publish)**
+
+```
+# Kênh pre-release (RC candidate — sẽ tồn tại sau first publish)
 npx @manhquy/flow-skill@rc
 ```
 
