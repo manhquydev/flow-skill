@@ -1,0 +1,64 @@
+name: Nightly registry health check
+
+# Fires nightly against the live npm registry. Catches:
+#   - a published version disappearing (revoked, unpublished, or npm outage)
+#   - install semantics regressing (a bad version silently on latest)
+#   - provenance dropping off the attestation index
+# Runs on cron + on-demand; needs no secrets — uses public npm APIs only.
+
+on:
+  schedule:
+    - cron: '17 4 * * *'   # 04:17 UTC = 11:17 ICT — off-peak to reduce noise if it fails
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to smoke against (blank = latest published)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-registry-health
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Resolve target version (input, else rc, else latest)
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            v="${{ inputs.version }}"
+          else
+            v="$(npm view @manhquy/flow-skill dist-tags.rc 2>/dev/null)"
+            if [ -z "$v" ] || [ "$v" = "undefined" ]; then
+              v="$(npm view @manhquy/flow-skill dist-tags.latest 2>/dev/null)"
+            fi
+          fi
+          if [ -z "$v" ] || [ "$v" = "undefined" ]; then
+            echo "No published version found — skipping." >&2
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "resolved: $v"
+            echo "version=$v" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install (no lifecycle scripts)
+        if: steps.version.outputs.skip != 'true'
+        run: npm ci --ignore-scripts
+        working-directory: npm-wrapper
+
+      - name: Run scripts/smoke.mjs against the resolved version
+        if: steps.version.outputs.skip != 'true'
+        run: node scripts/smoke.mjs "${{ steps.version.outputs.version }}"
+        working-directory: npm-wrapper
