@@ -2,166 +2,39 @@
 
 *Read this in [Tiếng Việt](README_VN.md).*
 
-**31 test suites, green on the 3-OS CI matrix (Ubuntu · macOS · Windows). Hosted CI runs on
-Azure Pipelines (free-tier private) after v0.21.0; GitHub Actions has been retired due to
-recurring billing/quota blocks on private repos. Last verified: v0.21.0 line, GitHub Actions
-run `29141602431` = green 3/3 OS immediately before the switch to Azure.**
+[![npm](https://img.shields.io/npm/v/@manhquy/flow-skill?label=npm&color=cb3837)](https://www.npmjs.com/package/@manhquy/flow-skill)
+[![tests](https://img.shields.io/badge/tests-31%20suites%20%2F%20799%20checks-brightgreen)](tests/)
+[![CI](https://img.shields.io/badge/CI-Azure%20Pipelines%20%C2%B7%203%20OS-blue)](.)
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-`/flow` takes a product from **idea to its real done-evidence** through honest gates — a
-deployed URL for a web app, an install-and-run for a CLI, a public API + coverage for a
-library, a real run for a Claude Code skill. It re-encodes the `buildflow` method and adds a
-durable harness layer (intake/story/trace/decision/backlog), agent orchestration (ck: + bmad +
-**Codex (GPT-5.x) second engine + Antigravity (Gemini-3) third engine** = a three-model adversarial
-gate), and project-type awareness.
+`/flow` takes a product from **idea to real done-evidence** through honest gates — a deployed
+URL for a web app, install-and-run for a CLI, public API + coverage for a library, a real run
+for a Claude Code skill. It adds a durable harness layer (intake / story / trace / decision /
+backlog), cross-vendor agent orchestration (Claude + Codex GPT-5.x + Antigravity Gemini-3 →
+three-model adversarial gate), and project-type awareness.
 
-> Status: **v0.21.0** (2026-07-11) — **eval-trust hardening + roadmap-A (express-lane) KILLED
-> by data.** Two-part release, both evidence-driven from the first REAL gate-eval baseline.
->
-> **Phase 1 — eval robustness** (motivated by a 260710 17/18-INVALID transient storm the
-> pre-v0.21 harness could not postmortem): raw stdout+stderr+rc capture for both attempts on
-> a final-INVALID vote (envelope stripped — no cwd/session/plugin paths — git-ignored via
-> `_ignore_run_state`); first-UNRELIABLE circuit breaker (`invalid_count*3 > n` — catches the
-> exact 17/18 storm class, not just all-INVALID) with an `aborted` flag guarding the batch
-> `done` trailer so a filtered aborted run cannot slip through `--report`/drift as complete;
-> `--keep-going` overrides (worst case ≈ 37 calls documented next to the flag);
-> `FLOW_EVAL_RETRY_BACKOFF` env (default 5s, tests 0) + retry skipped when rate-limit fired OR
-> when the previous attempt was a timeout (`rc=124`); best-effort `rate_limited` field anchored
-> to `rate_limit_info.status` (advisory — a healthy `allowed` event carries
-> `overageStatus:rejected` as a separate field, so naive grep would false-positive);
-> pre-batch raw-dir prune keyed off the epoch embedded in `run_id` with a `FLOW_LOCK_TTL`
-> guard for concurrent/in-postmortem runs; `fid` sanitized before touching filesystem.
->
-> **Phase 2 — fixture f01a repair**: complaint #3 rewritten (lines 38-41) as a coherent online
-> quote with a synthetic thread-style link; no interview-paraphrase framing that the judge was
-> flagging as "laundered interview data".
->
-> **Phase 3 — canonical baseline + A-kill + docs**: canonical billable batch (run
-> `…-1783743592-…`) = **6/6 MATCH, 0 unreliable, 0 invalid, 18/18 parsed**. Judge
-> `claude-opus-4-7`, cli `2.1.201`, `gate_rules_sha 3672145322`. Elapsed ~14 min. This is the
-> drift baseline `eval --report` reads. Roadmap A (express-lane) **KILLED with numbers**:
-> cycles with ≥1 successful `next` reach Cards at 14/15 (93%); contract dwell median 40s
-> (n=12; the "1.3h bottleneck" was a `usage --global` averaging artifact); "33% abandonment"
-> = exploration pokes + brownfield card-mode. Re-trigger condition logged in
-> `docs/quality-metrics.md`.
->
-> **Red-team pre-ship** (3 hostile lenses via `code-reviewer` subagents, every finding
-> `file:line`-backed): 26 raw → 14 accepted (2 Critical, 5 High, 7 Medium). Adjudication
-> table in `plans/260710-2354-v021-eval-trust-hardening/plan.md > ## Red Team Review`. Catches
-> include the original breaker missing its own motivating 17/18 incident (retrip on
-> first-UNRELIABLE, not all-invalid) and the raw-capture spec being stdout-only when the storm
-> signature was stderr — both would have shipped as latent bugs without the pass. **CI GREEN
-> 3/3 OS** on run `29141602431` after 2 rounds of macOS-only fixes for the retry-on-timeout
-> DEBT interaction and a bash-3.2 prune-loop portability issue. Post-ship independent
-> `code-reviewer` audit found 0 runtime defects, 1 fixed docs drift.
->
-> **v0.20.0** — **mission-control legibility: resume verb + status upgrade + per-card
-> dwell in `--global`.** Evidence-driven (1079-event dogfood telemetry: `status` is the
-> most-called verb, 287 calls, 2.8x `next`, yet had no next-action line or dwell; nothing gave a
-> fresh agent session a resume brief — the industry's top unsolved "AI context amnesia"
-> complaint; per-card dwell was blind in `usage --global` since the compact log row omitted
-> `card`/`args`). Composition of already-existing data, no new infrastructure: (1) new read-only
-> `flow.sh resume` — last session (command names only, never raw args), in-flight card + dwell,
-> gate state, one `NEXT ->` line; honest degradation on a fresh project or missing telemetry;
-> (2) `status` gains a `NEXT ->` header line (same shared `_next_action` helper as resume, so the
-> two verbs can never disagree), current-stage dwell, and a compact done/in-flight/todo summary
-> past 10 cards — anchor strings (`gate: PASS`, `cards: N created`, `planning: at stage`) frozen
-> for existing consumers, ≤10-card output byte-identical; (3) the compact global log row gains
-> `card`+`args` (bounded, charset-guarded) only for `command=card`, unblocking per-card dwell in
-> `usage --global`. Built via `ck:cook` per phase + an independent `code-reviewer` pass per phase
-> (the review cycle the operator asked for), which earned its keep: it caught a **critical
-> Windows/Git-Bash hang** — piping `_gate_state_brief`'s nested `scan_gate` output into a
-> `while read` consumer (and a pre-existing, now-higher-blast-radius `_next_action` reason-lookup
-> pipe) froze indefinitely whenever the current stage's gate was genuinely BLOCKED, an
-> early-pipe-reader-exit class issue under MSYS — fixed by eliminating both pipes in favor of
-> direct calls / pre-drained command substitution, with a `timeout`-guarded regression test added
-> so CI can never wedge on it again. It also caught a **critical dwell-anchor bug**: a failed
-> `/flow next` retry writes `stage_to=<same stage>` with `stage_from=""` (never set on that path),
-> so the original `stage_from != cur` filter didn't actually exclude failed retries — fixed by
-> anchoring on `exit_code=0` instead, the field that actually discriminates a genuine stage entry
-> from a failed retry. Plus a medium fix (compact-form N could drift from the real
-> done+in-flight+todo sum under sparse card numbering — now computed from the real count, not
-> `highest_card()`'s max-suffix value). 31 suites / 799 checks green (`run_all.sh`); `coherence`
-> and `consistency` PASS; not yet pushed through CI or installed to homes.
->
-> **v0.19.0** — **`flow.sh eval`: behavioral proof for the semantic gate layer.** Until
-> now, `gate-rules.md`'s "flag a hollow-but-mechanically-clean artifact" promise had zero
-> behavioral proof — a hollow artifact passes the mechanical gate by design, and nothing
-> measured whether the LLM actually catches it. `eval` runs the real per-stage challenge text
-> against 6 curated sound/hollow fixture pairs (Stage 01 fabricated-quote pattern, Stage 02
-> grade-laundering, card "merge≈shipped" evidence), majority-votes a nonce-protected verdict (N=3,
-> injection-resistant — a fixture body literally cannot predict this run's nonce), and prints a
-> per-stage scorecard. Opt-in and billable (clean zero-call skip if `claude` CLI absent);
-> `--report` re-reads a prior batch offline for free. Honest scope: this proves a **fresh-judge
-> lower bound**, not the work-mode self-challenge (same model reviewing what it just authored) —
-> see `references/gate-eval.md`. Built via a full spike→build→review→fix pass: the Step-0 contract
-> spike found a **new** risk beyond the design's own red-team (`claude -p` runs a full agentic
-> loop with live tool access by default; locked down with `--tools ""`), and code review across
-> the 3 phases caught and fixed a **critical** silent-batch-truncation bug (a stdin-consumption
-> gotcha inside the manifest read loop), a shared-helper space-path bug (`_CLEANUP_TDS` silently
-> no-op'd on any space-containing TMPDIR — common on Windows), and a misleading-drift gap
-> (comparing batches that evaluated different fixture sets). Real smoke-tested against the actual
-> `claude` CLI on both a sound and a hollow fixture — correctly PASS and FLAG.
-> **v0.18.0** — **`ck-loop` loop-engineering integration**: flow's own "Implement→Test→Audit→Fix"
-> tail gained a mechanical verify→iterate→circuit-breaker primitive by wrapping the already-installed
-> `ck-loop` ClaudeKit skill — flow supplies plumbing only (`flow.sh loop-prep`/`loop-log`: isolated
-> worktree, a numeric Verify command, telemetry), ck-loop stays the untouched execution engine (git
-> commit/revert per iteration, stuck-detection, verify-safety-screen). Deep-wired as the 6th
-> claudekit-skills.md entry, with a loop-vs-two-strikes decision matrix so there's one clear "fix it"
-> path. Built via a full red-team → review → test → audit → fix pass (two independent adversarial
-> reviews beyond the standard code-review gate) that caught and fixed a **critical** design bug
-> (`Scope` was hardcoded to test files, which would have pushed ck-loop toward gutting tests rather
-> than fixing source), a **high**-severity missing timeout on the Verify dry-run (a hanging suite
-> could block the runner indefinitely), and a secret-masking bypass on `loop-log`'s card-id argument.
-> **v0.17.0** — **repository-harness v0.1.10 deep integration**: reconciled flow's ported durable
-> layer with upstream and adopted its **kind-aware inbound tool registry** — register external tools by
-> kind (`cli|binary|mcp|skill|http`) + capability, probe presence mechanically, and let a step ask
-> `query tools --capability X --status present` and clean-skip an absent tool (stdlib-only, 0 new deps).
-> Fixed a latent **schema-005 collision** (flow's accessed-count vs upstream's tool-extensions): adopted
-> upstream's `005` verbatim, re-homed flow's migrations to `009-012`, made the runner column-idempotent,
-> and auto-reconcile legacy DBs on `init` (no data loss). The `FLOW_HARNESS_BACKEND=rust` seam is **frozen
-> + guarded** (refuses flow-lineage DBs). Scope was multi-agent + verified-external research; **score-context
-> deferred** with evidence (no context-rules surface to score against; a naive port would reward context-bloat).
-> **v0.14–0.15** add a **claudekit skill-layer** on top of the 13-agent orchestration: a curated per-stage
-> whitelist (`references/claudekit-skills.md`) answering "the kit has ~87 skills — which do I use when?",
-> with 5 high-ROI skills wired into their gate rituals (ck-predict@ADR · ck-scenario@Contract ·
-> review-pr + ck-security@Review · retro@Retro) — all opt-in, INFORM-only (a skill never passes a gate),
-> Claude-side-detected and silently degrading, so portability holds.
-> **v0.13.1** — real-usage hardening found by auditing flow's own telemetry on two real builds:
-> the durable **`harness` CLI** now accepts the natural flag variants agents actually type (`--actions_taken`,
-> `--files_changed`, `--card`) so traces/decisions stop silently dropping to argparse exit-2, and any bad
-> form prints a guiding hint instead of a silent drop; and running flow from a **monorepo subdir** now adopts
-> the ancestor flow root instead of minting a fragmented second `.flow` root.
-> **v0.13.0** adds **multi-agent worktree workspaces** (`/flow workspace add|list|enter|remove|check|doctor`):
-> run several agents (Claude/Codex/Antigravity, many terminals) in parallel without the "one agent switches
-> branch → every terminal flips" trap — one `git worktree` per agent, git as the live registry, a lean
-> `.flow/workspaces.jsonl` side-file for vendor/card/port/task, per-worktree port-offsets, allowed-files
-> overlap checks, and safe teardown. Built on the existing
-> engine + a closed durable **knowledge loop** (recall · audit/propose ·
-> cross-project KB) + gate-fired capture + a **mechanical usage log** wired into a closed feedback loop
-> (every `flow.sh` invocation self-recorded to JSONL; `recall` surfaces a usage digest, `propose` flags
-> chronically-failing stages, `/flow usage [--prune]` → cycle-time/gate fail-rate/dwell; local-only).
-> **v0.11 makes that telemetry trustworthy** — working `usage --global`, brownfield `cycle_id` at every
-> entry point, **wall-clock** per-stage dwell, auto-derived `session_id` + PID-liveness lock (hard-blocks
-> for real now), ephemeral test-run exclusion, and device-wide gate-fail reasons.
-> **v0.12 deepens orchestration** — `debugger` wired into the two-strikes repair ladder, `security-reviewer`
-> layered into Review, atomic lock with TOCTOU-safe acquire + crash self-heal, honest `_python` exit code,
-> per-stage dwell forwarded for global analytics, and honest read-only cycle accounting — plus
-> drift checks (contract/tokens/coherence/**consistency**) + brownfield
-> `assess` + a concurrency lock + agent integration + DESIGN law + project-type awareness +
-> **portable install across Claude Code (`/flow`), Codex CLI (`$flow`), and Antigravity (`agy` CLI /
-> IDE)** + a **Windows/Codex runner launcher** (`flow.cmd`, routes around WSL-bash path failures).
-> **v0.12.1** closes the v0.12 polish round: telemetry-honesty labels (`~approx` dwell + `--builds-only`
-> count), orchestration completeness (git-manager + docs-manager wired; tripwire derives from
-> agent-detection.md; full-suite repair discipline), and engine hygiene (tempdir SIGINT/early-return guard).
-> **v0.12.2** adds the language-specialist Review lens (typescript-reviewer/.ts·.js + python-reviewer/.py,
-> layered with code-reviewer, composes with security lens, detect-first degrade, gate-parity preserved) and
-> fixes a v0.12.1 latent portability defect (agent-wiring tripwire used GNU-only `grep -oP`; rewritten
-> with POSIX `sed -E` so macOS BSD grep CI passes).
-> **31 test suites green on the 3-OS CI matrix** (Ubuntu · macOS · Windows). Hosted CI moved to
-> **Azure Pipelines** (free-tier private, 1 parallel job / 1,800 min/mo) after v0.21.0 —
-> GitHub Actions retired because of recurring billing/quota blocks on private repos. The last
-> GitHub Actions run was `29141602431` on the v0.21.0 line = green 3/3 OS immediately before
-> the switch. MIT.
+## Install
+
+```bash
+npx @manhquy/flow-skill@rc
+```
+
+Cross-OS (macOS · Linux · Windows), pure Node ≥22.14, interactive multi-select. See
+[Install methods](#install-methods) for CI-friendly flags, dev checkout, and the bash /
+PowerShell installers.
+
+## Status
+
+| Field | Value |
+|---|---|
+| Version | **v0.21.0** (2026-07-11) |
+| npm package | [`@manhquy/flow-skill@0.1.0-rc.1`](https://www.npmjs.com/package/@manhquy/flow-skill) — LIVE |
+| Tests | 31 suites / 799 checks green |
+| CI | Azure Pipelines · Ubuntu · macOS · Windows |
+| License | MIT |
+
+Release notes in [`CHANGELOG.md`](./CHANGELOG.md); session journals in [`docs/journals/`](./docs/journals/).
+
 
 ## What ships
 
@@ -173,7 +46,7 @@ flow-skill/
 │   │                            #   skip/ready/workspace/auto/recall/unlock/harness/debt/design/contract/
 │   │                            #   tokens/coherence/consistency/constitution/promote/doctor/usage/retro/
 │   │                            #   loop-prep/loop-log (ck-loop thin wrapper)
-│   ├── _templates/              # 00-idea .. 05-contract + card (buildflow) + 00-inspect (brownfield)
+│   ├── _templates/              # 00-idea .. 05-contract + card + 00-inspect (brownfield)
 │   ├── law/                     # CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md
 │   ├── references/              # 16 semantic playbooks (gates, agents, codex/antigravity, loop, design, project-types)
 │   ├── harness/                 # durable layer: flow_harness.py + _db.py + _domain.py + schema
@@ -589,8 +462,3 @@ that survives sessions.
 ```bash
 bash tests/run_all.sh    # 31 suites / 799 checks; needs bash (+ python for the harness/propose suites)
 ```
-
-## Provenance
-Method: `ai20k-build-phase/buildflow` (Tony). Harness: `repository-harness`.
-Agents/packaging: `claudekit-engineer`. Method/review: `BMAD-METHOD`.
-Built (and improved, by dogfooding itself) with `/flow` — see `plans/reports/`.
