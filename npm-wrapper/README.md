@@ -5,7 +5,7 @@ One-command installer that copies the [flow](https://github.com/manhquydev/flow-
 - Pure Node — works on macOS, Linux, and Windows (cmd, PowerShell 5.1/7, Git Bash) with the same code path.
 - Interactive multi-select or non-interactive CI mode.
 - Preserves any user-added files in the destination outside the 6 subdirs the skill owns.
-- Ships with [npm provenance](https://docs.npmjs.com/generating-provenance-statements) via GitHub Actions trusted publishing (from rc.2+).
+- Ships with [npm provenance](https://docs.npmjs.com/generating-provenance-statements) via GitHub Actions trusted publishing **starting with rc.2** — rc.1 was a manual bootstrap because npm Trusted Publisher cannot bind to a package that does not yet exist.
 
 ## Install
 
@@ -77,7 +77,7 @@ rm -rf <project>/.claude/skills/flow
 - **Windows `EBUSY` / `EPERM` mid-install**: an agent (Claude Code, Codex, Antigravity IDE) is holding a file inside the destination. Close the agent and re-run. The installer already retries with 100/300/900 ms backoff before surfacing the error.
 - **Stale advisory lock**: a prior run crashed. The next run detects the dead PID and reclaims the lock automatically. If it does not (very rare — the recorded PID was recycled by another live process), delete `<parent-of-dest>/.flow-skill.installing.lock`.
 - **`No matching version found` on `@0.1.x`**: you are trying to install a pre-release version through a stable range. Use `@rc` (dist-tag) or an explicit `@0.1.0-rc.N` until stable `0.1.0` ships.
-- **Node too old** (`requires Node.js >=20.11.0`): upgrade with your preferred version manager (`nvm install 20`, `fnm install 20`, or Node's official installer).
+- **Node too old** (`requires Node.js >=22.14.0`): upgrade with your preferred version manager (`nvm install 22`, `fnm install 22`, or Node's official installer). Node 20 reached end-of-life April 2026; npm OIDC Trusted Publishing needs npm >=11.5.1 which bundles with Node 22.14+.
 
 ## JSONL contract
 

@@ -34,23 +34,29 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Resolve target version (input, else rc, else latest)
+      - name: Resolve target versions (rc + latest, deduped)
         id: version
         run: |
+          # Smoke both `rc` and `latest` when they diverge so a stable regression cannot
+          # slip through undetected. Dedupe when they point at the same version. Single
+          # explicit input override still wins if the operator specifies one.
           if [ -n "${{ inputs.version }}" ]; then
-            v="${{ inputs.version }}"
+            versions="${{ inputs.version }}"
           else
-            v="$(npm view @manhquy/flow-skill dist-tags.rc 2>/dev/null)"
-            if [ -z "$v" ] || [ "$v" = "undefined" ]; then
-              v="$(npm view @manhquy/flow-skill dist-tags.latest 2>/dev/null)"
+            rc="$(npm view @manhquy/flow-skill dist-tags.rc 2>/dev/null)"
+            latest="$(npm view @manhquy/flow-skill dist-tags.latest 2>/dev/null)"
+            versions=""
+            [ -n "$rc" ] && [ "$rc" != "undefined" ] && versions="$rc"
+            if [ -n "$latest" ] && [ "$latest" != "undefined" ] && [ "$latest" != "$rc" ]; then
+              versions="${versions:+$versions }$latest"
             fi
           fi
-          if [ -z "$v" ] || [ "$v" = "undefined" ]; then
-            echo "No published version found — skipping." >&2
+          if [ -z "$versions" ]; then
+            echo "No published versions found — skipping." >&2
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
-            echo "resolved: $v"
-            echo "version=$v" >> "$GITHUB_OUTPUT"
+            echo "resolved: $versions"
+            echo "versions=$versions" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install (no lifecycle scripts)
@@ -58,7 +64,11 @@ jobs:
         run: npm ci --ignore-scripts
         working-directory: npm-wrapper
 
-      - name: Run scripts/smoke.mjs against the resolved version
+      - name: Run scripts/smoke.mjs against every resolved version
         if: steps.version.outputs.skip != 'true'
-        run: node scripts/smoke.mjs "${{ steps.version.outputs.version }}"
+        run: |
+          for v in ${{ steps.version.outputs.versions }} ; do
+            echo "--- smoke $v ---"
+            node scripts/smoke.mjs "$v"
+          done
         working-directory: npm-wrapper

@@ -1,7 +1,23 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.20.0** (2026-07-10).
+Updated as the skill evolves. Current: **v0.21.0** (2026-07-11), **npm-wrapper v0.1.0-rc.1** LIVE on npm.
+
+## npm-wrapper v0.1.0-rc.1 — cross-platform npm distribution (2026-07-12, LIVE)
+
+Parallel distribution channel: `npx @manhquy/flow-skill@rc` — pure Node.js entry point, no shell/git dependency, for CI/CD and cross-platform environments.
+
+| Metric | Value | Notes |
+|---|---|---|
+| **Version** | 0.1.0-rc.1 | LIVE on npm, `@manhquy/flow-skill@rc` |
+| **Tests** | 35/35 pass | 4 suites via `node:test` (installer.test, detect.test, cli.test, lock-atomicity.test) |
+| **CI matrix** | Ubuntu / macOS / Windows × Node 22/24 | All green on commit 19fff1f via publish-npm-wrapper.yml |
+| **Code reviews** | 3 passes (code-reviewer) + 1 pass (red-team) | Post-audit hardening → post-publish verification; 16/18 red-team findings accepted, 2 rejected |
+| **Runtime deps** | 1 (`@clack/prompts`) | 0 dev deps (uses `node:test` built-in) |
+| **Tarball** | 76 files, 203 KB gzipped, 566 KB unpacked | No `.pyc`, no `node_modules`, no symlinks |
+| **Anti-regression** | `git grep child_process` in src/ + bin/ is empty | Guard in `publish-npm-wrapper.yml` + CI check on every push (prevents shell spawning from Node) |
+
+Real-world verification: cross-platform install tested on Windows (native Node, no WSL), detected Claude/Codex/Agy harnesses correctly, ran `flow.sh` end-to-end without shell dependency.
 
 ## v0.20.0 — mission-control legibility: resume verb + status upgrade + per-card dwell (2026-07-10)
 

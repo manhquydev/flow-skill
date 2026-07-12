@@ -360,6 +360,9 @@ async function main() {
 main().catch((err) => {
   // F2 — a crash inside main() must not truncate JSONL: emit a machine-parseable summary
   // before exit so CI consumers can distinguish "crashed" from "hung".
+  // Argv fallback: `--json` is a boolean flag with no alias in parseArgs config, so a raw
+  // string match on process.argv is safe today; if the flag ever gets an alias or
+  // `--json=true` form, hoist `jsonMode` to module scope from parseCliArgs instead.
   const isJson = process.argv.includes('--json');
   const message = err?.message ?? String(err);
   if (isJson) {

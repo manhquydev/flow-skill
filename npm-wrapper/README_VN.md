@@ -88,7 +88,7 @@ Hợp đồng additive trong `0.1.x` — field mới có thể thêm, field cũ 
 - **`EBUSY`/`EPERM` giữa install trên Windows**: một agent đang giữ handle vào file trong destination. Đóng agent + re-run. Installer đã retry 100/300/900 ms trước khi báo error.
 - **Advisory lock cũ**: run trước crash. Run mới tự phát hiện PID dead → reclaim. Trường hợp hiếm (PID được recycle bởi process khác đang chạy): xóa `<parent-of-dest>/.flow-skill.installing.lock`.
 - **`No matching version found` với `@0.1.x`**: cài pre-release qua stable range. Dùng `@rc` hoặc `@0.1.0-rc.N` cho tới khi stable `0.1.0` ship.
-- **Node quá cũ** (`requires Node.js >=20.11.0`): update bằng `nvm install 20`, `fnm install 20`, hoặc installer chính thức của Node.
+- **Node quá cũ** (`requires Node.js >=22.14.0`): update bằng `nvm install 22`, `fnm install 22`, hoặc installer chính thức của Node. Node 20 hết vòng đời từ 4/2026; npm OIDC Trusted Publishing cần npm >=11.5.1 (bundle theo Node 22.14+).
 
 ## Yêu cầu
 

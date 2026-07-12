@@ -2,6 +2,17 @@
 
 Dev-only guide (excluded from tarball via `files` allowlist + `.npmignore`). Follow every section before triggering the publish workflow.
 
+## Bootstrap-token log (2026-07-12)
+
+The **first publish** of `@manhquy/flow-skill@0.1.0-rc.1` was performed manually because npm Trusted Publisher (OIDC) cannot bind to a package that does not yet exist.
+
+- Method: **Granular Access Token with `Bypass 2FA`** minted on the npm dashboard.
+- Token lifetime: **~60 seconds** (created → `npm config set` → `npm publish` → `npm token revoke` → `npm config delete`).
+- No token was written to `~/.npmrc` beyond the transient set/delete pair.
+- **Retire path**: once Trusted Publisher is configured (see Prereqs below) the bootstrap-token flow is no longer needed. Publishes from rc.2+ run inside the workflow with OIDC and carry SLSA L2 provenance.
+- **Hard deadline: 2027-01-XX** — npm removes publishing capability from bypass-2FA tokens around January 2027 ([GitHub Changelog 2026-07-08](https://github.blog/changelog/2026-07-08-npm-install-time-security-and-gat-bypass2fa-deprecation/)). TP registration must be complete before that, or another manual publish path will be needed.
+- **Post-bootstrap TODO** — the `latest` dist-tag was auto-populated by npm on the first publish (points at rc.1). Run `npm dist-tag rm @manhquy/flow-skill latest` from an authenticated shell so unpinned installs (`npx @manhquy/flow-skill`) do NOT return the RC. Re-add `latest` when the first stable version ships.
+
 ## Prereqs (one-time)
 
 - [ ] npm Trusted Publisher configured for `@manhquy/flow-skill` linking:
@@ -29,7 +40,9 @@ git tag "npm@<version>"           # the workflow triggers on `npm@*` tag pushes
 
 # 3. Full test + anti-regression grep
 npm test
-git grep -E "spawn|exec|child_process" src/ bin/   # must be empty (guard L17)
+git grep -nE "from ['\"]node:child_process['\"]|require\(['\"]node:child_process['\"]|require\(['\"]child_process['\"]" -- 'src/' 'bin/'
+                                                     # must be empty (matches the workflow's precise guard;
+                                                     # the loose verb-based regex false-positived on `RegExp.prototype.exec` and code comments)
 grep -rE '(sk_live|pk_live|ghp_|AKIA|Bearer\s|password|xoxb-)' bin/ src/ skills/ README* LICENSE SECURITY.md CHANGELOG.md
                                                     # must be empty
 

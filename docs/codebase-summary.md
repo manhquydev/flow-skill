@@ -22,6 +22,16 @@ flow-skill/
 │   │                            #   mode-work, auto-run, loop principles, ground-truth,
 │   │                            #   adversarial, debt-and-halts, design checklist, ui-tcr)
 │   └── playbooks/               # 3 stack playbooks + README (read before / harvest after)
+├── npm-wrapper/                 # npm distribution channel (cross-OS Node)
+│   ├── bin/cli.mjs              # entry point: npx @manhquy/flow-skill@rc
+│   ├── src/installer.mjs        # detect + verify harness install
+│   ├── src/detect.mjs           # harness detection (claude/codex/agy)
+│   ├── src/prompt.mjs           # interactive install prompts
+│   ├── scripts/sync.mjs         # keep npm wrapper aligned with repo
+│   ├── test/                    # 35 tests via node:test (4 suites)
+│   ├── .github/workflows/publish-npm-wrapper.yml
+│   ├── .github/workflows/ci.yml
+│   └── .github/workflows/nightly-registry-health.yml
 ├── tests/                       # run_all.sh + runner(13) + harness(19) + scenarios(14) = 46
 ├── install.sh / install.ps1     # global or per-project install + doctor
 ├── portable-manifest.json

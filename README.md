@@ -255,22 +255,24 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 ## Install methods
 
-**A. npm — one command, cross-OS, provenance-signed** — *coming soon*
+**A. npm — one command, cross-OS** (recommended, LIVE at [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
 ```bash
-# npx will work after first publish:
-npx @manhquy/flow-skill@rc                # pre-release channel (once published)
+npx @manhquy/flow-skill@rc                # pre-release channel (current: 0.1.0-rc.1)
 # After stable ships: npx @manhquy/flow-skill@0.1.x
 ```
 
-**Right now (before npm publish)** — install from this git repo:
+Interactive multi-select of the 4 target agents (Claude Code, Codex CLI, Agents home, Antigravity CLI + IDE), or non-interactive:
+
 ```bash
-git clone https://github.com/manhquydev/flow-skill.git
-cd flow-skill/npm-wrapper
-npm install && npm run sync && npm link
-flow-skill                                 # interactive install into detected agents
+npx @manhquy/flow-skill@rc --yes                    # install to detected + Claude
+npx @manhquy/flow-skill@rc --yes -t claude -t codex # explicit targets
+npx @manhquy/flow-skill@rc --yes --all              # force all 4 targets
+npx @manhquy/flow-skill@rc --yes --all --dry-run --json  # CI-friendly JSONL preview
 ```
 
-Interactive multi-select of the 4 target agents, or use `--yes --all` for non-interactive. Pure Node — no bash, no PowerShell, works identically on macOS/Linux/Windows. See [npm-wrapper/README.md](./npm-wrapper/README.md) for the full flag reference and the JSONL streaming contract for CI.
+Pure Node ≥22.14 — no bash, no PowerShell, works identically on macOS/Linux/Windows regardless of terminal. See [npm-wrapper/README.md](./npm-wrapper/README.md) for the full flag reference, JSONL contract, and troubleshooting. Full source at [`npm-wrapper/`](./npm-wrapper/) in this repo.
+
+> **Dev checkout** (for contributors, not end users): `git clone https://github.com/manhquydev/flow-skill && cd flow-skill/npm-wrapper && npm install && npm run sync && npm link` then `flow-skill --help`.
 
 **B. Install script (upstream reference)** — installs into **every harness present** + runs a doctor check:
 ```bash

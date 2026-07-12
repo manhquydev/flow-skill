@@ -70,6 +70,17 @@ On-disk artifacts (in the project being built):
 | `tests/` | 31 suites across runner / harness / scenarios / loop / eval (v0.21: raw-on-INVALID + circuit breaker + prune + envelope-strip added) / resume / status-legibility. CI matrix ubuntu+macos+windows is the source of truth. |
 | `install.sh` / `install.ps1` | install to ~/.claude or a project |
 
+## Distribution channels
+
+Two parallel installation paths, both syncing the same canonical `skills/flow/` tree:
+
+| Channel | Entry point | Transport | Platform | Use case |
+|---|---|---|---|---|
+| **npm** (primary) | `npx @manhquy/flow-skill@rc` | Node.js package, 76 files 566 KB unpacked | Cross-OS (no shell dependency) | CI/CD, any environment with Node 22+ |
+| **install.sh** (reference) | `bash install.sh global` + doctor step | Direct from repo via Git | UNIX shell (Bash 3.2+) | Dev machines, local skill setup, preserves diagnostic doctor |
+
+The npm channel is the **canonical distribution** for cross-platform adoption (pure Node.js, no `bash`/`git` requirement, fast tarball extraction). The `install.sh` channel is the **reference implementation** used in development and CI matrix testing; it includes the `doctor` diagnostic step to verify the local environment. Both write to the same skill home (`~/.claude/skills/flow`, `~/.codex/skills/flow`, etc.), so a project can switch channels without re-issuing any gates or cards.
+
 ## Deep-wired skills (pluggable agents + decision matrix)
 
 `/flow` ships 6 deep-wired ClaudeKit skills (opt-in, never in `cmd_next`/`cmd_check`):
