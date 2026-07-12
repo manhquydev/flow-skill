@@ -71,7 +71,7 @@ body:
     attributes:
       label: Sanity checks
       options:
-        - label: I read [SECURITY.md](https://github.com/manhquy/flow-skill/blob/HEAD/npm-wrapper/SECURITY.md) and the issue is not a documented `Known v0.1 limitation`
+        - label: I read [SECURITY.md](https://github.com/manhquydev/flow-skill/blob/HEAD/npm-wrapper/SECURITY.md) and the issue is not a documented `Known v0.1 limitation`
           required: true
-        - label: I checked [existing issues](https://github.com/manhquy/flow-skill/issues) and this is not a duplicate
+        - label: I checked [existing issues](https://github.com/manhquydev/flow-skill/issues) and this is not a duplicate
           required: true

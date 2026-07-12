@@ -1,6 +1,6 @@
 # @manhquy/flow-skill
 
-One-command installer that copies the [flow](https://github.com/manhquy/flow-skill) skill into your coding agent(s).
+One-command installer that copies the [flow](https://github.com/manhquydev/flow-skill) skill into your coding agent(s).
 
 - Pure Node — works on macOS, Linux, and Windows (cmd, PowerShell 5.1/7, Git Bash) with the same code path.
 - Interactive multi-select or non-interactive CI mode.

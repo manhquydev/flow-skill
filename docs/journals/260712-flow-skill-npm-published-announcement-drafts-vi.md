@@ -47,7 +47,7 @@ Node.js **≥22.14.0**. Node 20 reached end-of-life in April 2026.
 
 ## Report issues
 
-- GitHub: https://github.com/manhquy/flow-skill/issues
+- GitHub: https://github.com/manhquydev/flow-skill/issues
 - Email: manhquy.mqy@gmail.com (subject: `[flow-skill]`)
 ```
 
@@ -60,7 +60,7 @@ npx @manhquy/flow-skill@rc
 
 One command installs my "flow" coding-agent skill into Claude Code, Codex CLI, and Antigravity. Cross-OS pure Node — no bash, no PowerShell, no Git Bash requirement.
 
-35 tests. Repo: github.com/manhquy/flow-skill
+35 tests. Repo: github.com/manhquydev/flow-skill
 ```
 
 Follow-up if you feel like it:
@@ -104,7 +104,7 @@ Design notes:
 Would love feedback on the SECURITY.md posture or the JSONL contract.
 
 npm: https://www.npmjs.com/package/@manhquy/flow-skill
-Repo: https://github.com/manhquy/flow-skill
+Repo: https://github.com/manhquydev/flow-skill
 ```
 
 ## 4. GitHub Discussions (Announcements)
@@ -133,7 +133,7 @@ Two reasons.
 
 If you install it, please:
 - Tell me which OS + shell + target agent (`npx @manhquy/flow-skill@rc --yes --all --dry-run --json` output is perfect).
-- Open [an issue](https://github.com/manhquy/flow-skill/issues/new/choose) if anything fails — the template asks for exactly what I need.
+- Open [an issue](https://github.com/manhquydev/flow-skill/issues/new/choose) if anything fails — the template asks for exactly what I need.
 - Try Ctrl+C mid-install and let me know if it leaves your `~/.claude/skills/flow` in a weird state.
 
 ### Promotion criterion to `v0.1.0` stable

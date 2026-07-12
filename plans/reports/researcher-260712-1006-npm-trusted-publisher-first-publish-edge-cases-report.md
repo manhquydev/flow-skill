@@ -108,7 +108,7 @@ npm view @manhquy/flow-skill@<version> dist.attestations.provenance
 ```bash
 cosign verify-bundle --bundle attestation.json \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity https://github.com/manhquy/flow-skill/.github/workflows/publish-npm-wrapper.yml@refs/tags/v<x>.<y>.<z>
+  --certificate-identity https://github.com/manhquydev/flow-skill/.github/workflows/publish-npm-wrapper.yml@refs/tags/v<x>.<y>.<z>
 ```
 Requires downloading attestation from Rekor (SLSA transparency log).  
 **Cited:** [Sigstore blog: cosign npm verification](https://blog.sigstore.dev/cosign-verify-bundles/)

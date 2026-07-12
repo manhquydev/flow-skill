@@ -41,12 +41,12 @@
   ],
   "author": "manhquy <manhquy.mqy@gmail.com>",
   "license": "MIT",
-  "homepage": "https://github.com/manhquy/flow-skill#readme",
+  "homepage": "https://github.com/manhquydev/flow-skill#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/manhquy/flow-skill.git"
+    "url": "git+https://github.com/manhquydev/flow-skill.git"
   },
   "bugs": {
-    "url": "https://github.com/manhquy/flow-skill/issues"
+    "url": "https://github.com/manhquydev/flow-skill/issues"
   }
 }

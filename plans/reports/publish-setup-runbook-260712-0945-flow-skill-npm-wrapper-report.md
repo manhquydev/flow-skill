@@ -36,7 +36,7 @@ The runbook below covers Path A. Path B is a future exercise.
 ### Step 1. GitHub — transfer + rename repo
 
 Current: `github.com/manhquydev/mq_flow`  
-Target: `github.com/manhquy/flow-skill`
+Target: `github.com/manhquydev/flow-skill`
 
 1. As `manhquydev`: **Settings → General → Transfer ownership** → new owner `manhquy`, confirm.
 2. As `manhquy`: **accept the transfer** (email + GitHub notification).
@@ -113,7 +113,7 @@ Every subsequent publish is via the workflow (Steps 6–8) and does carry proven
 2. **Access → Trusted Publishers** for `@manhquy/flow-skill` → **Add trusted publisher**.
 3. Fill in **exactly** (case-sensitive):
    - Publisher: `GitHub Actions`
-   - Repository owner: `manhquy`
+   - Repository owner: `manhquydev` (cross-account: GitHub owner ≠ npm scope owner; both same person)
    - Repository: `flow-skill`
    - Workflow filename: `publish-npm-wrapper.yml`
    - Environment: `npm-publish`

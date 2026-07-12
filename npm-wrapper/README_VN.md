@@ -1,6 +1,6 @@
 # @manhquy/flow-skill
 
-Trình cài đặt một-lệnh sao chép skill [flow](https://github.com/manhquy/flow-skill) vào (các) coding agent của bạn.
+Trình cài đặt một-lệnh sao chép skill [flow](https://github.com/manhquydev/flow-skill) vào (các) coding agent của bạn.
 
 - Pure Node — chạy trên macOS, Linux, Windows (cmd, PowerShell 5.1/7, Git Bash) với cùng một code path.
 - Multi-select tương tác hoặc chế độ CI không tương tác.
