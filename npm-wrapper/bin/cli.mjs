@@ -278,15 +278,14 @@ async function main() {
   const results = [];
   let aborted = false;
 
-  // F2 fix: SIGINT just flips the flag. The main loop checks it AFTER install() returns (once
-  // its finally-block has released the lock) and exits cleanly. Calling process.exit() from
-  // inside the signal handler would skip installer.mjs's finally and leak the advisory lock.
-  // Second SIGINT within 500ms hard-exits — user gets the "hit Ctrl+C harder" escape hatch.
-  let sigintCount = 0;
+  // SIGINT: flip a flag that the loop reads BETWEEN install() calls, after each install's
+  // finally-block has released its lock. We cannot preempt a synchronous cpSync/rmSync — Node
+  // signal handlers only fire when the JS stack unwinds. So this handler only affects
+  // multi-target runs (it stops the next iteration). Single-target Ctrl+C during copy relies
+  // on Node's default (exit 130 at loop unwind). No second-strike hard-exit — that was
+  // aspirational and would have leaked the current install's lock.
   const onSigint = () => {
     aborted = true;
-    sigintCount++;
-    if (sigintCount >= 2) process.exit(130);
   };
   process.on('SIGINT', onSigint);
   for (const step of plan) {

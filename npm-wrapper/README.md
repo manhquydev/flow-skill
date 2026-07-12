@@ -10,32 +10,32 @@ One-command installer that copies the [flow](https://github.com/manhquy/flow-ski
 ## Install
 
 ```
-# Pin the semver range (recommended)
-npx @manhquy/flow-skill@0.1.x
+# Pre-release channel (current — v0.1.0-rc.N)
+npx @manhquy/flow-skill@rc
 ```
 
 An interactive prompt asks which agents to install to. Pick one or more, confirm, done.
 
-> **Note**: pin `@0.1.x` (or a specific version) rather than `@latest`. See [SECURITY.md](./SECURITY.md).
+> **RC phase**: pin `@rc` (dist-tag) or a specific version like `@0.1.0-rc.1`. `npx @manhquy/flow-skill@0.1.x` will start working after stable `0.1.0` is published — semver ranges do **not** match pre-release tuples by default. See [SECURITY.md](./SECURITY.md).
 
 ## Non-interactive
 
 ```
 # Default selection (Claude + anything detected)
-npx @manhquy/flow-skill@0.1.x --yes
+npx @manhquy/flow-skill@rc --yes
 
 # Explicit targets
-npx @manhquy/flow-skill@0.1.x --yes -t claude -t codex
-npx @manhquy/flow-skill@0.1.x --yes -t claude,codex           # comma form OK
+npx @manhquy/flow-skill@rc --yes -t claude -t codex
+npx @manhquy/flow-skill@rc --yes -t claude,codex           # comma form OK
 
 # Force all four targets even if not detected
-npx @manhquy/flow-skill@0.1.x --yes --all
+npx @manhquy/flow-skill@rc --yes --all
 
 # Project scope (Claude only — see below)
-npx @manhquy/flow-skill@0.1.x --yes --project --dir .
+npx @manhquy/flow-skill@rc --yes --project --dir .
 
 # CI-friendly JSONL output
-npx @manhquy/flow-skill@0.1.x --yes --all --dry-run --json
+npx @manhquy/flow-skill@rc --yes --all --dry-run --json
 ```
 
 ## Targets
@@ -61,12 +61,23 @@ npx @manhquy/flow-skill@0.1.x --yes --all --dry-run --json
 Delete the target directories:
 
 ```
+# Global installs
 rm -rf ~/.claude/skills/flow
 rm -rf ~/.codex/skills/flow
 rm -rf ~/.agents/skills/flow
 rm -rf ~/.gemini/antigravity-cli/skills/flow
 rm -rf ~/.gemini/config/skills/flow
+
+# Project scope (only Claude)
+rm -rf <project>/.claude/skills/flow
 ```
+
+## Troubleshooting
+
+- **Windows `EBUSY` / `EPERM` mid-install**: an agent (Claude Code, Codex, Antigravity IDE) is holding a file inside the destination. Close the agent and re-run. The installer already retries with 100/300/900 ms backoff before surfacing the error.
+- **Stale advisory lock**: a prior run crashed. The next run detects the dead PID and reclaims the lock automatically. If it does not (very rare — the recorded PID was recycled by another live process), delete `<parent-of-dest>/.flow-skill.installing.lock`.
+- **`No matching version found` on `@0.1.x`**: you are trying to install a pre-release version through a stable range. Use `@rc` (dist-tag) or an explicit `@0.1.0-rc.N` until stable `0.1.0` ships.
+- **Node too old** (`requires Node.js >=20.11.0`): upgrade with your preferred version manager (`nvm install 20`, `fnm install 20`, or Node's official installer).
 
 ## JSONL contract
 
@@ -81,9 +92,23 @@ rm -rf ~/.gemini/config/skills/flow
 
 `--json --dry-run` emits only the `plan` event. `--json` implies non-interactive; do not combine with a TTY prompt session.
 
+### Event contract
+
+| Event | Required fields | Notes |
+|---|---|---|
+| `plan` | `version` (string), `dryRun` (bool), `scope` (`global`\|`project`), `targets` (string[]) | Always the first event. |
+| `install:start` | `target` (string), `dests` (string[]) | One per selected target. |
+| `install:done` | `target`, `dests`, `result` (`success`\|`failed`), `error` (string\|null), `warnings` (string[]) | Fired after each target. `error` is `null` on success. |
+| `summary` | `success` (bool), `total`, `attempted`, `installed`, `failed`, `skipped`, `aborted` (bool) | Always the last event. Counts sum: `attempted = installed + failed`; `skipped = total - attempted`. |
+| `error` | `message` (string), `exitCode` (int) | Emitted only when the process crashes before completing a normal flow (e.g. missing bundled skill). Then exits with `exitCode`. |
+
+Exit codes: `0` success · `1` at least one target failed · `2` invalid usage (bad target name, `--project` with a non-Claude target, missing bundled skill) · `130` `SIGINT` (Ctrl+C).
+
+The contract is additive within `0.1.x`. New optional fields may appear; existing fields will not be renamed or removed.
+
 ## Requirements
 
-- Node.js **>= 20.11.0** (uses `import.meta.dirname` and `node:util.parseArgs`)
+- Node.js **>= 20.11.0** (uses `node:util.parseArgs` stable API and `node:test`)
 
 ## Provenance
 

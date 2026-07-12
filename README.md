@@ -255,9 +255,10 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 ## Install methods
 
-**A. npm — one command, cross-OS, provenance-signed** (once `@manhquy/flow-skill` is published):
+**A. npm — one command, cross-OS, provenance-signed** (RC channel; stable `0.1.0` pending):
 ```bash
-npx @manhquy/flow-skill@0.1.x
+npx @manhquy/flow-skill@rc                # pre-release channel (current)
+# After stable ships: npx @manhquy/flow-skill@0.1.x
 ```
 Interactive multi-select of the 4 target agents, or use `--yes --all` for non-interactive. Pure Node — no bash, no PowerShell, works identically on macOS/Linux/Windows. See [npm-wrapper/README.md](./npm-wrapper/README.md) for the full flag reference and the JSONL streaming contract for CI.
 

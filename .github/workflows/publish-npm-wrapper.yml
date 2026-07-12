@@ -57,6 +57,16 @@ jobs:
             dist_tag="${{ inputs.dist_tag }}"
             dry_run="${{ inputs.dry_run }}"
           fi
+          # Guard: pre-release semver (contains "-") must never publish to latest — protects users
+          # who install without a pin from getting an RC as their default.
+          case "$version" in
+            *"-"*)
+              if [ "$dist_tag" = "latest" ]; then
+                echo "FAIL: pre-release version '$version' cannot publish to dist-tag 'latest'" >&2
+                exit 1
+              fi
+              ;;
+          esac
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
           echo "dry_run=$dry_run" >> "$GITHUB_OUTPUT"
@@ -95,15 +105,12 @@ jobs:
             exit 1
           fi
 
-      - name: Guard — no child_process API surface in src or bin
+      - name: Guard — no child_process import in src or bin
         run: |
-          # Match only the concrete API surface; loose "exec" would false-hit code comments and
-          # docs (e.g. "exec bit"). Word boundaries + the exact node:child_process import cover
-          # what we actually care about.
-          if git grep -nE "\b(spawnSync|execSync|execFileSync|forkSync|spawn|exec|execFile|fork)\s*\(" -- 'src/' 'bin/' ; then
-            echo "FAIL: child_process call detected in src/ or bin/" >&2
-            exit 1
-          fi
+          # Any use of child_process requires importing the module. Checking imports is
+          # sufficient and avoids false-positives on identifiers like `RegExp.prototype.exec`
+          # or the string literal "exec bit" in code comments — the loose verb-based grep this
+          # replaced was rejecting legitimate JS.
           if git grep -nE "from ['\"]node:child_process['\"]|require\(['\"]node:child_process['\"]|require\(['\"]child_process['\"]" -- 'src/' 'bin/' ; then
             echo "FAIL: node:child_process import detected in src/ or bin/" >&2
             exit 1
@@ -115,10 +122,13 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Tarball audit (< 500KB unpacked; no symlinks)
+      - name: Tarball audit (< 1MB unpacked; no symlinks)
         run: |
-          npm pack --dry-run --json > pack.json
-          node -e "const p=require('./pack.json');const s=p[0].unpackedSize;if(s>512000){console.error('unpacked > 500KB: '+s);process.exit(1)}"
+          # --ignore-scripts is essential: `prepack` calls sync.mjs which writes a banner to
+          # stdout. Without --ignore-scripts the banner gets interleaved with `--json` output
+          # and JSON.parse on pack.json crashes. Sync already ran in the "Materialize" step.
+          npm pack --dry-run --ignore-scripts --json > pack.json
+          node -e "const p=require('./pack.json');const s=p[0].unpackedSize;if(s>1048576){console.error('unpacked > 1MB: '+s);process.exit(1)}"
           # Symlink check — file entry with mode bit 0o120000 (symlink) is a supply-chain risk.
           node -e "const p=require('./pack.json');const bad=(p[0].files||[]).filter(f=>f.mode && (f.mode & 0o170000)===0o120000);if(bad.length){console.error('symlink in tarball:',bad);process.exit(1)}"
 

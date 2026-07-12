@@ -50,13 +50,14 @@ These match the behavior of the upstream `install.sh`; they are documented rathe
 
 ## Supply chain
 
-- **Trusted publishing.** Every version is published from `.github/workflows/publish.yaml` via `workflow_dispatch` behind a required-reviewer environment gate. No long-lived npm token exists in CI; auth is via OIDC.
+- **Trusted publishing.** Every version is published from a tag-triggered GitHub Actions workflow (`.github/workflows/publish-npm-wrapper.yml`, or `workflow_dispatch` for validation) behind a required-reviewer environment gate. No long-lived npm token exists in CI; auth is via OIDC.
 - **Provenance.** npm attaches an SLSA Build Level 2 attestation to every published version. Verify with:
   ```
   npm view @manhquy/flow-skill@<version> dist.attestations.provenance
   ```
 - **Publisher account.** npm 2FA `auth-and-writes` is enabled as defense-in-depth for the git + npm identity behind the workflow.
-- **Pin your version.** Docs recommend `@0.1.x` (or a specific pin). `@latest` invites blind updates on a package that writes to your agent home.
+- **Pin your version.** During the RC window use `@rc` (dist-tag) or an explicit `@0.1.0-rc.N`. After stable ships, pin `@0.1.x` (or a specific version). `@latest` invites blind updates on a package that writes to your agent home.
+- **Completeness signal (not tamper detection).** The tarball ships `skills-manifest.json` recording the synced skill's file count + list. The publish workflow re-counts the checked-out tree against this manifest to catch an incomplete sync. It is **not** a supply-chain integrity proof — that role belongs to npm provenance above. `.integrity` SHA-256 sidecar was intentionally not adopted because it would have been generated from the same source it hashed (circular trust).
 - **No `postinstall`.** `package.json` has no `postinstall` script. `prepack` (dev-only) is not in the shipped tarball.
 
 ## Reporting a security issue

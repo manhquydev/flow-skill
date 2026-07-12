@@ -13,12 +13,14 @@ import { dirname, join } from 'node:path';
 
 import { CLEANUP_SUBDIRS } from './constants.mjs';
 
-// L24 — Retry EBUSY/EPERM/ENOTEMPTY/EACCES with backoff.
-// These are the codes Node emits when Windows agents hold open handles or SELinux delays fs ops.
+// L24 — Retry the codes Windows emits when an agent (Claude Code, Codex, Antigravity) holds an
+// open handle inside the destination. EACCES is intentionally excluded: on POSIX it is almost
+// always a hard permission denial (stale sudo install, wrong owner) that will not clear in
+// under a second. Retrying it just delays the honest error message.
 export function withRetry(fn, opts = {}) {
   const attempts = opts.attempts ?? 3;
   const initialMs = opts.initialMs ?? 100;
-  const retryableCodes = opts.codes ?? ['EBUSY', 'EPERM', 'ENOTEMPTY', 'EACCES'];
+  const retryableCodes = opts.codes ?? ['EBUSY', 'EPERM', 'ENOTEMPTY'];
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     try {
@@ -54,41 +56,51 @@ export function assertNoSymlinks(root) {
   }
 }
 
-// L29 — Advisory lock: best-effort concurrent-run prevention. Not a hard guarantee.
-// Detects stale lock via `process.kill(pid, 0)` returning ESRCH.
+// L29 — Advisory lock: best-effort concurrent-run prevention.
+// Uses `writeFileSync` with `flag: 'wx'` (exclusive-create — fails with EEXIST if the file
+// already exists) so the check + acquire are atomic. The previous TOCTOU version could have
+// two `npx` processes both observe "no lock" and both acquire.
+// Stale-lock recovery: on EEXIST, read the recorded PID; if that PID is dead (ESRCH), remove
+// the file and retry the exclusive-create once. `process.kill(pid, 0)` on a live PID always
+// succeeds, including our own PID — so a re-entrant call sees "held" and refuses, which is
+// the correct behavior (install() is not re-entrant-safe).
 export function acquireLock(lockPath) {
-  if (existsSync(lockPath)) {
-    let pid = null;
+  mkdirSync(dirname(lockPath), { recursive: true });
+  try {
+    writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+    return { held: false };
+  } catch (err) {
+    if (err?.code !== 'EEXIST') throw err;
+  }
+  // Lock exists — decide stale vs. held.
+  let pid = null;
+  try {
+    pid = Number(readFileSync(lockPath, 'utf8').trim());
+  } catch {
+    // corrupted lock content — treat as stale
+  }
+  if (Number.isFinite(pid) && pid > 0) {
     try {
-      pid = Number(readFileSync(lockPath, 'utf8').trim());
-    } catch {
-      // corrupted lock — treat as stale
-    }
-    // Note: we do NOT bypass when pid === process.pid. install() releases its own lock in
-    // finally, so seeing our own pid here means either (a) a prior invocation crashed and left
-    // the lock behind — which the ESRCH branch would handle if the pid were also dead — or
-    // (b) we're being called re-entrantly, which is unsupported. In case (a) a live process
-    // check will still succeed (kill(self, 0) always works), so the caller sees "held" and
-    // must remove the stale file manually. That's louder than a silent bypass and matches
-    // the "advisory lock, best-effort" contract.
-    if (Number.isFinite(pid) && pid > 0) {
-      try {
-        process.kill(pid, 0);
-        return { held: true, pid };
-      } catch (err) {
-        // ESRCH => process gone; any other code => assume held to be safe
-        if (err?.code !== 'ESRCH') return { held: true, pid };
-      }
-    }
-    try {
-      rmSync(lockPath, { force: true });
-    } catch {
-      /* ignore */
+      process.kill(pid, 0);
+      return { held: true, pid };
+    } catch (killErr) {
+      if (killErr?.code !== 'ESRCH') return { held: true, pid };
     }
   }
-  mkdirSync(dirname(lockPath), { recursive: true });
-  writeFileSync(lockPath, String(process.pid));
-  return { held: false };
+  // Stale — remove and retry the exclusive-create exactly once.
+  try {
+    rmSync(lockPath, { force: true });
+  } catch {
+    /* ignore */
+  }
+  try {
+    writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+    return { held: false };
+  } catch (retryErr) {
+    // Something else raced in between our rm and our retry — treat as held.
+    if (retryErr?.code === 'EEXIST') return { held: true, pid: null };
+    throw retryErr;
+  }
 }
 
 export function releaseLock(lockPath) {
@@ -155,11 +167,13 @@ export function install({
       })
     );
 
-    // Post-copy defense — even if source somehow escaped assertNoSymlinks (race),
-    // reject the write before the runner touches these paths.
-    assertNoSymlinks(destDir);
+    // (Post-copy symlink rescan removed) — the source scan above already vets every file we
+    // wrote; scanning the destination additionally rejects legitimate NTFS junctions users
+    // may have placed under `~/.claude/skills/flow/` for their own reasons. install.sh does
+    // not have this restriction (`cp -r` merges over junctions fine) and the parity contract
+    // says we don't either.
 
-    // chmod +x runner/flow.sh — matches install.sh:27. No-op on Windows (ntfs doesn't honor exec bit).
+    // chmod +x runner/flow.sh — matches install.sh:27. No-op on Windows (NTFS ignores the bit).
     const runnerScript = join(destDir, 'runner', 'flow.sh');
     if (existsSync(runnerScript)) {
       try {

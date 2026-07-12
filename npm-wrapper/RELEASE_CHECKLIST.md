@@ -21,8 +21,8 @@ npm run sync                      # optional locally; CI always resyncs
 
 # 2. Bump version (from the npm-wrapper subdir)
 npm version prerelease --preid=rc # for rc; use `npm version patch|minor|major` for stable
-# npm version creates a git tag `v<version>` — RENAME it to the wrapper-scoped shape:
-git tag -d "v<version>"
+# npm version creates a git tag `npm@<version>` — RENAME it to the wrapper-scoped shape:
+git tag -d "npm@<version>"
 git tag "npm@<version>"           # the workflow triggers on `npm@*` tag pushes
 
 # 3. Full test + anti-regression grep
@@ -36,8 +36,10 @@ npm pack --dry-run
 npm pack --dry-run --json | node -e "const p=JSON.parse(require('fs').readFileSync(0,'utf8'));const s=p[0].unpackedSize;console.log('unpacked bytes:',s);if(s>512000){console.error('EXCEEDS 500KB');process.exit(1)}"
 
 # 5. Local smoke (npm link)
+#    NOTE: run the linked binary directly. Do NOT append a version specifier — that would
+#    bypass the link and try to fetch from the registry.
 npm link
-cd /tmp && npx @manhquy/flow-skill --yes --all --dry-run --json | head
+cd /tmp && flow-skill --yes --all --dry-run --json | head
 npm unlink -g @manhquy/flow-skill
 ```
 
@@ -62,7 +64,7 @@ Two triggers are supported:
       - `Verify skills-manifest.json count matches` passes.
       - `npm publish --provenance` succeeds.
       - `Verify published provenance` prints the attestation.
-      - Git tag `v<version>` is pushed.
+      - Git tag `npm@<version>` is pushed.
 
 ## Post-publish
 
@@ -73,6 +75,6 @@ Two triggers are supported:
 ## Promotion criterion (rc → stable v0.1.0)
 
 - [ ] 7 days elapsed since rc.1 publish with no critical bug report.
-- [ ] All success criteria in `plans/260712-0219-flow-skill-npx-installer/plan.md` manually verified across macOS + Linux + Windows.
+- [ ] All success criteria in the project's plan artifact (external — see `README.md` and CHANGELOG) manually verified across macOS + Linux + Windows.
 - [ ] At least one external tester ran `npx @manhquy/flow-skill@0.1.0-rc.1` successfully.
 - [ ] `npm version minor` (drops rc suffix), then run the workflow with `dist_tag=latest`.

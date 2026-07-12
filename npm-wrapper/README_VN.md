@@ -10,32 +10,32 @@ Trình cài đặt một-lệnh sao chép skill [flow](https://github.com/manhqu
 ## Cài đặt
 
 ```
-# Pin semver (khuyến nghị)
-npx @manhquy/flow-skill@0.1.x
+# Kênh pre-release (hiện tại — v0.1.0-rc.N)
+npx @manhquy/flow-skill@rc
 ```
 
-Prompt tương tác sẽ hỏi cài vào agent nào. Chọn một hoặc nhiều, xác nhận, xong.
+Prompt tương tác hỏi cài vào agent nào. Chọn một hoặc nhiều, xác nhận, xong.
 
-> **Chú ý**: pin `@0.1.x` (hoặc phiên bản cụ thể) thay vì `@latest`. Xem [SECURITY.md](./SECURITY.md).
+> **Giai đoạn RC**: pin `@rc` (dist-tag) hoặc phiên bản cụ thể `@0.1.0-rc.1`. `npx @manhquy/flow-skill@0.1.x` chỉ dùng được sau khi stable `0.1.0` publish — semver range **không** match pre-release theo mặc định. Xem [SECURITY.md](./SECURITY.md).
 
 ## Non-interactive
 
 ```
 # Chọn mặc định (Claude + những agent detect được)
-npx @manhquy/flow-skill@0.1.x --yes
+npx @manhquy/flow-skill@rc --yes
 
 # Target rõ ràng
-npx @manhquy/flow-skill@0.1.x --yes -t claude -t codex
-npx @manhquy/flow-skill@0.1.x --yes -t claude,codex           # Dạng comma OK
+npx @manhquy/flow-skill@rc --yes -t claude -t codex
+npx @manhquy/flow-skill@rc --yes -t claude,codex           # Dạng comma OK
 
 # Ép cài cả 4 target dù không detect
-npx @manhquy/flow-skill@0.1.x --yes --all
+npx @manhquy/flow-skill@rc --yes --all
 
 # Project scope (chỉ Claude — xem bên dưới)
-npx @manhquy/flow-skill@0.1.x --yes --project --dir .
+npx @manhquy/flow-skill@rc --yes --project --dir .
 
 # JSONL cho CI
-npx @manhquy/flow-skill@0.1.x --yes --all --dry-run --json
+npx @manhquy/flow-skill@rc --yes --all --dry-run --json
 ```
 
 ## Targets
@@ -61,20 +61,50 @@ Scope `--project` ghi vào `<dir>/.claude/skills/flow` và chỉ hỗ trợ targ
 Xóa dir target:
 
 ```
+# Global installs
 rm -rf ~/.claude/skills/flow
 rm -rf ~/.codex/skills/flow
 rm -rf ~/.agents/skills/flow
 rm -rf ~/.gemini/antigravity-cli/skills/flow
 rm -rf ~/.gemini/config/skills/flow
+
+# Project scope (chỉ Claude)
+rm -rf <project>/.claude/skills/flow
 ```
+
+## JSONL contract
+
+`--json` stream một JSON object mỗi dòng. Xem [README.md § JSONL contract](./README.md#jsonl-contract) cho bảng đầy đủ event/field/exit code. Tóm tắt:
+
+- `plan` — event đầu tiên; chứa `version`, `dryRun`, `scope`, `targets`.
+- `install:start` / `install:done` — một cặp mỗi target; `install:done.result` = `success` hoặc `failed`.
+- `summary` — event cuối cùng; `success`, `total`, `attempted`, `installed`, `failed`, `skipped`, `aborted`.
+- Exit codes: `0` OK · `1` ≥1 target fail · `2` sai flag/target · `130` Ctrl+C.
+
+Hợp đồng additive trong `0.1.x` — field mới có thể thêm, field cũ không rename/xóa.
+
+## Troubleshooting
+
+- **`EBUSY`/`EPERM` giữa install trên Windows**: một agent đang giữ handle vào file trong destination. Đóng agent + re-run. Installer đã retry 100/300/900 ms trước khi báo error.
+- **Advisory lock cũ**: run trước crash. Run mới tự phát hiện PID dead → reclaim. Trường hợp hiếm (PID được recycle bởi process khác đang chạy): xóa `<parent-of-dest>/.flow-skill.installing.lock`.
+- **`No matching version found` với `@0.1.x`**: cài pre-release qua stable range. Dùng `@rc` hoặc `@0.1.0-rc.N` cho tới khi stable `0.1.0` ship.
+- **Node quá cũ** (`requires Node.js >=20.11.0`): update bằng `nvm install 20`, `fnm install 20`, hoặc installer chính thức của Node.
 
 ## Yêu cầu
 
-- Node.js **>= 20.11.0**
+- Node.js **>= 20.11.0** (dùng `node:util.parseArgs` stable + `node:test`)
+
+## Provenance
+
+Mỗi phiên bản publish có [npm provenance](https://docs.npmjs.com/generating-provenance-statements) attestation. Verify:
+
+```
+npm view @manhquy/flow-skill@<version> dist.attestations.provenance
+```
 
 ## Bảo mật
 
-Xem [SECURITY.md](./SECURITY.md).
+Threat model + WILL/WON'T list + kênh report — xem [SECURITY.md](./SECURITY.md). Tóm tắt: pure Node, không network call, không spawn shell/PowerShell, không postinstall hook, không chạm settings/hooks/MCP config.
 
 ## License
 

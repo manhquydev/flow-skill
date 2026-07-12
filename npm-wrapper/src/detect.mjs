@@ -4,6 +4,16 @@ import { join } from 'node:path';
 
 import { TARGETS } from './constants.mjs';
 
+// Resolve a `~/foo/bar` template against a home dir using OS-native separators.
+// String `.replace('~', home)` would leave a mixed-separator path on Windows
+// (`C:\Users\x/.claude/skills/flow`) which then leaks into `--json` output and
+// breaks downstream CI consumers that key on path strings.
+function resolveDest(template, home) {
+  if (!template.startsWith('~/')) return template;
+  const rest = template.slice(2).split('/');
+  return join(home, ...rest);
+}
+
 // Return one entry per target with marker-based detection + resolved absolute destinations.
 export function detectAll({ home = homedir() } = {}) {
   return TARGETS.map((t) => {
@@ -15,7 +25,7 @@ export function detectAll({ home = homedir() } = {}) {
         return false;
       }
     });
-    const dests = t.destTemplates.map((d) => d.replace('~', home));
+    const dests = t.destTemplates.map((d) => resolveDest(d, home));
     return { ...t, detected, dests };
   });
 }
