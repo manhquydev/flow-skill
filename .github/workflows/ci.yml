@@ -1,0 +1,90 @@
+name: CI (npm-wrapper cross-OS tests)
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'npm-wrapper/**'
+      - 'skills/flow/**'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/publish-npm-wrapper.yml'
+      - '.github/pull_request_template.md'
+      - '.github/ISSUE_TEMPLATE/**'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'npm-wrapper/**'
+      - 'skills/flow/**'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/publish-npm-wrapper.yml'
+      - '.github/pull_request_template.md'
+      - '.github/ISSUE_TEMPLATE/**'
+  workflow_dispatch: {}
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-npm-wrapper-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Node 22 is our floor (npm OIDC requirement). Node 24 is current LTS.
+        # We intentionally do NOT test Node 20 — it reached EOL April 2026.
+        node: ['22', '24']
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: npm-wrapper
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          # No registry-url / no OIDC scope — this is a pure test workflow.
+
+      - name: Print environment
+        run: |
+          node --version
+          npm --version
+          echo "OS: $RUNNER_OS"
+        shell: bash
+
+      - name: Install (no lifecycle scripts for security)
+        run: npm ci --ignore-scripts
+
+      - name: Sync skill content from repo root
+        run: npm run sync
+        env:
+          # Fallback: honor the env even if the default resolves to the same path.
+          FLOW_SKILL_SRC: ${{ github.workspace }}/skills/flow
+
+      - name: Run node:test suite
+        run: npm test
+
+      - name: Guard — no child_process import in src or bin
+        # F1 fix: run from repo root with the full pathspec. The previous version had
+        # `working-directory: workspace` + `-- 'src/' 'bin/'`, which matched no files in this
+        # monorepo (the code is under `npm-wrapper/`), so `git grep` returned nothing and the
+        # guard silently no-op'd.
+        run: |
+          if git grep -nE "from ['\"]node:child_process['\"]|require\(['\"]node:child_process['\"]|require\(['\"]child_process['\"]" -- 'npm-wrapper/src/' 'npm-wrapper/bin/' ; then
+            echo "FAIL: node:child_process import detected in npm-wrapper/src/ or npm-wrapper/bin/" >&2
+            exit 1
+          fi
+        shell: bash
+        working-directory: ${{ github.workspace }}
+
+      - name: Verify tarball packages under 1 MB unpacked
+        run: |
+          npm pack --dry-run --ignore-scripts --json > pack.json
+          node -e "const p=require('./pack.json');const s=p[0].unpackedSize;if(s>1048576){console.error('unpacked > 1MB: '+s);process.exit(1)}else{console.log('unpacked '+s+' bytes')}"
+        shell: bash

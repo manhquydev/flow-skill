@@ -18,12 +18,13 @@
     "CHANGELOG.md"
   ],
   "engines": {
-    "node": ">=20.11.0"
+    "node": ">=22.14.0"
   },
   "scripts": {
     "sync": "node scripts/sync.mjs",
     "prepack": "node scripts/sync.mjs",
-    "test": "node --test test/installer.test.mjs test/detect.test.mjs test/cli.test.mjs"
+    "test": "node --test test/installer.test.mjs test/detect.test.mjs test/cli.test.mjs test/lock-atomicity.test.mjs",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@clack/prompts": "~0.11.0"

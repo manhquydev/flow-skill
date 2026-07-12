@@ -108,15 +108,17 @@ The contract is additive within `0.1.x`. New optional fields may appear; existin
 
 ## Requirements
 
-- Node.js **>= 20.11.0** (uses `node:util.parseArgs` stable API and `node:test`)
+- Node.js **>= 22.14.0** — Node 20 reached end-of-life in April 2026, and the publish workflow requires npm >=11.5.1 (bundled with Node 22.14+) for OIDC Trusted Publisher support
 
 ## Provenance
 
-Every published version has [npm provenance](https://docs.npmjs.com/generating-provenance-statements) attestations:
+Every version published from the CI workflow carries an [npm provenance](https://docs.npmjs.com/generating-provenance-statements) attestation (SLSA Build Level 2). Verify with:
 
 ```
 npm view @manhquy/flow-skill@<version> dist.attestations.provenance
 ```
+
+> **RC-window exception**: `v0.1.0-rc.1` was published manually from a developer machine to bootstrap npm's Trusted Publisher registration (Trusted Publisher cannot bind to a package that does not exist yet). npm does not generate provenance for publishes outside supported CI. All subsequent versions (`v0.1.0-rc.2` onward) publish through the workflow and are attested.
 
 ## Security
 

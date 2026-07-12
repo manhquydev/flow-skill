@@ -3,6 +3,7 @@ node_modules/
 *.log
 .env
 .env.*
+# `.npmrc` may contain a bearer token from `npm login`. Never commit.
 .npmrc
 coverage/
 .DS_Store

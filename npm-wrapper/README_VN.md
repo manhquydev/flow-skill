@@ -92,7 +92,7 @@ Hợp đồng additive trong `0.1.x` — field mới có thể thêm, field cũ 
 
 ## Yêu cầu
 
-- Node.js **>= 20.11.0** (dùng `node:util.parseArgs` stable + `node:test`)
+- Node.js **>= 22.14.0** — Node 20 hết vòng đời từ 4/2026, và publish workflow cần npm >=11.5.1 (bundle theo Node 22.14+) cho OIDC Trusted Publisher
 
 ## Provenance
 

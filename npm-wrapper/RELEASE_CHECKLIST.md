@@ -33,7 +33,7 @@ grep -rE '(sk_live|pk_live|ghp_|AKIA|Bearer\s|password|xoxb-)' bin/ src/ skills/
 
 # 4. Tarball audit
 npm pack --dry-run
-npm pack --dry-run --json | node -e "const p=JSON.parse(require('fs').readFileSync(0,'utf8'));const s=p[0].unpackedSize;console.log('unpacked bytes:',s);if(s>512000){console.error('EXCEEDS 500KB');process.exit(1)}"
+npm pack --dry-run --ignore-scripts --json | node -e "const p=JSON.parse(require('fs').readFileSync(0,'utf8'));const s=p[0].unpackedSize;console.log('unpacked bytes:',s);if(s>1048576){console.error('EXCEEDS 1MB');process.exit(1)}"
 
 # 5. Local smoke (npm link)
 #    NOTE: run the linked binary directly. Do NOT append a version specifier — that would

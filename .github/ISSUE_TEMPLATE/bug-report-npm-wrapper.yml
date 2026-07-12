@@ -1,0 +1,77 @@
+name: Bug report — npm-wrapper
+description: A defect in `@manhquy/flow-skill` (`npm-wrapper/` in this repo). For flow skill bugs, use the other issue template.
+title: "[npm-wrapper] "
+labels: [bug, npm-wrapper]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      description: Output of `npx @manhquy/flow-skill@<version> --help` first line
+      placeholder: "0.1.0-rc.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows (PowerShell 7)
+        - Windows (PowerShell 5.1)
+        - Windows (cmd.exe)
+        - Windows (Git Bash)
+        - Other (specify below)
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      description: Output of `node --version`
+      placeholder: "v22.14.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Target agent(s)
+      multiple: true
+      options:
+        - Claude Code
+        - Codex CLI
+        - Agents home (~/.agents)
+        - Antigravity CLI
+        - Antigravity IDE
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Exact command(s) run + observed behavior
+      placeholder: |
+        1. Ran `npx @manhquy/flow-skill@rc --yes --all`
+        2. Expected: successful install
+        3. Actual: error at `EBUSY`
+        4. `--json` output (paste inline):
+    validations:
+      required: true
+  - type: textarea
+    id: json
+    attributes:
+      label: JSON event stream (if available)
+      description: Re-run with `--json` and paste the output
+      render: json
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Sanity checks
+      options:
+        - label: I read [SECURITY.md](https://github.com/manhquy/flow-skill/blob/HEAD/npm-wrapper/SECURITY.md) and the issue is not a documented `Known v0.1 limitation`
+          required: true
+        - label: I checked [existing issues](https://github.com/manhquy/flow-skill/issues) and this is not a duplicate
+          required: true

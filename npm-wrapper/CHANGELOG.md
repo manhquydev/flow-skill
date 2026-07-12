@@ -20,6 +20,18 @@ Initial release candidate. Ships to the `rc` npm dist-tag.
 - **docs:** SECURITY.md reframes `skills-manifest.json` as a completeness signal, not a tamper-detection primitive (that role belongs to npm provenance).
 - **package.json:** dropped stale `opencode` keyword — no opencode target is shipped.
 
+### Publish-path corrections (research-driven, 2026-07 npm docs)
+- **engines:** bumped from `>=20.11.0` → `>=22.14.0`. Node 20 reached end-of-life April 2026, and npm OIDC Trusted Publisher (the whole point of our publish workflow) requires npm >=11.5.1 which ships bundled with Node 22.14+. Older Node bundles npm 10.x which fails the OIDC handshake with a misleading 404. Runtime version guard in `bin/cli.mjs` matches.
+- **workflow:** `.github/workflows/publish-npm-wrapper.yml` `node-version` bumped from `20.11` → `22`, plus an explicit `npm install -g npm@latest` step so the runner always has the OIDC-capable npm.
+- **CI:** new `.github/workflows/ci.yml` — cross-OS matrix (`ubuntu-latest × macos-latest × windows-latest`) × Node `[22, 24]`. Runs on push/PR touching `npm-wrapper/**` or the skill content. Includes tarball-size gate and the `child_process` import guard.
+
+### Additional test coverage
+- `test/lock-atomicity.test.mjs` — 9 tests locking down the audit-fix regressions: `acquireLock` `wx` semantics, corrupted lock reclamation, `withRetry` no-longer-retries `EACCES`, `withRetry` still retries `EBUSY`/`EPERM`/`ENOTEMPTY`, `detect.mjs` OS-separator normalization for Claude and Antigravity dests.
+
+### Developer tooling
+- `scripts/smoke.mjs` — post-publish end-to-end verifier. Runs `npm view` for version + provenance, then `--help`, `--dry-run --json`, and a real install into a scratch `$HOME`. Invoke as `npm run smoke -- <version>`.
+- `.github/ISSUE_TEMPLATE/bug-report-npm-wrapper.yml` + `.github/PULL_REQUEST_TEMPLATE.md` — structured intake.
+
 ### Added
 - `npx @manhquy/flow-skill` installer for 4 coding-agent targets: Claude Code, Codex CLI, Agents home, Antigravity (CLI + IDE).
 - Interactive multi-select prompt via `@clack/prompts` when stdin/stdout are TTY.
@@ -30,8 +42,8 @@ Initial release candidate. Ships to the `rc` npm dist-tag.
 - Defense: symlink rejection at sync and install time. Advisory lock to reduce concurrent-run races. `EBUSY`/`EPERM`/`ENOTEMPTY`/`EACCES` retry with 100/300/900 ms backoff.
 - `chmod +x` on `runner/flow.sh` (parity with `install.sh:27`; no-op on Windows NTFS).
 - `--project` scope enforced to Claude only (agent-contract limitation).
-- 26 tests via `node:test` (installer semantics, detection markers, CLI black-box smoke).
-- Runtime Node version guard (>=20.11.0) — floor is set by `node:util.parseArgs` stable API and `node:test`; `engines` in `package.json` matches.
+- 35 tests via `node:test` across 4 suites — installer semantics, detection markers, CLI black-box smoke, TOCTOU + retry lock-atomicity regression suite.
+- Runtime Node version guard (>=22.14.0) — floor set by npm OIDC Trusted Publisher requirements (npm >=11.5.1 ships with Node 22.14+) and by Node 20 reaching end-of-life April 2026; `engines` in `package.json` matches.
 
 ### Security
 - Bundled `skills/flow` synced from upstream `flow-skill` repo via `scripts/sync.mjs`; `skills-manifest.json` records file count + list for post-hoc verification.

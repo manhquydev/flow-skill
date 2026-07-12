@@ -73,9 +73,30 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20.11'
+          # Node 22 LTS is the floor because npm OIDC Trusted Publishing (the whole point of
+          # this workflow) requires npm >=11.5.1, which ships bundled with Node 22.14.0+.
+          # Node 20 bundles npm 10.x which lacks the OIDC handshake and fails with a
+          # misleading 404 at publish time. Ref: docs.npmjs.com/trusted-publishers (2026-07-12).
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
           # DO NOT set `always-auth: true`. OIDC is auto-detected via `id-token: write`.
+
+      - name: Upgrade npm to a pinned known-good OIDC-capable range
+        working-directory: ${{ github.workspace }}
+        # F8 fix: pinning `npm@^11.5.1` (auto-follow patch + minor within the 11.x major)
+        # instead of `npm@latest` protects against a compromised or regressed `latest` briefly
+        # replacing the highest-privilege step in the publish pipeline. Bump the floor
+        # deliberately when a new npm major is desired; do not silently follow latest.
+        # Ref: 2026 supply-chain incidents surveyed in the plans/reports/research-260712-1006-
+        # npm-trusted-publisher-first-publish-edge-cases-report.md .
+        run: |
+          npm install -g "npm@^11.5.1"
+          npm_version="$(npm --version)"
+          echo "npm version: $npm_version"
+          case "$npm_version" in
+            11.5.*|11.[6-9].*|11.[1-9][0-9].*) ;;
+            *) echo "FAIL: npm $npm_version is below the OIDC floor 11.5.1" >&2; exit 1 ;;
+          esac
 
       - name: Guard — assert no NODE_AUTH_TOKEN present (OIDC only)
         run: |

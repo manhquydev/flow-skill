@@ -16,7 +16,11 @@ const bundledSkillDir = join(pkgRoot, 'skills', 'flow');
 
 // F5 — runtime Node version guard. `engines` in package.json is advisory only; npm >=8 respects
 // it during install but `npx --yes` (and standalone `node`) do not. Fail loudly instead.
-const MIN_NODE = [20, 11, 0];
+// Floor is Node 22.14 for two reasons: (1) Node 20 EOL passed April 2026, (2) our publish
+// workflow requires npm >=11.5.1 which ships bundled with Node 22.14.0+ (needed for OIDC
+// Trusted Publisher handshake). Users on Node 20 will still install because npm engines is
+// advisory, but they get a loud error here rather than a mysterious runtime failure later.
+const MIN_NODE = [22, 14, 0];
 function checkNodeVersion() {
   const parts = process.versions.node.split('.').map((n) => parseInt(n, 10));
   for (let i = 0; i < MIN_NODE.length; i++) {
