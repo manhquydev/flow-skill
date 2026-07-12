@@ -255,7 +255,13 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 ## Install methods
 
-**A. Install script (recommended)** — installs into **every harness present** + runs a doctor check:
+**A. npm — one command, cross-OS, provenance-signed** (once `@manhquy/flow-skill` is published):
+```bash
+npx @manhquy/flow-skill@0.1.x
+```
+Interactive multi-select of the 4 target agents, or use `--yes --all` for non-interactive. Pure Node — no bash, no PowerShell, works identically on macOS/Linux/Windows. See [npm-wrapper/README.md](./npm-wrapper/README.md) for the full flag reference and the JSONL streaming contract for CI.
+
+**B. Install script (upstream reference)** — installs into **every harness present** + runs a doctor check:
 ```bash
 bash install.sh global            # ~/.claude/skills/flow (always) + ~/.codex/skills/flow
                                   #   + ~/.agents/skills/flow  (each added only if that harness exists)
@@ -270,14 +276,14 @@ every harness (no drift between your Claude Code and Codex copies).
 > `bash` may be **WSL**, which installs into the WSL filesystem (`/home/...`) instead of your
 > Windows home. Run `bash install.sh` only from **Git Bash**.
 
-**B. Plugin / marketplace** (for sharing across machines or a team):
+**C. Plugin / marketplace** (for sharing across machines or a team):
 ```
 /plugin marketplace add <path-or-git-url-to-flow-skill>
 /plugin install flow@flow-marketplace
 ```
 The repo ships `.claude-plugin/plugin.json` + `marketplace.json`.
 
-**C. Manual** — copy `skills/flow/` to `~/.claude/skills/flow/` (or `<project>/.claude/skills/flow/`)
+**D. Manual** — copy `skills/flow/` to `~/.claude/skills/flow/` (or `<project>/.claude/skills/flow/`)
 and `chmod +x` the runner on macOS/Linux.
 
 ## Activate & verify

@@ -1,0 +1,14 @@
+node_modules/
+*.tgz
+*.log
+.env
+.env.*
+.npmrc
+coverage/
+.DS_Store
+
+# Materialized at prepack from ../skills/flow — not tracked to avoid duplicate content
+# in git. `npm run sync` regenerates before local test/CLI use.
+skills/
+skills-manifest.json
+

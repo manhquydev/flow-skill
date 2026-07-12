@@ -1,0 +1,23 @@
+# Belt-and-suspenders alongside package.json `files` allowlist. Anything not in `files` is
+# already excluded — the entries below are just an extra safety net for anything that a future
+# `files` edit might accidentally admit.
+test/
+scripts/
+.github/
+plans/
+docs/
+*.tgz
+*.log
+.env
+.env.*
+.npmrc
+node_modules/
+.git/
+.gitattributes
+.gitignore
+.vscode/
+.idea/
+coverage/
+RELEASE_CHECKLIST.md
+skills/flow/plans/
+skills/flow/tests/

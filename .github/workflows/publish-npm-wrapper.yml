@@ -1,0 +1,155 @@
+name: Publish npm-wrapper to npm (trusted publishing)
+
+on:
+  # Tag-triggered: push a tag shaped `npm@X.Y.Z` (or `npm@X.Y.Z-rc.N`) to release.
+  push:
+    tags:
+      - 'npm@*'
+  # Manual dispatch is still supported for dry-run validation and out-of-band releases.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (must match npm-wrapper/package.json)'
+        required: true
+      dist_tag:
+        description: 'npm dist-tag'
+        required: true
+        default: 'rc'
+        type: choice
+        options: [rc, latest]
+      dry_run:
+        description: 'If true, run npm publish --dry-run only'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['true', 'false']
+
+permissions:
+  contents: write   # git tag push after publish
+  id-token: write   # npm OIDC provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: npm-publish   # required-reviewer gate configured in repo Settings
+    defaults:
+      run:
+        working-directory: npm-wrapper
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version + dist-tag from trigger
+        id: meta
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # Tag shape: npm@<semver>. Extract the semver portion after the @.
+            version="${GITHUB_REF_NAME#npm@}"
+            case "$version" in
+              *"-"*) dist_tag=rc; dry_run=false ;;
+              *)     dist_tag=latest; dry_run=false ;;
+            esac
+          else
+            version="${{ inputs.version }}"
+            dist_tag="${{ inputs.dist_tag }}"
+            dry_run="${{ inputs.dry_run }}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
+          echo "dry_run=$dry_run" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.11'
+          registry-url: 'https://registry.npmjs.org'
+          # DO NOT set `always-auth: true`. OIDC is auto-detected via `id-token: write`.
+
+      - name: Guard — assert no NODE_AUTH_TOKEN present (OIDC only)
+        run: |
+          if [ -n "$NODE_AUTH_TOKEN" ]; then
+            echo "FAIL: NODE_AUTH_TOKEN is set — this workflow must use OIDC only" >&2
+            exit 1
+          fi
+
+      - name: Verify npm-wrapper/package.json version matches trigger
+        run: |
+          pkg_version=$(node -p "require('./package.json').version")
+          expected="${{ steps.meta.outputs.version }}"
+          if [ "$pkg_version" != "$expected" ]; then
+            echo "FAIL: npm-wrapper/package.json version ($pkg_version) != trigger ($expected)" >&2
+            exit 1
+          fi
+
+      - name: Materialize skill content (monorepo sync — ../skills/flow → npm-wrapper/skills/flow)
+        run: npm run sync
+
+      - name: Verify skills-manifest.json file count matches synced tree
+        run: |
+          synced=$(find skills/flow -type f | wc -l)
+          manifest=$(node -p "require('./skills-manifest.json').fileCount")
+          if [ "$synced" != "$manifest" ]; then
+            echo "FAIL: synced skills/ file count ($synced) != skills-manifest.json fileCount ($manifest)" >&2
+            exit 1
+          fi
+
+      - name: Guard — no child_process API surface in src or bin
+        run: |
+          # Match only the concrete API surface; loose "exec" would false-hit code comments and
+          # docs (e.g. "exec bit"). Word boundaries + the exact node:child_process import cover
+          # what we actually care about.
+          if git grep -nE "\b(spawnSync|execSync|execFileSync|forkSync|spawn|exec|execFile|fork)\s*\(" -- 'src/' 'bin/' ; then
+            echo "FAIL: child_process call detected in src/ or bin/" >&2
+            exit 1
+          fi
+          if git grep -nE "from ['\"]node:child_process['\"]|require\(['\"]node:child_process['\"]|require\(['\"]child_process['\"]" -- 'src/' 'bin/' ; then
+            echo "FAIL: node:child_process import detected in src/ or bin/" >&2
+            exit 1
+          fi
+
+      - name: Install (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Test
+        run: npm test
+
+      - name: Tarball audit (< 500KB unpacked; no symlinks)
+        run: |
+          npm pack --dry-run --json > pack.json
+          node -e "const p=require('./pack.json');const s=p[0].unpackedSize;if(s>512000){console.error('unpacked > 500KB: '+s);process.exit(1)}"
+          # Symlink check — file entry with mode bit 0o120000 (symlink) is a supply-chain risk.
+          node -e "const p=require('./pack.json');const bad=(p[0].files||[]).filter(f=>f.mode && (f.mode & 0o170000)===0o120000);if(bad.length){console.error('symlink in tarball:',bad);process.exit(1)}"
+
+      - name: Publish (OIDC + provenance)
+        if: steps.meta.outputs.dry_run == 'false'
+        run: npm publish --provenance --access public --tag "${{ steps.meta.outputs.dist_tag }}"
+
+      - name: Publish dry-run
+        if: steps.meta.outputs.dry_run == 'true'
+        run: npm publish --dry-run --provenance --access public --tag "${{ steps.meta.outputs.dist_tag }}"
+
+      - name: Verify provenance visible from registry
+        if: steps.meta.outputs.dry_run == 'false'
+        run: |
+          # npm often takes 60-120s to propagate provenance metadata. Wide window so a slow
+          # registry doesn't fail the release after publish already succeeded.
+          for i in $(seq 1 10); do
+            sleep 20
+            if npm view "@manhquy/flow-skill@${{ steps.meta.outputs.version }}" dist.attestations.provenance 2>/dev/null | grep -q '.'; then
+              echo "provenance OK after $i attempt(s)"
+              exit 0
+            fi
+          done
+          echo "WARN: provenance not visible after 200s; publish already succeeded — check the npm dashboard manually." >&2
+          # Non-fatal: the package is already live; force a manual follow-up rather than a failed workflow.
+
+      - name: Create git tag (workflow_dispatch only — push-tag trigger already brought its own)
+        if: steps.meta.outputs.dry_run == 'false' && github.event_name == 'workflow_dispatch'
+        working-directory: ${{ github.workspace }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "npm@${{ steps.meta.outputs.version }}"
+          git push origin "npm@${{ steps.meta.outputs.version }}"

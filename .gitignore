@@ -4,6 +4,9 @@
 *.db-wal
 *.db-shm
 
+# Claude Code agent memory (session-scoped, do not track)
+.claude/
+
 # python
 __pycache__/
 *.pyc

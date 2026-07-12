@@ -1,0 +1,52 @@
+{
+  "name": "@manhquy/flow-skill",
+  "version": "0.1.0-rc.1",
+  "description": "Install the flow skill (buildflow gated build process) into your coding agent(s) via one npx command",
+  "type": "module",
+  "bin": {
+    "flow-skill": "./bin/cli.mjs"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "skills/",
+    "skills-manifest.json",
+    "README.md",
+    "README_VN.md",
+    "LICENSE",
+    "SECURITY.md",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "sync": "node scripts/sync.mjs",
+    "prepack": "node scripts/sync.mjs",
+    "test": "node --test test/installer.test.mjs test/detect.test.mjs test/cli.test.mjs"
+  },
+  "dependencies": {
+    "@clack/prompts": "~0.11.0"
+  },
+  "keywords": [
+    "flow",
+    "skill",
+    "npx",
+    "installer",
+    "coding-agent",
+    "claude-code",
+    "codex",
+    "antigravity",
+    "opencode"
+  ],
+  "author": "manhquy <manhquy.mqy@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/manhquy/flow-skill-npm#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/manhquy/flow-skill-npm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/manhquy/flow-skill-npm/issues"
+  }
+}
