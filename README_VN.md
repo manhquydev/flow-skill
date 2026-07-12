@@ -250,7 +250,25 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 ```
 
 ## Các cách cài
-**A. Script cài (khuyến nghị)** — cài vào **mọi harness đang có** + chạy doctor:
+
+**A. npm — một lệnh, cross-OS** (khuyến nghị, đã LIVE trên [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
+```bash
+npx @manhquy/flow-skill@rc                # kênh pre-release (hiện tại: 0.1.0-rc.1)
+# Sau khi stable publish: npx @manhquy/flow-skill@0.1.x
+```
+Pure Node (>= 22.14.0), tương tác multi-select, chạy giống nhau trên macOS + Linux + Windows.
+Non-interactive cho CI:
+```bash
+npx @manhquy/flow-skill@rc --yes                    # cài vào target được detect + Claude
+npx @manhquy/flow-skill@rc --yes -t claude -t codex # target rõ ràng
+npx @manhquy/flow-skill@rc --yes --all              # ép cả 4 target
+npx @manhquy/flow-skill@rc --yes --all --dry-run --json  # preview JSONL cho CI
+```
+Xem [npm-wrapper/README.md](./npm-wrapper/README.md) để biết đầy đủ flag, hợp đồng JSONL và troubleshooting.
+
+> **Dev checkout** (chỉ dành cho contributor): `git clone https://github.com/manhquydev/flow-skill && cd flow-skill/npm-wrapper && npm install && npm run sync && npm link` rồi `flow-skill --help`.
+
+**B. Script cài (dùng cho dev/repo checkout)** — cài vào **mọi harness đang có** + chạy doctor:
 ```bash
 bash install.sh global            # ~/.claude/skills/flow (luôn) + ~/.codex/skills/flow
                                   #   + ~/.agents/skills/flow  (chỉ thêm nếu harness đó tồn tại)
@@ -264,7 +282,8 @@ harness (không lệch giữa bản Claude Code và Codex).
 > **Windows:** dùng **`pwsh install.ps1 global`**, đừng dùng `bash install.sh` — trong PowerShell
 > `bash` trần có thể là **WSL**, sẽ cài vào filesystem WSL (`/home/...`) thay vì home Windows.
 > Chỉ chạy `bash install.sh` từ **Git Bash**.
-**B. Plugin / marketplace** (chia sẻ giữa nhiều máy / cả team):
+
+**C. Plugin / marketplace** (chia sẻ giữa nhiều máy / cả team):
 ```
 /plugin marketplace add <path-hoặc-git-url-tới-flow-skill>
 /plugin install flow@flow-marketplace
