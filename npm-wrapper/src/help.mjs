@@ -36,7 +36,7 @@ EXAMPLES
   npx @manhquy/flow-skill --yes --all --dry-run --json     # CI JSONL preview
 
 MORE
-  Docs:     https://github.com/manhquy/flow-skill-npm#readme
-  Security: https://github.com/manhquy/flow-skill-npm/blob/main/SECURITY.md
+  Docs:     https://github.com/manhquy/flow-skill#readme
+  Security: https://github.com/manhquy/flow-skill/blob/main/SECURITY.md
 `;
 }

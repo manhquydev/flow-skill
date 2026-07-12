@@ -5,8 +5,8 @@ Dev-only guide (excluded from tarball via `files` allowlist + `.npmignore`). Fol
 ## Prereqs (one-time)
 
 - [ ] npm Trusted Publisher configured for `@manhquy/flow-skill` linking:
-      `owner=manhquy`, `repo=flow-skill-npm`, `workflow=publish.yaml`, `environment=npm-publish`.
-      Docs: https://docs.npmjs.com/generating-provenance-statements
+      `owner=manhquy`, `repo=flow-skill`, `workflow=publish-npm-wrapper.yml`, `environment=npm-publish`.
+      Docs: https://docs.npmjs.com/trusted-publishers
 - [ ] GitHub → Settings → Environments → `npm-publish` exists with a required reviewer (self at minimum).
 - [ ] Publisher npm account 2FA `auth-and-writes` verified: `npm profile get`.
 - [ ] GitHub repo is public (Trusted Publisher OIDC audience requirement).

@@ -62,7 +62,7 @@ These match the behavior of the upstream `install.sh`; they are documented rathe
 
 ## Reporting a security issue
 
-- Preferred: [GitHub Security Advisory](https://github.com/manhquy/flow-skill-npm/security/advisories/new)
+- Preferred: [GitHub Security Advisory](https://github.com/manhquy/flow-skill/security/advisories/new)
 - Email: `manhquy.mqy@gmail.com` (subject: `[flow-skill security]`)
 
 Please do not publish exploits before a fix ships. Best-effort response SLA for v0.1.
