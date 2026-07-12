@@ -21,3 +21,8 @@ coverage/
 RELEASE_CHECKLIST.md
 skills/flow/plans/
 skills/flow/tests/
+
+# Python bytecode — regenerated at runtime, wasteful to ship (~130 KB across .310/.311/.314)
+**/__pycache__/**
+*.pyc
+*.pyo

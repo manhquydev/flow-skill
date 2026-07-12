@@ -20,6 +20,10 @@ Initial release candidate. Ships to the `rc` npm dist-tag.
 - **docs:** SECURITY.md reframes `skills-manifest.json` as a completeness signal, not a tamper-detection primitive (that role belongs to npm provenance).
 - **package.json:** dropped stale `opencode` keyword — no opencode target is shipped.
 
+### Pre-publish critical fixes (caught during first live `npm publish` attempt)
+- **`package.json.bin`**: value was `./bin/cli.mjs` — npm strips the leading `./` and warns "invalid and removed", meaning the published tarball would have shipped with NO `flow-skill` executable. `npx @manhquy/flow-skill` would have failed to find the command. Fixed to `bin/cli.mjs` per `npm pkg fix`.
+- **Tarball weight**: `skills/flow/harness/__pycache__/` was shipping 9 Python bytecode files (~230 KB) — regenerated at runtime, different for each Python minor. `scripts/sync.mjs` now filters `__pycache__/`, `*.pyc`, `*.pyo`, and OS junk during copy. Both the copy and the completeness check share one predicate so the counts still line up. Tarball dropped 786 KB → 553 KB unpacked (298 KB → 198 KB gzipped).
+
 ### Publish-path corrections (research-driven, 2026-07 npm docs)
 - **engines:** bumped from `>=20.11.0` → `>=22.14.0`. Node 20 reached end-of-life April 2026, and npm OIDC Trusted Publisher (the whole point of our publish workflow) requires npm >=11.5.1 which ships bundled with Node 22.14+. Older Node bundles npm 10.x which fails the OIDC handshake with a misleading 404. Runtime version guard in `bin/cli.mjs` matches.
 - **workflow:** `.github/workflows/publish-npm-wrapper.yml` `node-version` bumped from `20.11` → `22`, plus an explicit `npm install -g npm@latest` step so the runner always has the OIDC-capable npm.

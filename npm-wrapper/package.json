@@ -4,7 +4,7 @@
   "description": "Install the flow skill (buildflow gated build process) into your coding agent(s) via one npx command",
   "type": "module",
   "bin": {
-    "flow-skill": "./bin/cli.mjs"
+    "flow-skill": "bin/cli.mjs"
   },
   "files": [
     "bin/",

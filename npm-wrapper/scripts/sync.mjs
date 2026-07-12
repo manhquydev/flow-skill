@@ -51,12 +51,32 @@ cpSync(src, dst, {
   dereference: false,
   errorOnBrokenSymbolicLinks: true,
   preserveTimestamps: true,
+  // Skip Python bytecode (regenerated at runtime; different .pyc for .310/.311/.314 = wasteful
+  // and confusing) and any editor / OS junk. This is the source of truth because `files:` in
+  // package.json takes precedence over .npmignore — filter here instead.
+  filter: (source) => {
+    const s = source.replace(/\\/g, '/');
+    if (s.includes('/__pycache__/') || s.endsWith('/__pycache__')) return false;
+    if (s.endsWith('.pyc') || s.endsWith('.pyo')) return false;
+    if (s.endsWith('/.DS_Store') || s.endsWith('/Thumbs.db')) return false;
+    return true;
+  },
 });
 
-// R19 completeness check — file list parity.
+// R19 completeness check — file list parity. Filter to match the copy predicate above so a
+// pyc-heavy source tree doesn't fail the check against a pyc-stripped destination.
+function shouldShip(path) {
+  const s = path.replace(/\\/g, '/');
+  if (s.includes('/__pycache__/') || s.endsWith('/__pycache__')) return false;
+  if (s.endsWith('.pyc') || s.endsWith('.pyo')) return false;
+  if (s.endsWith('/.DS_Store') || s.endsWith('/Thumbs.db')) return false;
+  return true;
+}
+
 function listFiles(root, acc = [], base = root) {
   for (const entry of readdirSync(root)) {
     const p = join(root, entry);
+    if (!shouldShip(p)) continue;
     if (statSync(p).isDirectory()) listFiles(p, acc, base);
     else acc.push(relative(base, p).replace(/\\/g, '/'));
   }
