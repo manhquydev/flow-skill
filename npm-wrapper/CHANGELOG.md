@@ -4,7 +4,17 @@ All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https:/
 
 ## [0.1.0-rc.1] — 2026-07-12
 
-Initial release candidate. Ships to the `rc` npm dist-tag.
+**LIVE on npm**: https://www.npmjs.com/package/@manhquy/flow-skill
+
+Initial release candidate. Published manually to bootstrap npm Trusted Publisher (which requires the package to exist first). rc.2+ will be published from CI with OIDC + SLSA L2 provenance.
+
+Publish details (for the record):
+- Method: Granular Access Token with `Bypass 2FA` (created + used + revoked within 60s from the maintainer's local machine).
+- No provenance on this bootstrap version (`npm publish --provenance` requires a supported CI environment; laptop publish is not).
+- Dist-tags at publish: `{rc: 0.1.0-rc.1, latest: 0.1.0-rc.1}` — npm auto-populated `latest` on first publish. Docs advise pinning `@rc` or `@0.1.0-rc.1` explicitly.
+- Tarball: 76 files, 203 KB gzipped, 566 KB unpacked.
+
+Ships to the `rc` npm dist-tag.
 
 ### Post-implementation audit fixes (before first publish)
 - **installer:** `acquireLock` was TOCTOU-racy — switched to atomic `writeFileSync(..., { flag: 'wx' })` so two `npx` runs cannot both acquire.
