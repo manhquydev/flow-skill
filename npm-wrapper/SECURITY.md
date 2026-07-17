@@ -55,7 +55,7 @@ These match the behavior of the upstream `install.sh`; they are documented rathe
   ```
   npm view @manhquy/flow-skill@<version> dist.attestations.provenance
   ```
-  **`v0.1.0-rc.1` exception**: this bootstrap version was published manually (Trusted Publisher requires the package to already exist before it can bind) and carries no attestation. All subsequent versions publish via CI and are attested. If provenance is a hard requirement for you, wait for `v0.1.0-rc.2` or later.
+  **`v0.1.0-rc.1` exception**: this bootstrap version was published manually (Trusted Publisher requires the package to already exist before it can bind) and carries no attestation. `v0.1.0-rc.2` (2026-07-17) is the first version published from CI via OIDC — confirmed live with an SLSA Build Level 2 attestation. All versions from rc.2 onward are attested; if provenance is a hard requirement, pin `@0.1.0-rc.2` or later.
 - **Publisher account.** npm 2FA `auth-and-writes` is enabled as defense-in-depth for the git + npm identity behind the workflow.
 - **Pin your version.** During the RC window use `@rc` (dist-tag) or an explicit `@0.1.0-rc.N`. After stable ships, pin `@0.1.x` (or a specific version). `@latest` invites blind updates on a package that writes to your agent home.
 - **Completeness signal (not tamper detection).** The tarball ships `skills-manifest.json` recording the synced skill's file count + list. The publish workflow re-counts the checked-out tree against this manifest to catch an incomplete sync. It is **not** a supply-chain integrity proof — that role belongs to npm provenance above. `.integrity` SHA-256 sidecar was intentionally not adopted because it would have been generated from the same source it hashed (circular trust).

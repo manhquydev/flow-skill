@@ -2,7 +2,7 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
-## [0.1.0-rc.2] — 2026-07-17 (not yet published — see release command below)
+## [0.1.0-rc.2] — 2026-07-17 — LIVE (published 2026-07-17, `latest` + `rc` both point here)
 
 Ships `skills/flow` v0.22.0 (concierge front-door + standalone native rituals — see the root
 repo's CHANGELOG.md `## 0.22.0` entry for the full skill-content changelog). This wrapper
@@ -68,10 +68,38 @@ two hardening items found while verifying it all.
   both `install.sh` and `install.ps1` carry the Antigravity restart/reload hint, and the old
   hardcoded Claude+Codex-only Done line is gone from both.
 
-### Release command (operator-gated — not run by this change)
+### Fixed — CI publish guard (found on the actual first real run of this workflow)
+- `publish-npm-wrapper.yml`'s `Guard — assert no NODE_AUTH_TOKEN present (OIDC only)` step
+  **hard-failed every run, including this release's first attempt** (run `29554226397`,
+  2026-07-17). Root-caused via a temporary diagnostic step (added, run 3×, removed same
+  session): `NODE_AUTH_TOKEN` is unset right after `actions/checkout@v4` but becomes a real
+  short-lived OIDC-exchanged value the instant `actions/setup-node@v4` runs with
+  `registry-url` set — that's the current `actions/setup-node@v4` (a moving tag) doing its own
+  native npm OIDC handling, not a leaked static secret. The guard's 2026-07-12 design assumed
+  the older model where `npm publish` alone performed the OIDC exchange with nothing set
+  beforehand; it never matched real `actions/setup-node@v4` behavior and had a 0% pass rate
+  since the day it was written. **Removed** — see the workflow file's inline comment for the
+  full evidence chain.
+- **npm Trusted Publisher was never actually bound** on npmjs.com for this package (confirmed:
+  first real publish attempt after the guard fix still 404'd — `PUT
+  .../@manhquy%2fflow-skill — Not found`). The 2026-07-12 runbook flagged this config as `TBD`
+  and it was never closed out. Configured now: `owner=manhquydev`, `repo=flow-skill`,
+  `workflow=publish-npm-wrapper.yml`, `environment=npm-publish`. `npm publish --provenance`
+  now succeeds via pure OIDC — confirmed live, SLSA attestation present.
+- **`npm dist-tag add` does NOT work via OIDC** (confirmed live: `E401 Unable to authenticate`
+  even immediately after a successful OIDC-authenticated publish in the same job). npm has not
+  extended Trusted Publishing to this endpoint yet (matches
+  `plans/reports/researcher-260712-1006-npm-trusted-publisher-first-publish-edge-cases-report.md`
+  item #12, "OIDC support in development", no ship date). Promoting `0.1.0-rc.2` to `latest`
+  required the same manual Granular-Access-Token-with-Bypass-2FA flow used for the rc.1
+  bootstrap publish — see `RELEASE_CHECKLIST.md` for the exact steps and why this account
+  (created 2026-07-11, after npm's Sept-2025 TOTP-enrollment cutoff) has no other CLI-auth path
+  for write operations.
+
+### Release command (already run for this release)
 ```
-cd npm-wrapper && npm test   # confirm green first
-git tag npm@0.1.0-rc.2 && git push --tags   # triggers .github/workflows/publish-npm-wrapper.yml
+cd npm-wrapper && npm test   # confirmed green first
+git tag npm@0.1.0-rc.2 && git push origin npm@0.1.0-rc.2   # triggered the workflow (after the guard fix + TP config above)
 ```
 
 ## [0.1.0-rc.1] — 2026-07-12
