@@ -170,16 +170,26 @@ jobs:
         if: steps.meta.outputs.dry_run == 'true' && (inputs.promote_to == 'none' || inputs.promote_to == '')
         run: npm publish --dry-run --provenance --access public --tag "${{ steps.meta.outputs.dist_tag }}"
 
-      # KNOWN LIMITATION (confirmed live, run 29556075144, 2026-07-17): fails E401 "Unable to
-      # authenticate". The OIDC-derived NODE_AUTH_TOKEN from setup-node authenticates `npm
-      # publish` but npm does not yet accept it for `npm dist-tag add` — matches
-      # plans/reports/researcher-260712-1006-npm-trusted-publisher-first-publish-edge-cases-report.md
-      # item #4/#12 ("dist-tag add requires token auth; OIDC support in development", no ship
-      # date published). Until npm ships OIDC for this endpoint, promote dist-tags manually:
-      # `npm login` (interactive, own account) then `npm dist-tag add <pkg>@<version> <tag>`.
-      - name: Promote existing version to a dist-tag (skips publish entirely)
+      # KNOWN LIMITATION (confirmed live, run 29556075144, 2026-07-17): `npm dist-tag add`
+      # fails E401 under OIDC. setup-node's OIDC token authenticates `npm publish` only —
+      # npm has not extended Trusted Publishing to dist-tag write endpoints yet (research
+      # report item #12, no ship date). Do NOT call dist-tag here; fail with copy-paste
+      # manual steps so operators never re-hit a cryptic E401.
+      - name: Promote existing version to a dist-tag (manual only — OIDC cannot dist-tag)
         if: inputs.promote_to != 'none' && inputs.promote_to != ''
-        run: npm dist-tag add "@manhquy/flow-skill@${{ steps.meta.outputs.version }}" "${{ inputs.promote_to }}"
+        run: |
+          ver="${{ steps.meta.outputs.version }}"
+          tag="${{ inputs.promote_to }}"
+          echo "FAIL: promote_to=$tag cannot run via GitHub OIDC (npm dist-tag add → E401)." >&2
+          echo "" >&2
+          echo "Promote manually from a machine with a write-capable npm auth path:" >&2
+          echo "  npm dist-tag add @manhquy/flow-skill@${ver} ${tag}" >&2
+          echo "" >&2
+          echo "Then verify:" >&2
+          echo "  npm view @manhquy/flow-skill dist-tags --json" >&2
+          echo "" >&2
+          echo "See npm-wrapper/RELEASE_CHECKLIST.md (dist-tag section)." >&2
+          exit 1
 
       - name: Verify provenance visible from registry
         if: steps.meta.outputs.dry_run == 'false' && (inputs.promote_to == 'none' || inputs.promote_to == '')

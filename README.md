@@ -164,6 +164,17 @@ npx @manhquy/flow-skill@rc                # pre-release channel (current: 0.1.0-
 # After stable ships: npx @manhquy/flow-skill@0.1.x
 ```
 
+> **Two version numbers (not a bug):** the **npm package** is `0.1.0-rc.N` (installer CLI);
+> the **skill product** is `v0.22.x` (`SKILL.md` metadata). `npx … --help` prints both, e.g.
+> `flow-skill v0.1.0-rc.2 (ships skill v0.22.0)`. Do **not** `npm i @manhquy/flow-skill@0.22.0`
+> — that version does not exist on npm. Also: `npm i @manhquy/flow-skill` only puts the CLI
+> in `node_modules`; it does **not** copy the skill into `~/.claude/skills/flow` until you
+> **run** the CLI (`npx @manhquy/flow-skill@rc`).
+>
+> **How npm ships:** push a git tag `npm@X.Y.Z` (or `npm@X.Y.Z-rc.N`) → GitHub Actions
+> `publish-npm-wrapper.yml` publishes with OIDC + provenance. Skill product tags (`v0.22.0`)
+> are a separate axis and do **not** auto-publish to npm.
+
 Interactive multi-select of the 5 target agents (Claude Code, Codex CLI, Agents home —
 also the universal Agent-Skills home other spec-compliant tools like Cursor read —
 Antigravity CLI + IDE, Cursor), or non-interactive:

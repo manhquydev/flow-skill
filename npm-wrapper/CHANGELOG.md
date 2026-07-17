@@ -2,6 +2,25 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## Unreleased (post-rc.2, not yet published)
+
+### Fixed
+- **Nightly registry health false-red:** `scripts/smoke.mjs` (and the nightly workflow) ran
+  `npx` from inside `npm-wrapper/`, so npx resolved the **local workspace package** instead of
+  the registry and failed with `flow-skill: not found` even when `@manhquy/flow-skill@0.1.0-rc.2`
+  was healthy. Smoke now uses an empty temp cwd + `npx --package=… flow-skill`; nightly runs
+  from `$RUNNER_TEMP` without `npm ci` in the wrapper.
+- **`promote_to` workflow step:** no longer calls `npm dist-tag add` under OIDC (always E401).
+  Fails with explicit manual `npm dist-tag add` instructions instead.
+
+### Added
+- Dual-version UX: `--help` shows `flow-skill v<pkg> (ships skill v<skill>)`; JSONL `plan`
+  event gains additive `skillVersion` (package `version` unchanged for back-compat).
+
+### Changed
+- `bin/cli.mjs` git mode `100755` (executable bit in tarball).
+- `package-lock.json` version aligned to `0.1.0-rc.2` / engines `>=22.14.0`.
+
 ## [0.1.0-rc.2] — 2026-07-17 — LIVE (published 2026-07-17, `latest` + `rc` both point here)
 
 Ships `skills/flow` v0.22.0 (concierge front-door + standalone native rituals — see the root

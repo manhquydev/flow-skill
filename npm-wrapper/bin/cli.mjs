@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 
-import { TARGETS, TARGET_NAMES, PKG_VERSION } from '../src/constants.mjs';
+import { TARGETS, TARGET_NAMES, PKG_VERSION, SKILL_VERSION } from '../src/constants.mjs';
 import { defaultSelection, detectAll } from '../src/detect.mjs';
 import { renderHelp } from '../src/help.mjs';
 import { install, installAntigravity } from '../src/installer.mjs';
@@ -288,6 +288,9 @@ async function main() {
     {
       event: 'plan',
       version: PKG_VERSION,
+      // Additive: skill product version (SKILL.md). `version` stays the npm package version
+      // for back-compat with existing JSONL consumers.
+      skillVersion: SKILL_VERSION,
       dryRun: opts.dryRun,
       scope,
       targets: plan.map((p) => p.target),

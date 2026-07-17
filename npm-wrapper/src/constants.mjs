@@ -72,11 +72,26 @@ export const CLI_NAME = 'flow-skill';
 
 // F3 fix: read version from package.json at runtime so `npm version` bumps propagate to the
 // JSON `plan` event without a hand-edit here.
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkgRoot = resolve(__dirname, '..');
 const pkgJson = JSON.parse(
-  readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8')
+  readFileSync(resolve(pkgRoot, 'package.json'), 'utf8')
 );
 export const PKG_VERSION = pkgJson.version;
+
+// Skill product version (SKILL.md metadata.version) is a SEPARATE axis from the npm
+// installer package version. Surface both so `npx … --help` / plan events cannot be
+// misread as "stale skill" when the user expected 0.22.x and saw 0.1.0-rc.N.
+function readSkillVersion() {
+  const skillMd = resolve(pkgRoot, 'skills', 'flow', 'SKILL.md');
+  if (!existsSync(skillMd)) return null;
+  const text = readFileSync(skillMd, 'utf8');
+  // Frontmatter only — first `version: "x.y.z"` under metadata (or any YAML version line).
+  // Indented under `metadata:` in YAML frontmatter (two spaces typical).
+  const m = text.match(/^\s*version:\s*["']?([0-9][0-9A-Za-z.+-]*)["']?\s*$/m);
+  return m ? m[1] : null;
+}
+export const SKILL_VERSION = readSkillVersion();

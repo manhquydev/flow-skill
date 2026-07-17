@@ -33,6 +33,9 @@ test('--help exits 0 and lists 5 targets', () => {
   assert.match(r.stdout, /agents\s+Agents home/);
   assert.match(r.stdout, /antigravity\s+Antigravity/);
   assert.match(r.stdout, /cursor\s+Cursor/);
+  // Dual-version UX: package version + skill product version (avoids "not latest" confusion).
+  assert.match(r.stdout, /flow-skill v\d+\.\d+\.\d+/);
+  assert.match(r.stdout, /ships skill v\d+\.\d+\.\d+/);
 });
 
 test('--dry-run --all --json emits a plan event with 5 targets', () => {
@@ -46,6 +49,11 @@ test('--dry-run --all --json emits a plan event with 5 targets', () => {
     ['agents', 'antigravity', 'claude', 'codex', 'cursor']
   );
   assert.equal(events[0].dryRun, true);
+  assert.equal(typeof events[0].version, 'string');
+  assert.match(events[0].version, /^\d+\.\d+\.\d+/);
+  // skillVersion is the product axis (SKILL.md); distinct from npm package version.
+  assert.equal(typeof events[0].skillVersion, 'string');
+  assert.match(events[0].skillVersion, /^\d+\.\d+\.\d+/);
 });
 
 test('--project -t codex → exit 2 with clear error', () => {

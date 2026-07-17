@@ -59,16 +59,18 @@ jobs:
             echo "versions=$versions" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Install (no lifecycle scripts)
-        if: steps.version.outputs.skip != 'true'
-        run: npm ci --ignore-scripts
-        working-directory: npm-wrapper
+      # No `npm ci` in npm-wrapper: smoke only needs the checked-out scripts/smoke.mjs +
+      # network access to the registry. Installing the local package first made npx resolve
+      # the workspace package (same name as the published one) and false-failed every night
+      # with `flow-skill: not found` even when the registry package was healthy. smoke.mjs
+      # itself also forces an empty temp cwd for all npx calls (belt + suspenders).
 
       - name: Run scripts/smoke.mjs against every resolved version
         if: steps.version.outputs.skip != 'true'
         run: |
+          # Run from $RUNNER_TEMP (not npm-wrapper/) so ancestor package.json cannot shadow.
+          cd "$RUNNER_TEMP"
           for v in ${{ steps.version.outputs.versions }} ; do
             echo "--- smoke $v ---"
-            node scripts/smoke.mjs "$v"
+            node "${{ github.workspace }}/npm-wrapper/scripts/smoke.mjs" "$v"
           done
-        working-directory: npm-wrapper

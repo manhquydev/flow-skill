@@ -167,6 +167,16 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 npx @manhquy/flow-skill@rc                # kênh pre-release (hiện tại: 0.1.0-rc.2)
 # Sau khi stable publish: npx @manhquy/flow-skill@0.1.x
 ```
+
+> **Hai số version (không phải bug):** package npm = `0.1.0-rc.N` (installer CLI); skill
+> product = `v0.22.x` (`SKILL.md`). `npx … --help` in cả hai, ví dụ
+> `flow-skill v0.1.0-rc.2 (ships skill v0.22.0)`. **Không** `npm i @…@0.22.0` — version đó
+> không tồn tại trên npm. `npm i @manhquy/flow-skill` chỉ bỏ CLI vào `node_modules`; phải
+> **chạy** CLI (`npx @manhquy/flow-skill@rc`) mới copy skill vào `~/.claude/skills/flow`.
+>
+> **Cách ship lên npm:** `git tag npm@X.Y.Z && git push origin npm@X.Y.Z` → Actions
+> `publish-npm-wrapper.yml` (OIDC + provenance). Tag skill (`v0.22.0`) **không** auto-publish npm.
+
 Pure Node (>= 22.14.0), tương tác multi-select 5 target (Claude Code, Codex CLI, Agents home —
 cũng là thư mục Agent-Skills chung mà các tool tuân chuẩn khác như Cursor đọc — Antigravity
 CLI + IDE, Cursor), chạy giống nhau trên macOS + Linux + Windows.

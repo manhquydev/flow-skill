@@ -1,16 +1,18 @@
-import { CLI_NAME, PKG_VERSION, TARGETS } from './constants.mjs';
+import { CLI_NAME, PKG_VERSION, SKILL_VERSION, TARGETS } from './constants.mjs';
 
 export function renderHelp() {
   const targetRows = TARGETS.map((t) => `    ${t.name.padEnd(12)} ${t.label}`).join('\n');
   // v0.23 H5 (red-team): derive the count from TARGETS.length so a future target addition can
   // never again leave a stale hardcoded number in the help text.
   const targetCount = TARGETS.length;
-  return `${CLI_NAME} v${PKG_VERSION}
+  const skillBit = SKILL_VERSION ? ` (ships skill v${SKILL_VERSION})` : '';
+  return `${CLI_NAME} v${PKG_VERSION}${skillBit}
 
 Install the flow skill into your coding agent(s).
 
 USAGE
-  npx @manhquy/flow-skill [options]
+  npx @manhquy/flow-skill@rc
+  # or after stable ships: npx @manhquy/flow-skill
 
 OPTIONS
   -y, --yes                    Skip prompts; install to default selection (detected + Claude)
