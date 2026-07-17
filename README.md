@@ -3,15 +3,18 @@
 *Read this in [Tiếng Việt](README_VN.md).*
 
 [![npm](https://img.shields.io/npm/v/@manhquy/flow-skill?label=npm&color=cb3837)](https://www.npmjs.com/package/@manhquy/flow-skill)
-[![tests](https://img.shields.io/badge/tests-31%20suites%20%2F%20799%20checks-brightgreen)](tests/)
-[![CI](https://img.shields.io/badge/CI-Azure%20Pipelines%20%C2%B7%203%20OS-blue)](.)
+[![tests](https://img.shields.io/badge/tests-34%20suites%20%2F%20926%20checks-brightgreen)](tests/)
+[![CI](https://img.shields.io/badge/CI-GitHub%20Actions%20%C2%B7%203%20OS-blue)](.github/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 `/flow` takes a product from **idea to real done-evidence** through honest gates — a deployed
 URL for a web app, install-and-run for a CLI, public API + coverage for a library, a real run
-for a Claude Code skill. It adds a durable harness layer (intake / story / trace / decision /
-backlog), cross-vendor agent orchestration (Claude + Codex GPT-5.x + Antigravity Gemini-3 →
-three-model adversarial gate), and project-type awareness.
+for a Claude Code skill. **Just talk to it** — chat is the default front door (a concierge
+routes your ask to the right next step); typed verbs (`/flow next`, `/flow card`...) still work
+for power users. **Standalone**: install flow alone and every gate ritual is available natively
+— ck: and BMAD are optional enrichment, never a requirement. It adds a durable harness layer
+(intake / story / trace / decision / backlog), cross-vendor agent orchestration (Claude + Codex
+GPT-5.x + Antigravity Gemini-3 → three-model adversarial gate), and project-type awareness.
 
 ## Install
 
@@ -23,14 +26,27 @@ Cross-OS (macOS · Linux · Windows), pure Node ≥22.14, interactive multi-sele
 [Install methods](#install-methods) for CI-friendly flags, dev checkout, and the bash /
 PowerShell installers.
 
+## Quickstart — just chat
+
+No verbs to learn. After install, open a fresh Claude Code session in your project and say
+what you want:
+
+> "I want to build an inventory app for my shop."
+
+The concierge runs `flow.sh status` (ground truth, never a guess), asks one plain question
+("draft the steps and you review each one?"), and walks you toward the Scope gate — zero
+`/flow` verbs typed. Prefer typing commands yourself? They still work exactly as documented
+below; the concierge never intercepts an explicit `/flow <verb>`. See
+[`references/concierge.md`](skills/flow/references/concierge.md) for the full routing contract.
+
 ## Status
 
 | Field | Value |
 |---|---|
-| Version | **v0.21.0** (2026-07-11) |
+| Version | **v0.22.0** (2026-07-16) |
 | npm package | [`@manhquy/flow-skill@0.1.0-rc.1`](https://www.npmjs.com/package/@manhquy/flow-skill) — LIVE |
-| Tests | 31 suites / 799 checks green |
-| CI | Azure Pipelines · Ubuntu · macOS · Windows |
+| Tests | 34 suites / 926 checks green |
+| CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines demoted to unused fallback) |
 | License | MIT |
 
 Release notes in [`CHANGELOG.md`](./CHANGELOG.md); session journals in [`docs/journals/`](./docs/journals/).
@@ -48,14 +64,28 @@ flow-skill/
 │   │                            #   loop-prep/loop-log (ck-loop thin wrapper)
 │   ├── _templates/              # 00-idea .. 05-contract + card + 00-inspect (brownfield)
 │   ├── law/                     # CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md
-│   ├── references/              # 16 semantic playbooks (gates, agents, codex/antigravity, loop, design, project-types)
+│   ├── references/              # 21 semantic playbooks (gates, agents, codex/antigravity, loop, design,
+│   │                            #   project-types, concierge, native-rituals, forge-idea)
+│   ├── eval/                    # behavioral-eval fixtures: artifact-vs-gate + v0.22 routing judge
 │   ├── harness/                 # durable layer: flow_harness.py + _db.py + _domain.py + schema
 │   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
 ├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
 ├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 31 suites / 799 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args/loop/eval/resume/status-legibility)
+├── tests/run_all.sh             # 34 suites / 926 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args/loop/eval/resume/status-legibility/concierge/native-rituals/forge-idea)
 └── docs/                        # architecture + codebase summary
 ```
+
+## Standalone by design (v0.22)
+
+Installing flow alone gets you the **full** experience — no other skill kit required. Five
+gate seams that used to lean on optional external skills now ship **native rituals**
+(`references/native-rituals.md`): persona-debate @ ADR, edge-case decomposition @ Contract,
+STRIDE security @ Review, numeric retro @ Retro, and a native loop protocol @ Build/Verify.
+If claudekit's `ck-predict`/`ck-scenario`/`ck-security`/`ck-loop` or BMAD's `retro` skill
+happen to be installed, they're offered as **richer alternatives** — never a requirement, and
+never something the gate depends on. A sixth ritual, `references/forge-idea.md`, is adapted
+from BMAD-METHOD's `bmad-forge-idea` (MIT) for pressure-testing an idea at the Idea/Scope
+stages before it locks.
 
 ---
 
@@ -130,16 +160,18 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 **A. npm — one command, cross-OS** (recommended, LIVE at [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
 ```bash
-npx @manhquy/flow-skill@rc                # pre-release channel (current: 0.1.0-rc.1)
+npx @manhquy/flow-skill@rc                # pre-release channel (current: 0.1.0-rc.2)
 # After stable ships: npx @manhquy/flow-skill@0.1.x
 ```
 
-Interactive multi-select of the 4 target agents (Claude Code, Codex CLI, Agents home, Antigravity CLI + IDE), or non-interactive:
+Interactive multi-select of the 5 target agents (Claude Code, Codex CLI, Agents home —
+also the universal Agent-Skills home other spec-compliant tools like Cursor read —
+Antigravity CLI + IDE, Cursor), or non-interactive:
 
 ```bash
 npx @manhquy/flow-skill@rc --yes                    # install to detected + Claude
 npx @manhquy/flow-skill@rc --yes -t claude -t codex # explicit targets
-npx @manhquy/flow-skill@rc --yes --all              # force all 4 targets
+npx @manhquy/flow-skill@rc --yes --all              # force all 5 targets
 npx @manhquy/flow-skill@rc --yes --all --dry-run --json  # CI-friendly JSONL preview
 ```
 
@@ -443,7 +475,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 31 suites / 799 checks (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is 34 suites / 926 checks (`bash tests/run_all.sh`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -460,5 +492,5 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 31 suites / 799 checks; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # 34 suites / 926 checks; needs bash (+ python for the harness/propose suites)
 ```

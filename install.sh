@@ -31,6 +31,24 @@ install_to() {
 
 usage() { echo "usage: bash install.sh [global [claude|codex|agents|antigravity|all] | project [dir]]"; }
 
+# v0.23 A0 fix — the reported symptom: a user installs to a non-Claude agent, opens it, types
+# /flow, and sees nothing, because a freshly-installed skill isn't discovered until the agent
+# reloads. The old static Done line only told Claude+Codex users what to do; track which
+# targets actually got installed so every one of them gets its own restart/reload hint.
+INSTALLED=""
+done_line() {
+  out="Done."
+  for t in $INSTALLED; do
+    case "$t" in
+      claude)      out="$out Claude Code: type /flow |" ;;
+      codex)       out="$out Codex CLI: type \$flow (restart Codex once to load a new skill) |" ;;
+      antigravity) out="$out Antigravity: restart/reload the IDE (or restart agy) to load the new skill, then type /flow |" ;;
+      agents)      out="$out Agents home (~/.agents/skills/): restart/reload your tool if it does not auto-detect new skills |" ;;
+    esac
+  done
+  echo "${out% |}"
+}
+
 LAST=""
 case "$MODE" in
   global)
@@ -38,24 +56,29 @@ case "$MODE" in
     # claude: the primary harness, always installed (created if missing)
     if [ "$TARGET" = "all" ] || [ "$TARGET" = "claude" ]; then
       install_to "${HOME}/.claude/skills/flow"
+      INSTALLED="$INSTALLED claude"
     fi
     # codex: install when explicitly targeted, or when the harness is already set up
     if [ "$TARGET" = "codex" ] || { [ "$TARGET" = "all" ] && [ -d "${HOME}/.codex/skills" ]; }; then
       install_to "${HOME}/.codex/skills/flow"
+      INSTALLED="$INSTALLED codex"
     fi
     # agents: same rule
     if [ "$TARGET" = "agents" ] || { [ "$TARGET" = "all" ] && [ -d "${HOME}/.agents/skills" ]; }; then
       install_to "${HOME}/.agents/skills/flow"
+      INSTALLED="$INSTALLED agents"
     fi
     # antigravity (Gemini): same SKILL.md bundle; two global homes (CLI + IDE) under ~/.gemini
     if [ "$TARGET" = "antigravity" ] || { [ "$TARGET" = "all" ] && [ -d "${HOME}/.gemini" ]; }; then
       install_to "${HOME}/.gemini/antigravity-cli/skills/flow"   # agy CLI global
       install_to "${HOME}/.gemini/config/skills/flow"            # Antigravity IDE global
+      INSTALLED="$INSTALLED antigravity"
     fi
     [ -n "$LAST" ] || { echo "FAIL: unknown target '$TARGET'"; usage; exit 1; }
     ;;
   project)
     install_to "${2:-$PWD}/.claude/skills/flow"
+    INSTALLED="claude"
     ;;
   -h|--help) usage; exit 0 ;;
   *) usage; exit 1 ;;
@@ -65,4 +88,4 @@ echo
 # run the real cross-platform doctor from a freshly installed runner
 bash "$LAST/runner/flow.sh" doctor || true
 echo
-echo "Done. Claude Code: type /flow . Codex CLI: type \$flow (restart Codex once to load a new skill)."
+done_line

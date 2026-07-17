@@ -10,13 +10,13 @@ Trình cài đặt một-lệnh sao chép skill [flow](https://github.com/manhqu
 ## Cài đặt
 
 ```
-# Kênh pre-release (hiện tại — v0.1.0-rc.1)
+# Kênh pre-release (hiện tại — v0.1.0-rc.2)
 npx @manhquy/flow-skill@rc
 ```
 
 Prompt tương tác hỏi cài vào agent nào. Chọn một hoặc nhiều, xác nhận, xong.
 
-> **Giai đoạn RC**: pin `@rc` (dist-tag) hoặc phiên bản cụ thể `@0.1.0-rc.1`. `npx @manhquy/flow-skill@0.1.x` chỉ dùng được sau khi stable `0.1.0` publish — semver range **không** match pre-release theo mặc định. Xem [SECURITY.md](./SECURITY.md).
+> **Giai đoạn RC**: pin `@rc` (dist-tag) hoặc phiên bản cụ thể `@0.1.0-rc.2`. `npx @manhquy/flow-skill@0.1.x` chỉ dùng được sau khi stable `0.1.0` publish — semver range **không** match pre-release theo mặc định. Xem [SECURITY.md](./SECURITY.md).
 
 ## Non-interactive
 
@@ -28,7 +28,7 @@ npx @manhquy/flow-skill@rc --yes
 npx @manhquy/flow-skill@rc --yes -t claude -t codex
 npx @manhquy/flow-skill@rc --yes -t claude,codex           # Dạng comma OK
 
-# Ép cài cả 4 target dù không detect
+# Ép cài cả 5 target dù không detect
 npx @manhquy/flow-skill@rc --yes --all
 
 # Project scope (chỉ Claude — xem bên dưới)
@@ -44,16 +44,24 @@ npx @manhquy/flow-skill@rc --yes --all --dry-run --json
 |---|---|---|---|
 | `claude` | Claude Code | `~/.claude/skills/flow` | bất kỳ presence của `~/.claude` (Claude luôn pre-check) |
 | `codex` | Codex CLI | `~/.codex/skills/flow` | `~/.codex/skills` |
-| `agents` | Agents home | `~/.agents/skills/flow` | `~/.agents/skills` |
+| `agents` | Agents home — cũng là thư mục [Agent-Skills](https://agentskills.io) chung mà các tool tuân chuẩn khác đọc | `~/.agents/skills/flow` | `~/.agents/skills` |
 | `antigravity` | Antigravity (CLI + IDE) | `~/.gemini/antigravity-cli/skills/flow` **và** `~/.gemini/config/skills/flow` | `~/.gemini/antigravity-cli` **hoặc** `~/.gemini/config/skills` |
+| `cursor` | Cursor | `~/.cursor/skills/flow` | `~/.cursor/skills` (không bao giờ dùng thư mục config `~/.cursor` trần — ai dùng Cursor cũng có) |
 
 Scope `--project` ghi vào `<dir>/.claude/skills/flow` và chỉ hỗ trợ target `claude`. Kết hợp `--project` với target khác → exit code `2`.
 
 ## Sau khi cài
 
+Skill vừa cài xong sẽ không được agent nhận ra cho tới khi agent reload — dòng cuối cùng của
+installer nói rõ việc cần làm cho đúng target đã cài:
+
 - Claude Code: gõ `/flow`.
-- Codex CLI: gõ `$flow` (restart Codex 1 lần để load).
-- Antigravity: `/flow` trong IDE.
+- Codex CLI: gõ `$flow` (restart Codex 1 lần để load skill mới).
+- Antigravity: restart/reload IDE (hoặc restart `agy`) để load skill mới, rồi gõ `/flow`.
+- Agents home: restart/reload tool nếu nó không tự nhận skill mới.
+- Cursor: **đã xác nhận cài đúng chỗ, chưa xác nhận runner chạy độc lập** — Cursor không có
+  CLI headless để tự động kiểm (khác `agy -p` của Antigravity hay `codex exec` của Codex);
+  restart/reload Cursor sau khi cài rồi kiểm tra panel Agent xem có skill `flow` không.
 - Chẩn đoán: chạy `/flow doctor` từ agent.
 
 ## Gỡ cài đặt

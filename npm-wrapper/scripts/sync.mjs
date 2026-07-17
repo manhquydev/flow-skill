@@ -97,11 +97,16 @@ if (
 
 // L25 — NO .integrity emission (circular trust). Rely on npm provenance for tamper detection.
 // skills-manifest.json still ships as a completeness signal (file count + list).
+// v0.23 M3 fix — `source` used to be `resolve()`d to an absolute local filesystem path (e.g.
+// D:\project\flow\...) and that absolute path shipped inside the published npm tarball
+// (skills-manifest.json is in package.json `files:`), leaking local machine layout and being
+// non-reproducible across dev machines/CI. Store a repo-relative description instead — it's
+// never used programmatically (only informational), so relative is strictly better here.
 writeFileSync(
   join(pkgRoot, 'skills-manifest.json'),
   JSON.stringify(
     {
-      source: src,
+      source: process.env.FLOW_SKILL_SRC ? '$FLOW_SKILL_SRC (override)' : '../skills/flow',
       destRelative: 'skills/flow',
       fileCount: dstFiles.length,
       syncedAt: new Date().toISOString(),

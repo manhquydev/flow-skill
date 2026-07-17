@@ -1,6 +1,6 @@
 {
   "name": "@manhquy/flow-skill",
-  "version": "0.1.0-rc.1",
+  "version": "0.1.0-rc.2",
   "description": "Install the flow skill (buildflow gated build process) into your coding agent(s) via one npx command",
   "type": "module",
   "bin": {
@@ -23,7 +23,8 @@
   "scripts": {
     "sync": "node scripts/sync.mjs",
     "prepack": "node scripts/sync.mjs",
-    "test": "node --test test/installer.test.mjs test/detect.test.mjs test/cli.test.mjs test/lock-atomicity.test.mjs",
+    "pretest": "node scripts/sync.mjs",
+    "test": "node --test --test-concurrency=1 test/installer.test.mjs test/detect.test.mjs test/cli.test.mjs test/lock-atomicity.test.mjs test/sync-manifest.test.mjs",
     "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {

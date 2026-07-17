@@ -3,7 +3,7 @@ import { cancel, confirm, intro, isCancel, multiselect, outro, select } from '@c
 
 import { TARGETS } from './constants.mjs';
 
-// Present the 4 targets as a checkbox list. Detected targets (and Claude via alwaysInclude) are
+// Present the TARGETS list (see constants.mjs) as a checkbox list. Detected targets (and Claude via alwaysInclude) are
 // pre-checked. Not-detected entries still appear so the user can force-add.
 export async function promptTargets(entries) {
   const options = entries.map((e) => ({

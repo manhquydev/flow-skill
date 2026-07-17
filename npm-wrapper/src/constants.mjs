@@ -1,4 +1,4 @@
-// 4 install targets. Antigravity has 2 destinations (CLI + IDE) driven by one target.
+// 5 install targets. Antigravity has 2 destinations (CLI + IDE) driven by one target.
 // Marker paths are relative to os.homedir() — no leading slash/backslash.
 export const TARGETS = [
   {
@@ -20,7 +20,9 @@ export const TARGETS = [
   },
   {
     name: 'agents',
-    label: 'Agents home (~/.agents)',
+    // v0.23: this is also the universal Agent-Skills home — the open standard
+    // (agentskills.io) directory 32-40 spec-compliant tools (incl. Cursor, Devin) read.
+    label: 'Agents home (~/.agents) — universal Agent-Skills home',
     markers: ['.agents/skills'],
     destTemplates: ['~/.agents/skills/flow'],
     alwaysInclude: false,
@@ -35,6 +37,21 @@ export const TARGETS = [
       '~/.gemini/antigravity-cli/skills/flow',
       '~/.gemini/config/skills/flow',
     ],
+    alwaysInclude: false,
+    projectScopeAllowed: false,
+  },
+  {
+    name: 'cursor',
+    label: 'Cursor',
+    // v0.23 — red-team C1: bare `.cursor` is shared by unrelated editor config (settings,
+    // argv.json, caches) that exists for every Cursor user; a bare marker would false-positive
+    // `detected:true` and silently auto-install under `--yes` for users who never asked. The
+    // skills subdir is the real signal — mirrors the antigravity bare-`.gemini` guard above.
+    // Path confirmed by a live probe (not web research): this machine's real
+    // `~/.cursor/skills/find-skills` is a symlink into `~/.agents/skills/find-skills`,
+    // confirming `~/.cursor/skills/<name>` as Cursor's actual read location.
+    markers: ['.cursor/skills'],
+    destTemplates: ['~/.cursor/skills/flow'],
     alwaysInclude: false,
     projectScopeAllowed: false,
   },

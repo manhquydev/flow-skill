@@ -25,16 +25,17 @@ function parseJsonl(s) {
     .map((l) => JSON.parse(l));
 }
 
-test('--help exits 0 and lists 4 targets', () => {
+test('--help exits 0 and lists 5 targets', () => {
   const r = runCli(['--help']);
   assert.equal(r.code, 0);
   assert.match(r.stdout, /claude\s+Claude Code/);
   assert.match(r.stdout, /codex\s+Codex CLI/);
   assert.match(r.stdout, /agents\s+Agents home/);
   assert.match(r.stdout, /antigravity\s+Antigravity/);
+  assert.match(r.stdout, /cursor\s+Cursor/);
 });
 
-test('--dry-run --all --json emits a plan event with 4 targets', () => {
+test('--dry-run --all --json emits a plan event with 5 targets', () => {
   const r = runCli(['--yes', '--all', '--dry-run', '--json']);
   assert.equal(r.code, 0);
   const events = parseJsonl(r.stdout);
@@ -42,7 +43,7 @@ test('--dry-run --all --json emits a plan event with 4 targets', () => {
   assert.equal(events[0].event, 'plan');
   assert.deepEqual(
     events[0].targets.sort(),
-    ['agents', 'antigravity', 'claude', 'codex']
+    ['agents', 'antigravity', 'claude', 'codex', 'cursor']
   );
   assert.equal(events[0].dryRun, true);
 });
@@ -94,4 +95,50 @@ test('summary event fields present in JSONL after fail-fast on unknown target av
   // Dry-run: only the plan event, then exit.
   assert.equal(events.length, 1);
   assert.equal(events[0].event, 'plan');
+});
+
+// v0.23 A0 — the reported symptom: users install to Antigravity, open it, type /flow, see
+// nothing, because a newly-installed skill isn't discovered until the agent reloads, and the
+// post-install summary line told only Claude+Codex users what to do (cli.mjs pre-fix). Real
+// (non-dry-run) install into a scratch HOME so we assert the actual printed guidance.
+function scratchHomeEnv(prefix) {
+  const home = mkdtempSync(join(tmpdir(), `flow-skill-cli-${prefix}-`));
+  return { home, env: { HOME: home, USERPROFILE: home } };
+}
+
+// Isolate the final "Done. ..." summary line — per-target install confirmation lines above it
+// (e.g. "antigravity -> <path>") would otherwise false-positive-match a bare /antigravity/ regex.
+function doneLine(stdout) {
+  return stdout.split('\n').find((l) => l.startsWith('Done.')) ?? '';
+}
+
+test('real install --target antigravity: the Done-line hints Antigravity restart/reload', () => {
+  const { env } = scratchHomeEnv('antigravity-hint');
+  const r = runCli(['--yes', '-t', 'antigravity'], { env });
+  assert.equal(r.code, 0);
+  const done = doneLine(r.stdout);
+  assert.notEqual(done, '', 'expected a Done. summary line');
+  assert.match(done, /Antigravity/);
+  assert.match(done, /restart|reload/i);
+});
+
+test('real install --target cursor: the Done-line hints Cursor restart/reload', () => {
+  const { env } = scratchHomeEnv('cursor-hint');
+  const r = runCli(['--yes', '-t', 'cursor'], { env });
+  assert.equal(r.code, 0);
+  const done = doneLine(r.stdout);
+  assert.notEqual(done, 'Done.', 'expected a non-empty Done. line — RESTART_HINTS is missing a cursor entry');
+  assert.match(done, /Cursor/);
+  assert.match(done, /restart|reload/i);
+});
+
+test('real install --target claude,codex: Done-line keeps Codex restart hint, no Antigravity mention', () => {
+  const { env } = scratchHomeEnv('claude-codex-hint');
+  const r = runCli(['--yes', '-t', 'claude,codex'], { env });
+  assert.equal(r.code, 0);
+  const done = doneLine(r.stdout);
+  assert.notEqual(done, '');
+  assert.match(done, /\$flow/);
+  assert.match(done, /restart Codex/i);
+  assert.doesNotMatch(done, /Antigravity/);
 });

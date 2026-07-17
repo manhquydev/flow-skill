@@ -29,27 +29,48 @@ function Install-To([string]$dest) {
   return $dest
 }
 
+# v0.23 A0 fix — the reported symptom: a user installs to a non-Claude agent, opens it, types
+# /flow, and sees nothing, because a freshly-installed skill isn't discovered until the agent
+# reloads. The old static Done line only told Claude+Codex users what to do; track which
+# targets actually got installed so every one of them gets its own restart/reload hint.
+$RestartHints = @{
+  claude      = 'Claude Code: type /flow'
+  codex       = 'Codex CLI: type $flow (restart Codex once to load a new skill)'
+  antigravity = 'Antigravity: restart/reload the IDE (or restart agy) to load the new skill, then type /flow'
+  agents      = 'Agents home (~/.agents/skills/): restart/reload your tool if it does not auto-detect new skills'
+}
+function Get-DoneLine([string[]]$installed) {
+  $hints = $installed | ForEach-Object { $RestartHints[$_] } | Where-Object { $_ }
+  return "Done. " + ($hints -join '  |  ')
+}
+
 $last = $null
+$installed = @()
 if ($Mode -eq 'global') {
   $target = if ($Arg2 -ne '') { $Arg2 } else { 'all' }
   if ($target -eq 'all' -or $target -eq 'claude') {
     $last = Install-To (Join-Path $HOME '.claude/skills/flow')
+    $installed += 'claude'
   }
   if ($target -eq 'codex'  -or ($target -eq 'all' -and (Test-Path (Join-Path $HOME '.codex/skills')))) {
     $last = Install-To (Join-Path $HOME '.codex/skills/flow')
+    $installed += 'codex'
   }
   if ($target -eq 'agents' -or ($target -eq 'all' -and (Test-Path (Join-Path $HOME '.agents/skills')))) {
     $last = Install-To (Join-Path $HOME '.agents/skills/flow')
+    $installed += 'agents'
   }
   # antigravity (Gemini): same SKILL.md bundle; two global homes (CLI + IDE) under ~/.gemini
   if ($target -eq 'antigravity' -or ($target -eq 'all' -and (Test-Path (Join-Path $HOME '.gemini')))) {
     $last = Install-To (Join-Path $HOME '.gemini/antigravity-cli/skills/flow')   # agy CLI global
     $last = Install-To (Join-Path $HOME '.gemini/config/skills/flow')            # Antigravity IDE global
+    $installed += 'antigravity'
   }
   if (-not $last) { Write-Error "unknown target '$target' (use claude|codex|agents|antigravity|all)"; exit 1 }
 } else {
   $dir = if ($Arg2 -ne '') { $Arg2 } else { (Get-Location).Path }
   $last = Install-To (Join-Path $dir '.claude/skills/flow')
+  $installed += 'claude'
 }
 
 Write-Host ""
@@ -70,4 +91,4 @@ if ($bashExe) {
   Write-Host "  bash: Git Bash not found - install Git for Windows so the gate runner can execute."
 }
 Write-Host ""
-Write-Host "Done. Claude Code: type /flow . Codex CLI: type `$flow (restart Codex once to load a new skill)."
+Write-Host (Get-DoneLine $installed)

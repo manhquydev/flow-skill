@@ -73,6 +73,33 @@ test('~/.gemini/config/skills present: antigravity detected', () => {
   assert.equal(antigravity.detected, true);
 });
 
+// v0.23 — Cursor target. Red-team C1: a bare `.cursor` marker would false-positive on EVERY
+// Cursor user (the dir holds unrelated editor config too), silently auto-installing flow under
+// `--yes` (defaultSelection includes any `detected` target). The marker must be the skills
+// subdir specifically — mirrors the antigravity `~/.gemini` bare-dir guard above. Confirmed real
+// path via a live probe on this machine: `~/.cursor/skills/<name>` is what Cursor's own tooling
+// actually populates (observed a real `find-skills` symlink there pointing at
+// `~/.agents/skills/find-skills`), not assumed from documentation alone.
+test('bare ~/.cursor (no skills subdir) does NOT trigger cursor detection', () => {
+  const home = fakeHome('cursor-bare');
+  mkdirSync(join(home, '.cursor'), { recursive: true });
+  writeFileSync(join(home, '.cursor', 'argv.json'), '{}');
+  const entries = detectAll({ home });
+  const cursor = entries.find((e) => e.name === 'cursor');
+  assert.ok(cursor, 'cursor target must be registered in TARGETS');
+  assert.equal(cursor.detected, false, '~/.cursor alone (editor config, no skills subdir) must not trigger cursor detection');
+});
+
+test('~/.cursor/skills present: cursor detected, dest is ~/.cursor/skills/flow', () => {
+  const home = fakeHome('cursor-skills');
+  mkdirSync(join(home, '.cursor', 'skills'), { recursive: true });
+  const entries = detectAll({ home });
+  const cursor = entries.find((e) => e.name === 'cursor');
+  assert.equal(cursor.detected, true);
+  assert.equal(cursor.dests.length, 1);
+  assert.equal(cursor.dests[0], join(home, '.cursor', 'skills', 'flow'));
+});
+
 test('dests are resolved against the given home', () => {
   const home = fakeHome('dests');
   const entries = detectAll({ home });

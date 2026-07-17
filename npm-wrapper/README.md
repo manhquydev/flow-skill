@@ -10,13 +10,13 @@ One-command installer that copies the [flow](https://github.com/manhquydev/flow-
 ## Install
 
 ```
-# Pre-release channel (current — v0.1.0-rc.1)
+# Pre-release channel (current — v0.1.0-rc.2)
 npx @manhquy/flow-skill@rc
 ```
 
 An interactive prompt asks which agents to install to. Pick one or more, confirm, done.
 
-> **RC phase**: pin `@rc` (dist-tag) or a specific version like `@0.1.0-rc.1`. `npx @manhquy/flow-skill@0.1.x` will start working after stable `0.1.0` is published — semver ranges do **not** match pre-release tuples by default. See [SECURITY.md](./SECURITY.md).
+> **RC phase**: pin `@rc` (dist-tag) or a specific version like `@0.1.0-rc.2`. `npx @manhquy/flow-skill@0.1.x` will start working after stable `0.1.0` is published — semver ranges do **not** match pre-release tuples by default. See [SECURITY.md](./SECURITY.md).
 
 ## Non-interactive
 
@@ -28,7 +28,7 @@ npx @manhquy/flow-skill@rc --yes
 npx @manhquy/flow-skill@rc --yes -t claude -t codex
 npx @manhquy/flow-skill@rc --yes -t claude,codex           # comma form OK
 
-# Force all four targets even if not detected
+# Force all five targets even if not detected
 npx @manhquy/flow-skill@rc --yes --all
 
 # Project scope (Claude only — see below)
@@ -44,16 +44,25 @@ npx @manhquy/flow-skill@rc --yes --all --dry-run --json
 |---|---|---|---|
 | `claude` | Claude Code | `~/.claude/skills/flow` | any presence of `~/.claude` (Claude is always pre-checked) |
 | `codex` | Codex CLI | `~/.codex/skills/flow` | `~/.codex/skills` |
-| `agents` | Agents home | `~/.agents/skills/flow` | `~/.agents/skills` |
+| `agents` | Agents home — also the universal [Agent-Skills](https://agentskills.io) home other spec-compliant tools read | `~/.agents/skills/flow` | `~/.agents/skills` |
 | `antigravity` | Antigravity (CLI + IDE) | `~/.gemini/antigravity-cli/skills/flow` **and** `~/.gemini/config/skills/flow` | `~/.gemini/antigravity-cli` **or** `~/.gemini/config/skills` |
+| `cursor` | Cursor | `~/.cursor/skills/flow` | `~/.cursor/skills` (never the bare `~/.cursor` config dir every Cursor user has) |
 
 `--project` scope writes to `<dir>/.claude/skills/flow` and supports only the `claude` target. Combining `--project` with a non-Claude target exits with code `2`.
 
 ## After install
 
+A freshly-installed skill isn't discovered by an agent until it reloads — the installer's final
+line tells you exactly what to do for whichever targets you installed:
+
 - Claude Code: type `/flow`.
-- Codex CLI: type `$flow` (restart Codex once to load).
-- Antigravity: `/flow` in the IDE.
+- Codex CLI: type `$flow` (restart Codex once to load a new skill).
+- Antigravity: restart/reload the IDE (or restart `agy`) to load the new skill, then type `/flow`.
+- Agents home: restart/reload your tool if it does not auto-detect new skills.
+- Cursor: **install verified, live runner execution not yet independently confirmed** — Cursor
+  has no headless CLI probe available for automated verification (unlike Antigravity's `agy -p`
+  or Codex's `codex exec`); restart/reload Cursor after install and check the Agent panel for
+  the `flow` skill.
 - Diagnostics: run `/flow doctor` from your agent.
 
 ## Uninstall

@@ -147,6 +147,29 @@ function humanResult(target, result) {
   return `${status} ${target} -> ${dests}${err}`;
 }
 
+// v0.23 A0 fix — the reported symptom: a user installs to a non-Claude agent, opens it, types
+// /flow, and sees nothing, because a freshly-installed skill isn't discovered until the agent
+// reloads. The old static message only told Claude+Codex users what to do; every installed
+// target now gets its own line so nobody is left guessing why /flow doesn't show up.
+const RESTART_HINTS = {
+  claude: 'Claude Code: type /flow',
+  codex: 'Codex CLI: type $flow (restart Codex once to load a new skill)',
+  antigravity:
+    'Antigravity: restart/reload the IDE (or restart `agy`) to load the new skill, then type /flow',
+  agents:
+    'Agents home (~/.agents/skills/): restart/reload your tool if it does not auto-detect new skills',
+  // Cursor has no headless CLI probe (unlike Antigravity's `agy -p` or Codex's `codex exec`) to
+  // independently verify the runner loads post-install — restart/reload guidance is still the
+  // correct advice (same discovery-on-reload mechanism), just without our own live confirmation
+  // that the Agent panel picks it up. See README's "After install" section for the caveat.
+  cursor: 'Cursor: restart/reload Cursor to load the new skill, then check the Agent panel for flow',
+};
+
+function doneLine(targets) {
+  const hints = targets.map((t) => RESTART_HINTS[t]).filter(Boolean);
+  return `Done. ${hints.join('  |  ')}`;
+}
+
 async function main() {
   const rawArgs = process.argv.slice(2);
   let opts;
@@ -346,10 +369,7 @@ async function main() {
   );
 
   if (!opts.json && success) {
-    log(
-      '\nDone. Claude Code: type /flow  |  Codex CLI: type $flow (restart Codex once).',
-      false
-    );
+    log(`\n${doneLine(plan.map((p) => p.target))}`, false);
   }
 
   // If aborted mid-loop, exit 130 (matches shell convention) instead of the generic failure.

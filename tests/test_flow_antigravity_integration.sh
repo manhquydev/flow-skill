@@ -69,6 +69,16 @@ has  "$SKILL" "antigravity-integration.md" "SKILL.md links the seam in the refer
 has  "$SKILL" "agy inspect" "SKILL.md tells operator to confirm load via agy inspect"
 hasE "$SKILL" "third engine|Gemini-3" "SKILL.md names the Gemini-3 third engine"
 
+# Invariant 9 (v0.23 A0): the post-install Done line tells Antigravity users to restart/reload —
+# the reported symptom was "installed, typed /flow, saw nothing" because a freshly-installed
+# skill isn't discovered until the agent reloads, and the old static message never mentioned
+# Antigravity at all. Both install scripts must build this hint dynamically (only for targets
+# actually installed), not as a single hardcoded Claude+Codex-only string.
+hasE "$ROOT/install.sh"  "antigravity.{0,80}(restart|reload)|(restart|reload).{0,80}antigravity" "install.sh: Antigravity restart/reload hint present"
+lacks "$ROOT/install.sh" "^echo \"Done\. Claude Code: type /flow \. Codex CLI" "install.sh: old hardcoded Claude+Codex-only Done line is gone"
+hasE "$ROOT/install.ps1" "antigravity.{0,80}(restart|reload)|(restart|reload).{0,80}antigravity" "install.ps1: Antigravity restart/reload hint present"
+lacks "$ROOT/install.ps1" 'Write-Host "Done\. Claude Code: type /flow \. Codex CLI' "install.ps1: old hardcoded Claude+Codex-only Done line is gone"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
