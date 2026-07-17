@@ -13,22 +13,27 @@ the Review gate uses the **`security-reviewer` AGENT** (STRIDE/OWASP, secrets, i
 SSRF) as the primary acceptance lens, **layered with `code-reviewer`**. Non-security cards
 stay with the generic `code-reviewer` — no change to that path.
 
+**Run the native STRIDE ritual on every security-class card (guaranteed baseline —
+`native-rituals.md` §3, no external skill required).** Walk the diff through the six
+STRIDE categories regardless of which lens above is present. Output INFORMS triage and
+**never auto-passes the Tier-C HALT** (see the Critical note below).
+
 **Agent vs skill:** `security-reviewer` is an **AGENT** (`Task(subagent_type="security-reviewer")`)
 invoked in subagent isolation — it sees the diff, contract, and acceptance only. `ck-security`
 is a **SKILL** (main-context Skill tool, no subagent isolation); it may be used as an optional
 inline pass by the orchestrator, but it is **never** the delegated review subagent.
 
-**Offer `ck-security` on a security-class card (opt-in-with-prompt).** When a card is
-security-class and the `security-reviewer` agent is absent (or as an extra threat-model pass),
-offer the `ck-security` SKILL (STRIDE+OWASP attacker personas) — the operator confirms; it is not
-auto-fired. Its output INFORMS triage and **never auto-passes the Tier-C HALT** (see the Critical
-note below). After it runs, record the lazy durable metric via `flow.sh harness intervention add`
-(the wired-gate skill-telemetry — `claudekit-skills.md` §"Lazy capture"). See `claudekit-skills.md`.
+**If `ck-security` is installed**, offer it as a richer alternative / extra threat-model
+pass on top of the native ritual (opt-in-with-prompt) — the operator confirms; it is not
+auto-fired. Same INFORMS-only rule. After either the native ritual or `ck-security` runs,
+record the lazy durable metric via `flow.sh harness intervention add` (the wired-gate
+skill-telemetry — `claudekit-skills.md` §"Lazy capture"). See `claudekit-skills.md`.
 
 **Portability degrade rung** (detect-first, gate identical on every rung):
 1. `security-reviewer` AGENT present → run it layered with `code-reviewer` (primary path).
-2. `security-reviewer` absent → `code-reviewer` runs an explicit STRIDE/OWASP checklist
-   covering the Tier-C keyword list (auth, authz, tenancy, payments, injection, secrets, SSRF).
+2. `security-reviewer` absent → `code-reviewer` runs the native STRIDE ritual
+   (`native-rituals.md` §3) covering the Tier-C keyword list (auth, authz, tenancy,
+   payments, injection, secrets, SSRF).
 3. Neither available → inline security review against the Tier-C keyword list by the orchestrator.
 
 **Gate parity — the lens INFORMS triage; it NEVER auto-fails or auto-passes a card.** A

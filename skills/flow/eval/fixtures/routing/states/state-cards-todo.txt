@@ -1,0 +1,4 @@
+NEXT -> run: flow.sh card   (all planning gates passed; ready to create cards)
+planning: complete (all 6 stages passed)
+gate: PASS
+cards: 3 created (C-001: todo, C-002: in flight, C-003: todo)

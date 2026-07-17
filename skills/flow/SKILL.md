@@ -3,13 +3,13 @@ name: flow
 description: Run the buildflow gated build process from idea to real done-evidence. Walk gated stages (Idea->Research->Scope->PRD->ADR->Contract->Cards->Build->Review->Deploy/Ship->Verify->Retro), each with a honest gate that must pass before advancing. Adapts to project type (web|cli|library|skill). Use when starting or driving a real product build, when the user types /flow, /flow next, /flow card, /flow check, or asks to scope/plan/ship a project through gates. Kill at any gate is a valid outcome.
 user-invocable: true
 when_to_use: "User wants to build a real product end-to-end with discipline (idea -> a deployed URL for web, or installs+runs for a CLI/library/skill), or types any /flow command, or asks for a gated build process, scope decision, contract-first plan, or card-based shipping."
-argument-hint: "[ resume | next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | workspace add|list|enter|remove|check|doctor | auto | doctor | retro | eval --stage 01|02|card --fixture <id> --n 3 --keep-going --report ]"
+argument-hint: "[ resume | next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | workspace add|list|enter|remove|check|doctor | auto | doctor | retro | eval --stage 01|02|card|routing --fixture <id> --n 3 --keep-going --report | or just say what you want in plain language ]"
 keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deploy, vertical-slice, cli, library, skill, worktree, parallel-agents, workspace, multi-agent]
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.21.0"
-  attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD."
+  version: "0.22.0"
+  attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD. v0.22 concierge routing pattern adapted from BMAD-METHOD's bmad-help; forge-idea ritual adapted from BMAD-METHOD's bmad-forge-idea (both MIT, BMad Code LLC)."
 ---
 
 # /flow — buildflow gated build harness
@@ -112,6 +112,16 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | `/flow unlock` | `flow.sh unlock` — clear this project's concurrency lock after a crashed/abandoned session |
 | `/flow retro` | the 3 retro questions; the operator writes the line, never you |
 
+## Conversational entry (default)
+
+Chat is the default front door — most operators should never need to learn a verb.
+Any natural-language ask routes through `references/concierge.md`: run `flow.sh status`
+(ground truth, never guess) → look up the closest row in `references/flow-catalog.tsv`
+→ propose exactly ONE next action in plain language, zero-jargon → offer to run it,
+following the file's May-run/Must-ask default-deny classification. Typed verbs always
+win — the concierge never intercepts an explicit `/flow <verb>`. New users get one
+plain consent question before the concierge switches to `mode work` on their behalf.
+
 ## Dispatch rules (how to behave for each command)
 
 1. **Entering a project mid-cycle? Run `/flow resume` before any other flow verb.** If this is
@@ -187,8 +197,9 @@ shipped) → world-state evidence → `status: done` → durable trace + `AUTO-L
 - **Tier A**: green + no security-class → auto-merge, no ask.
 - **Tier B**: fixable issues → one repair by a FRESH subagent (two-strikes), else escalate.
   If the fix needs >1 experimental attempt against a single numeric target (not a review
-  disagreement), reach for `flow.sh loop-prep` + the `ck-loop` skill instead — see
-  "Loop vs two-strikes" in `references/claudekit-skills.md`.
+  disagreement), reach for `flow.sh loop-prep` + the native loop protocol
+  (`references/native-rituals.md` §5) instead — richer with the `ck-loop` skill if
+  installed. See "Loop vs two-strikes" in `references/claudekit-skills.md`.
 - **Tier C**: security-class (auth, authorization, admin exposure, tenancy, payments, data
   migration, removing validation) → **HALT.** Operator accepts the exposure in `DEBT.md`,
   in writing. Never planner-decided.
@@ -204,6 +215,9 @@ Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, r
 - `references/stage-state-machine.md` — stage order, unlock conditions, what each artifact must contain.
 - `references/project-types.md` — per-type (web|cli|library|skill) adaptations of the stages, gate lenses, and done-evidence.
 - `references/command-dispatch.md` — exact mapping of each `/flow` command to runner call + your duties.
+- `references/concierge.md` — the default conversational entry: routing loop, May-run/Must-ask default-deny classification, new-user consent script.
+- `references/flow-catalog.tsv` — the intent-class × state → action routing table the concierge reads (source of truth for automated checks).
+- `references/forge-idea.md` — the Idea/Scope persona-interrogation ritual (adapted from BMAD-METHOD's `bmad-forge-idea`, MIT, opt-in, never a gate condition).
 - `references/agent-detection.md` — detect ck:/bmad agents + priority + fallback.
 - `references/agent-stage-mapping.md` — stage→agent map, scoped prompt template, durable hooks.
 - `references/claudekit-skills.md` — the **skill layer** on top of the agents: the curated per-stage ck-skill whitelist ("what to use when"), the 6 deep-wired high-ROI skills (ck-predict@ADR, ck-scenario@Contract, review-pr@Review/Ship, ck-security@security-cards, retro@Retro, ck-loop@Build/Verify), the binding rules (skill INFORMS / gate JUDGES; Claude-side detection + silent degrade; opt-in-with-prompt, off the hot path), and the loop-vs-two-strikes decision matrix (`flow.sh loop-prep`/`loop-log` plumbing, ck-loop as the untouched execution engine).

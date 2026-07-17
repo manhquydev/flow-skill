@@ -1,0 +1,4 @@
+NEXT -> run: flow.sh next   (no flow/ directory found - this project has not started a flow cycle yet)
+planning: not started (no flow/ dir)
+gate: N/A
+cards: none created

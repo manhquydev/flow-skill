@@ -18,9 +18,11 @@ flow-skill/
 │   │   └── README.md
 │   ├── _templates/              # 00-idea..05-contract + card (verbatim buildflow)
 │   ├── law/                     # CLAUDE.md, DESIGN.md, RETRO.md
-│   ├── references/              # 13 semantic playbooks (gates, state machine, agents,
+│   ├── references/              # 21 semantic playbooks (gates, state machine, agents,
 │   │                            #   mode-work, auto-run, loop principles, ground-truth,
-│   │                            #   adversarial, debt-and-halts, design checklist, ui-tcr)
+│   │                            #   adversarial, debt-and-halts, design checklist, ui-tcr,
+│   │                            #   concierge, native-rituals, forge-idea — v0.22)
+│   ├── eval/                    # behavioral-eval fixtures: artifact-vs-gate + v0.22 routing judge
 │   └── playbooks/               # 3 stack playbooks + README (read before / harvest after)
 ├── npm-wrapper/                 # npm distribution channel (cross-OS Node)
 │   ├── bin/cli.mjs              # entry point: npx @manhquy/flow-skill@rc
@@ -47,8 +49,10 @@ build card) · `check C-NNN` (validate card) · `status` (NEXT -> line, stage dw
 list/compact summary) · `mode teach|work` · `ready` (parallel-safe cards) · `auto` (autonomous
 run) · `retro` · `loop-prep` / `loop-log` (ck-loop iteration) · `harness <args>` (durable layer)
 · `debt add|list` · `design <file>` (UI check) · `usage [--global|--prune]` (telemetry analytics)
-· `eval` (behavioral gate proof) — plus coherence/consistency/constitution/contract/tokens/
-workspace/doctor/promote/unlock/project-type/skip. 30 verbs total; see README.md's full table.
+· `eval --stage 01|02|card|routing` (behavioral gate proof + v0.22 concierge routing judge) —
+plus coherence/consistency/constitution/contract/tokens/workspace/doctor/promote/unlock/
+project-type/skip. 27 dispatcher verbs; see README.md's full table. **v0.22**: chat is now the
+default entry — see `references/concierge.md`; typed verbs above still work unchanged.
 
 ## Key invariants
 - A gate passes only when mechanical (`flow.sh` exit 0) AND semantic (Claude) agree.
@@ -63,18 +67,22 @@ bash (Git Bash on Windows) for the engine; Python 3 + stdlib sqlite3 for the dur
 (optional Rust `harness-cli` power-path); no third-party install required.
 
 ## Tests
-`bash tests/run_all.sh` — 31 suites, all green on the 3-OS CI matrix (ubuntu / macos / windows).
+`bash tests/run_all.sh` — 34 suites / 926 checks, all green (GitHub Actions `bash-suite` job,
+ubuntu/macos/windows matrix — replaces the parked Azure Pipelines setup as of v0.22).
 Covers gate pass/fail, lifecycle, card validation, intake classification, trace tiers, story
 verify, debt, design, the 6 buildflow scenario rounds, loop-engineering (ck-loop wrapper),
-behavioral gate proof (`eval`, 22 sections incl. v0.21 raw-on-INVALID + circuit breaker +
-envelope strip + run_id-epoch prune), the `resume`/`status` legibility surface, and graceful
-degrade. Real numbers surface in each release's per-release journal note; CI matrix is the
-source of truth (`gh run view <id>`), not local-only runs.
+behavioral gate proof (`eval --stage 01|02|card`, v0.21 raw-on-INVALID + circuit breaker +
+envelope strip + run_id-epoch prune) plus the v0.22 routing judge (`eval --stage routing`,
+own manifest/verdict/scorecard), the `resume`/`status` legibility surface, the v0.22 concierge
+routing table + native rituals + forge-idea ritual, and graceful degrade. Real numbers surface
+in each release's per-release journal note; CI matrix is the source of truth (`gh run view
+<id>`), not local-only runs.
 
 ## Status
-v0.21.0 (2026-07-11, commit `17677b1` on the v0.21.0 line, CI GREEN 3/3 OS on run
-`29141602431`). v1 core complete (Phases 1-6, see `plans/260613-1021-flow-skill-engine/`);
-ongoing releases add capability on top (durable-layer deep integration, cross-vendor agent tiers,
-usage-log telemetry, behavioral gate eval + trust hardening, mission-control legibility,
-express-lane KILLED by data). See CHANGELOG.md and `docs/quality-metrics.md` for the per-release
-history + the roadmap-A anti-FOMO log.
+v0.22.0 (2026-07-16) — concierge chat-first front-door + standalone self-sufficiency (native
+gate rituals; ck/BMAD demoted to optional enrichment). v1 core complete (Phases 1-6, see
+`plans/260613-1021-flow-skill-engine/`); ongoing releases add capability on top (durable-layer
+deep integration, cross-vendor agent tiers, usage-log telemetry, behavioral gate eval + trust
+hardening, mission-control legibility, express-lane KILLED by data, v0.22 concierge/standalone).
+See CHANGELOG.md and `docs/quality-metrics.md` for the per-release history + the roadmap-A
+anti-FOMO log.

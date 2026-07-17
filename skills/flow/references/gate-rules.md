@@ -24,6 +24,11 @@ Mechanical: pitch present, one real person named, no FILL.
 **Challenge:** Is the pitch really 3 sentences (who / pain / what)? Is the named person a
 *real, specific* person or group ("my uncle's 20-unit building"), not "people who..." or
 "users"? Is the pain concrete, not a category?
+- **Offer the forge-idea ritual (opt-in-with-prompt — `native-rituals.md`'s sibling
+  `references/forge-idea.md`).** Before drafting the pitch, or when the operator sounds
+  unsure, offer to pressure-test the idea through persona interrogation until it
+  hardens, proves out, or dies cheaply. Never auto-fired; never a condition this gate
+  checks for — a killed idea and a hardened idea both still go through the normal gate.
 
 ## Stage 01 — Research
 Mechanical: 7 boxes checked, no FILL.
@@ -54,6 +59,9 @@ GO/KILL, no FILL.
   human-approves-draft; custom -> managed service); (3) irreducible -> KILL/re-budget?
 - Classic failure: v1 full of A-grade L-impact features (cheap to build, worthless to sell).
 - If the product itself is a C, is it FIRST in build order with sibling Cs on the cut list?
+- **Offer the forge-idea ritual (opt-in-with-prompt — `references/forge-idea.md`)** when a
+  GO/KILL call is genuinely close. It informs the decision; it never decides it — the
+  operator still calls GO or KILL.
 
 ## Stage 03 — PRD
 Mechanical: filled from stage 02, numeric success metric, pain&gain table, no FILL.
@@ -69,10 +77,13 @@ Mechanical: each decision has why + rejected, NOT-doing list, covers storage/aut
 **Challenge:** Does each decision name a *real* rejected alternative (not a strawman)? Are
 data storage, auth approach, and deploy target all actually decided (not "TBD")? Is the
 NOT-doing list honest about what's deferred?
-- **Optional `ck-predict` (when present, non-trivial decision).** Before locking a risky
-  decision, offer a 5-persona debate (`ck-predict`) — it surfaces arch/security/perf/UX defects
-  when reversal is cheapest. Output INFORMS this challenge; it never passes the gate. Skip on a
-  trivial ADR (opt-in-with-prompt — see `claudekit-skills.md`).
+- **Offer the native persona-debate ritual** (`native-rituals.md` §1 — the guaranteed
+  baseline, no external skill required) before locking a non-trivial decision: a 5-lens
+  debate (architect/security/ops/user-advocate/cost) that surfaces defects while reversal
+  is still cheap. Output INFORMS this challenge; it never passes the gate. Skip on a
+  trivial ADR.
+- **If `ck-predict` is installed**, it is a richer alternative to the native ritual (same
+  INFORMS-only rule, opt-in-with-prompt — see `claudekit-skills.md`).
 
 ## Stage 05 — Contract (the seam)
 Mechanical: every PRD feature -> >=1 interface, every interface has input+output shapes,
@@ -97,11 +108,14 @@ cli=command+flags+output/exit, library=public function+args+return, skill=comman
   **codex tier is USABLE**, an OPTIONAL opt-in **cross-model** check of the contract is the
   highest-value single Codex call in a run — a different engine breaks the same-model blind spot at
   the one artifact whose drift is most expensive downstream.
-- **Optional `ck-scenario` (when present).** Offer 12-dimension edge-case decomposition to
-  harden the seam: each case becomes an acceptance criterion + a per-type no-drift check, so the
-  contract is exhaustive before any card trusts it. Complements `/flow consistency` (it
-  *generates* cases; consistency checks *coherence*). INFORMS the gate; never auto-passes it.
-  Opt-in-with-prompt — see `claudekit-skills.md`.
+- **Offer the native edge-case ritual** (`native-rituals.md` §2 — the guaranteed
+  baseline) to harden the seam: each case becomes an acceptance criterion + a per-type
+  no-drift check, so the contract is exhaustive before any card trusts it. Complements
+  `/flow consistency` (it *generates* cases; consistency checks *coherence*). INFORMS
+  the gate; never auto-passes it.
+- **If `ck-scenario` is installed**, it is a richer 12-dimension alternative to the
+  native ritual (same INFORMS-only rule, opt-in-with-prompt — see
+  `claudekit-skills.md`).
 
 ## Card gate (`/flow check C-NNN`)
 Mechanical: no FILL, valid status, required sections, if done -> verify boxes checked +

@@ -1,7 +1,7 @@
 {
   "name": "flow",
-  "version": "0.21.0",
-  "description": "buildflow gated build harness: idea to real done-evidence through honest gates (web|cli|library|skill), with a durable harness layer and agent orchestration (ck: + bmad + Codex second engine + Antigravity/Gemini-3 third engine). Portable across Claude Code (/flow), Codex CLI ($flow), and Antigravity (agy CLI / IDE).",
+  "version": "0.22.0",
+  "description": "buildflow gated build harness: idea to real done-evidence through honest gates (web|cli|library|skill), with a durable harness layer, a chat-first concierge front-door, and standalone-native gate rituals (ck: + BMAD remain optional enrichment, not requirements). Cross-vendor agent orchestration (ck: + bmad + Codex second engine + Antigravity/Gemini-3 third engine) still portable across Claude Code (/flow), Codex CLI ($flow), and Antigravity (agy CLI / IDE).",
   "type": "skill",
   "plugin": ".claude-plugin/plugin.json",
   "command": "/flow (Claude Code) | $flow (Codex CLI)",
@@ -27,9 +27,10 @@
     "law": "skills/flow/law/",
     "references": "skills/flow/references/",
     "durable_layer": "skills/flow/harness/",
-    "playbooks": "skills/flow/playbooks/"
+    "playbooks": "skills/flow/playbooks/",
+    "eval": "skills/flow/eval/"
   },
-  "tests": ["tests/test_flow_runner.sh", "tests/test_flow_harness.sh", "tests/test_flow_scenarios.sh", "tests/test_flow_project_types.sh", "tests/test_flow_gate_wording.sh", "tests/test_flow_coverage_gaps.sh", "tests/test_flow_concurrency_lock.sh", "tests/test_flow_recall.sh", "tests/test_flow_gate_capture.sh", "tests/test_flow_propose_audit.sh", "tests/test_flow_contract.sh", "tests/test_flow_tokens.sh", "tests/test_flow_coherence_kb.sh", "tests/test_flow_assess.sh", "tests/test_flow_codex_integration.sh", "tests/test_flow_consistency.sh", "tests/test_flow_accessed_count.sh", "tests/test_flow_constitution.sh", "tests/test_flow_antigravity_integration.sh", "tests/test_flow_claudekit_integration.sh", "tests/test_flow_card_lifecycle.sh", "tests/test_flow_usage_log.sh", "tests/test_flow_workspace.sh", "tests/test_flow_monorepo_root.sh", "tests/test_flow_harness_args.sh", "tests/test_flow_schema_migration.sh", "tests/test_flow_tool_registry.sh", "tests/test_flow_loop.sh"],
+  "tests": ["tests/test_flow_runner.sh", "tests/test_flow_harness.sh", "tests/test_flow_scenarios.sh", "tests/test_flow_project_types.sh", "tests/test_flow_gate_wording.sh", "tests/test_flow_coverage_gaps.sh", "tests/test_flow_concurrency_lock.sh", "tests/test_flow_recall.sh", "tests/test_flow_accessed_count.sh", "tests/test_flow_gate_capture.sh", "tests/test_flow_propose_audit.sh", "tests/test_flow_contract.sh", "tests/test_flow_tokens.sh", "tests/test_flow_coherence_kb.sh", "tests/test_flow_assess.sh", "tests/test_flow_codex_integration.sh", "tests/test_flow_consistency.sh", "tests/test_flow_constitution.sh", "tests/test_flow_antigravity_integration.sh", "tests/test_flow_claudekit_integration.sh", "tests/test_flow_card_lifecycle.sh", "tests/test_flow_usage_log.sh", "tests/test_flow_workspace.sh", "tests/test_flow_monorepo_root.sh", "tests/test_flow_harness_args.sh", "tests/test_flow_schema_migration.sh", "tests/test_flow_tool_registry.sh", "tests/test_flow_loop.sh", "tests/test_flow_eval.sh", "tests/test_flow_resume.sh", "tests/test_flow_status_legibility.sh", "tests/test_flow_concierge.sh", "tests/test_flow_native_rituals.sh", "tests/test_flow_forge_idea.sh"],
   "provenance": {
     "methodology": "ai20k-build-phase/buildflow (Tony, arealisticdreamer.com)",
     "harness": "repository-harness",

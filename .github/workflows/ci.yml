@@ -30,6 +30,24 @@ permissions:
   contents: read
 
 jobs:
+  # v0.22 (validation V3): repo is now public, GH Actions minutes are free - this job
+  # replaces the parked Azure Pipelines setup as the real cross-OS gate for the bash test
+  # suite (skills/flow's own runner + references, not the npm-wrapper). azure-pipelines.yml
+  # is demoted to an unused fallback; the operator setup task it was waiting on is closed.
+  bash-suite:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run flow.sh bash test suite (tests/run_all.sh)
+        run: bash tests/run_all.sh
+        shell: bash
+
   test:
     strategy:
       fail-fast: false

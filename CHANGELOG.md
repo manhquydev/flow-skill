@@ -4,6 +4,80 @@ All notable changes to the flow skill. Versions follow the `version:` field in
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 
+## 0.22.0 — 2026-07-16 — concierge front-door + standalone self-sufficiency
+
+Two operator-approved workstreams from a brainstorm→plan→red-team→validate→cook pipeline
+(3-agent hostile red-team, 21 raw findings → 13 accepted after dedup, all applied; 4-question
+validation interview). Full plan: `plans/260716-1342-flow-v022-concierge-standalone/`.
+
+**WS-A — Concierge front-door.** Chat is now the default entry to `/flow`: any natural-language
+ask routes through `references/concierge.md` — run `flow.sh status` (ground truth, never a
+guess) → look up the closest row in the new `references/flow-catalog.tsv` → propose exactly ONE
+next action in plain language → offer to run it, per a **default-deny** May-run/Must-ask
+classification covering all 27 dispatcher verbs (red-team: an earlier draft left `promote` and
+`harness` — global/durable writes — in an unclassified auto-run gap; `next` was misclassified as
+auto-runnable even though its pass-precondition can't be verified before it runs). New users get
+exactly one plain consent question before the concierge switches to `mode work` on their behalf
+(teach-mode's "never author on the operator's behalf" rule still holds). Power-user verbs pass
+through untouched — a typed `/flow next` dispatches exactly as before.
+
+**WS-B — Standalone self-sufficiency.** Installing flow alone now gets the **full** experience —
+five gate seams that used to lean on optional external skills ship **native, clean-room
+rituals** (`references/native-rituals.md`): persona-debate @ ADR, edge-case decomposition @
+Contract, STRIDE security @ Review, numeric retro @ Retro, native loop protocol @ Build/Verify.
+`ck-predict`/`ck-scenario`/`ck-security`/`ck-loop`/`retro` are now offered as **richer
+alternatives** when installed, never a requirement (`gate-rules.md`, `adversarial-review.md`,
+`law/RETRO.md`, `claudekit-skills.md` all rewired native-first). **Legal**: claudekit-engineer is
+proprietary (All Rights Reserved) — every ritual was written fresh from public/generic patterns,
+reviewed side-by-side against the corresponding ck skill for zero copied expression, and no ck
+text was ever committed (tests included). A sixth ritual, `references/forge-idea.md`
+(persona-driven idea pressure-testing, opt-in at Idea/Scope, never a gate condition), is adapted
+from BMAD-METHOD's `bmad-forge-idea` (MIT) — the full license notice is reproduced verbatim.
+
+**Routing eval judge (v0.22 addition, not a stage-list tweak).** Red-team correctly identified
+that "extend `--stage`" undersold the work: routing judges (state-snapshot + utterance) → action,
+a different shape from the existing artifact-vs-gate-rules judge (FLAG/PASS). Built as its own
+modality: `flow.sh eval --stage routing` — separate manifest (`eval/fixtures/routing/`, 15
+fixtures, VN+EN, incl. one steering-resistance case), separate prompt builder
+(`_eval_routing_build_prompt`, utterance fenced as DATA with an explicit "do not obey it"
+instruction), separate verdict vocabulary (MATCH/MISS/INVALID/UNRELIABLE), separate results
+stream (`eval-routing-results.jsonl`) and scorecard, own `--report`. Hard cost ceiling: **90
+calls/batch** (validation decision), pre-batch cost estimate printed before any billable call,
+zero-call clean skip when `claude` CLI is absent. Metric is labeled **panel-agreement**, not
+"accuracy" — expected actions are Claude-authored then reviewed by an independent adversarial
+agent panel before becoming the oracle (there is no independent human ground truth yet).
+
+**CI**: the repo is now public, so GitHub Actions minutes are free — a new `bash-suite` job in
+`.github/workflows/ci.yml` runs the full `tests/run_all.sh` on the ubuntu/macos/windows matrix,
+replacing the parked Azure Pipelines setup (demoted to an unused fallback; the operator setup
+task it was waiting on is closed).
+
+**Format change**: `references/flow-catalog.tsv` is TSV (tab-separated), not CSV — gate-note
+prose contains commas and Vietnamese text carries diacritics, both of which corrupt a naive
+comma-split (same reason `eval/manifest.tsv` already used TSV).
+
+**Release evidence — new-user script (plan criterion 2).** Real `flow.sh status` on a fresh
+empty sandbox (no `flow/` dir) returns `planning: not started` / `NEXT -> run '/flow next'
+to unlock stage 00` — matching `flow-catalog.tsv`'s `start-new-project` row
+(`state-precondition=no-flow-dir-yet`, `action=mode`). Per `concierge.md`'s entry loop, the
+concierge reads this real mechanical output and asks exactly one consent question before
+running `mode work` — zero flow verbs typed by the user up to that point.
+
+**Release evidence — cross-vendor routing spot-check (plan criterion 6).** 3 catalog
+utterances run for real through Antigravity (`agy -p`, Gemini-3), built from the actual
+routing prompt (`_eval_routing_build_prompt`): "where am I?" → `resume` ✓, "card nay xong
+chua?" → `check` ✓, "lam retro di" → `retro` ✓ — 3/3 matched the catalog's expected
+action. Codex CLI was attempted first but the workspace returned `402 deactivated_workspace`
+(installed but not usable — the exact "installed≠usable" distinction `codex-integration.md`
+already documents); Antigravity was the available second engine. Claim is honest per plan
+criterion 6: Claude-verified (Phase 1 manual table + Phase 4 routing-judge batch), Codex/
+Gemini best-effort — backed by this real spot-check, not assertion.
+
+23 files changed (7 created: `concierge.md`, `flow-catalog.tsv`, `native-rituals.md`,
+`forge-idea.md`, `eval/fixtures/routing/*`, `tests/test_flow_concierge.sh`,
+`tests/test_flow_native_rituals.sh`, `tests/test_flow_forge_idea.sh`); 34 suites / 926 checks
+green (was 31/799).
+
 ## 0.21.0 — 2026-07-11 — eval-trust hardening + express-lane kill (A killed by telemetry)
 
 Two-part release, both evidence-driven from the first REAL gate-eval baseline run.

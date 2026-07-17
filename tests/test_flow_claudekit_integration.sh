@@ -77,7 +77,9 @@ hasE "$AREV" "the wired .code-reviewer. agent" "R2 review-pr: distinct from code
 hasE "$AREV" "INFORMS, never decides|never auto-passes a card" "R2 review-pr: gate parity (INFORM-only)"
 
 # ck-security: explicit opt-in offer that never auto-passes the Tier-C HALT.
-hasE "$AREV" "Offer .ck-security. on a security-class card" "R2 ck-security: explicit opt-in offer at Review"
+# v0.22: native STRIDE ritual is now the guaranteed baseline; ck-security is offered as
+# an installed-optional richer alternative (references/native-rituals.md §3).
+hasE "$AREV" "If .ck-security. is installed" "R2 ck-security: explicit opt-in offer at Review"
 hasE "$AREV" "never auto-passes the Tier-C HALT|never auto-release" "R2 ck-security: never auto-passes Tier-C HALT"
 
 # retro: offered at the Retro gate, operator still authors the line (teach-mode rule holds).

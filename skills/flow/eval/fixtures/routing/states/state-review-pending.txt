@@ -1,0 +1,4 @@
+NEXT -> run: flow.sh check C-001   (card implemented, awaiting review)
+planning: complete
+gate: PASS
+cards: 3 created (1 done, C-001: todo (implemented, unreviewed), C-002: todo, C-003: todo)

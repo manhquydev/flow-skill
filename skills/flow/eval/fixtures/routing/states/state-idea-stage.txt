@@ -1,0 +1,4 @@
+NEXT -> run: flow.sh next   (fix gate: 00-idea)
+planning: at stage 00-idea (for 5m)
+gate: BLOCKED - pitch missing a named real person
+cards: none created

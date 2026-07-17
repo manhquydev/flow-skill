@@ -1,6 +1,11 @@
 # Azure Pipelines — free cross-OS CI for this PRIVATE repo, mirroring .github/workflows/ci.yml.
 #
-# WHY: GitHub-hosted Actions are billing-blocked on this private repo. Azure Pipelines' free tier
+# DEMOTED (v0.22, 260716): the repo is now PUBLIC (github.com/manhquydev/flow-skill), so GitHub
+# Actions minutes are free again. The real cross-OS gate for the bash suite is now the
+# `bash-suite` job in .github/workflows/ci.yml. This file is kept as an unused fallback (revive
+# if the repo ever goes private again) — the one-time operator setup below is no longer needed.
+#
+# WHY (original, private-repo era): GitHub-hosted Actions are billing-blocked on this private repo. Azure Pipelines' free tier
 # for PRIVATE projects gives 1 parallel job + 1,800 min/month on Microsoft-hosted agents that
 # include Ubuntu (GNU) + macOS (BSD) + Windows (Git Bash/MSYS) — the same three-way coverage the
 # flow suite needs (the macOS/BSD leg is the one a self-hosted Windows machine can never provide).

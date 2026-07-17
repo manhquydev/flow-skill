@@ -1,0 +1,18 @@
+intent-class	state-precondition	action	gate-note	enrich-if-present	source
+start-new-project	no-flow-dir-yet	mode	ask one consent question first ("draft steps, you review?"); yes -> run `mode work`; no -> stay teach and guide	-	flow
+resume-where-am-i	flow-dir-exists-cold-start	resume	read-only session-story brief; run before any other verb when entering mid-cycle cold	-	flow
+what-next	any	status	mechanical NEXT-> line is ground truth; explain the gate in one sentence, then offer it	-	flow
+check-card-done	card-in-flight-or-todo	check	must-ask: validates a specific card (diff-vs-scope, allowed-files, evidence)	-	flow
+brownfield-assess	existing-codebase-no-flow-history	assess	brownfield current-state scaffold (flow/00-inspect.md); operator-reviewed	-	flow
+kill-doubt-idea	stage-00-or-01	status	offers the forge-idea ritual (references/forge-idea.md) at Idea/Scope: persona-driven interrogation until it hardens, proves out, or dies cheaply	-	flow
+review-ask	cards-built-pending-review	check	card review path: diff-vs-scope, allowed-files drift, contract shapes, evidence	-	flow
+deploy-ask	review-passed	status	flow has no deploy verb; status shows the Deploy stage; execution stays operator/CI	-	flow
+retro-ask	stage-verify-or-later	retro	runs the native numeric-retro ritual first (git-log recipes), then offers the operator the line	retro	flow
+usage-metrics-ask	any	usage	cycle-time, gate fail-rate, per-stage dwell, command breakdown	-	flow
+parallel-multi-agent-ask	any	ready	buildable + parallel-safety hint before offering workspace add	-	flow
+help-confused	any	status	ground truth first, then explain the gate concept in one plain sentence	-	flow
+card-create-ask	all-planning-gates-passed	card	create next build card; reminds Scope/Allowed-files/Verify/Done-evidence	-	flow
+adr-decision-ask	stage-04	next	offers the native persona-debate ritual before locking a non-trivial ADR decision	ck-predict	flow
+contract-hardening-ask	stage-05	contract	offers the native edge-case decomposition ritual to harden the seam before the Contract gate	ck-scenario	flow
+security-review-ask	security-class-card	check	runs the native STRIDE ritual on every security-class card (guaranteed baseline)	ck-security	flow
+loop-fix-ask	build-verify-numeric-gap	status	offers the native loop protocol (flow.sh loop-prep/loop-log) when a fix needs more than one attempt against a numeric target	ck-loop	flow

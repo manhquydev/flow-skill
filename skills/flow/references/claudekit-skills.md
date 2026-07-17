@@ -8,6 +8,17 @@ stage, beyond the wired agents. It is a **whitelist, not a dump**: the kit has ~
 
 This is the single source of truth for the skill map; `agent-stage-mapping.md` points here.
 
+## Standalone note (v0.22)
+
+Five of the six deep-wired skills below now have a **native flow ritual** as the
+guaranteed baseline — see `references/native-rituals.md`. Installing flow alone already
+gets you all five (persona-debate @ ADR, edge-case decomposition @ Contract, STRIDE
+security @ Review, numeric retro @ Retro, native loop protocol @ Build/Verify); the ck
+skills in this file are optional **enrichment** when already installed, never a
+requirement. `review-pr` has no native equivalent (it is PR-context-specific,
+GitHub-only) — flow's own 3-layer `adversarial-review.md` already covers diff-level
+review natively.
+
 ## The two rules that bind every skill suggestion
 
 1. **A skill INFORMS a stage; the gate JUDGES it.** Same as the Codex/Antigravity rule

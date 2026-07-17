@@ -65,9 +65,10 @@ On-disk artifacts (in the project being built):
 | `skills/flow/harness/` | durable layer (Python CLI + sqlite + Rust toggle) |
 | `skills/flow/_templates/` | the 7 gated artifacts (verbatim buildflow) |
 | `skills/flow/law/` | CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md |
-| `skills/flow/references/` | semantic playbooks (gates, agents, loop, design, auto) |
+| `skills/flow/references/` | 21 semantic playbooks (gates, agents, loop, design, auto, v0.22 concierge/native-rituals/forge-idea) |
+| `skills/flow/eval/` | behavioral-eval fixtures: artifact-vs-gate + v0.22 routing judge (`fixtures/routing/`) |
 | `skills/flow/playbooks/` | paid-for stack knowledge (read before, harvest after) |
-| `tests/` | 31 suites across runner / harness / scenarios / loop / eval (v0.21: raw-on-INVALID + circuit breaker + prune + envelope-strip added) / resume / status-legibility. CI matrix ubuntu+macos+windows is the source of truth. |
+| `tests/` | 34 suites / 926 checks across runner / harness / scenarios / loop / eval (v0.21: raw-on-INVALID + circuit breaker + prune + envelope-strip; v0.22: routing judge) / resume / status-legibility / concierge / native-rituals / forge-idea. GitHub Actions `bash-suite` job (ubuntu+macos+windows) is the source of truth. |
 | `install.sh` / `install.ps1` | install to ~/.claude or a project |
 
 ## Distribution channels
@@ -85,7 +86,24 @@ The npm channel is the **canonical distribution** for cross-platform adoption (p
 
 `/flow` ships 6 deep-wired ClaudeKit skills (opt-in, never in `cmd_next`/`cmd_check`):
 `ck-predict` (ADR), `ck-scenario` (Contract), `review-pr` (Review/Ship), `ck-security`
-(security-cards), `retro`, `ck-loop` (loop-engineering). **Loop vs two-strikes:** operators
-choose based on repair scope — `ck-loop` iterates toward a numeric metric (Implement→Test→Audit→Fix
-tail, worktree-isolated, 5-iteration stuck-break); two-strikes gates handle deadlock in review
-(bounded 2-pass escalation). Decision matrix in `references/claudekit-skills.md`.
+(security-cards), `retro`, `ck-loop` (loop-engineering). **v0.22 standalone**: 5 of these 6
+now have a **native ritual** as the guaranteed baseline (`references/native-rituals.md`) —
+persona-debate@ADR, edge-case@Contract, STRIDE@Review, numeric-retro@Retro, native loop
+protocol@Build/Verify. The ck skills above are offered as richer alternatives *when installed*,
+never a requirement; only `review-pr` has no native equivalent (PR-context-specific).
+**Loop vs two-strikes:** operators choose based on repair scope — `ck-loop`/the native loop
+protocol iterates toward a numeric metric (Implement→Test→Audit→Fix tail, worktree-isolated,
+5-iteration stuck-break); two-strikes gates handle deadlock in review (bounded 2-pass
+escalation). Decision matrix in `references/claudekit-skills.md`.
+
+## Concierge front-door (v0.22)
+
+Chat is the default entry: `references/concierge.md` routes any natural-language ask through
+`flow.sh status` (mechanical ground truth) → `references/flow-catalog.tsv` (intent-class ×
+state → action, TSV) → one proposed action, per a default-deny May-run/Must-ask
+classification covering all 27 dispatcher verbs. Typed verbs bypass the concierge entirely.
+A sixth ritual, `references/forge-idea.md` (adapted from BMAD-METHOD's `bmad-forge-idea`,
+MIT), offers persona-driven idea pressure-testing at Idea/Scope, opt-in, never a gate
+condition. The routing judge (`flow.sh eval --stage routing`) is a separate eval modality
+from the artifact-vs-gate-rules judge — own manifest, prompt, verdict vocabulary
+(MATCH/MISS/INVALID), results stream, and 90-call/batch cost ceiling.
