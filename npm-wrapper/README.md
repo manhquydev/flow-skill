@@ -10,19 +10,19 @@ One-command installer that copies the [flow](https://github.com/manhquydev/flow-
 ## Install
 
 ```
-# Pre-release channel (current — v0.1.0-rc.2, ships skill v0.22.0)
+# Pre-release channel (current — v0.1.0-rc.3, ships skill v0.22.0)
 npx @manhquy/flow-skill@rc
 ```
 
 An interactive prompt asks which agents to install to. Pick one or more, confirm, done.
 
-> **RC phase**: pin `@rc` (dist-tag) or a specific version like `@0.1.0-rc.2`. `npx @manhquy/flow-skill@0.1.x` will start working after stable `0.1.0` is published — semver ranges do **not** match pre-release tuples by default. See [SECURITY.md](./SECURITY.md).
+> **RC phase**: pin `@rc` (dist-tag) or a specific version like `@0.1.0-rc.3`. `npx @manhquy/flow-skill@0.1.x` will start working after stable `0.1.0` is published — semver ranges do **not** match pre-release tuples by default. See [SECURITY.md](./SECURITY.md).
 >
 > **`npm i` alone is not enough.** `npm install @manhquy/flow-skill` only adds the installer
 > package to `node_modules`. You must **run** it (`npx @manhquy/flow-skill@rc` or
 > `npx flow-skill` after install) to copy the skill into agent homes.
 >
-> **Two version axes:** package `version` in this folder is the **installer** (e.g. `0.1.0-rc.2`).
+> **Two version axes:** package `version` in this folder is the **installer** (e.g. `0.1.0-rc.3`).
 > Skill product version lives in `skills/flow/SKILL.md` (`metadata.version`, e.g. `0.22.0`).
 > `--help` and the JSONL `plan` event expose both (`version` + `skillVersion`).
 
@@ -103,7 +103,7 @@ rm -rf <project>/.claude/skills/flow
 `--json` streams one JSON object per line:
 
 ```jsonl
-{"event":"plan","version":"0.1.0-rc.2","skillVersion":"0.22.0","dryRun":false,"scope":"global","targets":["claude","codex"]}
+{"event":"plan","version":"0.1.0-rc.3","skillVersion":"0.22.0","dryRun":false,"scope":"global","targets":["claude","codex"]}
 {"event":"install:start","target":"claude","dests":["~/.claude/skills/flow"]}
 {"event":"install:done","target":"claude","dests":["~/.claude/skills/flow"],"result":"success","error":null,"warnings":[]}
 {"event":"summary","success":true,"total":2,"attempted":2,"installed":2,"failed":0,"skipped":0,"aborted":false}

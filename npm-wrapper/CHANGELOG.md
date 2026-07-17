@@ -2,24 +2,28 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
-## Unreleased (post-rc.2, not yet published)
+## [0.1.0-rc.3] — 2026-07-18
+
+Ships the same skill product **v0.22.0** as rc.2, plus pipeline/UX fixes found after the first
+OIDC publish + independent verification.
 
 ### Fixed
-- **Nightly registry health false-red:** `scripts/smoke.mjs` (and the nightly workflow) ran
-  `npx` from inside `npm-wrapper/`, so npx resolved the **local workspace package** instead of
-  the registry and failed with `flow-skill: not found` even when `@manhquy/flow-skill@0.1.0-rc.2`
-  was healthy. Smoke now uses an empty temp cwd + `npx --package=… flow-skill`; nightly runs
-  from `$RUNNER_TEMP` without `npm ci` in the wrapper.
-- **`promote_to` workflow step:** no longer calls `npm dist-tag add` under OIDC (always E401).
-  Fails with explicit manual `npm dist-tag add` instructions instead.
+- **Nightly registry health false-red:** `scripts/smoke.mjs` ran `npx` from inside
+  `npm-wrapper/`, so npx resolved the **local workspace package** instead of the registry
+  (`flow-skill: not found`) even when the published package was healthy. Smoke now uses an
+  empty temp cwd + `npx --package=… flow-skill`; nightly runs from `$RUNNER_TEMP`.
+- **CI bash-suite Windows cancelled at 15m:** full 33-suite run needs ~20–25m on Windows Git
+  Bash (measured run `29630992330` — mid-`test_flow_eval` when cut). `timeout-minutes` is now
+  **30 on windows-latest**, 15 elsewhere. `tests/run_all.sh` prints per-suite `wall_s`.
+- **`promote_to`:** early-exit before install/test (no full job burn); input description states
+  it is **manual-only** (OIDC cannot `npm dist-tag add` — E401 on run `29556075144`).
 
 ### Added
 - Dual-version UX: `--help` shows `flow-skill v<pkg> (ships skill v<skill>)`; JSONL `plan`
-  event gains additive `skillVersion` (package `version` unchanged for back-compat).
+  event gains additive `skillVersion`. Unit tests pin values from `package.json` + `SKILL.md`.
 
 ### Changed
 - `bin/cli.mjs` git mode `100755` (executable bit in tarball).
-- `package-lock.json` version aligned to `0.1.0-rc.2` / engines `>=22.14.0`.
 
 ## [0.1.0-rc.2] — 2026-07-17 — LIVE (published 2026-07-17, `latest` + `rc` both point here)
 

@@ -45,7 +45,7 @@ chen ngang một lệnh `/flow <verb>` tường minh. Xem đầy đủ luật đ
 | Trường | Giá trị |
 |---|---|
 | Phiên bản | **v0.22.0** (2026-07-16) |
-| npm package | [`@manhquy/flow-skill@0.1.0-rc.2`](https://www.npmjs.com/package/@manhquy/flow-skill) — LIVE |
+| npm package | [`@manhquy/flow-skill@0.1.0-rc.3`](https://www.npmjs.com/package/@manhquy/flow-skill) — LIVE (publish qua tag `npm@0.1.0-rc.3`) |
 | Test | 34 bộ / 926 check xanh |
 | CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines chuyển thành fallback dự phòng) |
 | License | MIT |
@@ -164,13 +164,13 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 **A. npm — một lệnh, cross-OS** (khuyến nghị, đã LIVE trên [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
 ```bash
-npx @manhquy/flow-skill@rc                # kênh pre-release (hiện tại: 0.1.0-rc.2)
+npx @manhquy/flow-skill@rc                # kênh pre-release (hiện tại: 0.1.0-rc.3)
 # Sau khi stable publish: npx @manhquy/flow-skill@0.1.x
 ```
 
 > **Hai số version (không phải bug):** package npm = `0.1.0-rc.N` (installer CLI); skill
 > product = `v0.22.x` (`SKILL.md`). `npx … --help` in cả hai, ví dụ
-> `flow-skill v0.1.0-rc.2 (ships skill v0.22.0)`. **Không** `npm i @…@0.22.0` — version đó
+> `flow-skill v0.1.0-rc.3 (ships skill v0.22.0)`. **Không** `npm i @…@0.22.0` — version đó
 > không tồn tại trên npm. `npm i @manhquy/flow-skill` chỉ bỏ CLI vào `node_modules`; phải
 > **chạy** CLI (`npx @manhquy/flow-skill@rc`) mới copy skill vào `~/.claude/skills/flow`.
 >

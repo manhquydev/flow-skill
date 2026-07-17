@@ -4,11 +4,17 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const cliPath = resolve(__dirname, '..', 'bin', 'cli.mjs');
+const pkgRoot = resolve(__dirname, '..');
+const cliPath = resolve(pkgRoot, 'bin', 'cli.mjs');
+const pkgVersion = JSON.parse(readFileSync(resolve(pkgRoot, 'package.json'), 'utf8')).version;
+// pretest runs sync — skills/flow/SKILL.md is present for these assertions.
+const skillMd = readFileSync(resolve(pkgRoot, 'skills', 'flow', 'SKILL.md'), 'utf8');
+const skillVersionMatch = skillMd.match(/^\s*version:\s*["']?([0-9][0-9A-Za-z.+-]*)["']?/m);
+const expectedSkillVersion = skillVersionMatch ? skillVersionMatch[1] : null;
 
 function runCli(args, opts = {}) {
   const r = spawnSync(process.execPath, [cliPath, ...args], {
@@ -33,9 +39,13 @@ test('--help exits 0 and lists 5 targets', () => {
   assert.match(r.stdout, /agents\s+Agents home/);
   assert.match(r.stdout, /antigravity\s+Antigravity/);
   assert.match(r.stdout, /cursor\s+Cursor/);
-  // Dual-version UX: package version + skill product version (avoids "not latest" confusion).
-  assert.match(r.stdout, /flow-skill v\d+\.\d+\.\d+/);
-  assert.match(r.stdout, /ships skill v\d+\.\d+\.\d+/);
+  // Dual-version UX: pin to package.json + SKILL.md (not mere semver shape).
+  assert.ok(expectedSkillVersion, 'SKILL.md metadata.version must be readable');
+  assert.match(r.stdout, new RegExp(`flow-skill v${pkgVersion.replace(/\./g, '\\.')}`));
+  assert.match(
+    r.stdout,
+    new RegExp(`ships skill v${expectedSkillVersion.replace(/\./g, '\\.')}`)
+  );
 });
 
 test('--dry-run --all --json emits a plan event with 5 targets', () => {
@@ -49,11 +59,11 @@ test('--dry-run --all --json emits a plan event with 5 targets', () => {
     ['agents', 'antigravity', 'claude', 'codex', 'cursor']
   );
   assert.equal(events[0].dryRun, true);
-  assert.equal(typeof events[0].version, 'string');
-  assert.match(events[0].version, /^\d+\.\d+\.\d+/);
-  // skillVersion is the product axis (SKILL.md); distinct from npm package version.
-  assert.equal(typeof events[0].skillVersion, 'string');
-  assert.match(events[0].skillVersion, /^\d+\.\d+\.\d+/);
+  assert.equal(events[0].version, pkgVersion);
+  // skillVersion is the product axis (SKILL.md); must not equal a wrong/null shape.
+  assert.ok(expectedSkillVersion, 'SKILL.md metadata.version must be readable');
+  assert.equal(events[0].skillVersion, expectedSkillVersion);
+  assert.notEqual(events[0].skillVersion, events[0].version);
 });
 
 test('--project -t codex → exit 2 with clear error', () => {

@@ -40,7 +40,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    # Windows Git Bash + 33 suites (esp. test_flow_eval sleep/timeout paths) measured
+    # ~11.5m through suite #28 then still mid-eval at 15m — job was cancelled mid-assert,
+    # not hung. Ubuntu ~2m / macOS ~3m. Keep 15m elsewhere; give Windows 30m headroom
+    # (research 2026-07-18, run 29630992330).
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 30 || 15 }}
     steps:
       - uses: actions/checkout@v4
 

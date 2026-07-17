@@ -44,7 +44,7 @@ below; the concierge never intercepts an explicit `/flow <verb>`. See
 | Field | Value |
 |---|---|
 | Version | **v0.22.0** (2026-07-16) |
-| npm package | [`@manhquy/flow-skill@0.1.0-rc.2`](https://www.npmjs.com/package/@manhquy/flow-skill) — LIVE |
+| npm package | [`@manhquy/flow-skill@0.1.0-rc.3`](https://www.npmjs.com/package/@manhquy/flow-skill) — LIVE (publish via tag `npm@0.1.0-rc.3`) |
 | Tests | 34 suites / 926 checks green |
 | CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines demoted to unused fallback) |
 | License | MIT |
@@ -160,13 +160,13 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 **A. npm — one command, cross-OS** (recommended, LIVE at [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
 ```bash
-npx @manhquy/flow-skill@rc                # pre-release channel (current: 0.1.0-rc.2)
+npx @manhquy/flow-skill@rc                # pre-release channel (current: 0.1.0-rc.3)
 # After stable ships: npx @manhquy/flow-skill@0.1.x
 ```
 
 > **Two version numbers (not a bug):** the **npm package** is `0.1.0-rc.N` (installer CLI);
 > the **skill product** is `v0.22.x` (`SKILL.md` metadata). `npx … --help` prints both, e.g.
-> `flow-skill v0.1.0-rc.2 (ships skill v0.22.0)`. Do **not** `npm i @manhquy/flow-skill@0.22.0`
+> `flow-skill v0.1.0-rc.3 (ships skill v0.22.0)`. Do **not** `npm i @manhquy/flow-skill@0.22.0`
 > — that version does not exist on npm. Also: `npm i @manhquy/flow-skill` only puts the CLI
 > in `node_modules`; it does **not** copy the skill into `~/.claude/skills/flow` until you
 > **run** the CLI (`npx @manhquy/flow-skill@rc`).

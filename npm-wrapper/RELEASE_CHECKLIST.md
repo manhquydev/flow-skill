@@ -138,8 +138,8 @@ Two triggers are supported:
         OIDC-exchanged token, not a leaked secret. Do not re-add this guard without re-reading
         that history first.
 - [ ] **Promoting a dist-tag (e.g. rc → latest) is a SEPARATE manual step** — the
-      `promote_to` workflow_dispatch input **intentionally fails fast** with copy-paste
-      instructions (`npm dist-tag add` has no OIDC support yet; live E401 on run
+      `promote_to` workflow_dispatch input **exits immediately** (before npm ci/test) with
+      copy-paste instructions (`npm dist-tag add` has no OIDC support; live E401 on run
       `29556075144`). Do not expect CI to promote. Use the manual bootstrap-token flow above.
 - [ ] **Tag shape is the automation:** `git tag npm@X.Y.Z && git push origin npm@X.Y.Z`
       triggers publish. Skill tags (`v0.22.0`) and GitHub Releases do **not** publish to npm.
