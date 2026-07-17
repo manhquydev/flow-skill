@@ -23,6 +23,12 @@ on:
         default: 'false'
         type: choice
         options: ['true', 'false']
+      promote_to:
+        description: 'Promote an already-published version to this dist-tag (skips publish). Leave "none" for a normal release.'
+        required: false
+        default: 'none'
+        type: choice
+        options: ['none', 'latest', 'rc']
 
 permissions:
   contents: write   # git tag push after publish
@@ -157,15 +163,19 @@ jobs:
           node -e "const p=require('./pack.json');const bad=(p[0].files||[]).filter(f=>f.mode && (f.mode & 0o170000)===0o120000);if(bad.length){console.error('symlink in tarball:',bad);process.exit(1)}"
 
       - name: Publish (OIDC + provenance)
-        if: steps.meta.outputs.dry_run == 'false'
+        if: steps.meta.outputs.dry_run == 'false' && (inputs.promote_to == 'none' || inputs.promote_to == '')
         run: npm publish --provenance --access public --tag "${{ steps.meta.outputs.dist_tag }}"
 
       - name: Publish dry-run
-        if: steps.meta.outputs.dry_run == 'true'
+        if: steps.meta.outputs.dry_run == 'true' && (inputs.promote_to == 'none' || inputs.promote_to == '')
         run: npm publish --dry-run --provenance --access public --tag "${{ steps.meta.outputs.dist_tag }}"
 
+      - name: Promote existing version to a dist-tag (skips publish entirely)
+        if: inputs.promote_to != 'none' && inputs.promote_to != ''
+        run: npm dist-tag add "@manhquy/flow-skill@${{ steps.meta.outputs.version }}" "${{ inputs.promote_to }}"
+
       - name: Verify provenance visible from registry
-        if: steps.meta.outputs.dry_run == 'false'
+        if: steps.meta.outputs.dry_run == 'false' && (inputs.promote_to == 'none' || inputs.promote_to == '')
         run: |
           # npm often takes 60-120s to propagate provenance metadata. Wide window so a slow
           # registry doesn't fail the release after publish already succeeded.
@@ -180,7 +190,7 @@ jobs:
           # Non-fatal: the package is already live; force a manual follow-up rather than a failed workflow.
 
       - name: Create git tag (workflow_dispatch only — push-tag trigger already brought its own)
-        if: steps.meta.outputs.dry_run == 'false' && github.event_name == 'workflow_dispatch'
+        if: steps.meta.outputs.dry_run == 'false' && github.event_name == 'workflow_dispatch' && (inputs.promote_to == 'none' || inputs.promote_to == '')
         working-directory: ${{ github.workspace }}
         run: |
           git config user.name "github-actions[bot]"
