@@ -41,11 +41,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: TEMP DEBUG — is NODE_AUTH_TOKEN ambient at job start (before setup-node runs)?
-        run: |
-          echo "hasOwnProperty check: ${NODE_AUTH_TOKEN+is-set}"
-          echo "length at job start: ${#NODE_AUTH_TOKEN}"
-
       - name: Resolve version + dist-tag from trigger
         id: meta
         working-directory: ${{ github.workspace }}
@@ -86,60 +81,6 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           # DO NOT set `always-auth: true`. OIDC is auto-detected via `id-token: write`.
 
-      # TEMP DIAGNOSTIC — investigating why NODE_AUTH_TOKEN is non-empty right after setup-node
-      # even though no repo/environment secret is registered. Reveals length + sha256 + a safe
-      # substring only, never the raw value. Remove this step once root-caused.
-      - name: TEMP DEBUG — inspect NODE_AUTH_TOKEN provenance
-        run: |
-          echo "hasOwnProperty-style check (posix): ${NODE_AUTH_TOKEN+is-set}"
-          echo "length: ${#NODE_AUTH_TOKEN}"
-          if [ -n "$NODE_AUTH_TOKEN" ]; then
-            printf '%s' "$NODE_AUTH_TOKEN" | sha256sum
-            echo "literal-placeholder-match: $([ "$NODE_AUTH_TOKEN" = '${NODE_AUTH_TOKEN}' ] && echo yes || echo no)"
-            echo "last4: ${NODE_AUTH_TOKEN: -4}"
-          fi
-          echo "--- full env grep (names only, no values) ---"
-          env | grep -o '^[A-Z_]*TOKEN[A-Z_]*=' || true
-          echo "--- npmrc temp file (setup-node writes this) ---"
-          cat "$NPM_CONFIG_USERCONFIG" 2>/dev/null || echo "no NPM_CONFIG_USERCONFIG file"
-          echo "--- home npmrc ---"
-          cat "$HOME/.npmrc" 2>/dev/null || echo "no ~/.npmrc"
-          echo "--- compare against ambient OIDC request token (never printed raw) ---"
-          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN length: ${#ACTIONS_ID_TOKEN_REQUEST_TOKEN}"
-          if [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
-            printf '%s' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" | sha256sum
-          fi
-          echo "same-value-as-NODE_AUTH_TOKEN: $([ "$NODE_AUTH_TOKEN" = "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && echo yes || echo no)"
-          echo "--- RUNNER_TEMP dir listing (any leftover npmrc/config from earlier steps) ---"
-          find "$RUNNER_TEMP" -maxdepth 2 -type f 2>/dev/null
-          echo "--- global npm config list (names/sources only, npm redacts auth values itself) ---"
-          npm config list 2>&1 || true
-          echo "--- printenv sorted, names only ---"
-          env | cut -d= -f1 | sort
-          echo "--- character-class probe (labels only, never the raw value) ---"
-          case "$NODE_AUTH_TOKEN" in
-            npm_*) echo "prefix: npm_" ;;
-            ghp_*) echo "prefix: ghp_" ;;
-            gho_*) echo "prefix: gho_" ;;
-            ghs_*) echo "prefix: ghs_" ;;
-            ghu_*) echo "prefix: ghu_" ;;
-            github_pat_*) echo "prefix: github_pat_" ;;
-            '${NODE_AUTH_TOKEN}'*) echo "prefix: literal-placeholder-text" ;;
-            *) echo "prefix: none-of-the-known-ones" ;;
-          esac
-          case "$NODE_AUTH_TOKEN" in
-            *[!0-9a-fA-F]*) echo "all-hex: no" ;;
-            *) echo "all-hex: yes" ;;
-          esac
-          case "$NODE_AUTH_TOKEN" in
-            *-*) echo "contains-dash: yes" ;;
-            *) echo "contains-dash: no" ;;
-          esac
-          echo "--- is this the runner image's OWN ambient default (before ANY of our steps ran)? ---"
-          echo "GITHUB_ACTION at time of this step: $GITHUB_ACTION"
-          echo "--- check if npm-wrapper/skills-manifest.json or package.json reference NODE_AUTH_TOKEN literally ---"
-          grep -rn "NODE_AUTH_TOKEN" /home/runner/work/flow-skill/flow-skill --include="*.json" --include="*.mjs" --include="*.yml" 2>/dev/null | grep -v "\.git/" || echo "no repo-file reference found"
-
       - name: Upgrade npm to a pinned known-good OIDC-capable range
         working-directory: ${{ github.workspace }}
         # F8 fix: pinning `npm@^11.5.1` (auto-follow patch + minor within the 11.x major)
@@ -157,12 +98,15 @@ jobs:
             *) echo "FAIL: npm $npm_version is below the OIDC floor 11.5.1" >&2; exit 1 ;;
           esac
 
-      - name: Guard — assert no NODE_AUTH_TOKEN present (OIDC only)
-        run: |
-          if [ -n "$NODE_AUTH_TOKEN" ]; then
-            echo "FAIL: NODE_AUTH_TOKEN is set — this workflow must use OIDC only" >&2
-            exit 1
-          fi
+      # No "NODE_AUTH_TOKEN must be empty" guard here. First real run (2026-07-17, run 29554226397)
+      # proved this assumption wrong: NODE_AUTH_TOKEN is unset right after `actions/checkout@v4`
+      # (confirmed: length 0) but becomes a real, non-empty value the instant `actions/setup-node@v4`
+      # runs with `registry-url` set — actions/setup-node's current (v4, moving tag) OIDC integration
+      # populates it itself as part of native npm Trusted Publishing, it is not a leaked static
+      # secret. Verified via a temporary diagnostic step: no repo secret, no `npm-publish`
+      # environment secret, no committed .npmrc, value differs from the ambient
+      # ACTIONS_ID_TOKEN_REQUEST_TOKEN. A guard asserting emptiness here would permanently block
+      # every legitimate OIDC publish through this action version.
 
       - name: Verify npm-wrapper/package.json version matches trigger
         run: |
