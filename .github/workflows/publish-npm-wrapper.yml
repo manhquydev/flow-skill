@@ -81,6 +81,25 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           # DO NOT set `always-auth: true`. OIDC is auto-detected via `id-token: write`.
 
+      # TEMP DIAGNOSTIC — investigating why NODE_AUTH_TOKEN is non-empty right after setup-node
+      # even though no repo/environment secret is registered. Reveals length + sha256 + a safe
+      # substring only, never the raw value. Remove this step once root-caused.
+      - name: TEMP DEBUG — inspect NODE_AUTH_TOKEN provenance
+        run: |
+          echo "hasOwnProperty-style check (posix): ${NODE_AUTH_TOKEN+is-set}"
+          echo "length: ${#NODE_AUTH_TOKEN}"
+          if [ -n "$NODE_AUTH_TOKEN" ]; then
+            printf '%s' "$NODE_AUTH_TOKEN" | sha256sum
+            echo "literal-placeholder-match: $([ "$NODE_AUTH_TOKEN" = '${NODE_AUTH_TOKEN}' ] && echo yes || echo no)"
+            echo "last4: ${NODE_AUTH_TOKEN: -4}"
+          fi
+          echo "--- full env grep (names only, no values) ---"
+          env | grep -o '^[A-Z_]*TOKEN[A-Z_]*=' || true
+          echo "--- npmrc temp file (setup-node writes this) ---"
+          cat "$NPM_CONFIG_USERCONFIG" 2>/dev/null || echo "no NPM_CONFIG_USERCONFIG file"
+          echo "--- home npmrc ---"
+          cat "$HOME/.npmrc" 2>/dev/null || echo "no ~/.npmrc"
+
       - name: Upgrade npm to a pinned known-good OIDC-capable range
         working-directory: ${{ github.workspace }}
         # F8 fix: pinning `npm@^11.5.1` (auto-follow patch + minor within the 11.x major)
