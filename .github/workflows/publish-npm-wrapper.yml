@@ -99,6 +99,18 @@ jobs:
           cat "$NPM_CONFIG_USERCONFIG" 2>/dev/null || echo "no NPM_CONFIG_USERCONFIG file"
           echo "--- home npmrc ---"
           cat "$HOME/.npmrc" 2>/dev/null || echo "no ~/.npmrc"
+          echo "--- compare against ambient OIDC request token (never printed raw) ---"
+          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN length: ${#ACTIONS_ID_TOKEN_REQUEST_TOKEN}"
+          if [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
+            printf '%s' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" | sha256sum
+          fi
+          echo "same-value-as-NODE_AUTH_TOKEN: $([ "$NODE_AUTH_TOKEN" = "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && echo yes || echo no)"
+          echo "--- RUNNER_TEMP dir listing (any leftover npmrc/config from earlier steps) ---"
+          find "$RUNNER_TEMP" -maxdepth 2 -type f 2>/dev/null
+          echo "--- global npm config list (names/sources only, npm redacts auth values itself) ---"
+          npm config list 2>&1 || true
+          echo "--- printenv sorted, names only ---"
+          env | cut -d= -f1 | sort
 
       - name: Upgrade npm to a pinned known-good OIDC-capable range
         working-directory: ${{ github.workspace }}
