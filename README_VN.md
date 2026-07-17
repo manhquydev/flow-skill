@@ -45,7 +45,7 @@ chen ngang một lệnh `/flow <verb>` tường minh. Xem đầy đủ luật đ
 | Trường | Giá trị |
 |---|---|
 | Phiên bản | **v0.22.0** (2026-07-16) |
-| npm package | [`@manhquy/flow-skill@0.1.0-rc.1`](https://www.npmjs.com/package/@manhquy/flow-skill) — LIVE |
+| npm package | [`@manhquy/flow-skill@0.1.0-rc.2`](https://www.npmjs.com/package/@manhquy/flow-skill) — LIVE |
 | Test | 34 bộ / 926 check xanh |
 | CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines chuyển thành fallback dự phòng) |
 | License | MIT |

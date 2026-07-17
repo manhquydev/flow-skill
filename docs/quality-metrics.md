@@ -1,16 +1,16 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.21.0** (2026-07-11), **npm-wrapper v0.1.0-rc.1** LIVE on npm.
+Updated as the skill evolves. Current: **v0.22.0** (2026-07-16), **npm-wrapper v0.1.0-rc.2** LIVE on npm.
 
-## npm-wrapper v0.1.0-rc.1 — cross-platform npm distribution (2026-07-12, LIVE)
+## npm-wrapper v0.1.0-rc.2 — cross-platform npm distribution (2026-07-17, LIVE)
 
 Parallel distribution channel: `npx @manhquy/flow-skill@rc` — pure Node.js entry point, no shell/git dependency, for CI/CD and cross-platform environments.
 
 | Metric | Value | Notes |
 |---|---|---|
-| **Version** | 0.1.0-rc.1 | LIVE on npm, `@manhquy/flow-skill@rc` |
-| **Tests** | 35/35 pass | 4 suites via `node:test` (installer.test, detect.test, cli.test, lock-atomicity.test) |
+| **Version** | 0.1.0-rc.2 | LIVE on npm, both `latest` and `rc` dist-tags |
+| **Tests** | 41/41 pass | 5 suites via `node:test` (installer.test, detect.test, cli.test, lock-atomicity.test, sync-manifest.test) |
 | **CI matrix** | Ubuntu / macOS / Windows × Node 22/24 | All green on commit 19fff1f via publish-npm-wrapper.yml |
 | **Code reviews** | 3 passes (code-reviewer) + 1 pass (red-team) | Post-audit hardening → post-publish verification; 16/18 red-team findings accepted, 2 rejected |
 | **Runtime deps** | 1 (`@clack/prompts`) | 0 dev deps (uses `node:test` built-in) |

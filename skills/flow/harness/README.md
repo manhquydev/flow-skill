@@ -67,7 +67,7 @@ Linking a trace to an unverified story prints a **pre-close gate** warning.
 All wiring degrades gracefully: if python is absent or `FLOW_HARNESS_DISABLE=1`, the
 mechanical engine runs unchanged.
 
-## Usage signal: accessed_count (read-only, schema 005)
+## Usage signal: accessed_count (read-only, schema 009 — see Backends re-homing note above)
 `query decisions|friction|backlog` increment an `accessed_count` on every surfaced row and order
 output **most-reused-first**, so `recall` floats the knowledge you actually reuse to the top. It is
 a **read-only ordering signal** — never used to prune, delete, or archive a row. Low count is not
@@ -76,7 +76,7 @@ rare*. Security-class rows (`auth|authoriz|admin|tenan|payment|migrat|valid|secr
 always sort first and are never deprioritized. The story `matrix` view is intentionally left
 ordered by id (it is a status table, not recalled knowledge).
 
-## Usage log: mechanical flight-recorder (schema 006)
+## Usage log: mechanical flight-recorder (schema 010 — see Backends re-homing note above)
 Distinct from the curated, agent-authored records above: `flow.sh` itself self-records **every
 invocation** (no agent action needed) to append-only JSONL — `.flow/events.jsonl` (full, per-project)
 plus `~/.claude/flow/usage.jsonl` (compact, device-global). Fields: ts/epoch_s, session_id, cycle_id
@@ -93,7 +93,7 @@ stage_from→to, card, project_type, mode, flow_version, tier, host, read_only.
 - JSONL is the source of truth; `usage_event` is a derived, queryable mirror. Semantic events keep
   using `trace`/`intervention`/`decision` — the usage log does not duplicate them.
 
-**Closed feedback loop (schema 007).** The recorded data feeds the surfaces where you already act:
+**Closed feedback loop (schema 011 — see Backends re-homing note above).** The recorded data feeds the surfaces where you already act:
 - `recall` appends a one-line digest (`flow_harness.py usage --summary`): cycles, cycle-time, gate
   fail-rate, top gate-fail stage — so build history reaches you at stage/card start (silent if no data).
 - `propose` (`_build_proposals`) emits a backlog proposal when a stage's gate fail-rate ≥ 50% across

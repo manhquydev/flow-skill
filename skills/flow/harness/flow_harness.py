@@ -1034,7 +1034,7 @@ def build_parser():
     q1 = pqs.add_parser("matrix"); q1.add_argument("--json", action="store_true"); q1.add_argument("--numeric", action="store_true")
     q2 = pqs.add_parser("backlog"); q2.add_argument("--open", action="store_true"); q2.add_argument("--closed", action="store_true"); q2.add_argument("--json", action="store_true")
     q3 = pqs.add_parser("friction"); q3.add_argument("--json", action="store_true")
-    q4 = pqs.add_parser("tools"); q4.add_argument("--responsibility"); q4.add_argument("--json", action="store_true"); q4.add_argument("--summary", action="store_true")
+    q4 = pqs.add_parser("tools"); q4.add_argument("--responsibility"); q4.add_argument("--json", action="store_true")
     q4.add_argument("--capability"); q4.add_argument("--status", choices=D.TOOL_STATUSES)
     q5 = pqs.add_parser("decisions"); q5.add_argument("--json", action="store_true")
 

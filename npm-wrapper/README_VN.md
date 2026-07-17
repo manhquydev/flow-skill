@@ -110,6 +110,11 @@ Mỗi phiên bản publish có [npm provenance](https://docs.npmjs.com/generatin
 npm view @manhquy/flow-skill@<version> dist.attestations.provenance
 ```
 
+> **Ngoại lệ RC-window**: `v0.1.0-rc.1` được publish thủ công từ máy developer để bootstrap npm
+> Trusted Publisher (TP không thể bind tới package chưa tồn tại) — bản này không có provenance.
+> Từ `v0.1.0-rc.2` trở đi, mọi bản publish đều qua CI workflow với OIDC và có attestation
+> SLSA Build Level 2 đầy đủ.
+
 ## Bảo mật
 
 Threat model + WILL/WON'T list + kênh report — xem [SECURITY.md](./SECURITY.md). Tóm tắt: pure Node, không network call, không spawn shell/PowerShell, không postinstall hook, không chạm settings/hooks/MCP config.

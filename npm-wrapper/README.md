@@ -58,7 +58,7 @@ line tells you exactly what to do for whichever targets you installed:
 - Claude Code: type `/flow`.
 - Codex CLI: type `$flow` (restart Codex once to load a new skill).
 - Antigravity: restart/reload the IDE (or restart `agy`) to load the new skill, then type `/flow`.
-- Agents home: restart/reload your tool if it does not auto-detect new skills.
+- Agents home (`~/.agents/skills/`): restart/reload your tool if it does not auto-detect new skills.
 - Cursor: **install verified, live runner execution not yet independently confirmed** — Cursor
   has no headless CLI probe available for automated verification (unlike Antigravity's `agy -p`
   or Codex's `codex exec`); restart/reload Cursor after install and check the Agent panel for
@@ -93,7 +93,7 @@ rm -rf <project>/.claude/skills/flow
 `--json` streams one JSON object per line:
 
 ```jsonl
-{"event":"plan","version":"0.1.0-rc.1","dryRun":false,"scope":"global","targets":["claude","codex"]}
+{"event":"plan","version":"0.1.0-rc.2","dryRun":false,"scope":"global","targets":["claude","codex"]}
 {"event":"install:start","target":"claude","dests":["~/.claude/skills/flow"]}
 {"event":"install:done","target":"claude","dests":["~/.claude/skills/flow"],"result":"success","error":null,"warnings":[]}
 {"event":"summary","success":true,"total":2,"attempted":2,"installed":2,"failed":0,"skipped":0,"aborted":false}
