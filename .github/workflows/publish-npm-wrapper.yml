@@ -170,6 +170,13 @@ jobs:
         if: steps.meta.outputs.dry_run == 'true' && (inputs.promote_to == 'none' || inputs.promote_to == '')
         run: npm publish --dry-run --provenance --access public --tag "${{ steps.meta.outputs.dist_tag }}"
 
+      # KNOWN LIMITATION (confirmed live, run 29556075144, 2026-07-17): fails E401 "Unable to
+      # authenticate". The OIDC-derived NODE_AUTH_TOKEN from setup-node authenticates `npm
+      # publish` but npm does not yet accept it for `npm dist-tag add` — matches
+      # plans/reports/researcher-260712-1006-npm-trusted-publisher-first-publish-edge-cases-report.md
+      # item #4/#12 ("dist-tag add requires token auth; OIDC support in development", no ship
+      # date published). Until npm ships OIDC for this endpoint, promote dist-tags manually:
+      # `npm login` (interactive, own account) then `npm dist-tag add <pkg>@<version> <tag>`.
       - name: Promote existing version to a dist-tag (skips publish entirely)
         if: inputs.promote_to != 'none' && inputs.promote_to != ''
         run: npm dist-tag add "@manhquy/flow-skill@${{ steps.meta.outputs.version }}" "${{ inputs.promote_to }}"
