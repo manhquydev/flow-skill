@@ -41,6 +41,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: TEMP DEBUG — is NODE_AUTH_TOKEN ambient at job start (before setup-node runs)?
+        run: |
+          echo "hasOwnProperty check: ${NODE_AUTH_TOKEN+is-set}"
+          echo "length at job start: ${#NODE_AUTH_TOKEN}"
+
       - name: Resolve version + dist-tag from trigger
         id: meta
         working-directory: ${{ github.workspace }}
@@ -111,6 +116,29 @@ jobs:
           npm config list 2>&1 || true
           echo "--- printenv sorted, names only ---"
           env | cut -d= -f1 | sort
+          echo "--- character-class probe (labels only, never the raw value) ---"
+          case "$NODE_AUTH_TOKEN" in
+            npm_*) echo "prefix: npm_" ;;
+            ghp_*) echo "prefix: ghp_" ;;
+            gho_*) echo "prefix: gho_" ;;
+            ghs_*) echo "prefix: ghs_" ;;
+            ghu_*) echo "prefix: ghu_" ;;
+            github_pat_*) echo "prefix: github_pat_" ;;
+            '${NODE_AUTH_TOKEN}'*) echo "prefix: literal-placeholder-text" ;;
+            *) echo "prefix: none-of-the-known-ones" ;;
+          esac
+          case "$NODE_AUTH_TOKEN" in
+            *[!0-9a-fA-F]*) echo "all-hex: no" ;;
+            *) echo "all-hex: yes" ;;
+          esac
+          case "$NODE_AUTH_TOKEN" in
+            *-*) echo "contains-dash: yes" ;;
+            *) echo "contains-dash: no" ;;
+          esac
+          echo "--- is this the runner image's OWN ambient default (before ANY of our steps ran)? ---"
+          echo "GITHUB_ACTION at time of this step: $GITHUB_ACTION"
+          echo "--- check if npm-wrapper/skills-manifest.json or package.json reference NODE_AUTH_TOKEN literally ---"
+          grep -rn "NODE_AUTH_TOKEN" /home/runner/work/flow-skill/flow-skill --include="*.json" --include="*.mjs" --include="*.yml" 2>/dev/null | grep -v "\.git/" || echo "no repo-file reference found"
 
       - name: Upgrade npm to a pinned known-good OIDC-capable range
         working-directory: ${{ github.workspace }}
