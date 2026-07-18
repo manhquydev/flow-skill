@@ -49,6 +49,26 @@ Nightly (cron) ──► smoke.mjs vs dist-tags rc + latest (clean cwd, no npm-w
 - `promote_to` workflow input: **manual-only early exit** (prints `npm dist-tag add …`); OIDC cannot dist-tag (E401).
 - After every pre-release: decide whether `latest` should follow. If yes → manual promote (checklist).
 
+## Harness preflight (every release — skill and/or npm)
+
+From **repo root** (uses dogfood `.flow/` if present; does not require a clean tree):
+
+```bash
+bash scripts/release-preflight.sh
+# Expect: PREFLIGHT PASS
+# Checks: flow coherence · doctor READY · dual-version help · optional harness.db · live dist-tags
+```
+
+| Surface | What preflight checks |
+|---|---|
+| **Docs versions** | SKILL.md ↔ plugin.json ↔ portable-manifest (must match) |
+| **Engine** | `flow.sh doctor` READY + harness path present |
+| **Memory** | Soft: `.flow/harness.db`, `.flow/events.jsonl` if dogfood exists |
+| **npm-wrapper** | `ships skill v…` on `--help` after sync |
+| **Registry** | Soft: compare local package.json vs dist-tag `rc` / `latest` lag |
+
+`marketplace.json` → `metadata.version` is the **catalog** version, not skill product — do not force it equal to `0.22.x`.
+
 ## Skill product release (e.g. v0.23.0)
 
 1. **Implement + tests**
@@ -59,8 +79,8 @@ Nightly (cron) ──► smoke.mjs vs dist-tags rc + latest (clean cwd, no npm-w
      - `skills/flow/SKILL.md` → `metadata.version`
      - `.claude-plugin/plugin.json` → `version`
      - `portable-manifest.json` → `version`
-   - In a throwaway project or dogfood tree: `bash ~/.claude/skills/flow/runner/flow.sh coherence`
-     (or `./skills/flow/runner/flow.sh coherence` from repo with `ROOT` set appropriately).
+   - `bash scripts/release-preflight.sh` (preferred) or
+     `bash skills/flow/runner/flow.sh coherence` from repo root.
    - Expect: single agreed version, no drift warning.
 3. **Docs**
    - Root `CHANGELOG.md` skill entry.
@@ -75,9 +95,12 @@ Nightly (cron) ──► smoke.mjs vs dist-tags rc + latest (clean cwd, no npm-w
 
 ## npm installer release (e.g. 0.1.0-rc.4 or 0.1.0)
 
-### A. Pre-flight (local, `npm-wrapper/`)
+### A. Pre-flight (local)
 
 ```bash
+# From repo root — harness + coherence + dual-version
+bash scripts/release-preflight.sh
+
 cd npm-wrapper
 npm run sync          # skills/flow → npm-wrapper/skills/flow
 npm test              # 41+ tests; pretest re-syncs

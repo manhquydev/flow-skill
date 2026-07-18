@@ -10,13 +10,15 @@ Trình cài đặt một-lệnh sao chép skill [flow](https://github.com/manhqu
 ## Cài đặt
 
 ```
-# Kênh pre-release (hiện tại — v0.1.0-rc.2)
+# Kênh pre-release (hiện tại — v0.1.0-rc.3, ships skill v0.22.0)
 npx @manhquy/flow-skill@rc
 ```
 
 Prompt tương tác hỏi cài vào agent nào. Chọn một hoặc nhiều, xác nhận, xong.
 
-> **Giai đoạn RC**: pin `@rc` (dist-tag) hoặc phiên bản cụ thể `@0.1.0-rc.2`. `npx @manhquy/flow-skill@0.1.x` chỉ dùng được sau khi stable `0.1.0` publish — semver range **không** match pre-release theo mặc định. Xem [SECURITY.md](./SECURITY.md).
+> **Giai đoạn RC**: pin `@rc` (dist-tag) hoặc phiên bản cụ thể `@0.1.0-rc.3`. `npx @manhquy/flow-skill@0.1.x` chỉ dùng được sau khi stable `0.1.0` publish — semver range **không** match pre-release theo mặc định. Xem [SECURITY.md](./SECURITY.md).
+>
+> **`npm i` alone chưa đủ** — phải **chạy** CLI (`npx @manhquy/flow-skill@rc`). Hai trục version: package npm vs skill product (`ships skill v…` / `skillVersion` trong JSONL).
 
 ## Non-interactive
 

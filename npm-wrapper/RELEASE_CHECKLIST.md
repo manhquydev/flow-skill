@@ -68,6 +68,9 @@ need an alternative write path — re-check npm changelog before that date.
 ## Local pre-flight (every release)
 
 ```bash
+# 0. From repo root — harness coherence + doctor + dual-version + dist-tag lag
+bash scripts/release-preflight.sh   # expect PREFLIGHT PASS
+
 cd npm-wrapper
 
 # 1. Sync skill content from monorepo source of truth

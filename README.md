@@ -44,7 +44,7 @@ below; the concierge never intercepts an explicit `/flow <verb>`. See
 | Field | Value |
 |---|---|
 | Version | **v0.22.0** (2026-07-16) |
-| npm package | [`@manhquy/flow-skill@0.1.0-rc.3`](https://www.npmjs.com/package/@manhquy/flow-skill) — LIVE (publish via tag `npm@0.1.0-rc.3`) |
+| npm package | [`@manhquy/flow-skill@0.1.0-rc.3`](https://www.npmjs.com/package/@manhquy/flow-skill) — LIVE on **`@rc`** (`latest` may lag at older RC until manual promote) |
 | Tests | 34 suites / 926 checks green |
 | CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines demoted to unused fallback) |
 | License | MIT |

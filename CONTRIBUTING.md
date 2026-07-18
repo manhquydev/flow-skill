@@ -45,6 +45,7 @@ cd npm-wrapper && npm test
 
 End users install with `npx @manhquy/flow-skill@rc` (not bare `npm i` alone).  
 Full release procedure: [`docs/release-process.md`](docs/release-process.md).  
+Harness preflight (coherence + doctor + dual-version): `bash scripts/release-preflight.sh`.  
 npm auth / dist-tag ops: [`npm-wrapper/RELEASE_CHECKLIST.md`](npm-wrapper/RELEASE_CHECKLIST.md).
 
 ## Pull requests
