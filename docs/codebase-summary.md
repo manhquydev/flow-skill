@@ -24,23 +24,23 @@ flow-skill/
 │   │                            #   concierge, native-rituals, forge-idea — v0.22)
 │   ├── eval/                    # behavioral-eval fixtures: artifact-vs-gate + v0.22 routing judge
 │   └── playbooks/               # 3 stack playbooks + README (read before / harvest after)
-├── npm-wrapper/                 # npm distribution channel (cross-OS Node)
-│   ├── bin/cli.mjs              # entry point: npx @manhquy/flow-skill@rc
-│   ├── src/installer.mjs        # detect + verify harness install
-│   ├── src/detect.mjs           # harness detection (claude/codex/agy)
-│   ├── src/prompt.mjs           # interactive install prompts
-│   ├── scripts/sync.mjs         # keep npm wrapper aligned with repo
-│   ├── test/                    # 35 tests via node:test (4 suites)
-│   ├── .github/workflows/publish-npm-wrapper.yml
-│   ├── .github/workflows/ci.yml
-│   └── .github/workflows/nightly-registry-health.yml
-├── tests/                       # run_all.sh + runner(13) + harness(19) + scenarios(14) = 46
+├── npm-wrapper/                 # npm channel (cross-OS Node installer)
+│   ├── bin/cli.mjs              # npx @manhquy/flow-skill@rc — dual-version help
+│   ├── src/                     # installer, detect (5 targets), prompts
+│   ├── scripts/sync.mjs         # skills/flow → bundle for tarball
+│   ├── scripts/smoke.mjs        # registry smoke (empty cwd required)
+│   ├── RELEASE_CHECKLIST.md     # OIDC + dist-tag token ops
+│   └── test/                    # 41 node:test cases
+├── .github/workflows/           # ci · publish-npm-wrapper · nightly-registry-health
+├── tests/                       # run_all.sh (wall_s timing) + 33 suite scripts
 ├── install.sh / install.ps1     # global or per-project install + doctor
-├── portable-manifest.json
-├── docs/                        # this file + system-architecture.md
-├── plans/260613-1021-.../       # the implementation plan (6 phases, all done)
+├── portable-manifest.json       # skill product version (with SKILL.md, plugin.json)
+├── docs/                        # architecture, quality-metrics, release-process, journals
 └── README.md
 ```
+
+**Release / versioning:** skill product (`0.22.x`) ≠ npm package (`0.1.0-rc.N`).  
+See [`docs/release-process.md`](release-process.md).
 
 ## Commands (`/flow ...`)
 `resume` (read-only session-story brief: last session, in-flight + dwell, gate state, NEXT ->;

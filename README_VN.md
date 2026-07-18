@@ -50,7 +50,8 @@ chen ngang một lệnh `/flow <verb>` tường minh. Xem đầy đủ luật đ
 | CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines chuyển thành fallback dự phòng) |
 | License | MIT |
 
-Release notes trong [`CHANGELOG.md`](./CHANGELOG.md); nhật ký session trong [`docs/journals/`](./docs/journals/).
+Release notes trong [`CHANGELOG.md`](./CHANGELOG.md); nhật ký session trong [`docs/journals/`](./docs/journals/).  
+**Ship bản mới (skill và/hoặc npm):** [`docs/release-process.md`](./docs/release-process.md).
 
 
 ## Triết lý cốt lõi

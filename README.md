@@ -49,7 +49,8 @@ below; the concierge never intercepts an explicit `/flow <verb>`. See
 | CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines demoted to unused fallback) |
 | License | MIT |
 
-Release notes in [`CHANGELOG.md`](./CHANGELOG.md); session journals in [`docs/journals/`](./docs/journals/).
+Release notes in [`CHANGELOG.md`](./CHANGELOG.md); session journals in [`docs/journals/`](./docs/journals/).  
+**Shipping a new version (skill and/or npm):** [`docs/release-process.md`](./docs/release-process.md).
 
 
 ## What ships

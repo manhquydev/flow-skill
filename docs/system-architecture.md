@@ -34,6 +34,21 @@ On-disk artifacts (in the project being built):
   .flow/harness.db                    durable records
 ```
 
+## Distribution architecture (skill vs npm)
+
+```
+  monorepo skills/flow/  ──npm run sync──►  npm-wrapper/skills/flow  ──npm pack──► registry
+         │                                         │
+         │ install.sh / agent skill homes          │ npx @manhquy/flow-skill@rc
+         v                                         v
+  ~/.claude/skills/flow                     same tree via installer CLI
+```
+
+- **Skill product version** (SKILL.md / plugin.json / portable-manifest) drives coherence and
+  harness `flow_version` telemetry.
+- **npm package version** versions the installer CLI only; tag `npm@*` triggers OIDC publish.
+- Full procedure: [`docs/release-process.md`](release-process.md).
+
 ## Why this shape
 - **Two-layer gate (mechanical + semantic).** A script can't tell a real competitor quote
   from a fabricated one, but it can catch an unchecked box or empty evidence deterministically.

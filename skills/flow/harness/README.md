@@ -23,6 +23,15 @@ power-path for non-flow DBs; flow does not build or ship the binary.
 
 Disable the durable layer entirely with `FLOW_HARNESS_DISABLE=1` (engine still runs).
 
+## Versioning (harness vs npm)
+
+- Telemetry / usage events carry **`flow_version` from the installed skill product**
+  (`SKILL.md` metadata), not from the npm installer package version.
+- When you change harness schema or CLI behavior, bump the **skill product** version
+  (SKILL.md + plugin.json + portable-manifest) and run `flow.sh coherence`.
+- Publishing a new npm tarball is a separate step (`npm-wrapper` sync + tag `npm@…`) —
+  see [`docs/release-process.md`](../../../docs/release-process.md).
+
 ## Commands ↔ Runtime-Substrate responsibility
 
 | Command | Responsibility (of 11) |

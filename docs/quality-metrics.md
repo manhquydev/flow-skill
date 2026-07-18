@@ -1,23 +1,31 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **v0.22.0** (2026-07-16), **npm-wrapper v0.1.0-rc.2** LIVE on npm.
+Updated as the skill evolves. Current: **skill v0.22.0** (2026-07-16), **npm-wrapper v0.1.0-rc.3** LIVE (`dist-tag rc`; pin `@rc`).
 
-## npm-wrapper v0.1.0-rc.2 — cross-platform npm distribution (2026-07-17, LIVE)
+Release process for future bumps: [`docs/release-process.md`](release-process.md).
 
-Parallel distribution channel: `npx @manhquy/flow-skill@rc` — pure Node.js entry point, no shell/git dependency, for CI/CD and cross-platform environments.
+## npm-wrapper v0.1.0-rc.3 — dual-version UX + pipeline hardening (2026-07-18, LIVE on `@rc`)
+
+Parallel distribution channel: `npx @manhquy/flow-skill@rc` — pure Node entry, installs skill into
+agent homes. **Two versions:** package `0.1.0-rc.3` ships skill product `0.22.0`
+(`--help` → `flow-skill v0.1.0-rc.3 (ships skill v0.22.0)`).
 
 | Metric | Value | Notes |
 |---|---|---|
-| **Version** | 0.1.0-rc.2 | LIVE on npm, both `latest` and `rc` dist-tags |
-| **Tests** | 41/41 pass | 5 suites via `node:test` (installer.test, detect.test, cli.test, lock-atomicity.test, sync-manifest.test) |
-| **CI matrix** | Ubuntu / macOS / Windows × Node 22/24 | All green on commit 19fff1f via publish-npm-wrapper.yml |
-| **Code reviews** | 3 passes (code-reviewer) + 1 pass (red-team) | Post-audit hardening → post-publish verification; 16/18 red-team findings accepted, 2 rejected |
-| **Runtime deps** | 1 (`@clack/prompts`) | 0 dev deps (uses `node:test` built-in) |
-| **Tarball** | 76 files, 203 KB gzipped, 566 KB unpacked | No `.pyc`, no `node_modules`, no symlinks |
-| **Anti-regression** | `git grep child_process` in src/ + bin/ is empty | Guard in `publish-npm-wrapper.yml` + CI check on every push (prevents shell spawning from Node) |
+| **npm package** | 0.1.0-rc.3 | `rc` dist-tag; `latest` may lag until manual promote |
+| **Skill product in tarball** | 0.22.0 | SKILL.md metadata; plan JSONL `skillVersion` |
+| **Tests** | 41/41 | node:test; dual-version pins package.json + SKILL.md |
+| **CI matrix** | bash-suite 3-OS + Node 22/24 × 3 OS | Windows bash-suite timeout **30m** (full suite ~18m); green on ship commit |
+| **Nightly** | registry smoke | clean cwd + `npx --package=… flow-skill` (no npm-wrapper shadow) |
+| **Provenance** | SLSA L2 | OIDC Trusted Publisher from rc.2+ |
+| **Runtime deps** | 1 (`@clack/prompts`) | `node:test` built-in for tests |
+| **Anti-regression** | no `child_process` in src/bin | CI + publish workflow guard |
 
-Real-world verification: cross-platform install tested on Windows (native Node, no WSL), detected Claude/Codex/Agy harnesses correctly, ran `flow.sh` end-to-end without shell dependency.
+### Prior: v0.1.0-rc.2 (2026-07-17)
+
+First OIDC+provenance release; Cursor 5th target; Antigravity restart guidance. Superseded for
+`@rc` by rc.3.
 
 ## v0.20.0 — mission-control legibility: resume verb + status upgrade + per-card dwell (2026-07-10)
 
