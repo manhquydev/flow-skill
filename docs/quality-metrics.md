@@ -1,11 +1,27 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **skill v0.22.0** (2026-07-16), **npm-wrapper v0.1.0-rc.3** LIVE (`dist-tag rc`; pin `@rc`).
+Updated as the skill evolves. Current: **skill v0.24.0** (2026-07-18), **npm-wrapper v0.1.0 GA** LIVE on `latest` (bare `npx @manhquy/flow-skill`).
 
 Release process for future bumps: [`docs/release-process.md`](release-process.md).
 
-## npm-wrapper v0.1.0-rc.3 — dual-version UX + pipeline hardening (2026-07-18, LIVE on `@rc`)
+## npm-wrapper v0.1.0 GA + skill v0.24.0 — first stable + harness trust-align (2026-07-19, LIVE on `latest`)
+
+Graduates the rc.1→rc.3 installer line to stable **0.1.0**, published to dist-tag **`latest`** via
+OIDC (GA/non-prerelease auto-routes to `latest` — no manual dist-tag promotion). Ships skill product
+**0.24.0** (harness trust-align: honest `proof_source=card_markdown_gate`, no forged
+`last_verified_result=pass`; `FLOW_HARNESS_STRICT` soft/loud/fail; canonical harness skill).
+
+| Metric | Value | Notes |
+|---|---|---|
+| **npm package** | 0.1.0 | `latest` dist-tag; bare `npm i`/`npx` resolves it |
+| **Skill product in tarball** | 0.24.0 | SKILL.md metadata; plan JSONL `skillVersion` |
+| **Skill tests** | 39 suites green | full `tests/run_all.sh` (1896s ≈31min on Windows Git Bash) |
+| **Installer tests** | 41/41 | node:test; dual-version pins package.json + SKILL.md |
+| **dist-tags** | `latest`→0.1.0, `rc`→0.1.0-rc.3 | inversion resolved (was `latest`→rc.2) |
+| **Provenance** | SLSA L2 | OIDC Trusted Publisher, attested |
+
+## npm-wrapper v0.1.0-rc.3 — dual-version UX + pipeline hardening (2026-07-18, was LIVE on `@rc`)
 
 Parallel distribution channel: `npx @manhquy/flow-skill@rc` — pure Node entry, installs skill into
 agent homes. **Two versions:** package `0.1.0-rc.3` ships skill product `0.22.0`

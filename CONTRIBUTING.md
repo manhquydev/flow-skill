@@ -40,10 +40,10 @@ cd npm-wrapper && npm test
 
 | Axis | Bump when | Example |
 |---|---|---|
-| Skill product | runner / harness / references behavior | `0.22.0` in SKILL.md |
-| npm installer (`npm-wrapper/package.json`) | installer CLI, targets, publish pipeline | `0.1.0-rc.3` |
+| Skill product | runner / harness / references behavior | `0.24.0` in SKILL.md |
+| npm installer (`npm-wrapper/package.json`) | installer CLI, targets, publish pipeline | `0.1.0` (GA on `latest`) |
 
-End users install with `npx @manhquy/flow-skill@rc` (not bare `npm i` alone).  
+End users install with `npx @manhquy/flow-skill` (must **run** it — bare `npm i` alone only fetches the CLI).  
 Full release procedure: [`docs/release-process.md`](docs/release-process.md).  
 Harness preflight (coherence + doctor + dual-version): `bash scripts/release-preflight.sh`.  
 npm auth / dist-tag ops: [`npm-wrapper/RELEASE_CHECKLIST.md`](npm-wrapper/RELEASE_CHECKLIST.md).

@@ -10,15 +10,18 @@ Trình cài đặt một-lệnh sao chép skill [flow](https://github.com/manhqu
 ## Cài đặt
 
 ```
-# Kênh pre-release (hiện tại — v0.1.0-rc.3, ships skill v0.22.0)
+# Stable (latest) — hiện tại: v0.1.0, ships skill v0.24.0
+npx @manhquy/flow-skill
+
+# Kênh pre-release (tùy chọn)
 npx @manhquy/flow-skill@rc
 ```
 
 Prompt tương tác hỏi cài vào agent nào. Chọn một hoặc nhiều, xác nhận, xong.
 
-> **Giai đoạn RC**: pin `@rc` (dist-tag) hoặc phiên bản cụ thể `@0.1.0-rc.3`. `npx @manhquy/flow-skill@0.1.x` chỉ dùng được sau khi stable `0.1.0` publish — semver range **không** match pre-release theo mặc định. Xem [SECURITY.md](./SECURITY.md).
+> **Stable ở `latest`**: bare `npx @manhquy/flow-skill` (hoặc `@0.1.x`) lấy bản GA. Pin `@rc` nếu muốn kênh pre-release. Xem [SECURITY.md](./SECURITY.md).
 >
-> **`npm i` alone chưa đủ** — phải **chạy** CLI (`npx @manhquy/flow-skill@rc`). Hai trục version: package npm vs skill product (`ships skill v…` / `skillVersion` trong JSONL).
+> **`npm i` alone chưa đủ** — phải **chạy** CLI (`npx @manhquy/flow-skill`). Hai trục version: package npm vs skill product (`ships skill v…` / `skillVersion` trong JSONL).
 
 ## Non-interactive
 
@@ -97,7 +100,7 @@ Hợp đồng additive trong `0.1.x` — field mới có thể thêm, field cũ 
 
 - **`EBUSY`/`EPERM` giữa install trên Windows**: một agent đang giữ handle vào file trong destination. Đóng agent + re-run. Installer đã retry 100/300/900 ms trước khi báo error.
 - **Advisory lock cũ**: run trước crash. Run mới tự phát hiện PID dead → reclaim. Trường hợp hiếm (PID được recycle bởi process khác đang chạy): xóa `<parent-of-dest>/.flow-skill.installing.lock`.
-- **`No matching version found` với `@0.1.x`**: cài pre-release qua stable range. Dùng `@rc` hoặc `@0.1.0-rc.N` cho tới khi stable `0.1.0` ship.
+- **`No matching version found` với `@0.24.0`**: đó là version **skill product**, không phải version npm package. Cài installer theo version của nó (bare / `@0.1.x` / `@rc`) — version skill in ra ở `--help` (`ships skill v…`).
 - **Node quá cũ** (`requires Node.js >=22.14.0`): update bằng `nvm install 22`, `fnm install 22`, hoặc installer chính thức của Node. Node 20 hết vòng đời từ 4/2026; npm OIDC Trusted Publishing cần npm >=11.5.1 (bundle theo Node 22.14+).
 
 ## Yêu cầu

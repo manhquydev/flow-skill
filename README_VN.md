@@ -44,9 +44,9 @@ chen ngang một lệnh `/flow <verb>` tường minh. Xem đầy đủ luật đ
 
 | Trường | Giá trị |
 |---|---|
-| Phiên bản | **v0.22.0** (2026-07-16) |
-| npm package | [`@manhquy/flow-skill@0.1.0-rc.3`](https://www.npmjs.com/package/@manhquy/flow-skill) — LIVE trên **`@rc`** (`latest` có thể trỏ RC cũ hơn cho đến khi promote tay) |
-| Test | 34 bộ / 926 check xanh |
+| Phiên bản | **v0.24.0** (2026-07-18) |
+| npm package | [`@manhquy/flow-skill@0.1.0`](https://www.npmjs.com/package/@manhquy/flow-skill) — GA trên **`latest`** (bare `npm i` / `npx` lấy được) |
+| Test | 39 bộ xanh (full `run_all.sh`) |
 | CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines chuyển thành fallback dự phòng) |
 | License | MIT |
 
@@ -165,18 +165,18 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 **A. npm — một lệnh, cross-OS** (khuyến nghị, đã LIVE trên [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
 ```bash
-npx @manhquy/flow-skill@rc                # kênh pre-release (hiện tại: 0.1.0-rc.3)
-# Sau khi stable publish: npx @manhquy/flow-skill@0.1.x
+npx @manhquy/flow-skill                   # stable (latest) — hiện tại: 0.1.0 (ships skill v0.24.0)
+npx @manhquy/flow-skill@rc                # kênh pre-release (tùy chọn)
 ```
 
-> **Hai số version (không phải bug):** package npm = `0.1.0-rc.N` (installer CLI); skill
-> product = `v0.22.x` (`SKILL.md`). `npx … --help` in cả hai, ví dụ
-> `flow-skill v0.1.0-rc.3 (ships skill v0.22.0)`. **Không** `npm i @…@0.22.0` — version đó
+> **Hai số version (không phải bug):** package npm = `0.1.x` (installer CLI); skill
+> product = `v0.24.x` (`SKILL.md`). `npx … --help` in cả hai, ví dụ
+> `flow-skill v0.1.0 (ships skill v0.24.0)`. **Không** `npm i @…@0.24.0` — version đó
 > không tồn tại trên npm. `npm i @manhquy/flow-skill` chỉ bỏ CLI vào `node_modules`; phải
-> **chạy** CLI (`npx @manhquy/flow-skill@rc`) mới copy skill vào `~/.claude/skills/flow`.
+> **chạy** CLI (`npx @manhquy/flow-skill`) mới copy skill vào `~/.claude/skills/flow`.
 >
 > **Cách ship lên npm:** `git tag npm@X.Y.Z && git push origin npm@X.Y.Z` → Actions
-> `publish-npm-wrapper.yml` (OIDC + provenance). Tag skill (`v0.22.0`) **không** auto-publish npm.
+> `publish-npm-wrapper.yml` (OIDC + provenance). Tag skill (`v0.24.0`) **không** auto-publish npm.
 
 Pure Node (>= 22.14.0), tương tác multi-select 5 target (Claude Code, Codex CLI, Agents home —
 cũng là thư mục Agent-Skills chung mà các tool tuân chuẩn khác như Cursor đọc — Antigravity

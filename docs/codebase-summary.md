@@ -39,7 +39,7 @@ flow-skill/
 └── README.md
 ```
 
-**Release / versioning:** skill product (`0.22.x`) ≠ npm package (`0.1.0-rc.N`).  
+**Release / versioning:** skill product (`0.24.x`) ≠ npm package (`0.1.x`, GA on `latest`).  
 See [`docs/release-process.md`](release-process.md).
 
 ## Commands (`/flow ...`)
@@ -67,7 +67,7 @@ bash (Git Bash on Windows) for the engine; Python 3 + stdlib sqlite3 for the dur
 (optional Rust `harness-cli` power-path); no third-party install required.
 
 ## Tests
-`bash tests/run_all.sh` — 34 suites / 926 checks, all green (GitHub Actions `bash-suite` job,
+`bash tests/run_all.sh` — 39 suites, all green (GitHub Actions `bash-suite` job,
 ubuntu/macos/windows matrix — replaces the parked Azure Pipelines setup as of v0.22).
 Covers gate pass/fail, lifecycle, card validation, intake classification, trace tiers, story
 verify, debt, design, the 6 buildflow scenario rounds, loop-engineering (ck-loop wrapper),

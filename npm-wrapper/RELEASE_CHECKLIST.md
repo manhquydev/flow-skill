@@ -9,10 +9,10 @@ Use this file for **auth/token ops** and a tick-list before each installer publi
 
 | Axis | File | Example |
 |---|---|---|
-| npm package | `package.json` | `0.1.0-rc.3` |
-| Skill shipped in tarball | `skills/flow/SKILL.md` (after `npm run sync`) | `0.22.0` |
+| npm package | `package.json` | `0.1.0` |
+| Skill shipped in tarball | `skills/flow/SKILL.md` (after `npm run sync`) | `0.24.0` |
 
-CLI must show both after sync: `flow-skill v0.1.0-rc.3 (ships skill v0.22.0)`.
+CLI must show both after sync: `flow-skill v0.1.0 (ships skill v0.24.0)`.
 
 ## Account facts (read before debugging any auth failure)
 
@@ -51,8 +51,8 @@ npm config delete //registry.npmjs.org/:_authToken
 npm logout                                  # belt-and-suspenders session cleanup
 ```
 
-**Live dist-tags (as of 2026-07-18):** `rc` → `0.1.0-rc.3` (OIDC publish), `latest` → `0.1.0-rc.2`
-until manually promoted. Pre-release publish **never** moves `latest` automatically.
+**Live dist-tags (as of 2026-07-19):** `latest` → `0.1.0` (GA, OIDC publish), `rc` → `0.1.0-rc.3`.
+GA (non-prerelease) auto-routes to `latest`; pre-release publish **never** moves `latest` automatically.
 
 **Hard deadline: ~2027-01** — npm deprecates bypass-2FA tokens for publish; dist-tag may still
 need an alternative write path — re-check npm changelog before that date.
@@ -163,4 +163,5 @@ node /path/to/flow-skill/npm-wrapper/scripts/smoke.mjs <version>
 |---|---|---|
 | 0.1.0-rc.1 | 2026-07-12 | Manual bootstrap publish (no provenance) |
 | 0.1.0-rc.2 | 2026-07-17 | First OIDC + provenance; Cursor target; restart hints |
-| 0.1.0-rc.3 | 2026-07-18 | Dual-version UX; smoke cwd fix; `rc` tag points here; `latest` may lag |
+| 0.1.0-rc.3 | 2026-07-18 | Dual-version UX; smoke cwd fix; `rc` tag points here |
+| 0.1.0 | 2026-07-19 | GA (first stable); ships skill v0.24.0; auto-routes to `latest` |

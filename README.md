@@ -72,7 +72,7 @@ flow-skill/
 │   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
 ├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
 ├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 34 suites / 926 checks (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args/loop/eval/resume/status-legibility/concierge/native-rituals/forge-idea)
+├── tests/run_all.sh             # 39 suites (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args/loop/eval/resume/status-legibility/concierge/native-rituals/forge-idea)
 └── docs/                        # architecture + codebase summary
 ```
 
@@ -173,7 +173,7 @@ npx @manhquy/flow-skill@rc                # pre-release channel
 > **run** the CLI (`npx @manhquy/flow-skill@rc`).
 >
 > **How npm ships:** push a git tag `npm@X.Y.Z` (or `npm@X.Y.Z-rc.N`) → GitHub Actions
-> `publish-npm-wrapper.yml` publishes with OIDC + provenance. Skill product tags (`v0.22.0`)
+> `publish-npm-wrapper.yml` publishes with OIDC + provenance. Skill product tags (`v0.24.0`)
 > are a separate axis and do **not** auto-publish to npm.
 
 Interactive multi-select of the 5 target agents (Claude Code, Codex CLI, Agents home —
@@ -487,7 +487,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 34 suites / 926 checks (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is 39 suites (`bash tests/run_all.sh`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -504,5 +504,5 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 34 suites / 926 checks; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # 39 suites; needs bash (+ python for the harness/propose suites)
 ```
