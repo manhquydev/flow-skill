@@ -1,6 +1,6 @@
 {
   "name": "@manhquy/flow-skill",
-  "version": "0.1.0-rc.3",
+  "version": "0.1.0",
   "description": "Install the flow skill (buildflow gated build process) into your coding agent(s) via one npx command",
   "type": "module",
   "bin": {

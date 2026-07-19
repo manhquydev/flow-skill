@@ -2,6 +2,18 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.1.0] — 2026-07-19 — GA (first stable, `latest`)
+
+First stable release of the installer. Graduates the rc.1→rc.3 line after two live OIDC
+publishes + independent verification; publishes to dist-tag **`latest`** so bare
+`npx @manhquy/flow-skill` / `npm i` resolves it (no manual dist-tag promotion needed).
+
+### Changed
+- Ships skill product **v0.24.0** (harness trust-align — honest `proof_source`, STRICT durable
+  modes, canonical harness skill; see root `CHANGELOG.md` `## 0.24.0`). rc.1–rc.3 shipped v0.22.0.
+- No installer code change vs rc.3 — same CLI, detection, lock, and five install targets
+  (Claude, Codex, Antigravity, Cursor, universal `~/.agents/skills`).
+
 ## [0.1.0-rc.3] — 2026-07-18
 
 Ships the same skill product **v0.22.0** as rc.2, plus pipeline/UX fixes found after the first

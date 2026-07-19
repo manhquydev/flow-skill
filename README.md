@@ -43,9 +43,9 @@ below; the concierge never intercepts an explicit `/flow <verb>`. See
 
 | Field | Value |
 |---|---|
-| Version | **v0.22.0** (2026-07-16) |
-| npm package | [`@manhquy/flow-skill@0.1.0-rc.3`](https://www.npmjs.com/package/@manhquy/flow-skill) — LIVE on **`@rc`** (`latest` may lag at older RC until manual promote) |
-| Tests | 34 suites / 926 checks green |
+| Version | **v0.24.0** (2026-07-18) |
+| npm package | [`@manhquy/flow-skill@0.1.0`](https://www.npmjs.com/package/@manhquy/flow-skill) — GA on **`latest`** (bare `npm i` / `npx` gets it) |
+| Tests | 39 suites green (full `run_all.sh`) |
 | CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines demoted to unused fallback) |
 | License | MIT |
 
@@ -161,13 +161,13 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 **A. npm — one command, cross-OS** (recommended, LIVE at [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
 ```bash
-npx @manhquy/flow-skill@rc                # pre-release channel (current: 0.1.0-rc.3)
-# After stable ships: npx @manhquy/flow-skill@0.1.x
+npx @manhquy/flow-skill                   # stable (latest) — current: 0.1.0 (ships skill v0.24.0)
+npx @manhquy/flow-skill@rc                # pre-release channel
 ```
 
-> **Two version numbers (not a bug):** the **npm package** is `0.1.0-rc.N` (installer CLI);
-> the **skill product** is `v0.22.x` (`SKILL.md` metadata). `npx … --help` prints both, e.g.
-> `flow-skill v0.1.0-rc.3 (ships skill v0.22.0)`. Do **not** `npm i @manhquy/flow-skill@0.22.0`
+> **Two version numbers (not a bug):** the **npm package** is `0.1.x` (installer CLI);
+> the **skill product** is `v0.24.x` (`SKILL.md` metadata). `npx … --help` prints both, e.g.
+> `flow-skill v0.1.0 (ships skill v0.24.0)`. Do **not** `npm i @manhquy/flow-skill@0.24.0`
 > — that version does not exist on npm. Also: `npm i @manhquy/flow-skill` only puts the CLI
 > in `node_modules`; it does **not** copy the skill into `~/.claude/skills/flow` until you
 > **run** the CLI (`npx @manhquy/flow-skill@rc`).
