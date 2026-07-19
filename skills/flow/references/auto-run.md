@@ -34,7 +34,7 @@ for each todo card in card-number order:
   4. flow.sh check C-NNN must PASS (mechanical) + gate-rules semantic check
   5. merge to main in card order; deploy; VERIFY ON LIVE URL (merge != shipped)
   6. paste world-state evidence into the card; status: done
-  7. flow.sh harness story update --status implemented + trace; log AUTO-LOG.md
+  7. flow.sh harness story complete --id … --proof-source manual (or card_markdown_gate) + trace; log AUTO-LOG.md
   8. remove worktree
 ```
 

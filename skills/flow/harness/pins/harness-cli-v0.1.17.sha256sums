@@ -1,0 +1,9 @@
+# Digests from GitHub Release harness-cli-v0.1.17 (fetched for pin policy)
+# TAG harness-cli-v0.1.17
+# PROTOCOL_FLOOR harness-cli-v0.1.14
+# DO_NOT_USE harness-cli-v0.1.16
+5d13f0a024d9d69701534a879581c9433bc0069e04d052e5aacd93b91b3b7a43  harness-cli-linux-x64
+128c42c251fb31b58582342c09c68be6ed3329340fb1d8f179c88590a4539c97  harness-cli-linux-arm64
+902968f1383d45eb60e202eb98f8ce6c143cff73cb6f2ccc159a743ca5a70819  harness-cli-macos-x64
+71217dbe03d111775c5016ab751f8bedbff66e7fd6a4d90f5c8d7e0e4a205b47  harness-cli-macos-arm64
+2d7edff22ae25308c2ba23ab85bb9acb18d87eea28a9ca4efb2014a0f11a51a6  harness-cli-windows-x64.exe

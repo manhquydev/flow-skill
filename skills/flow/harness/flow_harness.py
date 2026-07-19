@@ -160,6 +160,21 @@ def cmd_intake(con, a):
     return 0
 
 
+_PROOF_SOURCES = ("card_markdown_gate", "manual", "verify_command")
+_SECRET_RE = re.compile(
+    r"(?i)(token|secret|passwd|password|credential|api[_-]?key|bearer|authorization|-----begin)"
+)
+
+
+def _mask_evidence(text):
+    """Redact secret-shaped free text before durable store (trust-align RT)."""
+    if text is None:
+        return None
+    if _SECRET_RE.search(text):
+        return "***redacted***"
+    return text
+
+
 def cmd_story(con, a):
     if a.story_cmd == "add":
         if a.lane not in D.LANES:
@@ -169,10 +184,57 @@ def cmd_story(con, a):
         print(f"PASS: story {a.id} added (lane={a.lane})")
         return 0
     if a.story_cmd == "update":
+        # Trust boundary (US-101 spirit, flow-native): bare implemented is forbidden.
+        if a.status == "implemented":
+            print(
+                "FAIL: story update --status implemented is rejected.\n"
+                "  Use: story complete --id <id> --proof-source card_markdown_gate|manual|verify_command\n"
+                "  (honest proof provenance; never forge last_verified_result without story verify)"
+            )
+            return 1
         n = _db.update(con, "story", "id", a.id, status=a.status,
                        unit_proof=a.unit, integration_proof=a.integration,
-                       e2e_proof=a.e2e, platform_proof=a.platform, evidence=a.evidence)
+                       e2e_proof=a.e2e, platform_proof=a.platform,
+                       evidence=_mask_evidence(a.evidence))
         print(f"{'PASS' if n else 'FAIL'}: story {a.id} {'updated' if n else 'not found'}")
+        return 0 if n else 1
+    if a.story_cmd == "complete":
+        s = _db.one(con, "SELECT * FROM story WHERE id=?", (a.id,))
+        if not s:
+            print(f"FAIL: story {a.id} not found"); return 1
+        src = (a.proof_source or "").strip()
+        if src not in _PROOF_SOURCES:
+            print(
+                "FAIL: --proof-source required: card_markdown_gate|manual|verify_command\n"
+                "  card_markdown_gate = /flow check markdown gate (does NOT set last_verified=pass)\n"
+                "  verify_command     = requires prior story verify pass"
+            )
+            return 1
+        if src == "verify_command":
+            if s.get("last_verified_result") != "pass":
+                print(
+                    f"FAIL: proof-source verify_command requires last_verified_result=pass "
+                    f"(got {s.get('last_verified_result')!r}). Run: story verify --id {a.id}"
+                )
+                return 1
+        # Honest provenance: card/manual never forge last_verified_result=pass
+        ev = _mask_evidence(a.evidence) or s.get("evidence") or ""
+        note = (s.get("notes") or "").strip()
+        prov = f"proof_source={src}"
+        if prov not in note:
+            note = (note + "\n" + prov).strip() if note else prov
+        if src == "card_markdown_gate" and "last_verified_result=pass" not in (note or ""):
+            # explicit honesty marker for auditors
+            note = note + "\nverify_stamp=not_shell"
+        fields = dict(status="implemented", notes=note)
+        if ev:
+            fields["evidence"] = ev
+        # only keep last_verified_* when real verify already passed
+        n = _db.update(con, "story", "id", a.id, **fields)
+        print(
+            f"PASS: story {a.id} complete (status=implemented, proof_source={src})"
+            + ("" if src == "verify_command" else " [no shell-verify stamp]")
+        )
         return 0 if n else 1
     if a.story_cmd in ("verify", "verify-all"):
         if a.story_cmd == "verify":
@@ -983,6 +1045,13 @@ def build_parser():
     a2.add_argument("--evidence")
     a3 = pss.add_parser("verify"); a3.add_argument("--id", required=True)
     pss.add_parser("verify-all")
+    # flow-native complete (trust-align D7): not protocol-v1 positional parity
+    ac = pss.add_parser("complete", help="mark implemented with honest proof_source (not bare update)")
+    ac.add_argument("--id", required=True)
+    ac.add_argument("--proof-source", dest="proof_source",
+                    choices=("card_markdown_gate", "manual", "verify_command"),
+                    help="card_markdown_gate never forges last_verified=pass")
+    ac.add_argument("--evidence")
 
     pt = sub.add_parser("trace", help="record an agent task execution trace (auto-scored)")
     pt.add_argument("--summary", required=True); pt.add_argument("--intake", type=int); pt.add_argument("--story", "--card")

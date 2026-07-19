@@ -2,9 +2,19 @@
 
 The durable memory of `/flow`: intake classification, story packets with proof status,
 auto-scored execution traces, decision records, and the growth-rule backlog. Ported from
-`repository-harness` (same SQLite schema, `schema/00N-*.sql` verbatim). State lives at
+`repository-harness` (shared base schema + flow-only usage extensions). State lives at
 `<project>/.flow/harness.db` and survives across sessions — this is the "external memory"
 that fights context rot.
+
+## Authority pins (repository-harness)
+
+| Pin | Tag | Use |
+|-----|-----|-----|
+| Protocol floor | **`harness-cli-v0.1.14`** | protocol v1 discovery floor |
+| Trust / consumer | **`harness-cli-v0.1.17`** | US-101 spirit + release proof |
+| **Do not use** | `harness-cli-v0.1.16` | tag without published assets |
+
+Gap inventory: [`GAP-MATRIX-0.1.17.md`](./GAP-MATRIX-0.1.17.md). Flow does **not** claim bit-identical US-101.
 
 ## Backends
 
@@ -23,6 +33,21 @@ power-path for non-flow DBs; flow does not build or ship the binary.
 
 Disable the durable layer entirely with `FLOW_HARNESS_DISABLE=1` (engine still runs).
 
+### STRICT durable writes (`flow.sh`)
+
+| Env | Behavior |
+|-----|----------|
+| unset | soft: engine exit 0; one-line `flow-harness: warn` on fail |
+| `FLOW_HARNESS_STRICT=1` | soft exit; louder stderr |
+| `FLOW_HARNESS_STRICT=fail` | propagate nonzero from durable ops on card/check |
+
+## Story completion (trust boundary)
+
+- **Rejected:** `story update --status implemented`
+- **Use:** `story complete --id <id> --proof-source card_markdown_gate|manual|verify_command [--evidence …]`
+- `card_markdown_gate` / `manual` set status implemented with **honest** `proof_source=…` in notes — **never** forge `last_verified_result=pass`
+- `verify_command` requires prior `story verify` pass
+
 ## Versioning (harness vs npm)
 
 - Telemetry / usage events carry **`flow_version` from the installed skill product**
@@ -37,7 +62,7 @@ Disable the durable layer entirely with `FLOW_HARNESS_DISABLE=1` (engine still r
 | Command | Responsibility (of 11) |
 |---|---|
 | `intake --type <t> --summary <s> [--flags ...] [--lane ...] [--narrow-scope]` | Task specification + risk classification |
-| `story add\|update\|verify\|verify-all` | Task state + Verification (mechanical proof) |
+| `story add\|update\|complete\|verify\|verify-all` | Task state + Verification (mechanical proof) |
 | `trace --summary ... [--story\|--card C-NNN] [--agent ...] [--actions ...] [--files-changed ...] --outcome ...` | Observability + Failure attribution (auto-scored tier). Flags accept `-` or `_` (`--actions_taken`, `--files_changed`, `--files_read`) and `--card` is an alias of `--story`. A bad/missing flag prints a guiding "common forms" hint (not a silent exit-2). |
 | `decision add\|verify\|outcome` | Project memory (durable ADR row + companion markdown); `outcome` closes the predicted-vs-actual loop |
 | `backlog add\|close` | Entropy auditing + harness self-improvement (growth rule) |
@@ -69,7 +94,7 @@ Linking a trace to an unverified story prints a **pre-close gate** warning.
 - `/flow next` past **stage 04 (ADR)** → reminds you to record each decision durably (`decision add`) — the ADR markdown is not a durable record.
 - `/flow card` creates a card → seeds a `story` row (tracking handle).
 - `/flow check C-NNN` (todo) → `story update --status in_progress`.
-- `/flow check C-NNN` (done) → `story update --status implemented` + a `trace` (its **tier verdict is shown**, so thin traces are visible).
+- `/flow check C-NNN` (done) → `story complete --proof-source card_markdown_gate` + a `trace` (tier verdict shown; honest provenance, no shell-verify stamp).
 - `/flow recall` → reads the durable layer back (friction + backlog + audit health) into your working context — the capture→reuse loop.
 - `/flow retro` → surfaces `propose` (deterministic improvement proposals from repeated friction/interventions + audit drift) for you to commit.
 - `/flow harness <args>` exposes the full CLI directly.

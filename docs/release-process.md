@@ -69,7 +69,7 @@ bash scripts/release-preflight.sh
 
 `marketplace.json` → `metadata.version` is the **catalog** version, not skill product — do not force it equal to `0.22.x`.
 
-## Skill product release (e.g. v0.23.0)
+## Skill product release (e.g. v0.24.0)
 
 1. **Implement + tests**
    - `bash tests/run_all.sh` green locally (or rely on CI).
@@ -90,7 +90,7 @@ bash scripts/release-preflight.sh
    - Dev: `bash install.sh global` / `pwsh install.ps1 global`, or
    - Users: next npm-wrapper release that re-syncs and publishes (below).
 5. **Optional git tag**
-   - `git tag v0.23.0 && git push origin v0.23.0` + GitHub Release notes.
+   - `git tag v0.24.0 && git push origin v0.24.0` + GitHub Release notes.
    - **Does not** publish npm.
 
 ## npm installer release (e.g. 0.1.0-rc.4 or 0.1.0)

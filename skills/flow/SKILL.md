@@ -8,7 +8,7 @@ keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deplo
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.22.0"
+  version: "0.24.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD. v0.22 concierge routing pattern adapted from BMAD-METHOD's bmad-help; forge-idea ritual adapted from BMAD-METHOD's bmad-forge-idea (both MIT, BMad Code LLC)."
 ---
 
@@ -235,7 +235,7 @@ Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, r
 - `references/gate-eval.md` — `/flow eval` behavioral proof for the semantic layer: what it
   measures (a fresh-judge lower bound, NOT the work-mode self-challenge), cost, thresholds,
   and the honest authorship-bias limitation. Read before running or relaying a scorecard.
-- `harness/` — durable layer (`flow.sh harness ...`): intake/story/trace/decision/backlog. See `harness/README.md`. Read it back with `/flow recall` (open debt, retro, previous-card, friction, backlog, playbooks) — this is the capture→reuse loop.
+- `harness/` — durable layer (`flow.sh harness ...`): intake/story/**complete**/trace/decision/backlog. Pins: protocol floor `harness-cli-v0.1.14`, trust CLI `0.1.17` (never `0.1.16`). See `harness/README.md` + `harness/GAP-MATRIX-0.1.17.md`. Never `story update --status implemented` — use `story complete --proof-source …`.
 - `playbooks/` — paid-for stack knowledge: read before building a card on that stack, harvest the lesson after.
 - `_templates/` — the 7 artifacts the runner copies into `flow/` and `cards/`. Never edit during a run.
 

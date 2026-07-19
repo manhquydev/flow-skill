@@ -1,6 +1,40 @@
 # Changelog
 
 All notable changes to the flow skill. Versions follow the `version:` field in
+
+## 0.24.0 — 2026-07-18 — harness trust-align (repository-harness 0.1.17 spirit)
+
+> Skill version jumps 0.22.0 → 0.24.0. The **0.23 milestone was the cross-agent installer**
+> (Cursor target + universal Agent-Skills home + per-agent restart-guidance), which shipped
+> via the **npm wrapper `0.1.0-rc.2`/`rc.3`** with no flow-skill version bump — see
+> `plans/260717-0925-cross-agent-installer-expansion/`. The `0.23.x` skill number is
+> intentionally skipped to keep skill and installer milestones distinct.
+
+
+Align flow durable layer + skills with **repository-harness authority** (protocol floor
+`harness-cli-v0.1.14`, trust CLI **`harness-cli-v0.1.17`**, never use **0.1.16** assets).  
+No full schema 006–013 merge; no rust unfreeze on flow-lineage DBs.
+
+- **Trust boundary:** `story update --status implemented` **rejected**; use
+  `story complete --id … --proof-source card_markdown_gate|manual|verify_command`.
+  Card markdown gate records honest `proof_source=` in notes and **does not** forge
+  `last_verified_result=pass` (only `story verify` may set shell-verify pass).
+- **`/flow check` done** wires `story complete --proof-source card_markdown_gate` + enriched
+  auto-trace (no fake `--lane tiny` override).
+- **STRICT durable writes:** `FLOW_HARNESS_STRICT` unset|`1`|`fail` — soft warn vs loud vs
+  propagate nonzero; `harness_call_checked` for observed exit codes.
+- **Gap matrix** `skills/flow/harness/GAP-MATRIX-0.1.17.md` + lineage/docs contract tests.
+- **Canonical harness skill** `skills/harness-skill/SKILL.md` (CI-tested; optional install to
+  `~/.agents/skills/harness`).
+- **Docs purge:** agent-stage-mapping / auto-run / harness README no longer teach bare
+  implemented updates.
+- **Optional** `HARNESS_CLI_SMOKE=1` release binary smoke + sha256 sidecars.
+- Tests: `test_flow_harness_lineage_contract`, `test_flow_harness_strict`,
+  `test_flow_harness_trust_complete`, `test_flow_skill_harness_docs_contract`,
+  `test_harness_cli_optional_smoke`.
+
+Plan: `plans/260718-0840-harness-v017-flow-skill-trust-align/`.
+
 `skills/flow/SKILL.md` (mirrored in `.claude-plugin/plugin.json` and `portable-manifest.json`;
 `/flow coherence` enforces agreement). Earlier history lives in git and the README status line.
 

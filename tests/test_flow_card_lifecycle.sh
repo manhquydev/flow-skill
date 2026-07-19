@@ -63,6 +63,33 @@ has "$out" "no 'status:' line" "refuses with a clear no-status message (not a fa
 no "$out" "REVERTED" "does not print a misleading REVERTED line"
 rm -rf "$SB"
 
+echo "F) durable complete path with harness ON (AC7 trust-align)"
+# Sections A–E keep FLOW_HARNESS_DISABLE=1 for python-independence; this block needs the durable layer.
+if command -v python >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1; then
+  SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/cards"
+  unset FLOW_HARNESS_DISABLE
+  PY="$(command -v python || command -v python3)"
+  H="$HERE/../skills/flow/harness/flow_harness.py"
+  # seed durable story (same as card create would) then check done
+  FLOW_PROJECT_ROOT="$SB" "$PY" "$H" init >/dev/null
+  FLOW_PROJECT_ROOT="$SB" "$PY" "$H" story add --id C-001 --title C-001 --lane normal >/dev/null
+  printf '# C-001 — scaffold\nstatus: done\ndeps: none\n## Scope\nx\n## Allowed files\nx\n## Verify\n- [x] curl 200\n## Done-evidence\nurl\n## Evidence\nreal curl proof\n' > "$SB/cards/C-001.md"
+  bash "$RUN" check C-001 >/dev/null 2>&1; ck 0 $? "check done with harness ON -> exit 0"
+  row="$("$PY" - "$SB/.flow/harness.db" <<'PY'
+import sqlite3,sys
+c=sqlite3.connect(sys.argv[1])
+r=c.execute("select status, notes from story where id='C-001'").fetchone()
+print(r if r else "NO_ROW")
+PY
+)"
+  has "$row" "implemented" "durable story implemented after check"
+  has "$row" "card_markdown_gate" "proof_source stamped"
+  export FLOW_HARNESS_DISABLE=1
+  rm -rf "$SB"
+else
+  echo "  ok   [skip harness-on durable (no python)]"; pass=$((pass+1))
+fi
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

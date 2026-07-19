@@ -180,13 +180,69 @@ _python() {
   return 1
 }
 
-harness_call() {
-  # best-effort durable-layer write; NEVER breaks the engine if python/harness absent.
+# Durable write honesty (plan trust-align D5/D8):
+#   unset FLOW_HARNESS_STRICT  → soft: engine stays 0; one-line stderr warn on fail
+#   FLOW_HARNESS_STRICT=1      → soft exit; louder multi-line stderr
+#   FLOW_HARNESS_STRICT=fail   → propagate nonzero from harness (card/check paths)
+# harness_call_checked always returns the real harness exit (for callers that care).
+_harness_run() {
+  # runs harness; prints stderr (masked lightly); echoes nothing; returns real rc
+  # usage: _harness_run <args...>   sets _HARNESS_LAST_RC
+  _HARNESS_LAST_RC=0
   [ -n "${FLOW_HARNESS_DISABLE:-}" ] && return 0
   [ -f "$HARNESS_PY" ] || return 0
   local py; py="$(_python)"; [ -n "$py" ] || return 0
-  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" "$@" >/dev/null 2>&1
+  local errf out rc=0
+  errf="$(mktemp 2>/dev/null || echo "$ROOT/.flow/.harness-err.$$")"
+  mkdir -p "$ROOT/.flow" 2>/dev/null || true
+  # capture rc without flipping the caller's set -e state
+  out="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" "$@" 2>"$errf")" || rc=$?
+  _HARNESS_LAST_RC=$rc
+  if [ "$rc" -ne 0 ]; then
+    local errline summary
+    errline="$(tr -d '\r' <"$errf" 2>/dev/null | head -n 3 | tr '\n' ' ')"
+    # light redact of secret-shaped stderr / never dump free-text evidence args
+    case "$errline" in
+      *token*|*secret*|*passwd*|*password*|*credential*|*api_key*|*bearer*) errline="***redacted***" ;;
+    esac
+    summary="$1"
+    [ -n "${2:-}" ] && summary="$summary $2"
+    [ -n "${3:-}" ] && summary="$summary $3"
+    local mode="${FLOW_HARNESS_STRICT:-}"
+    if [ "$mode" = "1" ] || [ "$mode" = "fail" ]; then
+      printf 'flow-harness: durable command failed (rc=%s) cmd=%s\nflow-harness: %s\n' \
+        "$rc" "$summary" "$errline" >&2
+    else
+      printf 'flow-harness: warn durable write failed (rc=%s)\n' "$rc" >&2
+    fi
+  fi
+  rm -f "$errf" 2>/dev/null || true
+  return "$rc"
+}
+
+harness_call() {
+  # soft durable write: NEVER breaks engine unless STRICT=fail
+  _harness_run "$@" || true
+  if [ "${FLOW_HARNESS_STRICT:-}" = "fail" ] && [ "${_HARNESS_LAST_RC:-0}" -ne 0 ]; then
+    return "${_HARNESS_LAST_RC}"
+  fi
   return 0
+}
+
+harness_call_checked() {
+  # returns real harness exit code (and still prints STRICT-aware warnings)
+  _harness_run "$@"
+}
+
+# When STRICT=fail, surface durable failure from card/check call sites (D5).
+_harness_or_fail() {
+  harness_call "$@" || {
+    if [ "${FLOW_HARNESS_STRICT:-}" = "fail" ]; then
+      echo "FAIL: durable harness write failed (FLOW_HARNESS_STRICT=fail)."
+      return 1
+    fi
+    return 0
+  }
 }
 
 harness_available() { # 0 = durable layer usable (python + harness present, not disabled)
@@ -973,7 +1029,7 @@ cmd_card_start() { # mark a card actively in progress (operator-visible in_progr
   local id; id="$(basename "$file" .md)"; FLOW_LOG_CARD="$id"
   if [ "$(card_status "$file")" = "done" ]; then echo "FAIL: $id is already done — nothing to start."; return 1; fi
   _inflight_set "$id"
-  harness_call story update --id "$id" --status in_progress   # durable mirror (best-effort)
+  _harness_or_fail story update --id "$id" --status in_progress   # durable mirror (STRICT=fail propagates)
   echo "PASS: $id marked in flight. Build it, then '/flow card done $id' (or hand-edit status: done + '/flow check $id')."
   return 0
 }
@@ -1033,7 +1089,7 @@ cmd_card() {
     [ -n "$pc" ] && printf '%s\n' "$pc" | sed 's/^/  /'
     [ -n "$dbt" ] && { echo "  open debt:"; printf '%s\n' "$dbt" | sed 's/^/    /'; }
   fi
-  harness_call story add --id "$id" --title "$id" --lane normal   # durable tracking handle
+  _harness_or_fail story add --id "$id" --title "$id" --lane normal   # durable tracking handle
   return 0
 }
 
@@ -1106,9 +1162,22 @@ cmd_check() {
   if [ "$found" -eq 0 ]; then
     echo "PASS: $id is valid (status: $st)."
     case "$st" in
-      todo) harness_call story update --id "$id" --status in_progress ;;
-      done) harness_call story update --id "$id" --status implemented
-            local tr; tr="$(harness_emit trace --summary "card $id reached done-evidence" --story "$id" --outcome completed)"
+      todo) _harness_or_fail story update --id "$id" --status in_progress || return 1 ;;
+      done)
+            # trust-align: complete with honest card_markdown_gate provenance (D3/D7/D8)
+            if ! harness_call_checked story complete --id "$id" \
+                  --proof-source card_markdown_gate \
+                  --evidence "card $id markdown gate PASS"; then
+              if [ "${FLOW_HARNESS_STRICT:-}" = "fail" ]; then
+                echo "FAIL: durable story complete failed (FLOW_HARNESS_STRICT=fail)."
+                return 1
+              fi
+            fi
+            # auto-trace: enrich tier-2 fields from known card context (do not fake --lane tiny)
+            local tr
+            tr="$(harness_emit trace --summary "card $id reached done-evidence" --story "$id" \
+                  --outcome completed --agent flow-check \
+                  --actions "check $id gate PASS" --files-changed "cards/$id.md" --friction none)"
             [ -n "$tr" ] && printf '%s\n' "$tr" | grep -iE 'tier|to reach' | sed 's/^/  harness: /' ;;
     esac
     return 0

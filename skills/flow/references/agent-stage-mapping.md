@@ -54,7 +54,7 @@ gate): **`ck-predict` at ADR** (5-persona pre-decision debate) and **`ck-scenari
 | UI card | `ui-ux-designer` | — | inline + `law/DESIGN.md` | review vs DESIGN.md |
 | Repair / diagnostic | `debugger` | — | inline root-cause + fresh same-ladder subagent | `harness intervention add` |
 | Review | `code-reviewer` (+ `typescript-reviewer` or `python-reviewer` layered — see language-specialist lens) | `bmad-code-review` (3-layer adversarial) | inline | `harness intervention add` on red |
-| Deploy / git ship | `git-manager` | — | inline commit + PR guide | `harness story update --status implemented` |
+| Deploy / git ship | `git-manager` | — | inline commit + PR guide | `harness story complete --id … --proof-source manual` (never bare `update --status implemented`) |
 | Docs sync | `docs-manager` | — | inline doc update | — |
 | Verify-live | `tester` / `web-testing` | `bmad-qa-generate-e2e-tests` | curl/Playwright | `harness story update --e2e 1` + `trace` |
 
