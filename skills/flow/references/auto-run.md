@@ -52,9 +52,14 @@ for each todo card in card-number order:
 Boundaries are recorded by the verbs above, which this loop already calls — nothing depends
 on the agent remembering an extra call. Only the Tier-C interrupt (step 0) is an explicit
 `graph record` invocation; `graph session` returns the project's running execution
-(minting one atomically if absent — one execution per project, shared by every worktree). The card path — dispatch → review → verify-live → merge,
-with card-abandon for an unmerged teardown — is exactly what the pinned topology declares,
-so `graph next` always advises the boundary the next verb will record. The executor never drives the loop: it records evidence, computes
+(minting one atomically if absent — one execution per project, shared by every worktree).
+The card path is dispatch (`workspace add`) → review (`check`) → merge (`workspace remove`),
+with an optional verify-live between review and merge when you close the card via
+`card done` rather than hand-editing `status:`; an unmerged teardown records card-abandon,
+and a RED review loops back to review (bounded by max_visits — two strikes, then escalate).
+Every one of those transitions is a declared topology edge, and
+`tests/test_flow_graph_parallel_cards.sh` drives a real lifecycle and fails if the runner
+ever emits a transition the topology does not declare. The executor never drives the loop: it records evidence, computes
 the next node from topology + journal, and reconciles against git (`graph resume` with no
 open interrupt prints a reconciliation report), so merged-but-unrecorded work is never
 re-dispatched. Ready/parallel decisions come from `flow harness graph cards`

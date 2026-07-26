@@ -113,7 +113,7 @@ uj2="$(bash "$RUN" usage --json 2>&1)"
 no "$uj2" '"card": "C-002"' "a failed/reverted card done does NOT create a dwell pair"
 
 echo "8) v2 loop-closing: migration 011 + usage --summary + recall block + gate-reason + prune + propose"
-PY="$(command -v python || command -v python3)"
+PY="$(command -v python3 || command -v python)"
 ver="$("$PY" - "$SB/.flow/harness.db" <<'PY'
 import sqlite3,sys
 print(sqlite3.connect(sys.argv[1]).execute("select max(version) from schema_version").fetchone()[0])
@@ -208,7 +208,7 @@ else echo "  FAIL [compact line too large: $len]"; fail=$((fail+1)); fi
 rm -rf "$SBR"
 
 echo "13) per-stage dwell reports WALL-CLOCK time-in-stage from transitions (not runner exec time)"
-PY="$(command -v python || command -v python3)"
+PY="$(command -v python3 || command -v python)"
 SBW="$HERE/.dwell_$$"; rm -rf "$SBW"; mkdir -p "$SBW/.flow"
 "$PY" - "$SBW/.flow/events.jsonl" <<'PY'
 import json,sys
@@ -235,7 +235,7 @@ has "$gl" '"stage_from"' "compact global line contains stage_from key"
 rm -rf "$SB"
 
 echo "16) EQUIVALENCE: --global dwell for new (post-fix) rows equals project-local dwell for same transitions"
-PY="$(command -v python || command -v python3)"
+PY="$(command -v python3 || command -v python)"
 # Use two completely separate sandbox dirs each with their own DB so src paths do not collide.
 SBL="$HERE/.dwell_local_$$"; SBG="$HERE/.dwell_global_$$"
 rm -rf "$SBL" "$SBG"
@@ -279,7 +279,7 @@ else echo "  FAIL [global dwell diverges from project-local dwell] local=$jl glo
 rm -rf "$SBL" "$SBG"
 
 echo "17) PARTITION: legacy rows without stage_from infer dwell per (project,cycle_id) — no cross-cycle bleed; no crash"
-PY="$(command -v python || command -v python3)"
+PY="$(command -v python3 || command -v python)"
 SBP="$HERE/.dwell_part_$$"; rm -rf "$SBP"; mkdir -p "$SBP/.flow"
 export FLOW_PROJECT_ROOT="$SBP"
 # Two interleaved cycles A (dwell=1000s) and B (dwell=2000s) in the same project, NO stage_from.
@@ -317,7 +317,7 @@ has "$(FLOW_PROJECT_ROOT="$SBP" "$PY" "$HARN" rollup 2>/dev/null)" '"rolled": 0'
 rm -rf "$SBP"
 
 echo "18) CROSS-PROJECT BLEED: two projects sharing the same cycle_id get independent dwell (--global path)"
-PY="$(command -v python || command -v python3)"
+PY="$(command -v python3 || command -v python)"
 SBX="$HERE/.dwell_xproj_$$"; rm -rf "$SBX"; mkdir -p "$SBX/home/.claude/flow"
 export HOME="$SBX/home"; export USERPROFILE="$SBX/home"; export FLOW_PROJECT_ROOT="$SBX"
 # Project P, cycle A: 00-idea dwell = 500s  (enter=E, exit=E+500)
@@ -369,7 +369,7 @@ has "$(tail -1 "$PP/.flow/events.jsonl" 2>/dev/null)" '"ephemeral":1' "non-tmp.*
 rm -rf "$PP"
 
 echo "19) C-012: build-intent vs diagnostic classification (read-time, retroactive)"
-PY="$(command -v python || command -v python3)"
+PY="$(command -v python3 || command -v python)"
 SBI="$HERE/.intentclass_$$"; rm -rf "$SBI"; mkdir -p "$SBI/.flow"
 export FLOW_PROJECT_ROOT="$SBI"
 
@@ -462,7 +462,7 @@ else echo "  FAIL [19f: _ensure_cycle appears to have an intent-gate added — F
 rm -rf "$SBI"
 
 echo "20) C-017 LOW-2: inference-fired -> dwell header carries ~approx marker; all-exact -> no marker"
-PY="$(command -v python || command -v python3)"
+PY="$(command -v python3 || command -v python)"
 
 # 20a: fixture with legacy rows (no stage_from) — inference fires -> header must have ~approx
 SB20A="$HERE/.c017_approx_$$"; rm -rf "$SB20A"; mkdir -p "$SB20A/home/.claude/flow"
@@ -503,7 +503,7 @@ no "$tb" "~approx" "20b: exact rows (real stage_from) -> dwell header has NO ~ap
 rm -rf "$SB20B"
 
 echo "21) C-017 LOW-1: --builds-only prints build-cycle count on cycle-time line; display_count is not a dead assignment"
-PY="$(command -v python || command -v python3)"
+PY="$(command -v python3 || command -v python)"
 
 # 21a: --builds-only output includes build count on cycle-time line
 SB21="$HERE/.c017_bonly_$$"; rm -rf "$SB21"; mkdir -p "$SB21/.flow"
@@ -536,7 +536,7 @@ else
 fi
 
 echo "22) v0.20 Phase 1: compact GLOBAL row gains card/args for command=card ONLY (dwell-blind fix)"
-PY="$(command -v python || command -v python3)"
+PY="$(command -v python3 || command -v python)"
 
 # 22a: a REAL card start/done pair (never hand-seeded literals — the writer path itself is
 # under test) writes card+args into the compact global row, and `usage --global` shows the

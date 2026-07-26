@@ -8,7 +8,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 HDIR="$HERE/../skills/flow/harness"
 H="$HDIR/flow_harness.py"
 RUN="$HERE/../skills/flow/runner/flow.sh"
-PY="$(command -v python || command -v python3)"
+PY="$(command -v python3 || command -v python)"
 if [ -z "$PY" ]; then echo "SKIP: python not found"; exit 0; fi
 pass=0; fail=0
 ck() { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected=$1 got=$2"; fail=$((fail+1)); fi; }
@@ -78,6 +78,21 @@ ST="$(bash "$RUN" status 2>&1)"
 has "$ST" "04-adr\|05-contract" "status reports a post-skip stage, not the pinned pre-skip one"
 cd /; rm -rf "$SB"
 
+echo "B2) forward skip whose successor file is gone still advances (no permanent no-op)"
+SBF="$(mktemp -d)"; cd "$SBF" || exit 1
+bash "$RUN" next >/dev/null 2>&1
+for i in 1 2; do fill_stages "$SBF"; bash "$RUN" next >/dev/null 2>&1; done
+fill_stages "$SBF"
+printf -- '- [ ] DEBT: skip 03-prd -- small tool -- close before: v2 -- opened 2026-07-27\n' > DEBT.md
+bash "$RUN" skip 03-prd --reason "small internal tool" >/dev/null 2>&1
+rm -f flow/04-adr.md          # cmd_skip scaffolded it; simulate a failed/undone scaffold
+OUTF="$(bash "$RUN" next 2>&1)"
+has "$OUTF" "unlocked stage 4" "next walks PAST the skipped stage to the first real one"
+ck "1" "$([ -f flow/04-adr.md ] && echo 1 || echo 0)" "04-adr scaffolded (project not wedged)"
+ck "0" "$([ -f flow/03-prd.md ] && echo 1 || echo 0)" "the skipped stage is still not re-created"
+cd /; rm -rf "$SBF"
+cd "$SB" 2>/dev/null || cd /
+
 echo "C) executor mode records planning boundaries in the planning lane"
 SB="$(mktemp -d)"; cd "$SB" || exit 1
 export FLOW_GRAPH_EXECUTOR=1
@@ -135,7 +150,7 @@ OUTB="$(bash "$RUN" next 2>&1)"
 has "$OUTB" "earlier stage is still BLOCKED" "flow.sh reports the blocked earlier stage"
 PEID="$(FLOW_PROJECT_ROOT="$SBB" "$PY" "$H" graph session --kind planning)"
 GN="$(FLOW_PROJECT_ROOT="$SBB" "$PY" "$H" graph next --execution "$PEID" 2>/dev/null)"; grc=$?
-no "$GN" "^$" "executor does not answer complete for a blocked project"
+[ -n "$GN" ]; ck 0 $? "executor advises a real node (non-empty) for a blocked project"
 ck "0" "$grc" "graph next still advises a node (rc 0), never rc 3 while blocked"
 unset FLOW_GRAPH_EXECUTOR
 cd /; rm -rf "$SBB"

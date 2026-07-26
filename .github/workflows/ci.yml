@@ -40,11 +40,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    # Windows Git Bash + 33 suites (esp. test_flow_eval sleep/timeout paths) measured
-    # ~11.5m through suite #28 then still mid-eval at 15m — job was cancelled mid-assert,
-    # not hung. Ubuntu ~2m / macOS ~3m. Keep 15m elsewhere; give Windows 30m headroom
-    # (research 2026-07-18, run 29630992330).
-    timeout-minutes: ${{ matrix.os == 'windows-latest' && 30 || 15 }}
+    # Windows Git Bash is the slow cell: measured 18-25m for the 39-suite set
+    # (docs/release-process.md). The graph suites add ~20% of local suite time, which
+    # extrapolates the upper bound to ~31m — over the old 30m cap — so Windows gets 45m.
+    # Ubuntu ~2-3m / macOS ~3-4m stay at 15m. Re-measure before trimming this back.
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 45 || 15 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -73,18 +73,32 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: flow.sh gates a project with the durable layer disabled
+      - name: flow.sh gates a project with NO python on PATH
         run: |
           set -e
-          SB="$(mktemp -d)"; cd "$SB"
           R="$GITHUB_WORKSPACE/skills/flow/runner/flow.sh"
-          FLOW_HARNESS_DISABLE=1 bash "$R" next
-          test -f flow/00-idea.md || { echo "FAIL: stage 00 not scaffolded"; exit 1; }
-          test ! -f .flow/harness.db || { echo "FAIL: db minted while disabled"; exit 1; }
-          FLOW_HARNESS_DISABLE=1 bash "$R" status >/dev/null
-          out="$(FLOW_HARNESS_DISABLE=1 bash "$R" doctor 2>&1)" || true
-          printf '%s' "$out" | grep -qi "python\|durable" || { echo "FAIL: doctor hides the durable-layer state"; exit 1; }
-          echo "OK: engine gates + doctor diagnoses without the durable layer"
+          SB="$(mktemp -d)"; SHIM="$(mktemp -d)"
+          # Real absence, not just the opt-out flag: FLOW_HARNESS_DISABLE returns before
+          # _python() is ever called, so it exercises none of the interpreter probes.
+          for t in bash sh env cat cp mv rm mkdir sed awk grep date tr head tail sort ls dirname basename find printf uname wc cut comm mktemp touch git timeout; do
+            p="$(command -v "$t" 2>/dev/null)" && ln -sf "$p" "$SHIM/$t" || true
+          done
+          run() { ( cd "$SB" && env -i PATH="$SHIM" HOME="$SB" bash "$R" "$@" ); }
+          run next
+          test -f "$SB/flow/00-idea.md" || { echo "FAIL: stage 00 not scaffolded"; exit 1; }
+          # Advance past 00 so the durable hook WOULD fire — otherwise the db assertion is
+          # vacuous (stage 00 never mints one even with the harness fully available).
+          sed -i 's/- \[ \]/- [x]/g' "$SB/flow/00-idea.md"
+          # No heredoc: inside a YAML block scalar the terminator would carry the block
+          # indent and never match column 0, so the shell would swallow the rest of the job.
+          python3 -c 'import pathlib,re,sys; f=pathlib.Path(sys.argv[1],"flow","00-idea.md"); f.write_text(re.sub(r"\[FILL.*?\]","filled",f.read_text(),flags=re.S))' "$SB"
+          run next
+          test -f "$SB/flow/01-research.md" || { echo "FAIL: gate did not advance without python"; exit 1; }
+          test ! -f "$SB/.flow/harness.db" || { echo "FAIL: db minted with no interpreter"; exit 1; }
+          run status >/dev/null
+          out="$(run doctor 2>&1 || true)"
+          printf '%s' "$out" | grep -qi "python" || { echo "FAIL: doctor hides the missing interpreter"; exit 1; }
+          echo "OK: engine scaffolds+gates+diagnoses with no python on PATH"
         shell: bash
 
   test:

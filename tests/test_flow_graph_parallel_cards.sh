@@ -9,7 +9,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 HDIR="$HERE/../skills/flow/harness"
 H="$HDIR/flow_harness.py"
 RUN="$HERE/../skills/flow/runner/flow.sh"
-PY="$(command -v python || command -v python3)"
+PY="$(command -v python3 || command -v python)"
 if [ -z "$PY" ]; then echo "SKIP: python not found"; exit 0; fi
 if ! command -v git >/dev/null 2>&1; then echo "SKIP: git not found"; exit 0; fi
 pass=0; fail=0
@@ -236,7 +236,52 @@ EOF
   ck "$PK" "$PKW" "main tree and card worktree agree on the project key (gc can see both)"
 fi
 
-cd /; rm -rf "$SB"
+echo "P) every transition the runner emits is a declared topology edge"
+# Dedicated sandbox: run this on a FRESH lifecycle, never after a gc (a check over an
+# emptied table passes vacuously - exactly the phantom this section exists to prevent).
+PB="$(mktemp -d)"; ( cd "$PB" && git init -q . \
+  && git -c user.email=t@t -c user.name=t commit -qm b --allow-empty ) >/dev/null 2>&1
+mkdir -p "$PB/flow" "$PB/cards"
+for s0 in 00-idea 01-research 02-scope 03-prd 04-adr 05-contract; do printf '# %s\nok\n' "$s0" > "$PB/flow/$s0.md"; done
+printf '# C-001 — t\nstatus: todo\ndeps: none\n## Scope\nx\n## Allowed files\nsrc/a.ts\n## Verify\n- [x] v\n## Done-evidence\nu\n## Evidence\nreal\n' > "$PB/cards/C-001.md"
+( cd "$PB" && git add -A && git -c user.email=t@t -c user.name=t commit -qm c ) >/dev/null 2>&1
+( cd "$PB" && FLOW_GRAPH_EXECUTOR=1 bash "$RUN" workspace add card/C-001 --card C-001 ) >/dev/null 2>&1
+( cd "$PB" && FLOW_GRAPH_EXECUTOR=1 bash "$RUN" check C-001 ) >/dev/null 2>&1
+PWT="$(cd "$PB" && git worktree list --porcelain | awk '/^worktree /{p=substr($0,10)} /^branch refs\/heads\/card\/C-001$/{print p}')"
+( cd "$PWT" && echo x > w.txt && git add w.txt && git -c user.email=t@t -c user.name=t commit -qm w ) >/dev/null 2>&1
+( cd "$PB" && git -c user.email=t@t -c user.name=t merge -q --no-edit card/C-001 ) >/dev/null 2>&1
+( cd "$PB" && FLOW_GRAPH_EXECUTOR=1 bash "$RUN" workspace remove card/C-001 --force ) >/dev/null 2>&1
+SEQ="$("$PY" - "$PB/.flow/harness.db" <<'EOF'
+import sqlite3,sys
+c=sqlite3.connect(sys.argv[1])
+print(",".join(r[0] for r in c.execute(
+  "SELECT node FROM graph_checkpoint WHERE ns='card:C-001' ORDER BY checkpoint_id")))
+EOF
+)"
+has "$SEQ" "card-dispatch" "the fresh lifecycle actually recorded a card chain ($SEQ)"
+TRANS="$("$PY" - "$PB/.flow/harness.db" "$HERE/../skills/flow/references/flow-topology.json" <<'EOF'
+import json,sqlite3,sys
+c=sqlite3.connect(sys.argv[1]); c.row_factory=sqlite3.Row
+topo=json.load(open(sys.argv[2]))
+edges={(e["from"],e["to"]) for e in topo["edges"]}
+nodes=set(topo["nodes"])
+bad=[]
+seen_any=False
+for ns in [r[0] for r in c.execute("SELECT DISTINCT ns FROM graph_checkpoint WHERE ns<>''")]:
+    seq=[r["node"] for r in c.execute(
+        "SELECT node FROM graph_checkpoint WHERE ns=? ORDER BY checkpoint_id",(ns,))]
+    if seq: seen_any=True
+    for n in seq:
+        if n not in nodes: bad.append(f"{ns}: node {n} not in topology")
+    for a,b in zip(seq,seq[1:]):
+        if a!=b and (a,b) not in edges: bad.append(f"{ns}: {a}->{b} is not a declared edge")
+print("|".join(bad) if bad else ("OK" if seen_any else "EMPTY-JOURNAL"))
+EOF
+)"
+ck "OK" "$TRANS" "recorded card transitions all exist as topology edges"
+rm -rf "$PB" "$PB"-card-* 2>/dev/null
+
+cd /; rm -rf "$SB" "$SB"-card-* "$SB"-spike-* 2>/dev/null
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

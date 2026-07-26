@@ -37,7 +37,7 @@ Nightly (cron) ──► smoke.mjs vs dist-tags rc + latest (clean cwd, no npm-w
 |---|---|---|
 | bash-suite ubuntu | ~2–3 min | 15m |
 | bash-suite macOS | ~3–4 min | 15m |
-| bash-suite Windows | ~18–25 min | **30m** |
+| bash-suite Windows | ~18–25 min (39 suites) → est. ~22–31 min (46 suites) | **45m** |
 | npm-wrapper matrix | ~15–40s / cell | 10m |
 
 `tests/run_all.sh` prints `wall_s` per suite + `TOTAL wall_s` for timeout forensics.

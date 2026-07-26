@@ -16,6 +16,15 @@ _lock = threading.Lock()
 _last_ns = 0
 
 
+def after(prev):
+    """An id strictly greater than `prev`. Used when the journal head was minted by a
+    process whose clock ran ahead of ours: ordering here is lexicographic, so a plain
+    timestamp id would silently sort BELOW the head and the write would be invisible."""
+    with _lock:
+        ts = int(prev[:16], 16) + 1
+    return "%016x%s" % (ts, os.urandom(3).hex())
+
+
 def new_id():
     global _last_ns
     with _lock:

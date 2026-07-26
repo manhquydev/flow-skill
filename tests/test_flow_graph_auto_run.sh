@@ -9,7 +9,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 HDIR="$HERE/../skills/flow/harness"
 H="$HDIR/flow_harness.py"
 RUN="$HERE/../skills/flow/runner/flow.sh"
-PY="$(command -v python || command -v python3)"
+PY="$(command -v python3 || command -v python)"
 if [ -z "$PY" ]; then echo "SKIP: python not found"; exit 0; fi
 if ! command -v git >/dev/null 2>&1; then echo "SKIP: git not found"; exit 0; fi
 pass=0; fail=0

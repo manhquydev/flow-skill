@@ -69,9 +69,20 @@ def _session_id():
                            os.getppid())
 
 
+def _git_env():
+    """git honours GIT_DIR/GIT_WORK_TREE from the environment, and every git HOOK
+    exports them (also `git rebase -x`, `bisect run`, `submodule foreach`). Inheriting
+    them silently points our worktree translation and merge proofs at a foreign repo."""
+    env = dict(os.environ)
+    for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+              "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"):
+        env.pop(k, None)
+    return env
+
+
 def _git(root, *args):
     try:
-        return subprocess.run(["git", "-C", root, *args],
+        return subprocess.run(["git", "-C", root, *args], env=_git_env(),
                               capture_output=True, text=True, timeout=15)
     except Exception:
         return None
@@ -213,11 +224,18 @@ def _open_interrupt(con, execution_id, ns=None):
                         "AND status='open' ORDER BY created_at LIMIT 1", (execution_id, ns))
 
 
+def _visits(con, execution_id, ns, node):
+    return con.execute("SELECT COUNT(*) FROM graph_checkpoint WHERE execution_id=? "
+                       "AND ns=? AND node=?", (execution_id, ns, node)).fetchone()[0]
+
+
 def plan_next(con, topo, execution_id, ns, root):
     """Next node names for (execution, ns): entry roots before the first checkpoint,
     else predicate-gated successors of the latest node, with skip-substitution."""
     latest = _latest_checkpoint(con, execution_id, ns)
-    skipped = _skipped_stages(root)
+    # Skips are written by cmd_skip at the main root; a card worktree must not see a
+    # different skip set than the journal was recorded under.
+    skipped = _skipped_stages(_db._linked_worktree_main_root(root) or root)
     if latest is None:
         if ns != "":
             # Non-root namespaces (card:C-NNN) have no implicit entry: Phase 4 starts
@@ -226,7 +244,18 @@ def plan_next(con, topo, execution_id, ns, root):
         entry = topo.get("entry") or []
         return _substitute_skips(topo, list(entry[:1]), skipped)
     manifest = json.loads(latest["manifest"])
-    return _substitute_skips(topo, _successors(topo, latest["node"], manifest), skipped)
+    nxt = _substitute_skips(topo, _successors(topo, latest["node"], manifest), skipped)
+    # A declared max_visits is a BOUND, not decoration: once a repair node has been
+    # visited that many times the two-strikes contract says escalate, so stop advising it
+    # (auto-run.md: strike 2 -> operator/cross-vendor, never an unbounded loop).
+    out = []
+    for n in nxt:
+        cap = topo["nodes"].get(n, {}).get("max_visits")
+        if cap and _visits(con, execution_id, ns, n) >= int(cap):
+            sys.stderr.write(f"flow-graph: {n} hit max_visits={cap} - escalate, not retry\n")
+            continue
+        out.append(n)
+    return out
 
 
 # ---------------- verbs ----------------
@@ -426,6 +455,11 @@ def cmd_graph_record(con, a):
     seen = json.loads(latest["seen"]) if latest else {}
     seen[a.node] = dict(versions)
     ck = graph_ids.new_id()
+    # Ordering is lexicographic over these ids, and a backwards clock step (NTP, resume
+    # from suspend, a second host on a shared checkout) would otherwise mint an id BELOW
+    # the journal head - the write lands but `_latest_checkpoint` never sees it.
+    if latest and ck <= latest["checkpoint_id"]:
+        ck = graph_ids.after(latest["checkpoint_id"])
     meta = {"source": a.source, "step": (json.loads(latest["meta"])["step"] + 1) if latest else 0,
             "ts": int(time.time())}
     writes = json.loads(a.writes) if a.writes else []
@@ -481,6 +515,10 @@ def cmd_graph_next(con, a):
     if ex is None:
         sys.stderr.write(f"flow-graph: no execution {a.execution}\n")
         return 1
+    if _open_interrupt(con, a.execution, a.ns or ""):
+        sys.stderr.write("flow-graph: this namespace has an open interrupt - "
+                         "resolve it via `graph resume --interrupt-id ...`\n")
+        return 3
     if ex["status"] == "paused" and _open_interrupt(con, a.execution):
         sys.stderr.write("flow-graph: execution paused on an open interrupt - "
                          "resolve via `graph resume --answer ... --actor ...`\n")
@@ -599,10 +637,29 @@ def cmd_graph_resume(con, a):
     if ex["status"] in TERMINAL:
         sys.stderr.write(f"flow-graph: execution is terminal ({ex['status']}) - refusing resume\n")
         return 1
-    intr = _open_interrupt(con, a.execution)
+    # Which interrupt is being answered must be EXPLICIT when more than one is open.
+    # Resolving "whichever came first" let an operator answer a benign interrupt and
+    # un-pause an execution whose security-class interrupt was still open - the guard
+    # chain (closed-set target, committed DEBT provenance) was simply never reached.
+    opens = _db.rows(con, "SELECT * FROM graph_interrupt WHERE execution_id=? AND status='open' "
+                          "ORDER BY created_at, ns, interrupt_id", (a.execution,))
+    if getattr(a, "interrupt_id", None):
+        opens = [r for r in opens if r["interrupt_id"] == a.interrupt_id]
+    elif getattr(a, "ns", None) is not None and a.ns != "":
+        opens = [r for r in opens if r["ns"] == a.ns]
+    if len(opens) > 1 and (a.answer or a.actor):
+        sys.stderr.write(
+            "flow-graph: %d interrupts are open - name the one you are answering with "
+            "--interrupt-id (or --ns):\n" % len(opens))
+        for r in opens:
+            sys.stderr.write("  %s  ns=%s  node=%s  security_class=%s\n"
+                             % (r["interrupt_id"], r["ns"] or "''", r["node"],
+                                r["security_class"]))
+        return 2
+    intr = opens[0] if opens else None
     if intr is None:
         if a.answer or a.actor:
-            sys.stderr.write("flow-graph: no open interrupt on this execution\n")
+            sys.stderr.write("flow-graph: no open interrupt matches this execution/selector\n")
             return 1
         # No interrupt + no answer: reconciliation report. For each ns, verify the
         # latest manifest's durable claims against git so evidence-backed work is
@@ -661,8 +718,15 @@ def cmd_graph_resume(con, a):
                                  "session": audit_session,
                                  "author_distinct": author_distinct}),
                      a.actor, intr["execution_id"], intr["ns"], intr["interrupt_id"]))
-        con.execute("UPDATE graph_execution SET status='running', "
-                    "updated_at=datetime('now') WHERE id=?", (a.execution,))
+        # Un-pause only when NOTHING is still open: resolving one interrupt must not
+        # release an execution whose security-class interrupt is still waiting.
+        left = con.execute("SELECT COUNT(*) FROM graph_interrupt WHERE execution_id=? "
+                           "AND status='open'", (a.execution,)).fetchone()[0]
+        if not left:
+            con.execute("UPDATE graph_execution SET status='running', "
+                        "updated_at=datetime('now') WHERE id=?", (a.execution,))
+    if left:
+        sys.stderr.write(f"flow-graph: {left} interrupt(s) still open - execution stays paused\n")
     print(intr["interrupt_id"])
     return 0
 
@@ -1075,6 +1139,33 @@ def cmd_graph_lint(con, a):
     return 0
 
 
+def cmd_graph_finish(con, a):
+    """Close a lane: mark the execution done so `session` mints a fresh one for the next
+    feature and `gc` can eventually reclaim it. Without a terminal transition nothing
+    ever leaves `running`, so the journal grows forever and a completed planning lane
+    answers "complete" for the feature that follows it."""
+    rc = _guard_flags()
+    if rc:
+        return rc
+    ex = _execution(con, a.execution)
+    if ex is None:
+        sys.stderr.write(f"flow-graph: no execution {a.execution}\n")
+        return 1
+    if ex["status"] in TERMINAL:
+        return 0                      # idempotent
+    opens = con.execute("SELECT COUNT(*) FROM graph_interrupt WHERE execution_id=? "
+                        "AND status='open'", (a.execution,)).fetchone()[0]
+    if opens and not getattr(a, "force", False):
+        sys.stderr.write(f"flow-graph: {opens} interrupt(s) still open - resolve them or "
+                         "pass --force\n")
+        return 1
+    with _db.transaction(con):
+        con.execute("UPDATE graph_execution SET status='done', outcome=?, "
+                    "updated_at=datetime('now') WHERE id=?",
+                    (a.outcome or "complete", a.execution))
+    return 0
+
+
 def cmd_graph_gc(con, a):
     rc = _guard_flags()
     if rc:
@@ -1095,7 +1186,7 @@ def cmd_graph_gc(con, a):
         try:
             stale = _db.rows(con,
                              "SELECT e.id FROM graph_execution e "
-                             "WHERE e.status='running' AND e.project=? "
+                             "WHERE e.status IN ('running','paused') AND e.project=? "
                              "AND e.created_at <= datetime('now', ?) "
                              "AND NOT EXISTS ("
                              "  SELECT 1 FROM graph_checkpoint c WHERE c.execution_id=e.id "

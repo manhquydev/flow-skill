@@ -763,7 +763,7 @@ def cmd_graph(con, a):
         "resume": G.cmd_graph_resume, "status": G.cmd_graph_status,
         "abandon": G.cmd_graph_abandon, "gc": G.cmd_graph_gc, "lint": G.cmd_graph_lint,
         "cards": G.cmd_graph_cards, "root": G.cmd_graph_root,
-        "session": G.cmd_graph_session,
+        "session": G.cmd_graph_session, "finish": G.cmd_graph_finish,
     }[a.graph_cmd](con, a)
 
 
@@ -1212,8 +1212,11 @@ def build_parser():
     g3.add_argument("--force-retopology", dest="force_retopology", action="store_true",
                     help="after a skill upgrade changed the topology: fork the chain onto "
                          "the current topology instead of refusing")
-    g4 = pgs.add_parser("resume", help="resolve the open interrupt (guarded) and resume")
+    g4 = pgs.add_parser("resume", help="resolve an open interrupt (guarded) and resume")
     g4.add_argument("--execution", required=True)
+    g4.add_argument("--ns", default="", help="select the interrupt by namespace")
+    g4.add_argument("--interrupt-id", dest="interrupt_id",
+                    help="select the exact interrupt (required when several are open)")
     g4.add_argument("--answer", help='JSON object with a non-empty string "reason"')
     g4.add_argument("--actor", help="resolving actor id (stored as audit evidence)")
     g4.add_argument("--target", help="closed-set target the DEBT line must name (C-NNN or NN-stage)")
@@ -1221,6 +1224,10 @@ def build_parser():
     g5.add_argument("--execution", required=True)
     g6 = pgs.add_parser("abandon", help="terminal-state an execution (kill-at-gate, stale cleanup)")
     g6.add_argument("--execution", required=True); g6.add_argument("--outcome", help="e.g. killed")
+    gf = pgs.add_parser("finish", help="mark an execution done (lane closed) so the next "
+                                       "feature gets a fresh session and gc can reclaim")
+    gf.add_argument("--execution", required=True); gf.add_argument("--outcome")
+    gf.add_argument("--force", action="store_true", help="close despite open interrupts")
     g7 = pgs.add_parser("gc", help="purge terminal executions for ONE project (cascade), then "
                                    "--stale-days marks aged checkpoint-less running as abandoned "
                                    "(deleted on the NEXT gc, so doctor can surface them first)")

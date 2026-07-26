@@ -21,6 +21,17 @@ SCHEMA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema")
 _worktree_main_cache = {}
 
 
+def _git_env():
+    """Strip inherited GIT_DIR/GIT_WORK_TREE (exported by every git hook, `rebase -x`,
+    `bisect run`, `submodule foreach`): with them set, git answers about a FOREIGN repo
+    and the worktree translation silently splits the journal."""
+    env = dict(os.environ)
+    for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+              "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"):
+        env.pop(k, None)
+    return env
+
+
 def _linked_worktree_main_root(root):
     """Map `root` inside a LINKED git worktree to its main-worktree equivalent path, else None.
 
@@ -38,7 +49,7 @@ def _linked_worktree_main_root(root):
         r = subprocess.run(
             ["git", "-C", root, "rev-parse", "--path-format=absolute",
              "--git-dir", "--git-common-dir", "--show-toplevel"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, timeout=10, env=_git_env(),
         )
         git_dir = common_dir = worktree_top = None
         if r.returncode == 0:
@@ -49,7 +60,7 @@ def _linked_worktree_main_root(root):
             # git < 2.31 lacks --path-format (declared floor); best-effort re-derive.
             # Gated on the failure NOT being "not a repo" so non-git roots cost one spawn.
             def _rp(flag):
-                q = subprocess.run(["git", "-C", root, "rev-parse", flag],
+                q = subprocess.run(["git", "-C", root, "rev-parse", flag], env=_git_env(),
                                    capture_output=True, text=True, timeout=10)
                 return q.stdout.strip() if q.returncode == 0 and q.stdout.strip() else None
             git_dir = _rp("--absolute-git-dir")
@@ -64,7 +75,7 @@ def _linked_worktree_main_root(root):
             # is git internals there, not a project root. realpath everywhere: macOS mktemp
             # and symlinked checkouts otherwise fail the containment compare silently.
             if os.path.realpath(git_dir) != os.path.realpath(common_dir):
-                wt = subprocess.run(["git", "-C", root, "worktree", "list", "--porcelain"],
+                wt = subprocess.run(["git", "-C", root, "worktree", "list", "--porcelain"], env=_git_env(),
                                     capture_output=True, text=True, timeout=10)
                 first = next((ln for ln in wt.stdout.splitlines()
                               if ln.startswith("worktree ")), "") if wt.returncode == 0 else ""

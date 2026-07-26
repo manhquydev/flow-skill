@@ -9,7 +9,7 @@ HDIR="$HERE/../skills/flow/harness"
 H="$HDIR/flow_harness.py"
 RUN="$HERE/../skills/flow/runner/flow.sh"
 TOPO="$HERE/../skills/flow/references/flow-topology.json"
-PY="$(command -v python || command -v python3)"
+PY="$(command -v python3 || command -v python)"
 if [ -z "$PY" ]; then echo "SKIP: python not found"; exit 0; fi
 pass=0; fail=0
 ck() { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected=$1 got=$2"; fail=$((fail+1)); fi; }
@@ -93,7 +93,9 @@ smoke_fail=0
 while IFS= read -r args; do
   [ -z "$args" ] && continue
   OUT="$(cd "$SM" && FLOW_HARNESS_DB="$SM/none.db" bash "$RUN" gate $args 2>&1)"; rc=$?
-  case "$rc" in 0|1) : ;; *) smoke_fail=1; echo "  smoke rc=$rc for: gate $args :: $OUT" ;; esac
+  # 0 = clean, 1 = findings, 2 = "card not found" (the sandbox has no cards). Anything
+  # else means the shipped cmd is not a runnable gate invocation at all.
+  case "$rc" in 0|1|2) : ;; *) smoke_fail=1; echo "  smoke rc=$rc for: gate $args :: $OUT" ;; esac
   case "$OUT" in *usage:*) smoke_fail=1; echo "  smoke usage-error for: gate $args" ;; esac
 done <<EOF2
 $CMDS

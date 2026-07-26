@@ -68,7 +68,7 @@ echo "F) durable complete path with harness ON (AC7 trust-align)"
 if command -v python >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1; then
   SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/cards"
   unset FLOW_HARNESS_DISABLE
-  PY="$(command -v python || command -v python3)"
+  PY="$(command -v python3 || command -v python)"
   H="$HERE/../skills/flow/harness/flow_harness.py"
   # seed durable story (same as card create would) then check done
   FLOW_PROJECT_ROOT="$SB" "$PY" "$H" init >/dev/null

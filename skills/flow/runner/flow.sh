@@ -248,6 +248,13 @@ harness_call_checked() {
   _harness_run "$@"
 }
 
+# Wrap a command in a wall-clock bound when `timeout` exists (GNU coreutils / Git Bash);
+# a missing timeout degrades to running unbounded, exactly as before.
+_with_timeout() { # $1 = seconds, rest = command
+  local secs="$1"; shift
+  if command -v timeout >/dev/null 2>&1; then timeout "$secs" "$@"; else "$@"; fi
+}
+
 harness_capture_checked() {
   # VALUE-carrying variant for graph verbs: emits harness stdout and returns the
   # real exit code, via _harness_run --emit-stdout so the availability triad,
@@ -259,7 +266,13 @@ harness_capture_checked() {
   [ -n "${FLOW_HARNESS_DISABLE:-}" ] && return 4
   [ -f "$HARNESS_PY" ] || return 4
   local py; py="$(_python)"; [ -n "$py" ] || return 4
-  _harness_run --emit-stdout "$@"
+  # 20s: generous for a contended BEGIN IMMEDIATE (busy_timeout is 5s) yet bounded.
+  # rc 124 = timed out -> treated as "harness unavailable" by callers, never a hang.
+  local rc=0
+  _with_timeout "${FLOW_HARNESS_TIMEOUT:-20}" env FLOW_PROJECT_ROOT="$ROOT" \
+    "$(_python)" "$HARNESS_PY" "$@" || rc=$?
+  [ "$rc" = "124" ] && { printf 'flow-harness: call timed out (%ss)\n' "${FLOW_HARNESS_TIMEOUT:-20}" >&2; return 4; }
+  return "$rc"
 }
 
 # When STRICT=fail, surface durable failure from card/check call sites (D5).
@@ -980,22 +993,37 @@ cmd_next() {
     return 0
   fi
   local nxt; nxt="$(stage_name_at "$((idx + 1))")"
-  # Never re-scaffold a debt-skipped stage: cmd_skip already recorded the operator's
-  # accepted exposure and moved past it, so re-creating the file would resurrect a
-  # stage the DEBT line says is knowingly missing.
-  if stage_skipped "$nxt"; then
-    echo "PASS: stage $cur gate clean. Stage $((idx + 1)) ($nxt) is debt-skipped - not re-created."
-    _graph_stage_record "$cur"
+  # Walk PAST every debt-skipped successor instead of stopping on one: cmd_skip already
+  # recorded the accepted exposure, so re-creating its file would resurrect a stage the
+  # DEBT line says is knowingly missing - but simply refusing to scaffold would wedge the
+  # project forever when the skipped stage's own successor is also absent (a failed
+  # scaffold in cmd_skip, or an operator deleting the file). Advance to the first stage
+  # that is neither present nor skipped; if that runs off the end, planning is complete.
+  local nidx=$((idx + 1)) skipped_over=""
+  while [ "$nidx" -le "$LAST_STAGE_IDX" ] && stage_skipped "$nxt"; do
+    skipped_over="$skipped_over $nxt"
+    nidx=$((nidx + 1))
+    [ "$nidx" -gt "$LAST_STAGE_IDX" ] && break
+    nxt="$(stage_name_at "$nidx")"
+  done
+  if [ "$nidx" -gt "$LAST_STAGE_IDX" ]; then
+    echo "PASS: stage $cur gate clean. Remaining stages are debt-skipped ($(printf '%s' "${skipped_over# }"))."
+    if planning_complete; then
+      _graph_stage_record "$cur"
+      echo "Planning is COMPLETE. Run '/flow card' to create build cards."
+    else
+      echo "An earlier stage is still BLOCKED (and not debt-skipped) - run '/flow' to see which."
+    fi
     return 0
   fi
   if [ -f "$FLOW_DIR/$nxt.md" ]; then
-    echo "PASS: stage $cur gate clean. Stage $((idx + 1)) ($nxt.md) already exists - not overwritten."
+    echo "PASS: stage $cur gate clean. Stage $nidx ($nxt.md) already exists - not overwritten."
     _graph_stage_record "$cur"
     return 0
   fi
   cp "$TEMPLATE_DIR/$nxt.md" "$FLOW_DIR/$nxt.md"
   FLOW_LOG_STAGE_FROM="$cur"; FLOW_LOG_STAGE_TO="$nxt"
-  echo "PASS: stage $cur gate clean -> unlocked stage $((idx + 1)) (flow/$nxt.md)"
+  echo "PASS: stage $cur gate clean -> unlocked stage $nidx (flow/$nxt.md)"
   gate_durable_hook "$cur"
   _graph_stage_record "$cur"
   echo "  tip: '/flow recall' surfaces prior debt/retro/friction before you fill this stage."
@@ -1382,6 +1410,9 @@ cmd_gate() {
     if [ -z "$card" ]; then echo "usage: /flow gate --card C-NNN"; return 2; fi
     f="$(resolve_card_file "$card" 2>/dev/null)"
     if [ -z "$f" ]; then echo "usage: /flow gate --card C-NNN"; return 2; fi
+    # A nonexistent card is NOT a gate verdict: reporting it as exit 1 would journal a
+    # typo'd id as a genuine red review and burn a two-strikes repair budget.
+    if [ ! -f "$f" ]; then echo "FAIL: card not found for '$card' (looked for $f)"; return 2; fi
     echo "GATE card ${card}:"
     if scan_gate "$f"; then echo "  clean"; return 0; fi
     return 1
@@ -3856,6 +3887,10 @@ cmd_usage() {
 }
 
 # ---------- dispatch ----------
+# Library mode: tests source this file to exercise real helpers instead of regex-slicing
+# them out (a slice silently breaks the moment a helper gains a dependency, and then the
+# test reports 127 instead of the behavior it claims to check).
+if [ -n "${FLOW_LIB_ONLY:-}" ]; then return 0 2>/dev/null || exit 0; fi
 cmd="${1:-status}"
 shift 2>/dev/null || true
 FLOW_LOG_CMD="$cmd"

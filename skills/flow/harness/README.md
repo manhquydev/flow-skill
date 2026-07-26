@@ -42,7 +42,8 @@ executable-adjacent data). After an INTENTIONAL topology edit, run `graph lint` 
 regenerate from the repo root:
 
 ```
-python -c "import json,hashlib;print(hashlib.sha256(json.dumps(json.load(open('skills/flow/references/flow-topology.json')),sort_keys=True,separators=(',',':')).encode()).hexdigest()+'  flow-topology.json')" > skills/flow/harness/pins/flow-topology.sha256
+PY="$(command -v python3 || command -v python)"   # same cascade flow.sh _python() uses
+"$PY" -c "import json,hashlib;print(hashlib.sha256(json.dumps(json.load(open('skills/flow/references/flow-topology.json')),sort_keys=True,separators=(',',':')).encode()).hexdigest()+'  flow-topology.json')" > skills/flow/harness/pins/flow-topology.sha256
 ```
 
 **DB location.** `<FLOW_PROJECT_ROOT>/.flow/harness.db`, with two graph-era rules: a root inside

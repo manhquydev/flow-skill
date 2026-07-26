@@ -8,7 +8,7 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HDIR="$HERE/../skills/flow/harness"
 H="$HDIR/flow_harness.py"
-PY="$(command -v python || command -v python3)"
+PY="$(command -v python3 || command -v python)"
 if [ -z "$PY" ]; then echo "SKIP: python not found"; exit 0; fi
 pass=0; fail=0
 ck() { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected=$1 got=$2"; fail=$((fail+1)); fi; }
@@ -232,13 +232,11 @@ ck "orig 0 raised raised" "$T" "rollback preserves original error; open-txn entr
 
 echo "I) flow.sh boundary: harness_capture_checked contract + harness_call_checked pin"
 FLOWSH="$HERE/../skills/flow/runner/flow.sh"
-HCF="$SB/hc.sh"
-sed -n '/^_harness_run()/,/^}/p;/^harness_call_checked()/,/^}/p;/^harness_capture_checked()/,/^}/p' \
-  "$FLOWSH" > "$HCF"
-run_hc() { # $1 = function, rest = args; isolated subshell with the extracted helpers
-  ( ROOT="$SB"; HARNESS_PY="$H"; FLOW_HARNESS_STRICT=""
+run_hc() { # $1 = function, rest = args; real helpers, sourced (no regex slicing)
+  ( FLOW_LIB_ONLY=1; . "$FLOWSH"
+    ROOT="$SB"; HARNESS_PY="$H"; FLOW_HARNESS_STRICT=""
     _python() { printf '%s' "$PY"; }
-    . "$HCF"; "$@" )
+    "$@" )
 }
 V="$(run_hc harness_capture_checked graph run --kind planning)"; RC=$?
 ck 0 "$RC" "capture_checked: value call passes rc 0 through"
@@ -246,13 +244,15 @@ ck 0 "$RC" "capture_checked: value call passes rc 0 through"
 run_hc harness_capture_checked graph abandon --execution "$V" >/dev/null 2>&1
 run_hc harness_capture_checked graph next --execution "$V" --topology "$TOPO" >/dev/null 2>&1
 ck 3 $? "capture_checked: semantic rc 3 passes through (terminal execution)"
-( ROOT="$SB"; HARNESS_PY="$H"; FLOW_HARNESS_DISABLE=1
+( FLOW_LIB_ONLY=1; . "$FLOWSH"
+  ROOT="$SB"; HARNESS_PY="$H"; FLOW_HARNESS_DISABLE=1
   _python() { printf '%s' "$PY"; }
-  . "$HCF"; harness_capture_checked graph status --execution x ) >/dev/null 2>&1
+  harness_capture_checked graph status --execution x ) >/dev/null 2>&1
 ck 4 $? "capture_checked: DISABLE maps to rc 4, never silent 0"
-( ROOT="$SB"; HARNESS_PY="$SB/absent.py"; FLOW_HARNESS_STRICT=""
+( FLOW_LIB_ONLY=1; . "$FLOWSH"
+  ROOT="$SB"; HARNESS_PY="$SB/absent.py"; FLOW_HARNESS_STRICT=""
   _python() { printf '%s' "$PY"; }
-  . "$HCF"; harness_capture_checked graph status --execution x ) >/dev/null 2>&1
+  harness_capture_checked graph status --execution x ) >/dev/null 2>&1
 ck 4 $? "capture_checked: missing harness maps to rc 4"
 P1168="$(run_hc harness_call_checked graph run --kind planning)"; RC=$?
 ck 0 "$RC" "harness_call_checked pin: rc still passes through"
