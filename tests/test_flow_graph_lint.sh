@@ -89,6 +89,9 @@ for spec in t["nodes"].values():
     if c: print(" ".join(x.replace("{card}","C-001") for x in c[2:]))
 EOF
 )"
+# Windows python opens stdout in text mode, so each print() ends CRLF. The stray \r
+# survives command substitution and would word-split into the args as "00-idea<CR>".
+CMDS="$(printf '%s' "$CMDS" | tr -d '\r')"
 smoke_fail=0
 while IFS= read -r args; do
   [ -z "$args" ] && continue

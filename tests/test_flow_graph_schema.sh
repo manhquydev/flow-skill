@@ -180,12 +180,12 @@ P="$SB/wt-events.jsonl"
 # Key convention: prefix = DESTINATION project's events sink, so usage/prune group the rows.
 K="$SB/.flow/events.jsonl"
 printf '{"command":"next","epoch_s":1}\n{"command":"check","epoch_s":2}\n' > "$P"
-r1="$(FLOW_PROJECT_ROOT="$SB" "$PY" "$H" rollup --src "$P" --src-key "$K#card-x#100")"
+r1="$(FLOW_PROJECT_ROOT="$SB" "$PY" "$H" rollup --src "$P" --src-key-path "$K" --src-key-tag "card-x#100")"
 has "$r1" '"rolled": 2' "lifecycle 1 ingests 2 lines"
 printf '{"command":"next","epoch_s":3}\n{"command":"check","epoch_s":4}\n' > "$P"
-r2="$(FLOW_PROJECT_ROOT="$SB" "$PY" "$H" rollup --src "$P" --src-key "$K#card-x#200")"
+r2="$(FLOW_PROJECT_ROOT="$SB" "$PY" "$H" rollup --src "$P" --src-key-path "$K" --src-key-tag "card-x#200")"
 has "$r2" '"rolled": 2' "lifecycle 2 at the SAME path ingests fully (no cursor swallow)"
-r3="$(FLOW_PROJECT_ROOT="$SB" "$PY" "$H" rollup --src "$P" --src-key "$K#card-x#200")"
+r3="$(FLOW_PROJECT_ROOT="$SB" "$PY" "$H" rollup --src "$P" --src-key-path "$K" --src-key-tag "card-x#200")"
 has "$r3" '"rolled": 0' "same key re-ingest is idempotent (no duplicates)"
 n="$("$PY" - "$SB/.flow/harness.db" <<'EOF'
 import sqlite3,sys

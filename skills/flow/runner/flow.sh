@@ -2270,8 +2270,11 @@ _ws_remove() {
   if _graph_on && [ -f "$wt/.flow/events.jsonl" ]; then
     # Lifecycle-unique key: worktree paths are recycled, so a bare-path cursor would
     # swallow the next lifecycle's lines. Prefix = destination sink (usage/prune group it).
+    # Path and tag stay in separate arguments so the path is still a path when it crosses
+    # into python — pre-joining them with '#' defeats Git-Bash path translation on Windows.
     harness_capture_checked rollup --src "$wt/.flow/events.jsonl" \
-      --src-key "$LOG_DIR/events.jsonl#$branch#${_gcreated:-0}" >/dev/null 2>&1 || true
+      --src-key-path "$LOG_DIR/events.jsonl" \
+      --src-key-tag "$branch#${_gcreated:-0}" >/dev/null 2>&1 || true
   fi
   if [ "$force" -eq 1 ]; then
     rmout="$(git -C "$ROOT" worktree remove --force "$wt" 2>&1)"; rc=$?

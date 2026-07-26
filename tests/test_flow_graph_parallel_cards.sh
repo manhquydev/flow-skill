@@ -130,11 +130,15 @@ ck 1 "$rc" "unparseable manifest refused (never journaled to poison later walks)
 
 echo "I) one state dir: flow.sh asks the resolver instead of re-deriving it"
 SD="$(FLOW_PROJECT_ROOT="$SB" "$PY" "$H" graph root)"
-ck "$SB/.flow" "$SD" "graph root prints the DB-owning dir"
+# Compare directory IDENTITY, not spelling: one directory legitimately answers to several
+# names (macOS /var vs /private/var, Windows 8.3 short vs long), so `-ef` on a file inside
+# it asserts what actually matters — the resolver landed on the dir that owns the DB.
+[ "$SD/harness.db" -ef "$SB/.flow/harness.db" ]; ck 0 $? "graph root points at the DB-owning dir"
 W2B="$(git worktree list --porcelain | awk '/^worktree /{p=substr($0,10)} /^branch refs\/heads\/card\/C-002$/{print p}')"
 if [ -n "$W2B" ]; then
   SDW="$(cd "$W2B" && FLOW_PROJECT_ROOT="$W2B" "$PY" "$H" graph root)"
-  ck "$SB/.flow" "$SDW" "from inside a worktree the resolver still points at the main state dir"
+  [ "$SDW/harness.db" -ef "$SB/.flow/harness.db" ]
+  ck 0 $? "from inside a worktree the resolver still points at the main state dir"
 fi
 
 echo "J) merge proof prefers the LOCAL integration branch (auto-run never pushes first)"

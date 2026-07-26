@@ -674,6 +674,18 @@ def _events_path(a):
     return os.path.join(os.path.dirname(a._db_path), "events.jsonl")
 
 
+def _canon_sink(p):
+    """Spelling-independent name for a sink path, so 'same file' means 'same key'.
+
+    The same directory reaches us under several spellings: a macOS temp root arrives as
+    both /var/... and /private/var/..., and Windows hands back either an 8.3 short name
+    (C:/Users/RUNNER~1/...) or the long one depending on who resolved it. Keying rows on
+    the raw spelling silently splits one sink into two. realpath collapses the symlink and
+    short-name cases; normcase folds Windows separators and case.
+    """
+    return os.path.normcase(os.path.realpath(p))
+
+
 def _global_log_path():
     return os.path.join(os.path.expanduser("~"), ".claude", "flow", "usage.jsonl")
 
@@ -691,10 +703,13 @@ def _coerce_event(o):
 def cmd_rollup(con, a):
     # (path, key) pairs: `path` is the file read; `key` is the rollup_cursor /
     # UNIQUE(src,line_no) namespace. They differ only for --src ingests, where a
-    # lifecycle-unique --src-key (e.g. <path>#<branch>#<created_at>) prevents a RECYCLED
-    # worktree path from silently swallowing lines 1..N of the next lifecycle's sink.
+    # lifecycle-unique key (--src-key-path + --src-key-tag) prevents a RECYCLED worktree
+    # path from silently swallowing lines 1..N of the next lifecycle's sink.
     if getattr(a, "src", None):
-        pairs = [(a.src, getattr(a, "src_key", None) or a.src)]
+        kp = getattr(a, "src_key_path", None) or a.src
+        tag = getattr(a, "src_key_tag", None)
+        key = _canon_sink(kp) + ("#" + tag if tag else "")
+        pairs = [(a.src, key)]
     else:
         p = _events_path(a)
         pairs = [(p, p)]
@@ -770,7 +785,8 @@ def cmd_graph(con, a):
 def cmd_usage(con, a):
     src = _global_log_path() if getattr(a, "global_", False) else _events_path(a)
     # `src=?` matches direct-sink rows; the LIKE arm matches lifecycle-keyed ingests
-    # (`rollup --src-key <this-sink>#<branch>#<created_at>` — worktree telemetry merged at
+    # (`rollup --src-key-path <this-sink> --src-key-tag <branch>#<created_at>` — worktree
+    # telemetry merged at
     # workspace-remove time). Without it those rows would be write-only: invisible to
     # usage and unreachable by prune.
     w = "WHERE (src=? OR src LIKE ? || '#%')"
@@ -779,7 +795,10 @@ def cmd_usage(con, a):
     # predate the field (no log rewrite). `--include-ephemeral` shows everything.
     if not getattr(a, "include_ephemeral", False):
         w += " AND NOT (COALESCE(ephemeral,0)=1 OR project LIKE 'tmp.%')"
-    pr = (src, src)
+    # Direct-sink rows are keyed by the path as this process spells it, so `src=?` keeps
+    # matching them verbatim; only the lifecycle arm compares canonically, because those
+    # keys are written by whoever called rollup and their spelling is not ours to choose.
+    pr = (src, _canon_sink(src))
     total = con.execute(f"SELECT COUNT(*) FROM usage_event {w}", pr).fetchone()[0]
     if not total:
         if not getattr(a, "summary", False):   # --summary stays silent on no data (recall appends nothing)
@@ -1048,8 +1067,8 @@ def cmd_prune(con, a):
         # their line numbers are unrelated to the rewritten file, but the reset contract is
         # "mirror rows for this sink are rebuilt from the kept lines", and orphaned keyed
         # rows would be unreachable forever after.
-        con.execute("DELETE FROM usage_event WHERE src=? OR src LIKE ? || '#%'", (src, src))
-        con.execute("DELETE FROM rollup_cursor WHERE src=? OR src LIKE ? || '#%'", (src, src))
+        con.execute("DELETE FROM usage_event WHERE src=? OR src LIKE ? || '#%'", (src, _canon_sink(src)))
+        con.execute("DELETE FROM rollup_cursor WHERE src=? OR src LIKE ? || '#%'", (src, _canon_sink(src)))
         con.commit()
         print(json.dumps({"sink": src, "kept": len(kept), "dropped": len(lines) - len(kept)}))
     if getattr(a, "global_", False):
@@ -1159,12 +1178,19 @@ def build_parser():
     pr = sub.add_parser("rollup", help="ingest JSONL usage sinks into usage_event (idempotent)")
     pr.add_argument("--global", dest="global_", action="store_true", help="also roll up the device-global log")
     pr.add_argument("--src", help="ingest this JSONL sink instead of the project sink")
-    pr.add_argument("--src-key", dest="src_key",
-                    help="cursor/dedupe key for --src (default: the path itself). Convention: "
-                         "<DESTINATION-project events.jsonl path>#<branch>#<created_at> — "
-                         "lifecycle-unique so a recycled worktree path cannot swallow the next "
-                         "lifecycle's lines, and prefixed with the destination sink so "
-                         "usage/prune group the rows with that project")
+    # Path and tag are SEPARATE flags on purpose. A single pre-joined
+    # "<path>#<branch>#<created_at>" string is not a path, so the Git-Bash/MSYS argument
+    # translation that rewrites POSIX paths into native Windows ones leaves it alone — the
+    # key would then be spelled differently from the sink this python process resolves for
+    # itself, and the rows became write-only: invisible to usage, unreachable by prune.
+    pr.add_argument("--src-key-path", dest="src_key_path",
+                    help="DESTINATION project's events.jsonl path; canonicalized, then used as "
+                         "the cursor/dedupe key prefix so usage/prune group these rows with "
+                         "that project (default: the --src path itself)")
+    pr.add_argument("--src-key-tag", dest="src_key_tag",
+                    help="lifecycle discriminator appended as '#<tag>', e.g. "
+                         "'<branch>#<created_at>' — makes the key unique per worktree "
+                         "lifecycle so a RECYCLED path cannot swallow the next lifecycle's lines")
     pu = sub.add_parser("usage", help="print usage analytics from usage_event")
     pu.add_argument("--global", dest="global_", action="store_true", help="read the device-global log instead of this project")
     pu.add_argument("--json", action="store_true")

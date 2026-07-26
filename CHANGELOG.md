@@ -30,6 +30,12 @@ byte-identical to 0.24.0 across the full planning ladder, card lifecycle, and wo
 - **Worktree-aware durable state**: a linked worktree resolves to the main worktree's DB so
   parallel cards share one journal. Submodule and `--separate-git-dir` checkouts keep their
   own DB (git does not expose the checkout there) — documented, not guessed.
+- **Worktree telemetry survives path spelling**: the lifecycle key for a merged worktree
+  sink is now canonicalized, and its path travels in its own argument (`--src-key-path` +
+  `--src-key-tag`). Pre-joining path and tag with `#` produced a string that Git-Bash path
+  translation would not rewrite, so on Windows the rows were keyed differently from the
+  sink the harness resolves for itself — written, then invisible to `usage` and unreachable
+  by `prune`. The same split hit any macOS path reached through a symlink.
 - Python floor is **measured at 3.7** and enforced by `scripts/release-preflight.sh`; CI
   pins the interpreter and proves the engine still gates a project with no python on PATH.
 
