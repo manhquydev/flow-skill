@@ -85,13 +85,13 @@ Tier-C security halt → `graph record --interrupt --security-class`; resolution
 
 ## Success Criteria
 
-- [ ] Deps parity green on all fixtures; overlap serialization green against `_ws_tokens` semantics
-- [ ] One-DB + survive-worktree-remove tests green
-- [ ] Recording contract: every auto-run.md step names its recording verb; instrumented verbs write boundaries without agent-remembered extra calls (except explicitly documented `graph record` steps)
-- [ ] Interrupt guard matrix green end-to-end; Tier-C survives session death
-- [ ] Git-reconciliation: merged-but-unrecorded work never re-dispatched
-- [ ] `test_flow_concierge.sh` green (no verb classification break); both new suites registered in run_all.sh
-- [ ] Flag off → all existing auto-run/workspace suites green
+- [x] Deps parity green on all fixtures; overlap serialization green against `_ws_tokens` semantics
+- [x] One-DB + survive-worktree-remove tests green
+- [x] Recording contract: every auto-run.md step names its recording verb; instrumented verbs write boundaries without agent-remembered extra calls (except explicitly documented `graph record` steps)
+- [x] Interrupt guard matrix green end-to-end; Tier-C survives session death
+- [x] Git-reconciliation: merged-but-unrecorded work never re-dispatched
+- [x] `test_flow_concierge.sh` green (no verb classification break); both new suites registered in run_all.sh
+- [x] Flag off → all existing auto-run/workspace suites green
 
 ## Risk Assessment
 

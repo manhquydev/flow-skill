@@ -48,12 +48,12 @@ dependencies: [3, 4]
 
 ## Success Criteria
 
-- [ ] Parity suite green: legacy vs executor identical transitions + gate verdicts on all stage fixtures incl. early-return paths
-- [ ] Debt-gated skip works end-to-end: `.skipped` written by `cmd_skip` only, `cmd_next` does NOT re-scaffold the skipped stage (regression test on the sandbox-reproduced case), path visible in `flow status` with matched DEBT text, `/flow card` reachable
-- [ ] Harness failure during `next` → fail-closed (no silent completion), legacy fallback pre-Phase-6
-- [ ] Kill-at-gate → execution `abandoned/outcome=killed`; stale sweep catches unrecorded kills
-- [ ] `test_flow_status_legibility.sh` + `test_flow_gate_capture.sh` green (additive output only)
-- [ ] Suite registered in `tests/run_all.sh`
+- [x] Parity suite green: legacy vs executor identical transitions + gate verdicts on all stage fixtures incl. early-return paths
+- [x] Debt-gated skip works end-to-end: `.skipped` written by `cmd_skip` only, `cmd_next` does NOT re-scaffold the skipped stage (regression test on the sandbox-reproduced case), path visible in `flow status` with matched DEBT text, `/flow card` reachable
+- [x] Harness failure during `next` → fail-closed (no silent completion), legacy fallback pre-Phase-6
+- [x] Kill-at-gate → execution `abandoned/outcome=killed`; stale sweep catches unrecorded kills
+- [x] `test_flow_status_legibility.sh` + `test_flow_gate_capture.sh` green (additive output only)
+- [x] Suite registered in `tests/run_all.sh`
 
 ## Risk Assessment
 
