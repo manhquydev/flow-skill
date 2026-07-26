@@ -13,6 +13,16 @@ dependencies: [4, 5]
 
 ## Overview
 
+**Partially delivered 2026-07-27 (code-only slice).** Landed: measured Python floor (3.7,
+NOT the 3.9 this phase originally guessed) enforced by `scripts/release-preflight.sh`
+alongside harness compile + topology lint/pin verification; `actions/setup-python` pinned
+in CI; a `no-python-degradation` CI job that proves the current graceful-degradation
+promise; `docs/migration-v1.md` written against the real implementation. Deliberately NOT
+done (each needs infrastructure this slice cannot reach): the Windows wall-clock
+measurement that gates the flip, the default flip + legacy-ladder removal, the
+`FLOW_HARNESS_DISABLE` hard error (it would break the shipped release BEFORE the release
+that justifies it), the version bumps, the dogfood run, and `npm publish`.
+
 Flip `FLOW_GRAPH_EXECUTOR` default on, make Python a hard dependency, define `FLOW_HARNESS_DISABLE` end-state, publish major version with migration guide. Deliberate breaking change (advise session 2026-07-26).
 
 ## Requirements
