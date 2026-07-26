@@ -28,6 +28,8 @@ has "$M" "0\.1\.16" "mentions 0.1.16 (do-not-use)"
 has "$M" "009.*012|009–012|009-012" "009-012 collision noted"
 has "$M" "[Rr]ust refuse|refuse-forward|flow-lineage" "rust refuse documented"
 has "$M" "005" "005 caveat present"
+has "$M" "014" "flow-owned graph band 014+ documented"
+has "$M" "[Ss]upersed" "work-graph red-line supersession recorded"
 # ban false parity claims (not the phrase "does not claim … US-101")
 if printf '%s' "$M" | grep -qiE 'bit-identical US-101|isomorphic to US-101|US-101 parity'; then
   bad=1; echo "  FAIL [false US-101 parity language]"; fail=$((fail+1))
@@ -35,12 +37,13 @@ else
   echo "  ok   [no false US-101 parity claim]"; pass=$((pass+1))
 fi
 
-echo "B) schema inventory exactly 001-005 + 009-012"
+echo "B) schema inventory exactly 001-005 + 009-012 + 014 (flow-owned graph band)"
 SCH="$(cd "$HDIR/schema" && ls -1 *.sql 2>/dev/null | sort | tr '\n' ' ')"
 has "$SCH" "001-init" "has 001"
 has "$SCH" "005-tool" "has 005"
 has "$SCH" "009-accessed" "has 009"
 has "$SCH" "012-usage" "has 012"
+has "$SCH" "014-graph" "has 014 (flow-owned graph executor)"
 no "$SCH" "006-" "no 006 migration file"
 no "$SCH" "007-" "no 007 migration file"
 no "$SCH" "008-" "no 008 migration file"

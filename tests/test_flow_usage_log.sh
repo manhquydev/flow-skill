@@ -119,7 +119,7 @@ import sqlite3,sys
 print(sqlite3.connect(sys.argv[1]).execute("select max(version) from schema_version").fetchone()[0])
 PY
 )"
-ck "12" "$ver" "usage migrations re-homed to 009-012 applied (schema_version 12)"
+ck "1" "$([ "${ver:-0}" -ge 12 ] && echo 1 || echo 0)" "usage migrations re-homed to 009-012 applied (schema_version >= 12; graph band 014+ may exceed)"
 s="$(bash "$RUN" usage --summary 2>/dev/null)"
 has "$s" "USAGE (mechanical log)" "usage --summary prints one-line digest"
 SE="$HERE/.usageempty_$$"; rm -rf "$SE"; mkdir -p "$SE"

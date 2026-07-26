@@ -58,6 +58,23 @@ def _flow_lineage_db(argv):
 def _maybe_forward_to_rust(argv):
     if os.environ.get("FLOW_HARNESS_BACKEND", "python").lower() != "rust":
         return None
+    # graph verbs are flow-only (schema band 014+); the external harness-cli has no such
+    # surface, and on a FRESH db the lineage sniff below would not refuse yet — so the
+    # never-forward set must be explicit, not inferred from DB state. The verb is the
+    # first NON-OPTION token: `--db <path> graph run` must not slip past an argv[0] check.
+    verb, i = None, 0
+    while i < len(argv):
+        tok = argv[i]
+        if tok == "--db":
+            i += 2
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        verb = tok
+        break
+    if verb == "graph":
+        return None
     conflict = _flow_lineage_db(argv)
     if conflict:
         sys.stderr.write(
@@ -671,21 +688,30 @@ def _coerce_event(o):
 
 
 def cmd_rollup(con, a):
-    srcs = [_events_path(a)]
+    # (path, key) pairs: `path` is the file read; `key` is the rollup_cursor /
+    # UNIQUE(src,line_no) namespace. They differ only for --src ingests, where a
+    # lifecycle-unique --src-key (e.g. <path>#<branch>#<created_at>) prevents a RECYCLED
+    # worktree path from silently swallowing lines 1..N of the next lifecycle's sink.
+    if getattr(a, "src", None):
+        pairs = [(a.src, getattr(a, "src_key", None) or a.src)]
+    else:
+        p = _events_path(a)
+        pairs = [(p, p)]
     if getattr(a, "global_", False):
-        srcs.append(_global_log_path())
+        g = _global_log_path()
+        pairs.append((g, g))
     rolled = skipped = 0
     cols = ["src", "line_no"] + list(USAGE_COLS)
     ph = ",".join("?" for _ in cols)
-    for src in srcs:
-        if not os.path.isfile(src):
+    for src_path, src in pairs:
+        if not os.path.isfile(src_path):
             continue
         cur = con.execute("SELECT last_line FROM rollup_cursor WHERE src=?", (src,)).fetchone()
         last = cur[0] if cur else 0
         # errors="replace": a single invalid byte anywhere in a shared, multi-writer log must
         # not abort the WHOLE rollup - it degrades to a per-line json.loads failure below
         # instead (one bad row skipped, not every row on the file).
-        with open(src, "r", encoding="utf-8", errors="replace") as fh:
+        with open(src_path, "r", encoding="utf-8", errors="replace") as fh:
             text = fh.read()
         lines = text.split("\n")
         lines = lines[:-1]  # drop trailing empty (after final \n) or a partial unterminated last line
@@ -732,13 +758,17 @@ def cmd_rollup(con, a):
 
 def cmd_usage(con, a):
     src = _global_log_path() if getattr(a, "global_", False) else _events_path(a)
-    w = "WHERE src=?"
+    # `src=?` matches direct-sink rows; the LIKE arm matches lifecycle-keyed ingests
+    # (`rollup --src-key <this-sink>#<branch>#<created_at>` — worktree telemetry merged at
+    # workspace-remove time). Without it those rows would be write-only: invisible to
+    # usage and unreachable by prune.
+    w = "WHERE (src=? OR src LIKE ? || '#%')"
     # Default-exclude throwaway/test runs so the view reflects real builds. COALESCE handles old
     # rows (ephemeral NULL -> 0); the project-name fallback excludes legacy `tmp.*` runs that
     # predate the field (no log rewrite). `--include-ephemeral` shows everything.
     if not getattr(a, "include_ephemeral", False):
         w += " AND NOT (COALESCE(ephemeral,0)=1 OR project LIKE 'tmp.%')"
-    pr = (src,)
+    pr = (src, src)
     total = con.execute(f"SELECT COUNT(*) FROM usage_event {w}", pr).fetchone()[0]
     if not total:
         if not getattr(a, "summary", False):   # --summary stays silent on no data (recall appends nothing)
@@ -1003,8 +1033,12 @@ def cmd_prune(con, a):
         os.replace(tmp, src)            # atomic on the same filesystem
         # line numbers changed -> the mirror + cursor for this sink are stale; reset so the next
         # rollup re-ingests the kept lines as line_no 1..K (UNIQUE(src,line_no) stays consistent).
-        con.execute("DELETE FROM usage_event WHERE src=?", (src,))
-        con.execute("DELETE FROM rollup_cursor WHERE src=?", (src,))
+        # Include lifecycle-keyed ingests for this sink (`<sink>#<branch>#<created_at>`):
+        # their line numbers are unrelated to the rewritten file, but the reset contract is
+        # "mirror rows for this sink are rebuilt from the kept lines", and orphaned keyed
+        # rows would be unreachable forever after.
+        con.execute("DELETE FROM usage_event WHERE src=? OR src LIKE ? || '#%'", (src, src))
+        con.execute("DELETE FROM rollup_cursor WHERE src=? OR src LIKE ? || '#%'", (src, src))
         con.commit()
         print(json.dumps({"sink": src, "kept": len(kept), "dropped": len(lines) - len(kept)}))
     if getattr(a, "global_", False):
@@ -1113,6 +1147,13 @@ def build_parser():
 
     pr = sub.add_parser("rollup", help="ingest JSONL usage sinks into usage_event (idempotent)")
     pr.add_argument("--global", dest="global_", action="store_true", help="also roll up the device-global log")
+    pr.add_argument("--src", help="ingest this JSONL sink instead of the project sink")
+    pr.add_argument("--src-key", dest="src_key",
+                    help="cursor/dedupe key for --src (default: the path itself). Convention: "
+                         "<DESTINATION-project events.jsonl path>#<branch>#<created_at> — "
+                         "lifecycle-unique so a recycled worktree path cannot swallow the next "
+                         "lifecycle's lines, and prefixed with the destination sink so "
+                         "usage/prune group the rows with that project")
     pu = sub.add_parser("usage", help="print usage analytics from usage_event")
     pu.add_argument("--global", dest="global_", action="store_true", help="read the device-global log instead of this project")
     pu.add_argument("--json", action="store_true")

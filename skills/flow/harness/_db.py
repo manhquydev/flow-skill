@@ -1,19 +1,93 @@
 """SQLite durable layer for the flow harness (stdlib sqlite3 only).
 
 Schema lives in schema/00N-*.sql (001-005 a faithful port of repository-harness; 009-012
-flow-specific: accessed-count + usage-log mirror) and is applied by missing-version set; each
-migration bumps schema_version and statements are idempotent, so init/upgrade is safe to re-run.
-DB path defaults to <FLOW_PROJECT_ROOT>/.flow/harness.db.
+flow-specific: accessed-count + usage-log mirror; 014+ flow-owned graph-executor band) and is
+applied by missing-version set; each migration bumps schema_version and statements are
+idempotent, so init/upgrade is safe to re-run. DB path defaults to
+<FLOW_PROJECT_ROOT>/.flow/harness.db, translated to the MAIN worktree when the root sits
+inside a linked git worktree so every parallel card shares one DB.
 """
 
+import contextlib
 import os
 import re
 import sqlite3
+import subprocess
 
 SCHEMA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema")
 
 
+_worktree_main_cache = {}
+
+
+def _linked_worktree_main_root(root):
+    """Map `root` inside a LINKED git worktree to its main-worktree equivalent path, else None.
+
+    Card worktrees are full checkouts (they contain flow/ + cards/), so without this
+    translation every parallel card mints its own throwaway .flow/harness.db that
+    `git worktree remove` then deletes. Keys on the RESOLVED ROOT (never CWD — flow.sh
+    passes FLOW_PROJECT_ROOT per call and the two are independent). Cached per process:
+    this runs on every connect and an uncached `git` spawn multiplies on Windows.
+    Any failure (git absent, git < 2.31, not a repo) returns None = current behavior.
+    """
+    if root in _worktree_main_cache:
+        return _worktree_main_cache[root]
+    out = None
+    try:
+        r = subprocess.run(
+            ["git", "-C", root, "rev-parse", "--path-format=absolute",
+             "--git-dir", "--git-common-dir", "--show-toplevel"],
+            capture_output=True, text=True, timeout=10,
+        )
+        git_dir = common_dir = worktree_top = None
+        if r.returncode == 0:
+            vals = [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+            if len(vals) >= 3:
+                git_dir, common_dir, worktree_top = vals[0], vals[1], vals[2]
+        elif "not a git repository" not in (r.stderr or "").lower():
+            # git < 2.31 lacks --path-format (declared floor); best-effort re-derive.
+            # Gated on the failure NOT being "not a repo" so non-git roots cost one spawn.
+            def _rp(flag):
+                q = subprocess.run(["git", "-C", root, "rev-parse", flag],
+                                   capture_output=True, text=True, timeout=10)
+                return q.stdout.strip() if q.returncode == 0 and q.stdout.strip() else None
+            git_dir = _rp("--absolute-git-dir")
+            common_dir = _rp("--git-common-dir")
+            worktree_top = _rp("--show-toplevel")
+            if common_dir and not os.path.isabs(common_dir):
+                common_dir = os.path.abspath(os.path.join(root, common_dir))
+        if git_dir and common_dir and worktree_top:
+            # Linked worktree iff the per-worktree git dir differs from the shared common
+            # dir. Submodules and --separate-git-dir repos have git_dir == common_dir (both
+            # live OUTSIDE the worktree) and must never be translated - dirname(common_dir)
+            # is git internals there, not a project root. realpath everywhere: macOS mktemp
+            # and symlinked checkouts otherwise fail the containment compare silently.
+            if os.path.realpath(git_dir) != os.path.realpath(common_dir):
+                wt = subprocess.run(["git", "-C", root, "worktree", "list", "--porcelain"],
+                                    capture_output=True, text=True, timeout=10)
+                first = next((ln for ln in wt.stdout.splitlines()
+                              if ln.startswith("worktree ")), "") if wt.returncode == 0 else ""
+                main_top = first[len("worktree "):].strip()  # main worktree is always first
+                rr = os.path.realpath(root)
+                wtop = os.path.realpath(worktree_top)
+                inside = rr == wtop or rr.startswith(wtop + os.sep)
+                if main_top and inside:
+                    main_top = os.path.realpath(main_top)
+                    rel = os.path.relpath(rr, wtop)
+                    out = main_top if rel == "." else os.path.join(main_top, rel)
+    except Exception:
+        out = None  # best-effort: never break the python path over the resolver
+    _worktree_main_cache[root] = out
+    return out
+
+
 def default_db_path(root=None):
+    # Narrow override for tests/tools: DB path ONLY. Never FLOW_PROJECT_ROOT — that is
+    # the global root override and repurposing it would hijack CARDS_DIR/lock/DEBT
+    # resolution for every flow.sh call in a worktree.
+    override = os.environ.get("FLOW_HARNESS_DB")
+    if override:
+        return override
     root = root or os.environ.get("FLOW_PROJECT_ROOT") or os.getcwd()
     # On native Windows Python, translate a Git Bash POSIX root like /c/proj -> c:/proj
     # so the db lands under the project (not relative to the current drive root). Only
@@ -22,6 +96,9 @@ def default_db_path(root=None):
         m = re.match(r"^/([a-zA-Z])/(.*)$", root)
         if m:
             root = m.group(1) + ":/" + m.group(2)
+    main_equiv = _linked_worktree_main_root(root)
+    if main_equiv:
+        root = main_equiv
     return os.path.join(root, ".flow", "harness.db")
 
 
@@ -100,6 +177,9 @@ def connect(db_path=None, root=None, auto_migrate=True):
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
+    # Explicit 5s wait for the write lock: two parallel card workers share one DB
+    # (worktree-translated path), so contention must queue, not raise `database is locked`.
+    con.execute("PRAGMA busy_timeout = 5000")
     if auto_migrate:
         migrate(con)
     return con
@@ -217,6 +297,56 @@ def update(con, table, id_col, id_val, **cols):
     cur = con.execute(sql, vals)
     con.commit()
     return cur.rowcount
+
+
+def update_where(con, table, where, **cols):
+    # SECURITY INVARIANT: `table` and every key in `where`/`cols` must be code literals,
+    # never user input. Composite-key variant of update() for the graph tables whose
+    # primary keys span (execution_id, ns, ...); update()'s single id_col cannot address them.
+    sets, vals = [], []
+    for k, v in cols.items():
+        if v is not None:
+            sets.append(f"{k} = ?")
+            vals.append(v)
+    if not sets:
+        return 0
+    conds = []
+    for k, v in where.items():
+        if v is None:
+            # `col = NULL` never matches in SQL - a None key would silently update nothing.
+            raise ValueError(f"update_where: where[{k!r}] is None")
+        conds.append(f"{k} = ?")
+        vals.append(v)
+    sql = f"UPDATE {table} SET {', '.join(sets)} WHERE {' AND '.join(conds)}"
+    cur = con.execute(sql, vals)
+    con.commit()
+    return cur.rowcount
+
+
+@contextlib.contextmanager
+def transaction(con):
+    """Multi-row atomicity: BEGIN IMMEDIATE ... COMMIT/ROLLBACK.
+
+    IMMEDIATE takes the write lock up front so concurrent worktree writers queue on
+    busy_timeout instead of failing mid-transaction. Do NOT call insert()/update()/
+    update_where() inside this block — their per-call con.commit() would end the
+    transaction early; use con.execute directly. An already-open transaction at entry
+    RAISES (this helper never commits or discards a caller's pending work). The
+    except-path uses con.rollback(), a no-op when SQLite already auto-rolled-back
+    (disk full / IO error), so the ORIGINAL exception always propagates.
+    """
+    if con.in_transaction:
+        raise sqlite3.ProgrammingError(
+            "transaction(): connection already has an open transaction - "
+            "commit or roll it back before entering this block"
+        )
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        yield con
+        con.commit()
+    except Exception:
+        con.rollback()
+        raise
 
 
 def rows(con, sql, params=()):

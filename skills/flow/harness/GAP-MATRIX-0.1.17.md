@@ -14,7 +14,8 @@ Supersedes: brainstorm 260703 Thread1 (“nothing to upgrade”).
 | 005 | present | present | File hash may differ on comments only — do not overclaim DDL fork |
 | 006–008 | **absent** (reserved gap) | changesets / deps / hierarchy | Not adopted this plan |
 | 009–012 | **usage/accessed** (flow-only) | improvement identity / links / closure | **Semantic collision** — same numbers, different DDL |
-| 013 | absent | changeset content sha | Not adopted |
+| 013 | absent | changeset content sha | Not adopted — stays reserved/absent |
+| 014+ | **graph-executor** (flow-owned band) | absent | Flow-owned since the 2026-07-26 supersession (plan `260726-1718-harness-graph-executor-langgraph-port`) |
 
 ## Commands / invariants
 
@@ -25,7 +26,7 @@ Supersedes: brainstorm 260703 Thread1 (“nothing to upgrade”).
 | `story verify` | optional shell verify_command | required for shell-proven complete | shell=True = operator-authored only |
 | `query sql` | **not exposed** | read-only connection | Do not add mutating SQL |
 | Rust forward | refused on flow-lineage DB | n/a | `FLOW_HARNESS_BACKEND=rust` → exit 2 when usage mirror / schema≥9 |
-| Changesets / work-graph | not ported | 006–013 | Out of scope (FOMO red line) |
+| Changesets / work-graph | **flow-owned graph executor** (schema band 014+) | 006–013 | **Superseded 2026-07-26** (was: out of scope, FOMO red line) — flow builds its own work-graph; upstream 006–013 will NOT be adopted. Decision record: plan `260726-1718-harness-graph-executor-langgraph-port` |
 | `query contract --json` | not on Python CLI | protocol v1 discovery | Optional external binary smoke only |
 
 ## Pins (consumer)
@@ -38,4 +39,4 @@ DO_NOT_USE              = harness-cli-v0.1.16   # no assets / failed promotion
 
 ## Rust refuse-forward
 
-Any DB with `usage_event` or `MAX(schema_version) >= 9` is **flow-lineage**. Python entrypoint must refuse forwarding to external `harness-cli` (exit 2). Never unfreeze on `.flow/harness.db` without schema re-home ≥014 (separate epic).
+Any DB with `usage_event` or `MAX(schema_version) >= 9` is **flow-lineage**. Python entrypoint must refuse forwarding to external `harness-cli` (exit 2). `graph` verbs are NEVER forwarded regardless of DB state (flow-only surface, band 014+). The former "schema re-home ≥014 (separate epic)" note is superseded 2026-07-26: 014+ is now the flow-owned graph-executor band; 013 remains reserved/absent.

@@ -33,6 +33,14 @@ power-path for non-flow DBs; flow does not build or ship the binary.
 
 Disable the durable layer entirely with `FLOW_HARNESS_DISABLE=1` (engine still runs).
 
+**DB location.** `<FLOW_PROJECT_ROOT>/.flow/harness.db`, with two graph-era rules: a root inside
+a LINKED git worktree is translated to its main-worktree equivalent (all parallel cards share one
+DB; submodules and `--separate-git-dir` repos are never translated), and `FLOW_HARNESS_DB=<path>`
+is a narrow test/tool override of the DB path only — never repurpose `FLOW_PROJECT_ROOT` for
+this. Worktree telemetry merges at workspace-remove time via
+`rollup --src <sink> --src-key "<main events.jsonl>#<branch>#<created_at>"` (lifecycle-unique;
+prefixed with the destination sink so `usage`/`prune` see the rows).
+
 ### STRICT durable writes (`flow.sh`)
 
 | Env | Behavior |
@@ -147,5 +155,8 @@ stage_from→to, card, project_type, mode, flow_version, tier, host, read_only.
 - `schema/00N-*.sql` — DDL. **001-005 are a faithful port of repository-harness** (005 =
   tool-extensions, kind-aware tool registry). **009-012 are flow-specific** (accessed-count +
   usage-log mirror), re-homed off 005-008 so the upstream 005 number is free and the lineages no
-  longer collide. Migrations are column-idempotent and safe to re-run; an old DB built under the
-  pre-005 numbering is reconciled automatically on the next `init`.
+  longer collide. **014+ is the flow-owned graph-executor band** (2026-07-26 supersession of the
+  work-graph red line — see GAP-MATRIX; 013 stays reserved/absent). Migrations are
+  column-idempotent and safe to re-run; an old DB built under the pre-005 numbering is
+  reconciled automatically on the next `init`.
+- `graph_ids.py` — monotonic, lexicographically sortable ids for graph-executor rows (stdlib).

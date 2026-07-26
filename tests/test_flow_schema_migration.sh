@@ -28,7 +28,7 @@ print("kind" in cols("tool"), "accessed_count" in cols("decision"),
 EOF
 )"
 has "$FRESH" "True True True" "tool.kind + accessed_count + usage_event all present"
-has "$FRESH" "5, 9, 10, 11, 12" "tool-extensions(5) + re-homed flow migrations(9-12) applied"
+has "$FRESH" "5, 9, 10, 11, 12, 14" "tool-extensions(5) + re-homed flow migrations(9-12) + graph band(14) applied"
 rm -rf "$SB"
 
 echo "B) legacy DB (old v5=accessed-count) upgrades cleanly + idempotent"
@@ -80,7 +80,7 @@ EOF
 )"
 has "$LEGOUT" "True 7 next mcp" "heal adds tool.kind, preserves accessed_count+usage, backfills mcp kind"
 has "$LEGOUT" "idem" "upgrade is idempotent across repeated init"
-has "$LEGOUT" "5, 6, 7, 8, 9, 10, 11, 12" "schema_version normalized to 1-12"
+has "$LEGOUT" "5, 6, 7, 8, 9, 10, 11, 12, 14" "schema_version normalized to 1-12 + graph band 14"
 rm -rf "$SB"
 
 echo "B2) crash-at-v3 (tool exists, no kind, intervention not yet created) heals all gaps"
@@ -105,7 +105,7 @@ c.close()
 EOF
 )"
 has "$V3OUT" "True True" "v3-crash heal creates intervention table AND tool.kind (no skipped 004)"
-has "$V3OUT" "1, 2, 3, 4, 5, 9, 10, 11, 12" "all versions applied, no gap at 4"
+has "$V3OUT" "1, 2, 3, 4, 5, 9, 10, 11, 12, 14" "all versions applied, no gap at 4"
 rm -rf "$SB"
 
 echo "C) rust backend-compat guard"
