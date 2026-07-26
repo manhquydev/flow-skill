@@ -136,9 +136,17 @@ stage_name_at() { # $1 = index -> "NN-name"
 current_stage_idx() { # highest CONTIGUOUS-from-00 stage index, or -1 if 00 missing
   # Contiguous (not just highest-existing) so a manually-dropped future stage file
   # cannot make 'next' report a false PLANNING COMPLETE while earlier stages are missing.
+  # A DEBT-SKIPPED stage satisfies contiguity without a file: cmd_skip deliberately
+  # scaffolds only the successor, so treating its absence as a gap would pin the index
+  # at the pre-skip stage forever (05 never scaffolded, planning_complete never true,
+  # '/flow card' deadlocked). Skips stay governed by cmd_skip alone - this only READS
+  # flow/.skipped, exactly like planning_complete does.
   local i=0 s idx=-1
   for s in $STAGES; do
-    if [ -f "$FLOW_DIR/$s.md" ]; then idx=$i; else break; fi
+    if [ -f "$FLOW_DIR/$s.md" ]; then idx=$i
+    elif stage_skipped "$s"; then :
+    else break
+    fi
     i=$((i + 1))
   done
   echo "$idx"
@@ -276,6 +284,65 @@ harness_available() { # 0 = durable layer usable (python + harness present, not 
 harness_emit() { # run a harness subcommand and ECHO its stdout (best-effort; nothing if unavailable)
   harness_available || return 0
   FLOW_PROJECT_ROOT="$ROOT" "$(_python)" "$HARNESS_PY" "$@" 2>/dev/null || true
+}
+
+# ---------- graph-executor recording contract (dark until FLOW_GRAPH_EXECUTOR=1) ----------
+# The auto-run loop is agent-driven prose (auto-run.md), so boundaries are recorded by
+# instrumenting verbs the agent ALREADY calls: workspace add -> card-dispatch,
+# check -> card-build/review evidence, card done -> card-verify-live, workspace remove ->
+# merge proof (executor-computed) + worktree telemetry ingest. Everything here is
+# best-effort: a recording failure must never break the mechanical engine.
+_graph_on() { [ "${FLOW_GRAPH_EXECUTOR:-}" = "1" ] && harness_available; }
+
+# Execution IDENTITY must live beside the DB, and the DB path is the harness's own
+# decision (worktree translation, monorepo sub-projects, --separate-git-dir). Re-deriving
+# it here with a shell heuristic drifted on exactly those shapes and re-split the journal,
+# so ASK the resolver instead of guessing: `graph root` prints dirname(default_db_path()).
+_graph_exec_id() { # [--no-create] -> echo the project's running auto_run execution id
+  # The whole selection is ONE atomic harness call: the DB row IS the pin, and SQLite's
+  # write transaction is the arbitration point. A bash pin file needed a claim dir,
+  # corpse recovery, TOCTOU-free reclaim AND a liveness check to approximate this - and
+  # each of those was a defect (stolen claims forked the journal; an existence-only
+  # check adopted abandoned executions and blackholed every later record).
+  _graph_on || return 1
+  local id
+  if [ "${1:-}" = "--no-create" ]; then
+    id="$(harness_capture_checked graph session --no-create 2>/dev/null | tr -d '\r\n')" || return 1
+  else
+    id="$(harness_capture_checked graph session 2>/dev/null | tr -d '\r\n')" || return 1
+  fi
+  [ -n "$id" ] || return 1
+  printf '%s' "$id"
+}
+
+_graph_planning_id() { # echo the planning execution id (kind=planning, ns='')
+  _graph_on || return 1
+  local id
+  id="$(harness_capture_checked graph session --kind planning 2>/dev/null | tr -d '\r\n')" || return 1
+  [ -n "$id" ] || return 1
+  printf '%s' "$id"
+}
+
+_graph_stage_record() { # $1 = stage just passed -> record the planning boundary (ns='')
+  _graph_on || return 0
+  local stage="$1" eid
+  eid="$(_graph_planning_id)" || return 0
+  local node="stage-${stage%%-*}"          # 03-prd -> stage-03 (topology node id)
+  harness_capture_checked graph record --execution "$eid" --ns "" --node "$node" \
+    --gate-exit 0 --gate-cmd "gate $stage" >/dev/null 2>&1 || true
+  return 0
+}
+
+_graph_record() { # $1=card-id (REQUIRED for card-scoped nodes) $2=node ; rest passed through
+  _graph_on || return 0
+  local card="$1" node="$2"; shift 2
+  # A card-scoped node with no card would land in the ROOT (stage) namespace and derail
+  # the planning walk - workspace add/remove are legitimately card-less for spikes.
+  [ -n "$card" ] || return 0
+  local eid; eid="$(_graph_exec_id)" || return 0
+  harness_capture_checked graph record --execution "$eid" --ns "card:$card" --node "$node" "$@" \
+    >/dev/null 2>&1 || true
+  return 0
 }
 
 cmd_harness() {
@@ -896,6 +963,10 @@ cmd_next() {
   if [ "$idx" -ge "$LAST_STAGE_IDX" ]; then
     FLOW_LOG_STAGE_FROM="$cur"
     if planning_complete; then
+      # Record ONLY when the plan actually advanced. stage-05 is the terminal planning
+      # node, so recording it while an earlier stage is still blocked would make
+      # `graph next` answer "complete" for a project flow.sh itself calls BLOCKED.
+      _graph_stage_record "$cur"
       echo "PASS: stage $cur gate clean. Planning is COMPLETE."
       echo "All planning stages passed (or were debt-skipped). Run '/flow card' to create build cards."
       if prd_declares_fr; then
@@ -909,14 +980,24 @@ cmd_next() {
     return 0
   fi
   local nxt; nxt="$(stage_name_at "$((idx + 1))")"
+  # Never re-scaffold a debt-skipped stage: cmd_skip already recorded the operator's
+  # accepted exposure and moved past it, so re-creating the file would resurrect a
+  # stage the DEBT line says is knowingly missing.
+  if stage_skipped "$nxt"; then
+    echo "PASS: stage $cur gate clean. Stage $((idx + 1)) ($nxt) is debt-skipped - not re-created."
+    _graph_stage_record "$cur"
+    return 0
+  fi
   if [ -f "$FLOW_DIR/$nxt.md" ]; then
     echo "PASS: stage $cur gate clean. Stage $((idx + 1)) ($nxt.md) already exists - not overwritten."
+    _graph_stage_record "$cur"
     return 0
   fi
   cp "$TEMPLATE_DIR/$nxt.md" "$FLOW_DIR/$nxt.md"
   FLOW_LOG_STAGE_FROM="$cur"; FLOW_LOG_STAGE_TO="$nxt"
   echo "PASS: stage $cur gate clean -> unlocked stage $((idx + 1)) (flow/$nxt.md)"
   gate_durable_hook "$cur"
+  _graph_stage_record "$cur"
   echo "  tip: '/flow recall' surfaces prior debt/retro/friction before you fill this stage."
   return 0
 }
@@ -1065,6 +1146,10 @@ cmd_card_done() { # CLI-owned flip to done, gated by the SAME done-rules as '/fl
   if ! _set_card_status "$file" done; then echo "FAIL: could not write status for $id"; return 1; fi
   if cmd_check "$id"; then            # cmd_check enforces evidence/verify AND records the durable done-trace
     _inflight_clear "$id"
+    # card-verify-live: the done boundary is the EVIDENCE gate passing, not the merge
+    # (merge != shipped) - dependents unblock on card status, matching cmd_ready.
+    # The nested cmd_check already recorded card-review; this advances past it.
+    _graph_record "$id" card-verify-live --gate-exit 0 --card-status done
     return 0
   fi
   _set_card_status "$file" "${orig:-todo}"   # NOT done — never leave a hollow 'done'
@@ -1181,6 +1266,10 @@ cmd_check() {
 
   if [ "$found" -eq 0 ]; then
     echo "PASS: $id is valid (status: $st)."
+    # card-review boundary: the gate verdict IS the evidence the executor records
+    # (green here is what unblocks card-merge in the topology).
+    # Typed flags, never a bash-built JSON literal: $st is free text from the card file.
+    _graph_record "$id" card-review --gate-exit 0 --gate-cmd "check $id" --card-status "$st"
     case "$st" in
       todo) _harness_or_fail story update --id "$id" --status in_progress || return 1 ;;
       done)
@@ -1204,6 +1293,7 @@ cmd_check() {
   fi
   FLOW_LAST_GATE_FAIL="fill:$(grep -c '\[FILL' "$file" 2>/dev/null || echo 0),unchecked:$(grep -cE '^[[:space:]]*- \[ \]' "$file" 2>/dev/null || echo 0)"
   echo "FAIL: $id has gate violations (above)."
+  _graph_record "$id" card-review --gate-exit 1 --gate-cmd "check $id" --card-status "$st"
   return 1
 }
 
@@ -2055,6 +2145,10 @@ _ws_add() {
     done
   fi
   echo "PASS: created worktree for '$branch' (vendor ${vendor:-?}, port-offset $port) -> $wt"
+  # card-dispatch boundary. NOTE: no FLOW_PROJECT_ROOT export in the enter block — the DB
+  # resolver already maps a linked worktree to the main DB (_db.default_db_path), and
+  # exporting the project root would hijack CARDS_DIR/locks/DEBT for every call in there.
+  _graph_record "$card" card-dispatch --branch "$branch" --worktree "$wt" --vendor "$vendor"
   _ws_print_enter "$branch" "$wt" "$vendor" "$port"
   echo "  (tracked in .flow/workspaces.jsonl; see 'workspace list' / 'workspace doctor')"
   return 0
@@ -2137,6 +2231,17 @@ _ws_remove() {
         '/^worktree /{p=substr($0,10)} /^branch /{b=$2; sub(/^refs\/heads\//,"",b); if(b==want) print p}')"
   [ -n "$wt" ] || wt="$(_ws_get "$rec" worktree_path)"
   if [ -z "$wt" ]; then echo "workspace: no worktree found for branch '$branch'."; return 1; fi
+  # Telemetry ingest must happen BEFORE the tree is gone (the sink lives inside it); the
+  # merge boundary is recorded only AFTER a successful removal, so a refused (dirty-tree)
+  # remove never journals a merge for a card still under active work.
+  local _gcard _gcreated
+  _gcard="$(_ws_get "$rec" card_id)"; _gcreated="$(_ws_get_num "$rec" created_at)"
+  if _graph_on && [ -f "$wt/.flow/events.jsonl" ]; then
+    # Lifecycle-unique key: worktree paths are recycled, so a bare-path cursor would
+    # swallow the next lifecycle's lines. Prefix = destination sink (usage/prune group it).
+    harness_capture_checked rollup --src "$wt/.flow/events.jsonl" \
+      --src-key "$LOG_DIR/events.jsonl#$branch#${_gcreated:-0}" >/dev/null 2>&1 || true
+  fi
   if [ "$force" -eq 1 ]; then
     rmout="$(git -C "$ROOT" worktree remove --force "$wt" 2>&1)"; rc=$?
   else
@@ -2147,6 +2252,9 @@ _ws_remove() {
     echo "FAIL: git worktree remove refused (commit/clean the tree, or re-run with --force)."
     return 1
   fi
+  # The executor computes the ancestry itself - this verb has no merge knowledge (it only
+  # removes a tree) - and records card-abandon when the branch was never merged.
+  _graph_record "$_gcard" card-merge --merge --branch "$branch"
   # tombstone ONLY on clean success (git is truth; a failed remove changed nothing)
   local vendor card port
   vendor="$(_ws_get "$rec" vendor)"; card="$(_ws_get "$rec" card_id)"; port="$(_ws_get_num "$rec" port_offset)"
@@ -2220,6 +2328,24 @@ _ws_doctor() {
   if [ -n "$pdup" ]; then echo "  [!] duplicate port_offset across active workspaces (advisory): $(printf '%s ' $pdup)"; warn=1; fi
   local maxw="${FLOW_WORKSPACE_MAX:-4}"
   if [ "$nact" -gt "$maxw" ]; then echo "  [!] $nact active workspaces exceeds FLOW_WORKSPACE_MAX=$maxw (realistic solo ceiling is 3-4; advisory)."; warn=1; fi
+  # Execution-aware (graph executor): a PAUSED execution is waiting on an operator, so
+  # its worktree must not be reconciled away. git + card files stay the authority; the
+  # journal is a derived record, so this only ever WARNS.
+  if _graph_on; then
+    local eid gstat opens
+    # --no-create: doctor is advisory and read-only; it must never mint an execution.
+    eid="$(_graph_exec_id --no-create 2>/dev/null || true)"
+    if [ -n "$eid" ]; then
+      gstat="$(harness_capture_checked graph status --execution "$eid" 2>/dev/null)"
+      opens="$(printf '%s' "$gstat" | tr ',' '\n' | grep -c '"interrupt_id"' || true)"
+      opens="$(printf '%s' "${opens:-0}" | tr -dc '0-9' | head -c 6)"; opens="${opens:-0}"
+      if [ "${opens:-0}" -gt 0 ]; then
+        echo "  [!] graph execution $eid has $opens OPEN interrupt(s) - do not remove the backing"
+        echo "      worktree(s) until resolved: 'flow harness graph status --execution $eid'"
+        warn=1
+      fi
+    fi
+  fi
   rm -rf "$td"
 
   if [ "$drift" -eq 0 ]; then
