@@ -2,6 +2,37 @@
 
 All notable changes to the flow skill. Versions follow the `version:` field in
 
+## 0.25.0 — 2026-07-27 — graph executor (opt-in, default off)
+
+A graph executor lands in the durable layer, porting LangGraph **concepts** — not code —
+into flow's own Python harness: a checkpoint journal, resume by evidence rather than by
+replay, and gates as durable interrupts. It is **off by default**; nothing changes for an
+existing project until `FLOW_GRAPH_EXECUTOR=1` is set. Flag-off behavior was verified
+byte-identical to 0.24.0 across the full planning ladder, card lifecycle, and workspace verbs.
+
+- **Schema band 014+** (`graph_execution`/`graph_checkpoint`/`graph_step_write`/
+  `graph_interrupt`), additive; 013 stays reserved for upstream. This supersedes the
+  GAP-MATRIX "work-graph out of scope" red line — flow owns its work-graph now.
+- **`flow harness graph …`**: `session` (one execution per project, arbitrated by SQLite,
+  not a lock file), `record`, `next`, `resume`, `status`, `cards`, `finish`, `abandon`,
+  `gc`, `lint`, `root`. Manifests are built from typed flags, so card text can never forge
+  a gate verdict.
+- **Topology as trusted data**: `references/flow-topology.json`, pin-verified
+  (`harness/pins/flow-topology.sha256`), loaded only from the skill install dir, and
+  validated by a 16-rule `graph lint` wired into CI. `cmd` entries are argv arrays limited
+  to the new read-only `gate` verb — mutating verbs are lint-banned from autonomous
+  execution.
+- **`/flow gate <stage>|--card C-NNN`** (new, May-run): mechanical scan only — no unlock,
+  no template copy, no durable write. Exit 0 clean / 1 findings / 2 usage or card-not-found.
+- **Debt-skip fix (applies with the flag off)**: `/flow next` no longer re-creates a
+  debt-skipped stage, and no longer stalls when that stage's successor file is missing —
+  it advances to the first stage that is neither present nor skipped.
+- **Worktree-aware durable state**: a linked worktree resolves to the main worktree's DB so
+  parallel cards share one journal. Submodule and `--separate-git-dir` checkouts keep their
+  own DB (git does not expose the checkout there) — documented, not guessed.
+- Python floor is **measured at 3.7** and enforced by `scripts/release-preflight.sh`; CI
+  pins the interpreter and proves the engine still gates a project with no python on PATH.
+
 ## 0.24.0 — 2026-07-18 — harness trust-align (repository-harness 0.1.17 spirit)
 
 > Skill version jumps 0.22.0 → 0.24.0. The **0.23 milestone was the cross-agent installer**
