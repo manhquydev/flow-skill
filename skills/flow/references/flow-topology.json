@@ -1,5 +1,5 @@
 {
-  "$comment": "flow topology (source of truth once FLOW_GRAPH_EXECUTOR defaults on). Trusted data: loads ONLY from the skill install dir, pin-verified against harness/pins/flow-topology.sha256 (canonical-JSON sha256; regenerate via the command in harness/README.md). cmd is an argv ARRAY (no shell) restricted to the read-only `gate` verb; mutating verbs are lint-banned. Debt-skips are a plan_next traversal semantic (skipped gate = accepted-with-debt) - NO bypass edges belong here. Edit checklist: run `graph lint`, regenerate the pin, bump topology_version for semantic changes.",
+  "$comment": "flow topology (source of truth once FLOW_GRAPH_EXECUTOR defaults on). Trusted data: loads ONLY from the skill install dir, pin-verified against harness/pins/flow-topology.sha256 (canonical-JSON sha256; regenerate via the command in harness/README.md). cmd is an argv ARRAY (no shell) restricted to the read-only `gate` verb; mutating verbs are lint-banned. Debt-skips are a plan_next traversal semantic (skipped gate = accepted-with-debt) - NO bypass edges belong here. The card path mirrors the ACTUAL recording contract (auto-run.md): dispatch (workspace add) -> review (check) -> verify-live (card done evidence gate) -> merge (workspace remove, executor-proved ancestry), with card-abandon for an unmerged teardown. There is deliberately no card-build node: the build is LLM work with no deterministic boundary, and checkpoints only ever sit at gate/step boundaries. Edit checklist: run `graph lint`, regenerate the pin, bump topology_version for semantic changes.",
   "topology_version": 1,
   "entry": ["stage-00", "card-dispatch"],
   "nodes": {
@@ -10,11 +10,11 @@
     "stage-04": {"type": "gate_check", "stage": "04-adr", "cmd": ["flow.sh", "gate", "04-adr"]},
     "stage-05": {"type": "gate_check", "stage": "05-contract", "cmd": ["flow.sh", "gate", "05-contract"]},
     "card-dispatch": {"type": "record_evidence"},
-    "card-build": {"type": "record_evidence"},
     "card-review": {"type": "gate_check", "cmd": ["flow.sh", "gate", "--card", "{card}"]},
     "card-repair": {"type": "record_evidence", "max_visits": 2},
+    "card-verify-live": {"type": "record_evidence"},
     "card-merge": {"type": "git_op"},
-    "card-verify-live": {"type": "record_evidence"}
+    "card-abandon": {"type": "record_evidence"}
   },
   "edges": [
     {"from": "stage-00", "to": "stage-01"},
@@ -22,11 +22,11 @@
     {"from": "stage-02", "to": "stage-03"},
     {"from": "stage-03", "to": "stage-04"},
     {"from": "stage-04", "to": "stage-05"},
-    {"from": "card-dispatch", "to": "card-build"},
-    {"from": "card-build", "to": "card-review"},
-    {"from": "card-review", "to": "card-merge", "when": "review_green"},
+    {"from": "card-dispatch", "to": "card-review"},
+    {"from": "card-review", "to": "card-verify-live", "when": "review_green"},
     {"from": "card-review", "to": "card-repair", "when": "review_red"},
     {"from": "card-repair", "to": "card-review"},
-    {"from": "card-merge", "to": "card-verify-live"}
+    {"from": "card-verify-live", "to": "card-merge"},
+    {"from": "card-dispatch", "to": "card-abandon", "when": "review_red"}
   ]
 }

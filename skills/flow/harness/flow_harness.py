@@ -762,6 +762,8 @@ def cmd_graph(con, a):
         "run": G.cmd_graph_run, "record": G.cmd_graph_record, "next": G.cmd_graph_next,
         "resume": G.cmd_graph_resume, "status": G.cmd_graph_status,
         "abandon": G.cmd_graph_abandon, "gc": G.cmd_graph_gc, "lint": G.cmd_graph_lint,
+        "cards": G.cmd_graph_cards, "root": G.cmd_graph_root,
+        "session": G.cmd_graph_session,
     }[a.graph_cmd](con, a)
 
 
@@ -1185,13 +1187,24 @@ def build_parser():
     g2 = pgs.add_parser("record", help="record a step boundary: writes + checkpoint in ONE transaction; prints checkpoint id")
     g2.add_argument("--execution", required=True); g2.add_argument("--ns", default="")
     g2.add_argument("--node", required=True)
-    g2.add_argument("--manifest", help="JSON evidence refs (git sha, file hashes, gate exit) - never blobs")
+    g2.add_argument("--manifest", help="JSON evidence object (parsed + duplicate-key rejected); "
+                                       "prefer the typed flags below so no caller concatenates JSON")
+    g2.add_argument("--gate-exit", dest="gate_exit", type=int, help="gate verdict exit code")
+    g2.add_argument("--gate-cmd", dest="gate_cmd", help="gate command that produced the verdict")
+    g2.add_argument("--card-status", dest="card_status", help="card status token at record time")
+    g2.add_argument("--worktree", help="worktree path (dispatch evidence)")
+    g2.add_argument("--vendor", help="agent vendor (dispatch evidence)")
     g2.add_argument("--writes", help="JSON array of {task,channel,value} step writes")
     g2.add_argument("--parent", help="parent checkpoint id (fork chain, e.g. two-strikes attempt 2)")
     g2.add_argument("--source", default="loop", choices=["input", "loop", "update", "fork"])
     g2.add_argument("--interrupt", action="store_true", help="open an operator interrupt and pause (exit 3)")
     g2.add_argument("--prompt", help="interrupt prompt shown to the operator")
     g2.add_argument("--security-class", dest="security_class", action="store_true")
+    g2.add_argument("--merge", action="store_true",
+                    help="record a merge boundary; the executor COMPUTES the ancestry proof "
+                         "(caller claims are ignored) and records card-abandon when unmerged")
+    g2.add_argument("--branch", help="branch to prove merged (with --merge)")
+    g2.add_argument("--base", help="merge base (default: origin/HEAD, else current branch)")
     g3 = pgs.add_parser("next", help="next node per topology+journal (exit 3 = complete/paused)")
     g3.add_argument("--execution", required=True); g3.add_argument("--ns", default="")
     g3.add_argument("--topology", help="explicit topology JSON path (tests/fixtures; default: "
@@ -1213,6 +1226,19 @@ def build_parser():
                                    "(deleted on the NEXT gc, so doctor can surface them first)")
     g7.add_argument("--stale-days", dest="stale_days", type=int)
     g7.add_argument("--project", help="project scope (default: basename of FLOW_PROJECT_ROOT)")
+    g9 = pgs.add_parser("cards", help="compile the card DAG: deps-met set + overlap-serialized "
+                                      "ready set + blocked reasons (JSON); rejects dep cycles")
+    g9.add_argument("--active-files", dest="active_files",
+                    help="space/comma list of allowed-file tokens already owned by live worktrees")
+    pgs.add_parser("root", help="print the directory owning this project's durable state "
+                                "(worktree-translated; the one main-tree scope)")
+    gse = pgs.add_parser("session", help="print the project's running auto_run execution, "
+                                         "minting one atomically if absent (no pin file)")
+    gse.add_argument("--project"); gse.add_argument("--no-create", dest="no_create",
+                                                    action="store_true",
+                                                    help="exit 3 instead of minting")
+    gse.add_argument("--kind", choices=["auto_run", "planning"], default="auto_run",
+                     help="session lane: shipping (auto_run) or planning")
     g8 = pgs.add_parser("lint", help="validate a topology (default: the shipped one incl. pin)")
     g8.add_argument("--topology", help="explicit topology path (fixtures; skips the pin unless --pin)")
     g8.add_argument("--pin", help="explicit pin file to verify against")

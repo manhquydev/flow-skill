@@ -17,9 +17,14 @@ principles below. Operator chose: **Tier-A auto-merge green cards; halt at secur
 ```
 for each todo card in card-number order:
   0. tier-classify. If Tier-C -> HALT, write DEBT line, ask operator. Do not proceed.
+     [records: flow harness graph record --execution "$(flow.sh harness graph session)" \
+                 --ns card:C-NNN --node card-review --interrupt --security-class]
   1. spawn ONE scoped subagent (agent-stage-mapping.md) in its own worktree
-     git worktree add ../<project>-C-NNN -b card/C-NNN
+     /flow workspace add card/C-NNN --card C-NNN     [records: card-dispatch]
+     (a raw `git worktree add` records NOTHING — use the verb, or the journal has a hole)
   2. agent builds to contract, touches only allowed files, runs ## Verify for real
+     [no recording: the build is LLM work, and checkpoints only sit at deterministic
+      gate/step boundaries — the next `check` is what proves it]
   3. review the diff (code-reviewer or bmad-code-review 3-layer; see adversarial-review.md).
        On a security-class card, add a USABLE cross-vendor lens (Codex, and/or Antigravity/Gemini-3).
        red (strike 1) -> repair: spawn Task(subagent_type="debugger") with a SCOPED BRIEF
@@ -32,11 +37,28 @@ for each todo card in card-number order:
          USABLE, else escalate
        green -> continue
   4. flow.sh check C-NNN must PASS (mechanical) + gate-rules semantic check
+     [records: card-review, with the gate exit as the evidence]
   5. merge to main in card order; deploy; VERIFY ON LIVE URL (merge != shipped)
   6. paste world-state evidence into the card; status: done
+     [records: card-verify-live, via '/flow card done C-NNN' (evidence gate = the done boundary)]
   7. flow.sh harness story complete --id … --proof-source manual (or card_markdown_gate) + trace; log AUTO-LOG.md
-  8. remove worktree
+  8. remove worktree: /flow workspace remove card/C-NNN
+     [records: card-merge — the executor computes the ancestry proof itself and records
+      card-abandon instead if the branch was never merged — and ingests the worktree's
+      usage events into the main DB before the tree is gone]
 ```
+
+## Recording contract (graph executor, `FLOW_GRAPH_EXECUTOR=1`)
+Boundaries are recorded by the verbs above, which this loop already calls — nothing depends
+on the agent remembering an extra call. Only the Tier-C interrupt (step 0) is an explicit
+`graph record` invocation; `graph session` returns the project's running execution
+(minting one atomically if absent — one execution per project, shared by every worktree). The card path — dispatch → review → verify-live → merge,
+with card-abandon for an unmerged teardown — is exactly what the pinned topology declares,
+so `graph next` always advises the boundary the next verb will record. The executor never drives the loop: it records evidence, computes
+the next node from topology + journal, and reconciles against git (`graph resume` with no
+open interrupt prints a reconciliation report), so merged-but-unrecorded work is never
+re-dispatched. Ready/parallel decisions come from `flow harness graph cards`
+(deps-met parity with `/flow ready`, plus allowed-files overlap serialization).
 
 ## Hard stops (mandatory — see loop-harness-2026-principles.md in Phase 4)
 - Iteration cap per card (e.g. 2 repair attempts), token budget, wall-clock cap. Exceed any

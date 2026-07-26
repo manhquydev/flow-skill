@@ -44,7 +44,10 @@ python -c "import json,hashlib;print(hashlib.sha256(json.dumps(json.load(open('s
 
 **DB location.** `<FLOW_PROJECT_ROOT>/.flow/harness.db`, with two graph-era rules: a root inside
 a LINKED git worktree is translated to its main-worktree equivalent (all parallel cards share one
-DB; submodules and `--separate-git-dir` repos are never translated), and `FLOW_HARNESS_DB=<path>`
+DB). Not translated — each worktree keeps its own DB — for submodules and for
+`--separate-git-dir` repos, where git reports the separate git dir as the main worktree and the
+checkout path is not discoverable; guessing there would put durable state inside `.git`.
+`FLOW_HARNESS_DB=<path>`
 is a narrow test/tool override of the DB path only — never repurpose `FLOW_PROJECT_ROOT` for
 this. Worktree telemetry merges at workspace-remove time via
 `rollup --src <sink> --src-key "<main events.jsonl>#<branch>#<created_at>"` (lifecycle-unique;

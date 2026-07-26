@@ -13,6 +13,7 @@ import os
 import re
 import sqlite3
 import subprocess
+import time
 
 SCHEMA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema")
 
@@ -68,6 +69,14 @@ def _linked_worktree_main_root(root):
                 first = next((ln for ln in wt.stdout.splitlines()
                               if ln.startswith("worktree ")), "") if wt.returncode == 0 else ""
                 main_top = first[len("worktree "):].strip()  # main worktree is always first
+                # --separate-git-dir: the main `.git` is a FILE, so git itself reports the
+                # separate git dir as the "main worktree" and does not record the checkout
+                # anywhere discoverable (core.worktree is unset). Translating would put the
+                # DB inside git internals, so REFUSE instead of guessing: the worktree keeps
+                # its own DB (pre-graph behavior), documented in README, rather than
+                # corrupting state. A real checkout always has a `.git` entry.
+                if main_top and not os.path.exists(os.path.join(main_top, ".git")):
+                    main_top = ""
                 rr = os.path.realpath(root)
                 wtop = os.path.realpath(worktree_top)
                 inside = rr == wtop or rr.startswith(wtop + os.sep)
@@ -206,9 +215,25 @@ def _apply_migration(con, sql):
     pragmas = [s for s in stmts if s.upper().startswith("PRAGMA")]
     ddl = [s for s in stmts if not s.upper().startswith("PRAGMA")]
     for p in pragmas:
-        con.execute(p)
+        # Belt-and-braces retry (a pragma can still meet a busy DB on a cold start).
+        for attempt in range(20):
+            try:
+                con.execute(p)
+                break
+            except sqlite3.OperationalError as e:
+                if "locked" not in str(e).lower() and "busy" not in str(e).lower():
+                    raise
+                if attempt == 19:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
     try:
-        con.execute("BEGIN")
+        # IMMEDIATE, not deferred: a deferred BEGIN takes SHARED on the first read probe
+        # (_idempotent_statement inspects sqlite_master/table_info) and the later DDL must
+        # upgrade SHARED->RESERVED - an upgrade SQLite refuses with SQLITE_BUSY IMMEDIATELY,
+        # bypassing the busy handler, so busy_timeout never applies. Taking RESERVED up
+        # front puts the wait where busy_timeout can cover it. This is what made cold-start
+        # parallel card workers lose records.
+        con.execute("BEGIN IMMEDIATE")
         for s in ddl:
             stmt = _idempotent_statement(con, s)
             if stmt is None:
@@ -216,7 +241,10 @@ def _apply_migration(con, sql):
             con.execute(stmt)
         con.execute("COMMIT")
     except Exception:
-        con.execute("ROLLBACK")
+        # rollback(), not execute("ROLLBACK"): if BEGIN IMMEDIATE itself failed there is no
+        # active transaction, and the raw statement would raise "cannot rollback", masking
+        # the original lock error.
+        con.rollback()
         raise
 
 

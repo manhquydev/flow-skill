@@ -132,7 +132,10 @@ c=sqlite3.connect(sys.argv[1])
 print(c.execute("SELECT topology_hash FROM graph_execution WHERE id=?",(sys.argv[2],)).fetchone()[0][:8])
 EOF
 )"
-ck "6512df58" "$HN" "execution re-pinned to the shipped topology hash"
+# Derive the expected prefix from the shipped pin: hardcoding it would make every
+# intentional topology edit look like a test failure.
+EXPH="$(cut -c1-8 < "$HDIR/pins/flow-topology.sha256")"
+ck "$EXPH" "$HN" "execution re-pinned to the shipped topology hash"
 "$PY" - "$TOPO" > "$SB/tfix.json" <<'EOF'
 import json,sys; print(open(sys.argv[1]).read())
 EOF

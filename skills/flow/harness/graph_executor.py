@@ -49,6 +49,15 @@ def _root():
     return os.environ.get("FLOW_PROJECT_ROOT") or os.getcwd()
 
 
+def _project_key():
+    """Project identity for rows in the SHARED db. Must be main-root scoped: stamping
+    basename(_root()) would record whichever worktree happened to mint the execution
+    (`proj-card-C-001`), and gc filtering by the caller's basename would then never
+    see it - terminal rows unpurgeable, stale sweep blind."""
+    root = _root()
+    return os.path.basename(_db._linked_worktree_main_root(root) or root)
+
+
 def _session_id():
     # Mirrors flow.sh _session_env_id cascade (flow.sh:353-368).
     for var in ("FLOW_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CODEX_SESSION_ID",
@@ -71,6 +80,15 @@ def _git(root, *args):
 def _git_out(root, *args):
     r = _git(root, *args)
     return r.stdout if (r is not None and r.returncode == 0) else None
+
+
+def _linked_main_root(root):
+    """Main-worktree path when `root` is inside a linked worktree, else None.
+
+    Delegates to the ONE resolver (`_db`), which handles submodules,
+    --separate-git-dir (core.worktree) and monorepo sub-projects - a second local
+    heuristic is exactly what drifted before."""
+    return _db._linked_worktree_main_root(root)
 
 
 # ---------------- topology ----------------
@@ -236,13 +254,88 @@ def cmd_graph_run(con, a):
         con.execute(
             "INSERT INTO graph_execution (id,project,kind,topology_version,topology_hash,story_id) "
             "VALUES (?,?,?,?,?,?)",
-            (eid, a.project or os.path.basename(_root()), a.kind,
+            (eid, a.project or _project_key(), a.kind,
              a.topology_version, a.topology_hash, a.story))
     print(eid)
     return 0
 
 
 TERMINAL = ("done", "failed", "abandoned")
+
+
+def _no_dupes(pairs):
+    seen = {}
+    for k, v in pairs:
+        if k in seen:
+            raise ValueError(f"duplicate key {k!r} in manifest")
+        seen[k] = v
+    return seen
+
+
+def _build_manifest(a):
+    """Assemble the evidence manifest HERE, from typed flags - never from a JSON string
+    a shell concatenated. Card `status:` tokens and git ref names are attacker-adjacent
+    free text: spliced into a bash JSON literal, `status: x","gate":{"exit":0},"z":"`
+    silently overrides a RED gate with a green one (json keeps the last duplicate key).
+    A caller-supplied --manifest is still accepted for tests, but is parsed and
+    duplicate-key-rejected before it can reach the journal."""
+    m = {}
+    if a.manifest:
+        m = json.loads(a.manifest, object_pairs_hook=_no_dupes)
+        if not isinstance(m, dict):
+            raise ValueError("manifest must be a JSON object")
+    gate = {}
+    if getattr(a, "gate_exit", None) is not None:
+        gate["exit"] = int(a.gate_exit)
+    if getattr(a, "gate_cmd", None):
+        gate["cmd"] = a.gate_cmd
+    if gate:
+        m["gate"] = gate
+    for flag, key in (("card_status", "status"), ("branch", "branch"),
+                      ("worktree", "worktree"), ("vendor", "vendor")):
+        v = getattr(a, flag, None)
+        if v:
+            m[key] = v
+    return json.dumps(m)
+
+
+def cmd_graph_session(con, a):
+    """Print the project's current RUNNING auto_run execution, minting one atomically if
+    there is none (unless --no-create). SQLite's BEGIN IMMEDIATE is the arbitration point.
+
+    This replaces a bash pin file + mkdir claim: that design needed corpse recovery,
+    TOCTOU-free reclaim and a liveness check, and got all three wrong (a claim could be
+    stolen mid-mint, and an ABANDONED row still passed an existence-only check, silently
+    blackholing every later record). Here the query itself filters on status='running',
+    so a retired execution can never be adopted."""
+    rc = _guard_flags()
+    if rc:
+        return rc
+    project = a.project or _project_key()
+    kind = getattr(a, "kind", None) or "auto_run"
+    # running OR paused: a paused execution is waiting on an operator interrupt - still
+    # the live session (its resolution must land on the SAME execution). Only terminal
+    # states (done/failed/abandoned) are unadoptable. Planning and shipping keep separate
+    # sessions (different namespaces, different lifetimes).
+    q = ("SELECT id FROM graph_execution WHERE project=? AND kind=? "
+         "AND status IN ('running','paused') ORDER BY id DESC LIMIT 1")
+    row = _db.one(con, q, (project, kind))
+    if row:
+        print(row["id"])
+        return 0
+    if getattr(a, "no_create", False):
+        return 3
+    eid = graph_ids.new_id()
+    with _db.transaction(con):
+        row = con.execute(q, (project, kind)).fetchone()   # re-check under the write lock
+        if row:
+            eid = row[0]
+        else:
+            con.execute(
+                "INSERT INTO graph_execution (id,project,kind,topology_version,topology_hash) "
+                "VALUES (?,?,?,?,?)", (eid, project, kind, 0, ""))
+    print(eid)
+    return 0
 
 
 def cmd_graph_record(con, a):
@@ -259,6 +352,74 @@ def cmd_graph_record(con, a):
         sys.stderr.write(f"flow-graph: execution is terminal ({ex['status']}) - refusing record\n")
         return 1
     ns = a.ns or ""
+    try:
+        a.manifest = _build_manifest(a)
+    except (ValueError, TypeError) as e:
+        sys.stderr.write(f"flow-graph: bad manifest: {e}\n")
+        return 1
+    # Boundary, not heartbeat: re-running the SAME verb with the SAME evidence is a
+    # no-op. Without this, a second `flow.sh check` on a done card appends another
+    # card-review after card-verify-live and `plan_next` (which reads the LATEST
+    # checkpoint) rewinds the walk - advising re-verification of shipped work. A
+    # changed manifest (red -> green, repair cycles) still records, as it must.
+    if not getattr(a, "interrupt", False):
+        prev = _latest_checkpoint(con, a.execution, ns)
+        if prev and prev["node"] == a.node and prev["manifest"] == a.manifest:
+            print(prev["checkpoint_id"])
+            return 0
+    if os.environ.get("FLOW_GRAPH_TOPOLOGY_FIXTURE") != "1":
+        # Typo'd or contract-drifted node names would journal cleanly and then dead-end
+        # at `next` as rc 3 "complete". Validate against the shipped topology (fixtures
+        # opt out - they define their own node sets).
+        try:
+            topo_v, _ = load_topology_trusted()
+            if a.node not in topo_v["nodes"]:
+                sys.stderr.write(f"flow-graph: node {a.node!r} is not in the shipped topology\n")
+                return 1
+        except (OSError, ValueError):
+            pass  # pin/loader problems surface on `next`/`lint`, not on a record
+    if getattr(a, "merge", False):
+        # The caller may NOT assert a merge: _ws_remove has no merge knowledge
+        # (flow.sh:2077+ only removes the tree), so the executor computes the proof.
+        root = _root()
+        branch = a.branch or ""
+        if not _safe_ref(branch):
+            sys.stderr.write("flow-graph: --merge needs --branch <ref>\n")
+            return 2
+        # Bases, in proof precedence: the LOCAL integration branch first (auto-run merges
+        # locally at step 5 and tears the tree down at step 8 with no push in between, so
+        # origin/HEAD is stale there and would journal shipped work as abandoned), then
+        # origin/HEAD as secondary confirmation. Never `rev-parse HEAD` of the current
+        # tree: inside a card worktree that IS the card branch (self-ancestor).
+        bases = []
+        if a.base:
+            bases = [a.base]
+        else:
+            main_root = _linked_main_root(root) or root
+            local = (_git_out(main_root, "rev-parse", "--abbrev-ref", "HEAD") or "").strip()
+            remote = (_git_out(root, "rev-parse", "--abbrev-ref", "origin/HEAD") or "").strip()
+            bases = [b for b in (local, remote) if b]
+        bases = [b for b in bases if _safe_ref(b) and b != branch]
+        if not bases:
+            sys.stderr.write("flow-graph: no usable merge base (self-ancestor or unresolvable) "
+                             "- pass --base explicitly\n")
+            return 2
+        sha = (_git_out(root, "rev-parse", "--verify", "--quiet", branch, "--") or "").strip()
+        if not sha:
+            sys.stderr.write(f"flow-graph: branch {branch} not found\n")
+            return 1
+        merged, proved_by = False, None
+        for b in bases:
+            r = _git(root, "merge-base", "--is-ancestor", sha, b)
+            if r is not None and r.returncode == 0:
+                merged, proved_by = True, b
+                break
+        a.manifest = json.dumps({"branch": branch, "git_sha": sha,
+                                 "base": proved_by or bases[0], "bases_tried": bases,
+                                 "merged": merged})
+        if not merged:
+            # Unmerged teardown is abandonment, never a merge record.
+            a.node = "card-abandon"
     latest = _latest_checkpoint(con, a.execution, ns)
     versions = json.loads(latest["versions"]) if latest else {}
     versions[a.node] = versions.get(a.node, 0) + 1
@@ -561,6 +722,147 @@ def cmd_graph_abandon(con, a):
     return 0
 
 
+# ---------------- card DAG (Phase 4) ----------------
+
+_CARD_RE = re.compile(r"C-[0-9]+", re.IGNORECASE)
+
+
+def _card_id(tok):
+    return "C-%03d" % int(tok.split("-")[1])  # C-1 == C-001
+
+
+def _read_cards(cards_dir):
+    """Parse the REAL card format (no YAML frontmatter): a `deps:` body line whose
+    free text is scraped for C-NNN ids (mirrors flow.sh:1310-1319) and a
+    `## Allowed files` markdown section (mirrors _card_allowed_files, flow.sh:1289)
+    tokenized like _ws_tokens (flow.sh:1948) so overlap can never diverge."""
+    cards = {}
+    if not os.path.isdir(cards_dir):
+        return cards
+    for name in sorted(os.listdir(cards_dir)):
+        m = re.match(r"^(C-[0-9]+)\.md$", name)
+        if not m:
+            continue
+        cid = _card_id(m.group(1))
+        status, deps, files, in_allowed, fill = "", [], set(), False, False
+        with open(os.path.join(cards_dir, name), encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                s = line.rstrip("\n")
+                if s.startswith("## Allowed files"):
+                    in_allowed = True
+                    continue
+                if in_allowed and s.startswith("## "):
+                    in_allowed = False
+                if in_allowed and s.strip():
+                    if "[FILL" in s:
+                        fill = True
+                        continue
+                    # Mirror _ws_tokens EXACTLY (flow.sh:2035): strip one leading bullet
+                    # (incl. tabs), split on whitespace, then DELETE backticks/commas
+                    # (deleting, not splitting, is what joins `a.ts`,`b.ts` the same way).
+                    for tok in re.sub(r"^\s*-\s*", "", s).split():
+                        # \r too: bash `tr -s ' \t'` leaves it, so a CRLF checkout would
+                        # otherwise compare `src/a.ts\r` against `src/a.ts` and miss overlap.
+                        tok = tok.replace("`", "").replace(",", "").replace("\r", "")
+                        if tok:
+                            files.add(tok)
+                elif s.startswith("status:") and not status:
+                    status = s.split(":", 1)[1].strip().split()[0] if s.split(":", 1)[1].strip() else ""
+                elif s.startswith("deps:") and not deps:
+                    deps = [_card_id(t) for t in _CARD_RE.findall(s)]
+        # A self-dep is kept (not silently dropped): cmd_ready blocks such a card, so the
+        # compiler must too - dropping it would advertise an undispatchable card as ready.
+        cards[cid] = {"id": cid, "status": status, "deps": sorted(set(deps)),
+                      "files": sorted(files), "fill": fill}
+    return cards
+
+
+def _dep_cycles(cards):
+    color, out = {}, []
+    path = []
+
+    def dfs(n):
+        color[n] = 1
+        path.append(n)
+        for d in cards.get(n, {}).get("deps", []):
+            if d not in cards:
+                continue
+            if color.get(d) == 1:
+                out.append(path[path.index(d):] + [d])
+            elif color.get(d, 0) == 0:
+                dfs(d)
+        path.pop()
+        color[n] = 2
+
+    for n in cards:
+        if color.get(n, 0) == 0:
+            dfs(n)
+    return out
+
+
+def compile_cards(root, active_files=()):
+    """Card DAG + ready-set. deps-met mirrors cmd_ready (status of each dep == done);
+    overlap serialization is NEW deliberate behavior (legacy `ready` only advises,
+    flow.sh:1302): cards sharing an allowed-file token, or overlapping a currently
+    active worktree's tokens, are held back so two agents never edit one file."""
+    cards = _read_cards(os.path.join(root, "cards"))
+    cycles = _dep_cycles(cards)
+    # Only `todo` is buildable - cmd_ready's exact semantics (an invalid/blank status is
+    # a gate violation, not a dispatchable card).
+    todo = [c for c in cards.values() if c["status"] == "todo"]
+    in_cycle = {n for cyc in cycles for n in cyc}
+    deps_met, blocked = [], {}
+    for c in sorted(todo, key=lambda x: x["id"]):
+        missing = [d for d in c["deps"] if cards.get(d, {}).get("status") != "done"]
+        if c["id"] in in_cycle:
+            blocked[c["id"]] = {"reason": "dep cycle",
+                                "cycle": next("->".join(x) for x in cycles if c["id"] in x)}
+        elif missing:
+            blocked[c["id"]] = {"reason": "deps", "missing": missing}
+        elif c["fill"]:
+            blocked[c["id"]] = {"reason": "allowed-files still has [FILL"}
+        else:
+            deps_met.append(c["id"])
+    ready, taken = [], set(active_files)
+    for cid in deps_met:
+        f = set(cards[cid]["files"])
+        if f & taken:
+            blocked[cid] = {"reason": "allowed-files overlap",
+                            "with": sorted(f & taken)}
+            continue
+        taken |= f
+        ready.append(cid)
+    return {"cards": {k: v for k, v in sorted(cards.items())},
+            "deps_met": deps_met, "ready": ready, "blocked": blocked,
+            "cycles": ["->".join(c) for c in cycles]}
+
+
+def cmd_graph_cards(con, a):
+    rc = _guard_flags()
+    if rc:
+        return rc
+    active = []
+    if a.active_files:
+        active = [t for t in a.active_files.replace(",", " ").split() if t]
+    out = compile_cards(_root(), active)
+    # A dep cycle blocks its OWN members, never the board: cmd_ready keeps advising every
+    # other buildable card, and auto-run routes all dispatch through this verb - one
+    # authoring typo must not halt a healthy run. rc 1 stays for an unreadable cards/.
+    for c in out["cycles"]:
+        sys.stderr.write(f"flow-graph: card dependency cycle: {c}\n")
+    print(json.dumps(out))
+    return 0
+
+
+def cmd_graph_root(con, a):
+    """Print the directory that owns this project's durable state. Single source of
+    truth for main-tree scoping: flow.sh asks THIS instead of re-deriving the worktree
+    translation with a weaker heuristic (a second implementation drifted on monorepo
+    sub-projects and --separate-git-dir repos, re-splitting the journal)."""
+    print(os.path.dirname(_db.default_db_path()))
+    return 0
+
+
 # ---------------- lint ----------------
 
 # Autonomous cmd position allows ONLY read-only surfaces: flow.sh's scan-only `gate`
@@ -777,7 +1079,7 @@ def cmd_graph_gc(con, a):
     rc = _guard_flags()
     if rc:
         return rc
-    project = a.project or os.path.basename(_root())
+    project = a.project or _project_key()
     # Purge FIRST, then sweep: rows marked stale in this invocation survive until the
     # NEXT gc, so doctor/status get a window to surface them (never mark-and-delete in
     # one call). Purge is scoped to one project - the DB is deliberately shared across
