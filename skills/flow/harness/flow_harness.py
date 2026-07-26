@@ -20,6 +20,7 @@ import sys
 import _db
 import _domain as D
 import _presence as P
+import graph_executor as G
 
 
 def _flow_lineage_db(argv):
@@ -756,6 +757,14 @@ def cmd_rollup(con, a):
     return 0
 
 
+def cmd_graph(con, a):
+    return {
+        "run": G.cmd_graph_run, "record": G.cmd_graph_record, "next": G.cmd_graph_next,
+        "resume": G.cmd_graph_resume, "status": G.cmd_graph_status,
+        "abandon": G.cmd_graph_abandon, "gc": G.cmd_graph_gc,
+    }[a.graph_cmd](con, a)
+
+
 def cmd_usage(con, a):
     src = _global_log_path() if getattr(a, "global_", False) else _events_path(a)
     # `src=?` matches direct-sink rows; the LIKE arm matches lifecycle-keyed ingests
@@ -1165,6 +1174,41 @@ def build_parser():
     ppr = sub.add_parser("prune", help="cap each JSONL sink to its last N lines (crash-safe; resets the mirror for that sink)")
     ppr.add_argument("--keep", type=int, help="lines to keep (default 5000)")
     ppr.add_argument("--global", dest="global_", action="store_true", help="also prune the device-global log")
+
+    pg = sub.add_parser("graph", help="graph executor: record/advance journal (flow-owned band 014+)")
+    pgs = pg.add_subparsers(dest="graph_cmd", required=True)
+    g1 = pgs.add_parser("run", help="create an execution; prints its id")
+    g1.add_argument("--project"); g1.add_argument("--kind", required=True, choices=["auto_run", "planning", "card"])
+    g1.add_argument("--topology-version", dest="topology_version", type=int, default=1)
+    g1.add_argument("--topology-hash", dest="topology_hash", default="")
+    g1.add_argument("--story", help="story id tracking handle (TEXT, e.g. C-001)")
+    g2 = pgs.add_parser("record", help="record a step boundary: writes + checkpoint in ONE transaction; prints checkpoint id")
+    g2.add_argument("--execution", required=True); g2.add_argument("--ns", default="")
+    g2.add_argument("--node", required=True)
+    g2.add_argument("--manifest", help="JSON evidence refs (git sha, file hashes, gate exit) - never blobs")
+    g2.add_argument("--writes", help="JSON array of {task,channel,value} step writes")
+    g2.add_argument("--parent", help="parent checkpoint id (fork chain, e.g. two-strikes attempt 2)")
+    g2.add_argument("--source", default="loop", choices=["input", "loop", "update", "fork"])
+    g2.add_argument("--interrupt", action="store_true", help="open an operator interrupt and pause (exit 3)")
+    g2.add_argument("--prompt", help="interrupt prompt shown to the operator")
+    g2.add_argument("--security-class", dest="security_class", action="store_true")
+    g3 = pgs.add_parser("next", help="next node per topology+journal (exit 3 = complete/paused)")
+    g3.add_argument("--execution", required=True); g3.add_argument("--ns", default="")
+    g3.add_argument("--topology", required=True, help="topology JSON path (Phase-3 hardens the source)")
+    g4 = pgs.add_parser("resume", help="resolve the open interrupt (guarded) and resume")
+    g4.add_argument("--execution", required=True)
+    g4.add_argument("--answer", help='JSON object with a non-empty string "reason"')
+    g4.add_argument("--actor", help="resolving actor id (stored as audit evidence)")
+    g4.add_argument("--target", help="closed-set target the DEBT line must name (C-NNN or NN-stage)")
+    g5 = pgs.add_parser("status", help="execution + latest checkpoint per ns + open interrupts (JSON)")
+    g5.add_argument("--execution", required=True)
+    g6 = pgs.add_parser("abandon", help="terminal-state an execution (kill-at-gate, stale cleanup)")
+    g6.add_argument("--execution", required=True); g6.add_argument("--outcome", help="e.g. killed")
+    g7 = pgs.add_parser("gc", help="purge terminal executions for ONE project (cascade), then "
+                                   "--stale-days marks aged checkpoint-less running as abandoned "
+                                   "(deleted on the NEXT gc, so doctor can surface them first)")
+    g7.add_argument("--stale-days", dest="stale_days", type=int)
+    g7.add_argument("--project", help="project scope (default: basename of FLOW_PROJECT_ROOT)")
     return p
 
 
@@ -1196,6 +1240,7 @@ def main(argv):
         "intervention": cmd_intervention, "query": cmd_query,
         "audit": cmd_audit, "propose": cmd_propose,
         "rollup": cmd_rollup, "usage": cmd_usage, "prune": cmd_prune,
+        "graph": cmd_graph,
     }
     try:
         return dispatch[a.cmd](con, a) or 0

@@ -187,7 +187,11 @@ _python() {
 # harness_call_checked always returns the real harness exit (for callers that care).
 _harness_run() {
   # runs harness; prints stderr (masked lightly); echoes nothing; returns real rc
-  # usage: _harness_run <args...>   sets _HARNESS_LAST_RC
+  # usage: _harness_run [--emit-stdout] <args...>   sets _HARNESS_LAST_RC
+  # --emit-stdout: pass harness stdout THROUGH (value-carrying graph verbs) and
+  # suppress the warn line for the semantic rc 3 (no-next/paused, not a failure).
+  local _emit=0
+  [ "${1:-}" = "--emit-stdout" ] && { _emit=1; shift; }
   _HARNESS_LAST_RC=0
   [ -n "${FLOW_HARNESS_DISABLE:-}" ] && return 0
   [ -f "$HARNESS_PY" ] || return 0
@@ -198,6 +202,8 @@ _harness_run() {
   # capture rc without flipping the caller's set -e state
   out="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" "$@" 2>"$errf")" || rc=$?
   _HARNESS_LAST_RC=$rc
+  [ "$_emit" = 1 ] && [ -n "$out" ] && printf '%s\n' "$out"
+  if [ "$_emit" = 1 ] && [ "$rc" -eq 3 ]; then rm -f "$errf" 2>/dev/null || true; return "$rc"; fi
   if [ "$rc" -ne 0 ]; then
     local errline summary
     errline="$(tr -d '\r' <"$errf" 2>/dev/null | head -n 3 | tr '\n' ' ')"
@@ -232,6 +238,20 @@ harness_call() {
 harness_call_checked() {
   # returns real harness exit code (and still prints STRICT-aware warnings)
   _harness_run "$@"
+}
+
+harness_capture_checked() {
+  # VALUE-carrying variant for graph verbs: emits harness stdout and returns the
+  # real exit code, via _harness_run --emit-stdout so the availability triad,
+  # stderr redaction, and rc plumbing live in ONE place. Fail-closed contract:
+  # 0=value, 3=no-next/paused, 4=harness unavailable (DISABLE / file / python
+  # missing - the soft rc-0 ambiguity _harness_run keeps for durable writes is
+  # exactly what value calls must NOT inherit), 1/2=failure.
+  # No consumers yet; cmd_next delegates through this when FLOW_GRAPH_EXECUTOR lands.
+  [ -n "${FLOW_HARNESS_DISABLE:-}" ] && return 4
+  [ -f "$HARNESS_PY" ] || return 4
+  local py; py="$(_python)"; [ -n "$py" ] || return 4
+  _harness_run --emit-stdout "$@"
 }
 
 # When STRICT=fail, surface durable failure from card/check call sites (D5).
