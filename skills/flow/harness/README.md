@@ -32,6 +32,9 @@ message). Use the Python backend for flow projects. The seam stays in code as a 
 power-path for non-flow DBs; flow does not build or ship the binary.
 
 Disable the durable layer entirely with `FLOW_HARNESS_DISABLE=1` (engine still runs).
+**Python floor: 3.7** (measured, not asserted — `subprocess.run(capture_output=, text=)`;
+no walrus/match/builtin generics). `scripts/release-preflight.sh` enforces it, and
+`docs/migration-v1.md` records what a python-mandatory v1 would change.
 
 **Topology pin.** `pins/flow-topology.sha256` pins the canonical-JSON sha256 of
 `references/flow-topology.json`; graph verbs refuse to run on a mismatch (topology is

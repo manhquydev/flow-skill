@@ -48,6 +48,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pin the interpreter instead of trusting the runner image: the durable layer and
+      # the graph executor are python, and 3.7 is the MEASURED floor (subprocess
+      # capture_output/text; no walrus, no match, no builtin generics).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
       - name: Topology lint (shipped flow-topology.json + pin)
         run: |
           PY="$(command -v python3 || command -v python)"
@@ -56,6 +63,28 @@ jobs:
 
       - name: Run flow.sh bash test suite (tests/run_all.sh)
         run: bash tests/run_all.sh
+        shell: bash
+
+  # The engine must still gate a project when the durable layer is unavailable. This job
+  # is the executable proof of that promise (README/system-architecture both claim it),
+  # and it is what a future python-mandatory release would have to consciously replace.
+  no-python-degradation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: flow.sh gates a project with the durable layer disabled
+        run: |
+          set -e
+          SB="$(mktemp -d)"; cd "$SB"
+          R="$GITHUB_WORKSPACE/skills/flow/runner/flow.sh"
+          FLOW_HARNESS_DISABLE=1 bash "$R" next
+          test -f flow/00-idea.md || { echo "FAIL: stage 00 not scaffolded"; exit 1; }
+          test ! -f .flow/harness.db || { echo "FAIL: db minted while disabled"; exit 1; }
+          FLOW_HARNESS_DISABLE=1 bash "$R" status >/dev/null
+          out="$(FLOW_HARNESS_DISABLE=1 bash "$R" doctor 2>&1)" || true
+          printf '%s' "$out" | grep -qi "python\|durable" || { echo "FAIL: doctor hides the durable-layer state"; exit 1; }
+          echo "OK: engine gates + doctor diagnoses without the durable layer"
         shell: bash
 
   test:

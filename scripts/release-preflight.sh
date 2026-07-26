@@ -201,6 +201,39 @@ else
 fi
 
 echo
+echo "--- python floor (graph executor needs a real interpreter) ---"
+# Resolve exactly like flow.sh _python(): python3 first, then python, accepting only py3.
+# A `python3`-only probe would brick Windows Git Bash, where python.org installs `python`.
+PYBIN=""
+for c in python3 python; do
+  if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(0 if sys.version_info[0]>=3 else 1)' 2>/dev/null; then
+    PYBIN="$(command -v "$c")"; break
+  fi
+done
+if [ -z "$PYBIN" ]; then
+  fail "no python3 found (durable layer + graph executor require it)"
+else
+  PYVER="$("$PYBIN" -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null)"
+  ok "python $PYVER at $PYBIN"
+  # Floor is MEASURED, not asserted: 3.7 is the oldest interpreter that runs this code
+  # (subprocess.run(capture_output=, text=) is 3.7+; no walrus/match/builtin generics).
+  if ! "$PYBIN" -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3,7) else 1)' 2>/dev/null; then
+    fail "python $PYVER is below the measured floor 3.7 (subprocess capture_output/text)"
+  fi
+  if "$PYBIN" -m py_compile skills/flow/harness/*.py 2>/dev/null; then
+    ok "harness modules compile"
+  else
+    fail "harness modules failed to compile"
+  fi
+  # The shipped topology is executable-adjacent data: a stale pin must never ship.
+  if FLOW_PROJECT_ROOT="$ROOT" "$PYBIN" skills/flow/harness/flow_harness.py graph lint >/dev/null 2>&1; then
+    ok "topology lint + pin verify"
+  else
+    fail "graph lint failed (topology invalid or pin stale — see harness/README.md)"
+  fi
+fi
+
+echo
 if [ "$rc" -eq 0 ]; then
   echo "PREFLIGHT PASS — next: docs/release-process.md (tag npm@… / skill tag v…)"
 else
