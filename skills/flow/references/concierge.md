@@ -48,6 +48,7 @@ SKILL.md's Forbidden list). When a brand-new user's ask requires you to draft so
 - design
 - doctor
 - ready
+- gate
 
 **Must-ask — confirm before running** (mutates state, costs money, or is
 operator-authority-only):

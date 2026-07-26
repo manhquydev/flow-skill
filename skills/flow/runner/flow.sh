@@ -1282,6 +1282,31 @@ cmd_skip() {
   return 0
 }
 
+cmd_gate() {
+  # Read-only mechanical gate scan (no unlock, no template copy, no durable writes):
+  # the ONLY flow.sh verb the graph executor may run from topology cmd position
+  # (`check` mutates story/trace on pass and stays Must-ask). Exit 0 clean / 1 findings.
+  local target="${1:-}"
+  if [ "$target" = "--card" ]; then
+    local card="${2:-}" f
+    if [ -z "$card" ]; then echo "usage: /flow gate --card C-NNN"; return 2; fi
+    f="$(resolve_card_file "$card" 2>/dev/null)"
+    if [ -z "$f" ]; then echo "usage: /flow gate --card C-NNN"; return 2; fi
+    echo "GATE card ${card}:"
+    if scan_gate "$f"; then echo "  clean"; return 0; fi
+    return 1
+  fi
+  local known=0 s
+  for s in $STAGES; do [ "$s" = "$target" ] && known=1; done
+  if [ "$known" -eq 0 ]; then
+    echo "usage: /flow gate <stage: $STAGES> | /flow gate --card C-NNN"
+    return 2
+  fi
+  echo "GATE stage ${target}:"
+  if scan_gate "$FLOW_DIR/$target.md"; then echo "  clean"; return 0; fi
+  return 1
+}
+
 cmd_retro() {
   [ -f "$RETRO_FILE" ] || { [ -f "$LAW_DIR/RETRO.md" ] && cp "$LAW_DIR/RETRO.md" "$RETRO_FILE"; }
   echo "flow retro - answer these 3, then append ONE honest line to RETRO.md:"
@@ -3531,6 +3556,7 @@ usage: bash flow.sh <command> [args]
   assess            Brownfield: scaffold + gate a current-state assessment (flow/00-inspect.md) before planning
   card              Create the next build card (after planning complete)
   check C-NNN       Validate a card (FILL/status/sections/done-evidence)
+  gate <stage>|--card C-NNN  Read-only mechanical scan (no unlock, no durable writes)
   mode [teach|work] Show or set who writes the artifacts
   project-type [t]  Show or set project type (web|cli|library|skill); adapts done-evidence
   skip <stage> --reason  Advance past a gate that has a matching open DEBT (non-security only)
@@ -3596,7 +3622,7 @@ _flow_version() {
 
 _log_is_readonly() { # $1 = command -> true|false (does it mutate the flow plan?)
   case "$1" in
-    status|resume|recall|ready|usage|tokens|coherence|consistency|contract|constitution|doctor|design|help|-h|--help|"") echo true ;;
+    status|resume|recall|ready|usage|tokens|coherence|consistency|contract|constitution|doctor|design|gate|help|-h|--help|"") echo true ;;
     *) echo false ;;
   esac
 }
@@ -3717,6 +3743,7 @@ case "$cmd" in
   assess)         cmd_assess ;;
   card)           cmd_card "$@" ;;
   check)          cmd_check "${1:-}" ;;
+  gate)           cmd_gate "$@" ;;
   mode)           cmd_mode "${1:-}" ;;
   project-type)   cmd_project_type "${1:-}" ;;
   skip)           cmd_skip "$@" ;;

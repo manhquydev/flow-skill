@@ -761,7 +761,7 @@ def cmd_graph(con, a):
     return {
         "run": G.cmd_graph_run, "record": G.cmd_graph_record, "next": G.cmd_graph_next,
         "resume": G.cmd_graph_resume, "status": G.cmd_graph_status,
-        "abandon": G.cmd_graph_abandon, "gc": G.cmd_graph_gc,
+        "abandon": G.cmd_graph_abandon, "gc": G.cmd_graph_gc, "lint": G.cmd_graph_lint,
     }[a.graph_cmd](con, a)
 
 
@@ -1194,7 +1194,11 @@ def build_parser():
     g2.add_argument("--security-class", dest="security_class", action="store_true")
     g3 = pgs.add_parser("next", help="next node per topology+journal (exit 3 = complete/paused)")
     g3.add_argument("--execution", required=True); g3.add_argument("--ns", default="")
-    g3.add_argument("--topology", required=True, help="topology JSON path (Phase-3 hardens the source)")
+    g3.add_argument("--topology", help="explicit topology JSON path (tests/fixtures; default: "
+                                       "the shipped pin-verified topology + hash policy)")
+    g3.add_argument("--force-retopology", dest="force_retopology", action="store_true",
+                    help="after a skill upgrade changed the topology: fork the chain onto "
+                         "the current topology instead of refusing")
     g4 = pgs.add_parser("resume", help="resolve the open interrupt (guarded) and resume")
     g4.add_argument("--execution", required=True)
     g4.add_argument("--answer", help='JSON object with a non-empty string "reason"')
@@ -1209,6 +1213,9 @@ def build_parser():
                                    "(deleted on the NEXT gc, so doctor can surface them first)")
     g7.add_argument("--stale-days", dest="stale_days", type=int)
     g7.add_argument("--project", help="project scope (default: basename of FLOW_PROJECT_ROOT)")
+    g8 = pgs.add_parser("lint", help="validate a topology (default: the shipped one incl. pin)")
+    g8.add_argument("--topology", help="explicit topology path (fixtures; skips the pin unless --pin)")
+    g8.add_argument("--pin", help="explicit pin file to verify against")
     return p
 
 
@@ -1232,6 +1239,10 @@ def main(argv):
                 "see harness/README.md for the full contract.\n"
             )
         raise
+    if a.cmd == "graph" and getattr(a, "graph_cmd", "") == "lint":
+        # lint touches no table: skip connect() so CI/linting never mints a DB
+        # (or runs migrations) in the working tree.
+        return G.cmd_graph_lint(None, a) or 0
     con = _db.connect(db_path=a.db)
     a._db_path = a.db or _db.default_db_path()
     dispatch = {

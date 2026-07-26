@@ -33,6 +33,15 @@ power-path for non-flow DBs; flow does not build or ship the binary.
 
 Disable the durable layer entirely with `FLOW_HARNESS_DISABLE=1` (engine still runs).
 
+**Topology pin.** `pins/flow-topology.sha256` pins the canonical-JSON sha256 of
+`references/flow-topology.json`; graph verbs refuse to run on a mismatch (topology is
+executable-adjacent data). After an INTENTIONAL topology edit, run `graph lint` and
+regenerate from the repo root:
+
+```
+python -c "import json,hashlib;print(hashlib.sha256(json.dumps(json.load(open('skills/flow/references/flow-topology.json')),sort_keys=True,separators=(',',':')).encode()).hexdigest()+'  flow-topology.json')" > skills/flow/harness/pins/flow-topology.sha256
+```
+
 **DB location.** `<FLOW_PROJECT_ROOT>/.flow/harness.db`, with two graph-era rules: a root inside
 a LINKED git worktree is translated to its main-worktree equivalent (all parallel cards share one
 DB; submodules and `--separate-git-dir` repos are never translated), and `FLOW_HARNESS_DB=<path>`

@@ -14,6 +14,7 @@ with resolved_by + session id stored as AUDIT evidence. Documented residual limi
 git authorship is forgeable by an agent with git-config control.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -24,6 +25,12 @@ import time
 
 import _db
 import graph_ids
+import graph_predicates as PRED
+
+SKILL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TRUSTED_TOPOLOGY = os.path.join(SKILL_DIR, "references", "flow-topology.json")
+TOPOLOGY_PIN = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "pins", "flow-topology.sha256")
 
 # Mirrors flow.sh cmd_skip's security-class regex (flow.sh:1242) - keep in sync.
 SECURITY_RE = re.compile(
@@ -93,17 +100,40 @@ def _successors(topo, node, latest_manifest):
 
 
 def _predicate(name, manifest):
-    # Registry is exactly {always, review_green, review_red} (red-team round 7:
-    # debt-skips are a traversal semantic, not predicates). Predicates read ONLY
-    # durable artifacts - here, the recorded gate exit in the latest manifest.
-    gate = (manifest or {}).get("gate") or {}
-    if name == "always":
-        return True
-    if name == "review_green":
-        return gate.get("exit") == 0
-    if name == "review_red":
-        return gate.get("exit") not in (None, 0)
-    raise ValueError(f"unregistered predicate: {name}")
+    # Registry lives in graph_predicates (exactly {always, review_green, review_red};
+    # red-team round 7: debt-skips are a traversal semantic, not predicates).
+    return PRED.evaluate(name, manifest)
+
+
+def canonical_hash(topo):
+    # Whitespace-insensitive: hash the canonical JSON form, so cosmetic edits
+    # don't invalidate the pin or strand paused executions.
+    blob = json.dumps(topo, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()
+
+
+def load_topology_trusted():
+    """Shipped-topology loader: skill install dir ONLY, pin-verified.
+
+    A project-local flow-topology.json is IGNORED with a warning (topology is
+    executable-adjacent data - a cloned repo must not be able to swap it), and a
+    pin mismatch REFUSES (exit path: ValueError -> clean rc 1), never just records.
+    Returns (topology, canonical_hash)."""
+    local = os.path.join(_root(), "flow-topology.json")
+    if os.path.exists(local):
+        sys.stderr.write("flow-graph: ignoring project-local flow-topology.json "
+                         "(topology loads only from the skill install dir, pin-verified)\n")
+    topo = load_topology(TRUSTED_TOPOLOGY)
+    try:
+        with open(TOPOLOGY_PIN, encoding="utf-8") as fh:
+            pin = fh.read().split()[0]
+    except (OSError, IndexError):
+        raise ValueError(f"topology pin missing/unreadable at {TOPOLOGY_PIN}")
+    h = canonical_hash(topo)
+    if h != pin:
+        raise ValueError("topology pin mismatch - refusing to run. If the edit is "
+                         "intentional, regenerate the pin (see harness/README.md)")
+    return topo, h
 
 
 def _skipped_stages(root):
@@ -122,11 +152,11 @@ def _skipped_stages(root):
 _SKIPPED_GATE_MANIFEST = {"gate": {"exit": 0, "skipped": True}}
 
 
-def _substitute_skips(topo, nodes, root, _seen=None):
+def _substitute_skips(topo, nodes, skipped, _seen=None):
     """Transitively replace gate_check nodes whose mapped `stage` is debt-skipped
     with THEIR successors (round-7 traversal semantic - no bypass edges in data).
-    Topology never writes flow/.skipped; only cmd_skip does."""
-    skipped = _skipped_stages(root)
+    Topology never writes flow/.skipped; only cmd_skip does. `skipped` is the
+    stage-name set (callers pass _skipped_stages(root); lint passes subsets)."""
     if not skipped:
         return nodes
     seen = _seen or set()
@@ -134,10 +164,12 @@ def _substitute_skips(topo, nodes, root, _seen=None):
     for n in nodes:
         spec = topo["nodes"].get(n, {})
         stage = spec.get("stage")
-        if spec.get("type") == "gate_check" and stage and stage in skipped and n not in seen:
+        if spec.get("type") == "gate_check" and stage and stage in skipped:
+            if n in seen:
+                continue  # cycle revisit: never re-emit a skipped gate (matches _skip_walk)
             seen.add(n)
             out.extend(_substitute_skips(
-                topo, _successors(topo, n, _SKIPPED_GATE_MANIFEST), root, seen))
+                topo, _successors(topo, n, _SKIPPED_GATE_MANIFEST), skipped, seen))
         else:
             out.append(n)
     return out
@@ -167,15 +199,16 @@ def plan_next(con, topo, execution_id, ns, root):
     """Next node names for (execution, ns): entry roots before the first checkpoint,
     else predicate-gated successors of the latest node, with skip-substitution."""
     latest = _latest_checkpoint(con, execution_id, ns)
+    skipped = _skipped_stages(root)
     if latest is None:
         if ns != "":
             # Non-root namespaces (card:C-NNN) have no implicit entry: Phase 4 starts
             # them by recording their dispatch node explicitly. Empty = nothing to do.
             return []
         entry = topo.get("entry") or []
-        return _substitute_skips(topo, list(entry[:1]), root)
+        return _substitute_skips(topo, list(entry[:1]), skipped)
     manifest = json.loads(latest["manifest"])
-    return _substitute_skips(topo, _successors(topo, latest["node"], manifest), root)
+    return _substitute_skips(topo, _successors(topo, latest["node"], manifest), skipped)
 
 
 # ---------------- verbs ----------------
@@ -295,11 +328,59 @@ def cmd_graph_next(con, a):
         sys.stderr.write(f"flow-graph: execution is terminal ({ex['status']})\n")
         return 3
     try:
-        topo = load_topology(a.topology)
+        if a.topology:
+            # Fixture-only surface: an ungated explicit path would bypass the pin, the
+            # lint, AND the hash policy in one flag (review H2) - a cloned repo could
+            # walk arbitrary topology. Tests opt in via env; production never does.
+            if os.environ.get("FLOW_GRAPH_TOPOLOGY_FIXTURE") != "1":
+                sys.stderr.write(
+                    "flow-graph: --topology is a test-fixture surface; set "
+                    "FLOW_GRAPH_TOPOLOGY_FIXTURE=1 to use it. Production walks the "
+                    "shipped pin-verified topology only.\n")
+                return 2
+            sys.stderr.write(f"flow-graph: WARNING fixture topology in use: {a.topology} "
+                             "(pin/lint/hash policy bypassed - journal hash unchanged)\n")
+            topo = load_topology(a.topology)
+        else:
+            topo, h = load_topology_trusted()
+            exh = ex["topology_hash"]
+            if not exh:
+                # Dark-phase executions were created with an empty hash: back-fill on
+                # the first verified walk so the upgrade guard applies from then on.
+                _db.update_where(con, "graph_execution", {"id": a.execution},
+                                 topology_hash=h,
+                                 topology_version=topo.get("topology_version", 1))
+            elif exh != h:
+                if getattr(a, "force_retopology", False):
+                    # Fork onto the new topology: a fork checkpoint at the current node
+                    # keeps the old chain walkable, then the execution re-pins its hash.
+                    latest = _latest_checkpoint(con, a.execution, a.ns or "")
+                    with _db.transaction(con):
+                        if latest:
+                            meta = json.loads(latest["meta"])
+                            con.execute(
+                                "INSERT INTO graph_checkpoint (execution_id,ns,checkpoint_id,"
+                                "parent_checkpoint_id,node,manifest,versions,seen,meta) "
+                                "VALUES (?,?,?,?,?,?,?,?,?)",
+                                (a.execution, a.ns or "", graph_ids.new_id(),
+                                 latest["checkpoint_id"], latest["node"], latest["manifest"],
+                                 latest["versions"], latest["seen"],
+                                 json.dumps({"source": "fork", "step": meta["step"] + 1,
+                                             "ts": int(time.time())})))
+                        con.execute("UPDATE graph_execution SET topology_hash=?, "
+                                    "topology_version=?, updated_at=datetime('now') WHERE id=?",
+                                    (h, topo.get("topology_version", 1), a.execution))
+                else:
+                    sys.stderr.write(
+                        "flow-graph: the shipped topology changed since this execution "
+                        "started (hash mismatch - e.g. a skill upgrade). Refusing to walk "
+                        "a chain recorded under different semantics. Re-run with "
+                        "--force-retopology to fork onto the current topology.\n")
+                    return 1
         nxt = plan_next(con, topo, a.execution, a.ns or "", _root())
     except (OSError, ValueError) as e:
-        # Bad/missing topology or unregistered predicate: a clean failure, never a
-        # traceback (rc 1 is the failure code; 3 stays reserved for complete/paused).
+        # Bad/missing topology, pin mismatch, or unregistered predicate: a clean
+        # failure, never a traceback (rc 1; 3 stays reserved for complete/paused).
         sys.stderr.write(f"flow-graph: topology error: {e}\n")
         return 1
     if not nxt:
@@ -477,6 +558,218 @@ def cmd_graph_abandon(con, a):
             raise sqlite3.IntegrityError(f"no execution {a.execution}")
         con.execute("UPDATE graph_interrupt SET status='abandoned' "
                     "WHERE execution_id=? AND status='open'", (a.execution,))
+    return 0
+
+
+# ---------------- lint ----------------
+
+# Autonomous cmd position allows ONLY read-only surfaces: flow.sh's scan-only `gate`
+# verb and side-effect-free git queries. `check` mutates story/trace on pass and is
+# Must-ask - a shape row for it would read as conditional permission (round-9 F1).
+_CMD_GIT_VERBS = {"worktree", "merge-base", "rev-parse", "status", "log"}
+
+
+def _lint_cmd(name, cmd):
+    errs = []
+    if not isinstance(cmd, list) or not cmd or not all(isinstance(x, str) for x in cmd):
+        return [f"node {name}: cmd must be a non-empty argv array of strings"]
+    for tok in cmd:
+        if "{" in tok and tok != "{card}":
+            errs.append(f"node {name}: unknown placeholder {tok!r} (only {{card}})")
+    prog = cmd[0]
+    if prog == "flow.sh":
+        verb = cmd[1] if len(cmd) > 1 else ""
+        if verb != "gate":
+            errs.append(f"node {name}: flow.sh verb {verb!r} banned in autonomous cmd "
+                        "position (only the read-only `gate` verb)")
+        else:
+            args = cmd[2:]
+            ok = (len(args) == 1 and args[0] in PRED.STAGES) or args == ["--card", "{card}"]
+            if not ok:
+                errs.append(f"node {name}: gate arg shape must be a STAGES member "
+                            f"or ['--card','{{card}}'] (got {args})")
+    elif prog == "git":
+        if len(cmd) < 2 or cmd[1] not in _CMD_GIT_VERBS:
+            errs.append(f"node {name}: git verb outside {sorted(_CMD_GIT_VERBS)}")
+    else:
+        errs.append(f"node {name}: argv[0] {prog!r} outside {{flow.sh, git}}")
+    return errs
+
+
+def _reachable(topo, roots):
+    seen, stack = set(), [r for r in roots if r in topo["nodes"]]
+    while stack:
+        n = stack.pop()
+        if n in seen:
+            continue
+        seen.add(n)
+        stack.extend(e["to"] for e in topo["edges"] if e["from"] == n and e["to"] in topo["nodes"])
+    return seen
+
+
+def _skip_walk(topo, root, skipped):
+    """Reachability under plan_next's skip-substitution: skipped gates pass through
+    (their edges evaluated against the accepted-with-debt PASS manifest); all other
+    edges are treated as traversable (their predicates depend on runtime gates)."""
+    smap = PRED.stage_map(topo)
+    seen, landed, stack = set(), set(), [root]
+    while stack:
+        n = stack.pop()
+        if n in seen or n not in topo["nodes"]:
+            continue
+        seen.add(n)
+        if smap.get(n) in skipped:
+            for e in topo["edges"]:
+                if e["from"] == n and _predicate(e.get("when", "always"),
+                                                _SKIPPED_GATE_MANIFEST):
+                    stack.append(e["to"])
+            continue
+        landed.add(n)
+        stack.extend(e["to"] for e in topo["edges"] if e["from"] == n)
+    return landed
+
+
+def _lint_cycles(topo):
+    """Planning (stage-carrying) subgraphs must be acyclic; every cycle anywhere
+    must pass through a node carrying max_visits (the bounded-repair contract)."""
+    errs = []
+    nodes = topo["nodes"]
+    adj = {}
+    for e in topo["edges"]:
+        adj.setdefault(e["from"], []).append(e["to"])
+    color, stack_path = {}, []
+    cycles = []
+
+    def dfs(n):
+        color[n] = 1
+        stack_path.append(n)
+        for m in adj.get(n, []):
+            if m not in nodes:
+                continue
+            if color.get(m) == 1:
+                cycles.append(stack_path[stack_path.index(m):] + [m])
+            elif color.get(m, 0) == 0:
+                dfs(m)
+        stack_path.pop()
+        color[n] = 2
+
+    for n in nodes:
+        if color.get(n, 0) == 0:
+            dfs(n)
+    smap = PRED.stage_map(topo)
+    for cyc in cycles:
+        if any(smap.get(n) for n in cyc):
+            errs.append(f"planning subgraph cycle: {'->'.join(cyc)}")
+        if not any(nodes[n].get("max_visits") for n in set(cyc)):
+            errs.append(f"unbounded cycle (no max_visits node): {'->'.join(cyc)}")
+    return errs
+
+
+def _lint(topo, pin_path=None):
+    errs = []
+    nodes, edges = topo["nodes"], topo["edges"]
+    entry = topo.get("entry") or []
+    if not entry:
+        errs.append("entry: missing or empty (unreachability is defined against entry roots)")
+    for e in edges:
+        for k in ("from", "to"):
+            if e.get(k) not in nodes:
+                errs.append(f"edge {e.get('from')}->{e.get('to')}: unknown node ref {e.get(k)!r}")
+        w = e.get("when", "always")
+        if w not in PRED.REGISTRY:
+            errs.append(f"edge {e.get('from')}->{e.get('to')}: unregistered predicate {w!r}")
+    for name, spec in nodes.items():
+        if spec.get("cmd") is not None:
+            errs += _lint_cmd(name, spec["cmd"])
+        # Green-stranded gate (review H3): a gate_check with out-edges but none
+        # satisfiable on a PASSING gate would dead-end at runtime with rc 3 -
+        # indistinguishable from real completion. Terminals (no out-edges) are exempt.
+        if spec.get("type") == "gate_check":
+            outs = [e for e in edges if e.get("from") == name]
+            if outs and not any(_predicate(e.get("when", "always"), _SKIPPED_GATE_MANIFEST)
+                                for e in outs if e.get("when", "always") in PRED.REGISTRY):
+                errs.append(f"node {name}: green-stranded gate (no out-edge satisfiable "
+                            "on a passing gate - runtime would report complete)")
+    reach_all = set()
+    for r in entry:
+        if r not in nodes:
+            errs.append(f"entry root {r!r} is not a node")
+            continue
+        sub = _reachable(topo, [r])
+        reach_all |= sub
+        # Planning-subgraph discriminator: it contains the UNSKIPPABLE terminal stage
+        # (05-contract). "Any node has a stage" would be self-defeating: a rogue stage
+        # on card-review would flip the whole card subgraph to planning and legalize
+        # itself (round-9 F1) - exactly the debt-skippable review gate to prevent.
+        planningy = PRED.STAGES[-1] in {nodes[n].get("stage") for n in sub}
+        for n in sub:
+            if nodes[n].get("type") != "gate_check":
+                continue
+            st = nodes[n].get("stage")
+            if planningy and st not in PRED.STAGES:
+                errs.append(f"node {n}: planning gate_check needs a `stage` in STAGES (got {st!r})")
+            if not planningy and st:
+                errs.append(f"node {n}: gate_check declares stage {st!r} in a subgraph "
+                            f"without the {PRED.STAGES[-1]} terminal - card subgraphs must "
+                            "not declare `stage` (it would become debt-skippable), and a "
+                            f"planning subgraph must include {PRED.STAGES[-1]}")
+        # skip-reachability, scoped per subgraph (round-8 F1 + review H3): planning
+        # roots must reach the 05-CONTRACT node itself - not just any out-edge-less
+        # node - under EVERY subset of the skippable stages (2^5 = 32).
+        terminals = {n for n in sub if not any(e["from"] == n for e in edges)}
+        if planningy:
+            term_nodes = {n for n in sub if nodes[n].get("stage") == PRED.STAGES[-1]}
+            skippable = [s for s in PRED.SKIPPABLE_STAGES
+                         if s in set(PRED.stage_map(topo).values())]
+            for mask in range(1 << len(skippable)):
+                subset = {skippable[i] for i in range(len(skippable)) if mask >> i & 1}
+                if not (_skip_walk(topo, r, subset) & term_nodes):
+                    errs.append(f"root {r}: the {PRED.STAGES[-1]} terminal is not "
+                                f"reachable when skipped={sorted(subset)}")
+                    break
+        elif terminals and not (_skip_walk(topo, r, set()) & terminals):
+            errs.append(f"root {r}: no terminal reachable")
+    for n in nodes:
+        if entry and n not in reach_all:
+            errs.append(f"node {n}: unreachable from entry roots")
+    errs += _lint_cycles(topo)
+    if pin_path:
+        try:
+            with open(pin_path, encoding="utf-8") as fh:
+                pin = fh.read().split()[0]
+        except (OSError, IndexError):
+            pin = None
+        if pin != canonical_hash(topo):
+            errs.append(f"pin mismatch vs {pin_path} (regenerate per harness/README.md "
+                        "if the topology edit is intentional)")
+    return errs
+
+
+def cmd_graph_lint(con, a):
+    rc = _guard_flags()
+    if rc:
+        return rc
+    path = a.topology or TRUSTED_TOPOLOGY
+    pin = a.pin or (TOPOLOGY_PIN if not a.topology else None)
+    try:
+        topo = load_topology(path)
+    except (OSError, ValueError) as e:
+        sys.stderr.write(f"flow-graph: lint: {e}\n")
+        return 1
+    try:
+        errs = _lint(topo, pin_path=pin)
+    except (AttributeError, TypeError, KeyError, RecursionError) as e:
+        # Malformed shapes (node spec as string, edge as scalar, absurd depth) must
+        # produce a lint line, never a traceback - lint is an operator-facing tool.
+        sys.stderr.write(f"flow-graph: lint: malformed topology: {type(e).__name__}: {e}\n")
+        return 1
+    if errs:
+        for e in errs:
+            sys.stderr.write(f"flow-graph: lint: {e}\n")
+        return 1
+    print(json.dumps({"ok": True, "nodes": len(topo["nodes"]),
+                      "edges": len(topo["edges"]),
+                      "topology_hash": canonical_hash(topo)}))
     return 0
 
 

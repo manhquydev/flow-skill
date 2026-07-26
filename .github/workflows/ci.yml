@@ -48,6 +48,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Topology lint (shipped flow-topology.json + pin)
+        run: |
+          PY="$(command -v python3 || command -v python)"
+          "$PY" skills/flow/harness/flow_harness.py graph lint
+        shell: bash
+
       - name: Run flow.sh bash test suite (tests/run_all.sh)
         run: bash tests/run_all.sh
         shell: bash

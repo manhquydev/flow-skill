@@ -15,6 +15,7 @@ ck() { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo 
 has() { if printf '%s' "$1" | grep -q "$2"; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3]: $(printf '%.100s' "$1")"; fail=$((fail+1)); fi; }
 
 SB="$(mktemp -d)"
+export FLOW_GRAPH_TOPOLOGY_FIXTURE=1
 export FLOW_PROJECT_ROOT="$SB"
 "$PY" "$H" init >/dev/null
 DB="$SB/.flow/harness.db"
