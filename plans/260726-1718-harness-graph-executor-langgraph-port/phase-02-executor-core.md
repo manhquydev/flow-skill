@@ -78,12 +78,12 @@ stdlib JSON + type tag inside value objects. No pickle/msgpack.
 
 ## Success Criteria
 
-- [ ] Conformance suite green incl. interrupt guard matrix and exit-code contract
-- [ ] Crash-resume: 0 evidence-backed steps re-dispatched; merged-but-unrecorded detected via git reconciliation
-- [ ] 2 concurrent writers succeed; no `database is locked` failure
-- [ ] `graph gc` removes terminal executions only; `--stale-days` marks stale running → abandoned
-- [ ] No new imports outside stdlib; no raw SQL outside `_db` helpers
-- [ ] Both suites registered in `tests/run_all.sh`
+- [x] Conformance suite green incl. interrupt guard matrix and exit-code contract
+- [x] Crash-resume: 0 evidence-backed steps re-dispatched; merged-but-unrecorded detected via git reconciliation
+- [x] 2 concurrent writers succeed; no `database is locked` failure
+- [x] `graph gc` removes terminal executions only; `--stale-days` marks stale running → abandoned
+- [x] No new imports outside stdlib; no raw SQL outside `_db` helpers
+- [x] Both suites registered in `tests/run_all.sh`
 
 ## Risk Assessment
 
