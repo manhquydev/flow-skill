@@ -102,13 +102,13 @@ Unknown node refs in edges; unregistered predicate names; planning-subgraph cycl
 
 ## Success Criteria
 
-- [ ] `graph lint` exit 0 on shipped topology; exit 1 with node/edge-precise message per seeded fixture (≥10 fixtures incl. arg-shape, placeholder, mapping, pin-mismatch); smoke fixture executes every shipped cmd without usage/not-found errors
-- [ ] New `gate <stage>` verb: read-only, closed-set validated, classified May-run; `test_flow_concierge.sh` green with updated count
-- [ ] Default walk (no `.skipped` present) == legacy 00→05 ladder exactly
-- [ ] Project-local topology file is ignored with warning; pin mismatch refuses execution
-- [ ] Skip-substitution fires ONLY when `flow/.skipped` names the mapped stage; chained-skip fixture (02-scope + 03-prd both skipped) reaches stage-04 from stage-01; topology never writes `.skipped`
-- [ ] Resume with changed topology refuses; `--force-retopology` forks with `meta.source='fork'`
-- [ ] Suite registered in `tests/run_all.sh`; CI lint step green
+- [x] `graph lint` exit 0 on shipped topology; exit 1 with node/edge-precise message per seeded fixture (≥10 fixtures incl. arg-shape, placeholder, mapping, pin-mismatch); smoke fixture executes every shipped cmd without usage/not-found errors
+- [x] New `gate <stage>` verb: read-only, closed-set validated, classified May-run; `test_flow_concierge.sh` green with updated count
+- [x] Default walk (no `.skipped` present) == legacy 00→05 ladder exactly
+- [x] Project-local topology file is ignored with warning; pin mismatch refuses execution
+- [x] Skip-substitution fires ONLY when `flow/.skipped` names the mapped stage; chained-skip fixture (02-scope + 03-prd both skipped) reaches stage-04 from stage-01; topology never writes `.skipped`
+- [x] Resume with changed topology refuses; `--force-retopology` forks with `meta.source='fork'`
+- [x] Suite registered in `tests/run_all.sh`; CI lint step green
 
 ## Risk Assessment
 
