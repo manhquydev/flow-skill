@@ -3,7 +3,7 @@
 *Read this in [Tiếng Việt](README_VN.md).*
 
 [![npm](https://img.shields.io/npm/v/@manhquy/flow-skill?label=npm&color=cb3837)](https://www.npmjs.com/package/@manhquy/flow-skill)
-[![tests](https://img.shields.io/badge/tests-34%20suites%20%2F%20926%20checks-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-46%20suites%20%2F%201188%20checks-brightgreen)](tests/)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions%20%C2%B7%203%20OS-blue)](.github/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -43,9 +43,9 @@ below; the concierge never intercepts an explicit `/flow <verb>`. See
 
 | Field | Value |
 |---|---|
-| Version | **v0.24.0** (2026-07-18) |
-| npm package | [`@manhquy/flow-skill@0.1.0`](https://www.npmjs.com/package/@manhquy/flow-skill) — GA on **`latest`** (bare `npm i` / `npx` gets it) |
-| Tests | 39 suites green (full `run_all.sh`) |
+| Version | **v0.25.0** (2026-07-27) |
+| npm package | [`@manhquy/flow-skill@0.2.0`](https://www.npmjs.com/package/@manhquy/flow-skill) — GA on **`latest`** (bare `npm i` / `npx` gets it) |
+| Tests | 46 suites green (full `run_all.sh`) |
 | CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines demoted to unused fallback) |
 | License | MIT |
 
@@ -72,7 +72,7 @@ flow-skill/
 │   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
 ├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
 ├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 39 suites (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args/loop/eval/resume/status-legibility/concierge/native-rituals/forge-idea)
+├── tests/run_all.sh             # 46 suites (runner/harness/scenarios/locks/recall/capture/propose/contract/tokens/coherence/assess/usage-log/workspace/monorepo-root/harness-args/loop/eval/resume/status-legibility/concierge/native-rituals/forge-idea/graph-executor)
 └── docs/                        # architecture + codebase summary
 ```
 
@@ -161,19 +161,19 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 **A. npm — one command, cross-OS** (recommended, LIVE at [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
 ```bash
-npx @manhquy/flow-skill                   # stable (latest) — current: 0.1.0 (ships skill v0.24.0)
+npx @manhquy/flow-skill                   # stable (latest) — current: 0.2.0 (ships skill v0.25.0)
 npx @manhquy/flow-skill@rc                # pre-release channel
 ```
 
-> **Two version numbers (not a bug):** the **npm package** is `0.1.x` (installer CLI);
-> the **skill product** is `v0.24.x` (`SKILL.md` metadata). `npx … --help` prints both, e.g.
-> `flow-skill v0.1.0 (ships skill v0.24.0)`. Do **not** `npm i @manhquy/flow-skill@0.24.0`
+> **Two version numbers (not a bug):** the **npm package** is `0.2.x` (installer CLI);
+> the **skill product** is `v0.25.x` (`SKILL.md` metadata). `npx … --help` prints both, e.g.
+> `flow-skill v0.2.0 (ships skill v0.25.0)`. Do **not** `npm i @manhquy/flow-skill@0.25.0`
 > — that version does not exist on npm. Also: `npm i @manhquy/flow-skill` only puts the CLI
 > in `node_modules`; it does **not** copy the skill into `~/.claude/skills/flow` until you
 > **run** the CLI (`npx @manhquy/flow-skill@rc`).
 >
 > **How npm ships:** push a git tag `npm@X.Y.Z` (or `npm@X.Y.Z-rc.N`) → GitHub Actions
-> `publish-npm-wrapper.yml` publishes with OIDC + provenance. Skill product tags (`v0.24.0`)
+> `publish-npm-wrapper.yml` publishes with OIDC + provenance. Skill product tags (`v0.25.0`)
 > are a separate axis and do **not** auto-publish to npm.
 
 Interactive multi-select of the 5 target agents (Claude Code, Codex CLI, Agents home —
@@ -487,7 +487,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 39 suites (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is 46 suites (`bash tests/run_all.sh`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -504,5 +504,5 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 39 suites; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # 46 suites; needs bash (+ python for the harness/propose suites)
 ```

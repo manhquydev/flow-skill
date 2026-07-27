@@ -1,9 +1,25 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **skill v0.24.0** (2026-07-18), **npm-wrapper v0.1.0 GA** LIVE on `latest` (bare `npx @manhquy/flow-skill`).
+Updated as the skill evolves. Current: **skill v0.25.0** (2026-07-27), **npm-wrapper v0.2.0 GA** LIVE on `latest` (bare `npx @manhquy/flow-skill`).
 
 Release process for future bumps: [`docs/release-process.md`](release-process.md).
+
+## npm-wrapper v0.2.0 + skill v0.25.0 — graph executor, opt-in and default off (2026-07-27, LIVE on `latest`)
+
+Ports LangGraph concepts (checkpoint journal, resume-by-evidence, gate-as-interrupt) into the
+python harness — schema band 014+, `flow harness graph …`, topology-as-trusted-data with a
+16-rule lint. Dark until `FLOW_GRAPH_EXECUTOR=1`; flag-off behavior verified byte-identical to
+0.24.0. One fix ships with the flag off: `/flow next` no longer re-creates a debt-skipped stage.
+
+| Metric | Value | Notes |
+|---|---|---|
+| **npm package** | 0.2.0 | `latest` dist-tag; bare `npm i`/`npx` resolves it |
+| **Skill product in tarball** | 0.25.0 | SKILL.md metadata; plan JSONL `skillVersion` |
+| **Skill tests** | 46 suites green, 1188 checks | full `tests/run_all.sh` (175s local; Windows Git Bash CI 23.9min, cap raised 30m→45m) |
+| **Installer tests** | 41/41 | node:test; dual-version pins package.json + SKILL.md |
+| **dist-tags** | `latest`→0.2.0, `rc`→0.1.0-rc.3 | |
+| **Provenance** | SLSA L2 | OIDC Trusted Publisher, attested (GitHub Actions run 30217084043) |
 
 ## npm-wrapper v0.1.0 GA + skill v0.24.0 — first stable + harness trust-align (2026-07-19, LIVE on `latest`)
 

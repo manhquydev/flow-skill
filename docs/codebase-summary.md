@@ -67,7 +67,7 @@ bash (Git Bash on Windows) for the engine; Python 3 + stdlib sqlite3 for the dur
 (optional Rust `harness-cli` power-path); no third-party install required.
 
 ## Tests
-`bash tests/run_all.sh` — 39 suites, all green (GitHub Actions `bash-suite` job,
+`bash tests/run_all.sh` — 46 suites, all green (GitHub Actions `bash-suite` job,
 ubuntu/macos/windows matrix — replaces the parked Azure Pipelines setup as of v0.22).
 Covers gate pass/fail, lifecycle, card validation, intake classification, trace tiers, story
 verify, debt, design, the 6 buildflow scenario rounds, loop-engineering (ck-loop wrapper),
