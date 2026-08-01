@@ -10,20 +10,18 @@ One-command installer that copies the [flow](https://github.com/manhquydev/flow-
 ## Install
 
 ```
-# Stable (latest) — current: v0.2.0, ships skill v0.25.0
-npx @manhquy/flow-skill
-
-# Pre-release channel (opt-in)
-npx @manhquy/flow-skill@rc
+# Newest GA — current: v0.2.0, ships skill v0.25.0
+npx @manhquy/flow-skill@latest
 ```
 
 An interactive prompt asks which agents to install to. Pick one or more, confirm, done.
 
-> **Stable is on `latest`**: bare `npx @manhquy/flow-skill` (or `@0.2.x`) resolves the GA release.
-> Pin `@rc` only if you want the pre-release channel. See [SECURITY.md](./SECURITY.md).
+> **Always use `@latest`.** npx caches by bare name, so a plain `npx @manhquy/flow-skill` can
+> re-run a stale cached copy; `@latest` forces npx to fetch the newest GA release. See
+> [SECURITY.md](./SECURITY.md).
 >
 > **`npm i` alone is not enough.** `npm install @manhquy/flow-skill` only adds the installer
-> package to `node_modules`. You must **run** it (`npx @manhquy/flow-skill` or
+> package to `node_modules`. You must **run** it (`npx @manhquy/flow-skill@latest` or
 > `npx flow-skill` after install) to copy the skill into agent homes.
 >
 > **Two version axes:** package `version` in this folder is the **installer** (e.g. `0.2.0`).
@@ -34,20 +32,20 @@ An interactive prompt asks which agents to install to. Pick one or more, confirm
 
 ```
 # Default selection (Claude + anything detected)
-npx @manhquy/flow-skill@rc --yes
+npx @manhquy/flow-skill@latest --yes
 
 # Explicit targets
-npx @manhquy/flow-skill@rc --yes -t claude -t codex
-npx @manhquy/flow-skill@rc --yes -t claude,codex           # comma form OK
+npx @manhquy/flow-skill@latest --yes -t claude -t codex
+npx @manhquy/flow-skill@latest --yes -t claude,codex           # comma form OK
 
 # Force all five targets even if not detected
-npx @manhquy/flow-skill@rc --yes --all
+npx @manhquy/flow-skill@latest --yes --all
 
 # Project scope (Claude only — see below)
-npx @manhquy/flow-skill@rc --yes --project --dir .
+npx @manhquy/flow-skill@latest --yes --project --dir .
 
 # CI-friendly JSONL output
-npx @manhquy/flow-skill@rc --yes --all --dry-run --json
+npx @manhquy/flow-skill@latest --yes --all --dry-run --json
 ```
 
 ## Targets
@@ -97,8 +95,8 @@ rm -rf <project>/.claude/skills/flow
 
 - **Windows `EBUSY` / `EPERM` mid-install**: an agent (Claude Code, Codex, Antigravity IDE) is holding a file inside the destination. Close the agent and re-run. The installer already retries with 100/300/900 ms backoff before surfacing the error.
 - **Stale advisory lock**: a prior run crashed. The next run detects the dead PID and reclaims the lock automatically. If it does not (very rare — the recorded PID was recycled by another live process), delete `<parent-of-dest>/.flow-skill.installing.lock`.
-- **`No matching version found` on `@0.25.0`**: that is the **skill product** version, not the npm package version. Install the installer by its own version (bare / `@0.2.x` / `@rc`) — skill content version is printed by `--help` as `ships skill v…`.
-- **Installed package but agent has no `/flow`**: `npm i` does not run the installer. Run `npx @manhquy/flow-skill@rc` (or `npx flow-skill` if already installed) and restart the agent.
+- **`No matching version found` on `@0.25.0`**: that is the **skill product** version, not the npm package version. Install the installer by its own version (`@latest` / `@0.2.x`) — skill content version is printed by `--help` as `ships skill v…`.
+- **Installed package but agent has no `/flow`**: `npm i` does not run the installer. Run `npx @manhquy/flow-skill@latest` (or `npx flow-skill` if already installed) and restart the agent.
 - **Node too old** (`requires Node.js >=22.14.0`): upgrade with your preferred version manager (`nvm install 22`, `fnm install 22`, or Node's official installer). Node 20 reached end-of-life April 2026; npm OIDC Trusted Publishing needs npm >=11.5.1 which bundles with Node 22.14+.
 
 ## JSONL contract

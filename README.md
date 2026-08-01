@@ -19,7 +19,7 @@ GPT-5.x + Antigravity Gemini-3 → three-model adversarial gate), and project-ty
 ## Install
 
 ```bash
-npx @manhquy/flow-skill@rc
+npx @manhquy/flow-skill@latest
 ```
 
 Cross-OS (macOS · Linux · Windows), pure Node ≥22.14, interactive multi-select. See
@@ -44,7 +44,7 @@ below; the concierge never intercepts an explicit `/flow <verb>`. See
 | Field | Value |
 |---|---|
 | Version | **v0.25.0** (2026-07-27) |
-| npm package | [`@manhquy/flow-skill@0.2.0`](https://www.npmjs.com/package/@manhquy/flow-skill) — GA on **`latest`** (bare `npm i` / `npx` gets it) |
+| npm package | [`@manhquy/flow-skill@0.2.0`](https://www.npmjs.com/package/@manhquy/flow-skill) — GA on **`latest`**; install with **`npx @manhquy/flow-skill@latest`** (`npm i` does **not** install the skill) |
 | Tests | 46 suites green (full `run_all.sh`) |
 | CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines demoted to unused fallback) |
 | License | MIT |
@@ -161,16 +161,18 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 **A. npm — one command, cross-OS** (recommended, LIVE at [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
 ```bash
-npx @manhquy/flow-skill                   # stable (latest) — current: 0.2.0 (ships skill v0.25.0)
-npx @manhquy/flow-skill@rc                # pre-release channel
+npx @manhquy/flow-skill@latest            # newest GA — current: 0.2.0 (ships skill v0.25.0)
 ```
+
+> **Always use `@latest`.** npx caches by bare name, so a plain `npx @manhquy/flow-skill`
+> can re-run a stale cached copy; `@latest` forces npx to fetch the newest release.
 
 > **Two version numbers (not a bug):** the **npm package** is `0.2.x` (installer CLI);
 > the **skill product** is `v0.25.x` (`SKILL.md` metadata). `npx … --help` prints both, e.g.
 > `flow-skill v0.2.0 (ships skill v0.25.0)`. Do **not** `npm i @manhquy/flow-skill@0.25.0`
 > — that version does not exist on npm. Also: `npm i @manhquy/flow-skill` only puts the CLI
 > in `node_modules`; it does **not** copy the skill into `~/.claude/skills/flow` until you
-> **run** the CLI (`npx @manhquy/flow-skill@rc`).
+> **run** the CLI (`npx @manhquy/flow-skill@latest`).
 >
 > **How npm ships:** push a git tag `npm@X.Y.Z` (or `npm@X.Y.Z-rc.N`) → GitHub Actions
 > `publish-npm-wrapper.yml` publishes with OIDC + provenance. Skill product tags (`v0.25.0`)
@@ -181,10 +183,10 @@ also the universal Agent-Skills home other spec-compliant tools like Cursor read
 Antigravity CLI + IDE, Cursor), or non-interactive:
 
 ```bash
-npx @manhquy/flow-skill@rc --yes                    # install to detected + Claude
-npx @manhquy/flow-skill@rc --yes -t claude -t codex # explicit targets
-npx @manhquy/flow-skill@rc --yes --all              # force all 5 targets
-npx @manhquy/flow-skill@rc --yes --all --dry-run --json  # CI-friendly JSONL preview
+npx @manhquy/flow-skill@latest --yes                    # install to detected + Claude
+npx @manhquy/flow-skill@latest --yes -t claude -t codex # explicit targets
+npx @manhquy/flow-skill@latest --yes --all              # force all 5 targets
+npx @manhquy/flow-skill@latest --yes --all --dry-run --json  # CI-friendly JSONL preview
 ```
 
 Pure Node ≥22.14 — no bash, no PowerShell, works identically on macOS/Linux/Windows regardless of terminal. See [npm-wrapper/README.md](./npm-wrapper/README.md) for the full flag reference, JSONL contract, and troubleshooting. Full source at [`npm-wrapper/`](./npm-wrapper/) in this repo.

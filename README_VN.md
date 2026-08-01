@@ -20,7 +20,7 @@ hình), và nhận biết loại dự án.
 ## Cài nhanh
 
 ```bash
-npx @manhquy/flow-skill@rc
+npx @manhquy/flow-skill@latest
 ```
 
 Cross-OS (macOS · Linux · Windows), Node ≥22.14 thuần, tương tác multi-select. Xem
@@ -45,7 +45,7 @@ chen ngang một lệnh `/flow <verb>` tường minh. Xem đầy đủ luật đ
 | Trường | Giá trị |
 |---|---|
 | Phiên bản | **v0.25.0** (2026-07-27) |
-| npm package | [`@manhquy/flow-skill@0.2.0`](https://www.npmjs.com/package/@manhquy/flow-skill) — GA trên **`latest`** (bare `npm i` / `npx` lấy được) |
+| npm package | [`@manhquy/flow-skill@0.2.0`](https://www.npmjs.com/package/@manhquy/flow-skill) — GA trên **`latest`**; cài bằng **`npx @manhquy/flow-skill@latest`** (`npm i` **không** cài skill) |
 | Test | 46 bộ xanh (full `run_all.sh`) |
 | CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines chuyển thành fallback dự phòng) |
 | License | MIT |
@@ -165,15 +165,17 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 **A. npm — một lệnh, cross-OS** (khuyến nghị, đã LIVE trên [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
 ```bash
-npx @manhquy/flow-skill                   # stable (latest) — hiện tại: 0.2.0 (ships skill v0.25.0)
-npx @manhquy/flow-skill@rc                # kênh pre-release (tùy chọn)
+npx @manhquy/flow-skill@latest            # bản GA mới nhất — hiện tại: 0.2.0 (ships skill v0.25.0)
 ```
+
+> **Luôn dùng `@latest`.** npx cache theo tên trần, nên `npx @manhquy/flow-skill` (không đuôi)
+> có thể chạy lại bản cũ trong cache; `@latest` ép npx lấy bản mới nhất từ registry.
 
 > **Hai số version (không phải bug):** package npm = `0.2.x` (installer CLI); skill
 > product = `v0.25.x` (`SKILL.md`). `npx … --help` in cả hai, ví dụ
 > `flow-skill v0.2.0 (ships skill v0.25.0)`. **Không** `npm i @…@0.25.0` — version đó
 > không tồn tại trên npm. `npm i @manhquy/flow-skill` chỉ bỏ CLI vào `node_modules`; phải
-> **chạy** CLI (`npx @manhquy/flow-skill`) mới copy skill vào `~/.claude/skills/flow`.
+> **chạy** CLI (`npx @manhquy/flow-skill@latest`) mới copy skill vào `~/.claude/skills/flow`.
 >
 > **Cách ship lên npm:** `git tag npm@X.Y.Z && git push origin npm@X.Y.Z` → Actions
 > `publish-npm-wrapper.yml` (OIDC + provenance). Tag skill (`v0.25.0`) **không** auto-publish npm.
@@ -183,10 +185,10 @@ cũng là thư mục Agent-Skills chung mà các tool tuân chuẩn khác như C
 CLI + IDE, Cursor), chạy giống nhau trên macOS + Linux + Windows.
 Non-interactive cho CI:
 ```bash
-npx @manhquy/flow-skill@rc --yes                    # cài vào target được detect + Claude
-npx @manhquy/flow-skill@rc --yes -t claude -t codex # target rõ ràng
-npx @manhquy/flow-skill@rc --yes --all              # ép cả 5 target
-npx @manhquy/flow-skill@rc --yes --all --dry-run --json  # preview JSONL cho CI
+npx @manhquy/flow-skill@latest --yes                    # cài vào target được detect + Claude
+npx @manhquy/flow-skill@latest --yes -t claude -t codex # target rõ ràng
+npx @manhquy/flow-skill@latest --yes --all              # ép cả 5 target
+npx @manhquy/flow-skill@latest --yes --all --dry-run --json  # preview JSONL cho CI
 ```
 Xem [npm-wrapper/README.md](./npm-wrapper/README.md) để biết đầy đủ flag, hợp đồng JSONL và troubleshooting.
 

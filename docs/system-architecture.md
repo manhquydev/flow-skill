@@ -39,7 +39,7 @@ On-disk artifacts (in the project being built):
 ```
   monorepo skills/flow/  ──npm run sync──►  npm-wrapper/skills/flow  ──npm pack──► registry
          │                                         │
-         │ install.sh / agent skill homes          │ npx @manhquy/flow-skill@rc
+         │ install.sh / agent skill homes          │ npx @manhquy/flow-skill@latest
          v                                         v
   ~/.claude/skills/flow                     same tree via installer CLI
 ```
@@ -92,7 +92,7 @@ Two parallel installation paths, both syncing the same canonical `skills/flow/` 
 
 | Channel | Entry point | Transport | Platform | Use case |
 |---|---|---|---|---|
-| **npm** (primary) | `npx @manhquy/flow-skill@rc` | Node.js package, 76 files 566 KB unpacked | Cross-OS (no shell dependency) | CI/CD, any environment with Node 22+ |
+| **npm** (primary) | `npx @manhquy/flow-skill@latest` | Node.js package, 76 files 566 KB unpacked | Cross-OS (no shell dependency) | CI/CD, any environment with Node 22+ |
 | **install.sh** (reference) | `bash install.sh global` + doctor step | Direct from repo via Git | UNIX shell (Bash 3.2+) | Dev machines, local skill setup, preserves diagnostic doctor |
 
 The npm channel is the **canonical distribution** for cross-platform adoption (pure Node.js, no `bash`/`git` requirement, fast tarball extraction). The `install.sh` channel is the **reference implementation** used in development and CI matrix testing; it includes the `doctor` diagnostic step to verify the local environment. Both write to the same skill home (`~/.claude/skills/flow`, `~/.codex/skills/flow`, etc.), so a project can switch channels without re-issuing any gates or cards.

@@ -25,7 +25,7 @@ flow-skill/
 │   ├── eval/                    # behavioral-eval fixtures: artifact-vs-gate + v0.22 routing judge
 │   └── playbooks/               # 3 stack playbooks + README (read before / harvest after)
 ├── npm-wrapper/                 # npm channel (cross-OS Node installer)
-│   ├── bin/cli.mjs              # npx @manhquy/flow-skill@rc — dual-version help
+│   ├── bin/cli.mjs              # npx @manhquy/flow-skill@latest — dual-version help
 │   ├── src/                     # installer, detect (5 targets), prompts
 │   ├── scripts/sync.mjs         # skills/flow → bundle for tarball
 │   ├── scripts/smoke.mjs        # registry smoke (empty cwd required)
