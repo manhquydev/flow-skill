@@ -10,7 +10,7 @@ One-command installer that copies the [flow](https://github.com/manhquydev/flow-
 ## Install
 
 ```
-# Newest GA — current: v0.2.0, ships skill v0.25.0
+# Newest GA — current: v0.2.1, ships skill v0.25.0
 npx @manhquy/flow-skill@latest
 ```
 
@@ -24,7 +24,7 @@ An interactive prompt asks which agents to install to. Pick one or more, confirm
 > package to `node_modules`. You must **run** it (`npx @manhquy/flow-skill@latest` or
 > `npx flow-skill` after install) to copy the skill into agent homes.
 >
-> **Two version axes:** package `version` in this folder is the **installer** (e.g. `0.2.0`).
+> **Two version axes:** package `version` in this folder is the **installer** (e.g. `0.2.1`).
 > Skill product version lives in `skills/flow/SKILL.md` (`metadata.version`, e.g. `0.25.0`).
 > `--help` and the JSONL `plan` event expose both (`version` + `skillVersion`).
 
@@ -104,7 +104,7 @@ rm -rf <project>/.claude/skills/flow
 `--json` streams one JSON object per line:
 
 ```jsonl
-{"event":"plan","version":"0.2.0","skillVersion":"0.25.0","dryRun":false,"scope":"global","targets":["claude","codex"]}
+{"event":"plan","version":"0.2.1","skillVersion":"0.25.0","dryRun":false,"scope":"global","targets":["claude","codex"]}
 {"event":"install:start","target":"claude","dests":["~/.claude/skills/flow"]}
 {"event":"install:done","target":"claude","dests":["~/.claude/skills/flow"],"result":"success","error":null,"warnings":[]}
 {"event":"summary","success":true,"total":2,"attempted":2,"installed":2,"failed":0,"skipped":0,"aborted":false}

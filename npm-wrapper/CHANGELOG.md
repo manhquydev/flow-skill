@@ -2,6 +2,26 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.2.1] — 2026-08-01 — docs sync (`@latest` canonical, `rc` retired)
+
+Docs-only installer release. **No CLI, detection, lock, or target change** vs 0.2.0 — same
+tarball behavior; this exists so npmjs.com renders the corrected README.
+
+### Changed
+- Canonical install command is now **`npx @manhquy/flow-skill@latest`** everywhere. Bare
+  `npx @manhquy/flow-skill` can re-run a stale npx cache; `@latest` forces the newest release.
+- Dropped the `@rc` channel from user-facing docs. The `rc` dist-tag had drifted to
+  `0.1.0-rc.3` (behind `latest`), so following `@rc` silently downgraded users. `rc` is
+  retired on the registry (`npm dist-tag rm @manhquy/flow-skill rc`); use `@next` for any
+  future pre-release.
+- Clarified that `npm i` never installs the skill — the CLI must be **run**.
+
+## [0.2.0] — 2026-07-27 — ships skill v0.25.0
+
+Skill-content release; **installer code unchanged** vs 0.1.0. Ships skill product **v0.25.0**
+(graph executor, opt-in and dark until `FLOW_GRAPH_EXECUTOR=1`; see root `CHANGELOG.md`
+`## 0.25.0`). Publishes to dist-tag `latest`.
+
 ## [0.1.0] — 2026-07-19 — GA (first stable, `latest`)
 
 First stable release of the installer. Graduates the rc.1→rc.3 line after two live OIDC
