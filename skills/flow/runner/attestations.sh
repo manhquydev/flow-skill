@@ -217,17 +217,15 @@ _att_subject_lock_name() { # kind subject_id
 }
 
 # ---------- cleanliness ----------
-# Returns 0 if clean enough for attestation (ignore .flow/ only via pathspec magic).
+# Allowed dirt: .flow/**, flow/.lock{,.d/**}, cards/C-*.md with projection==HEAD.
 _att_git_clean_for_attest() {
   local porcelain
   porcelain="$(git -C "$ROOT" status --porcelain=v1 --untracked-files=all 2>/dev/null || echo FAIL)"
   [ "$porcelain" = "FAIL" ] && return 1
   [ -z "$porcelain" ] && return 0
-  # Allow only changes under .flow/
   local line path
   while IFS= read -r line; do
     [ -z "$line" ] && continue
-    # format: XY PATH or XY ORIG -> PATH
     path="${line#?? }"
     case "$path" in
       *" -> "*) path="${path##* -> }" ;;
@@ -235,12 +233,34 @@ _att_git_clean_for_attest() {
     path="${path#\"}"; path="${path%\"}"
     case "$path" in
       .flow|.flow/*) continue ;;
+      flow/.lock|flow/.lock.d|flow/.lock.d/*) continue ;;
+      cards/C-*.md)
+        _att_card_projection_matches_head "$path" || return 1
+        continue
+        ;;
       *) return 1 ;;
     esac
   done <<EOF
 $porcelain
 EOF
   return 0
+}
+_att_card_projection_matches_head() {
+  local rel="$1" tmp now old
+  [ -f "$ROOT/$rel" ] || return 1
+  git -C "$ROOT" cat-file -e "HEAD:${rel}" 2>/dev/null || return 1
+  tmp="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/.att-proj.$$")"
+  if ! git -C "$ROOT" show "HEAD:${rel}" >"$tmp" 2>/dev/null; then
+    rm -f "$tmp"; return 1
+  fi
+  now="$(_att_card_contract_projection "$ROOT/$rel")"
+  old="$(_att_card_contract_projection "$tmp")"
+  rm -f "$tmp"
+  [ "$now" = "$old" ]
+}
+_att_require_clean_for_consume() {
+  _att_git_ok || return 0
+  _att_git_clean_for_attest
 }
 
 # ---------- card field parsing ----------
@@ -414,11 +434,13 @@ _att_parse_kv_file() { # $1 path — sets _ATT_KV_<key> via eval-safe names only
 }
 
 _att_owner_fingerprint() { # $1 owner path relative, $2 revision
-  local rel="$1" rev="$2" cmd_path oracle_path mode blob o_mode o_blob body fmt oid
+  local rel="$1" rev="$2" cmd_path oracle_path mode blob o_mode o_blob body fmt oid owner_blob owner_mode
   cmd_path="${_ATT_KV_command#repo:}"
+  owner_blob="$(git -C "$ROOT" rev-parse "${rev}:${rel}" 2>/dev/null | tr -d '\r\n')" || return 1
+  owner_mode="$(git -C "$ROOT" ls-tree "$rev" -- "$rel" 2>/dev/null | awk '{print $1}' | head -1)"
   blob="$(git -C "$ROOT" rev-parse "${rev}:${cmd_path}" 2>/dev/null | tr -d '\r\n')" || return 1
   mode="$(git -C "$ROOT" ls-tree "$rev" -- "$cmd_path" 2>/dev/null | awk '{print $1}' | head -1)"
-  body="owner=${rel}"$'\n'"cmd=${cmd_path}:${mode}:${blob}"$'\n'
+  body="owner=${rel}:${owner_mode}:${owner_blob}"$'\n'"cmd=${cmd_path}:${mode}:${blob}"$'\n'
   if [ "${_ATT_KV_revision_oracle}" != "none" ] && [ -n "${_ATT_KV_revision_oracle}" ]; then
     oracle_path="${_ATT_KV_revision_oracle#repo:}"
     o_blob="$(git -C "$ROOT" rev-parse "${rev}:${oracle_path}" 2>/dev/null | tr -d '\r\n')" || return 1
@@ -429,6 +451,53 @@ _att_owner_fingerprint() { # $1 owner path relative, $2 revision
   fmt="$(_att_object_format)"
   oid="$(printf '%s' "$body" | git -C "$ROOT" hash-object --stdin 2>/dev/null | tr -d '\r\n')"
   printf 'git-%s:%s' "$fmt" "$oid"
+}
+
+# ---------- committed-blob execution ----------
+_att_path_mode_at_rev() { git -C "$ROOT" ls-tree "$1" -- "$2" 2>/dev/null | awk '{print $1}' | head -1; }
+_att_blob_at_rev() { git -C "$ROOT" rev-parse "${1}:${2}" 2>/dev/null | tr -d '\r\n'; }
+_att_blob_on_disk() {
+  local f="$ROOT/$1"
+  [ -f "$f" ] || return 1
+  [ ! -L "$f" ] || return 1
+  git -C "$ROOT" hash-object -- "$f" 2>/dev/null | tr -d '\r\n'
+}
+_att_assert_committed_regular() {
+  local rev="$1" rel="$2" mode blob disk
+  mode="$(_att_path_mode_at_rev "$rev" "$rel")"
+  case "$mode" in 100644|100755) : ;; *) return 1 ;; esac
+  blob="$(_att_blob_at_rev "$rev" "$rel")" || return 1
+  [ -n "$blob" ] || return 1
+  disk="$(_att_blob_on_disk "$rel")" || return 1
+  [ "$disk" = "$blob" ] || return 1
+  _ATT_BLOB_OID="$blob"
+  return 0
+}
+_att_materialize_blob_exec() {
+  local rev="$1" rel="$2" mode blob tmp
+  mode="$(_att_path_mode_at_rev "$rev" "$rel")"
+  case "$mode" in 100644|100755) : ;; *) return 1 ;; esac
+  blob="$(_att_blob_at_rev "$rev" "$rel")" || return 1
+  tmp="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/.att-exec.$$.$RANDOM")"
+  if ! git -C "$ROOT" cat-file blob "$blob" >"$tmp" 2>/dev/null; then
+    rm -f "$tmp"; return 1
+  fi
+  chmod 700 "$tmp" 2>/dev/null || chmod +x "$tmp" 2>/dev/null || true
+  printf '%s' "$tmp"
+  return 0
+}
+_att_load_owner_at_rev() {
+  local rev="$1" rel="$2" cmd_rel
+  _att_assert_committed_regular "$rev" "$rel" || return 1
+  _att_parse_kv_file "$ROOT/$rel" || return 1
+  case "${_ATT_KV_command:-}" in repo:*) : ;; *) return 1 ;; esac
+  cmd_rel="${_ATT_KV_command#repo:}"
+  _att_assert_committed_regular "$rev" "$cmd_rel" || return 1
+  if [ "${_ATT_KV_revision_oracle:-none}" != "none" ] && [ -n "${_ATT_KV_revision_oracle:-}" ]; then
+    case "$_ATT_KV_revision_oracle" in repo:*) : ;; *) return 1 ;; esac
+    _att_assert_committed_regular "$rev" "${_ATT_KV_revision_oracle#repo:}" || return 1
+  fi
+  return 0
 }
 
 # ---------- projections / fingerprints ----------
@@ -611,116 +680,95 @@ revision_oracle_fingerprint: ${_ATT_W_revision_oracle_fingerprint}
 }
 
 # ---------- process supervisor ----------
-# Probe: can we create a process group and kill it?
 _att_supervisor_capable() {
   if [ "${FLOW_ATTEST_SUPERVISOR:-}" = "force-unsupported" ]; then return 1; fi
   if [ "${FLOW_ATTEST_SUPERVISOR:-}" = "force-ok" ]; then return 0; fi
-  # Prefer setsid or bash job control with set -m
-  if command -v setsid >/dev/null 2>&1; then return 0; fi
-  # bash with job control usually available
+  command -v setsid >/dev/null 2>&1 || return 1
+  if [ "${_ATT_SUP_CAP_CACHED:-}" = "1" ]; then
+    [ "${_ATT_SUP_CAP_OK:-0}" = "1" ]; return $?
+  fi
+  _ATT_SUP_CAP_CACHED=1; _ATT_SUP_CAP_OK=0
+  local outf pid pgid
+  outf="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/.att-cap.$$")"
+  : > "$outf"
+  ( cd "${ROOT:-/tmp}" || exit 127; exec setsid sleep 30 ) >"$outf" 2>&1 &
+  pid=$!
+  sleep 0.15 2>/dev/null || true
+  pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')"
+  [ -n "$pgid" ] || pgid="$pid"
+  kill -TERM -"$pgid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+  sleep 0.25 2>/dev/null || true
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -KILL -"$pgid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+    sleep 0.1 2>/dev/null || true
+  fi
+  wait "$pid" 2>/dev/null || true
+  rm -f "$outf" 2>/dev/null || true
+  kill -0 "$pid" 2>/dev/null && return 1
+  _ATT_SUP_CAP_OK=1
   return 0
 }
-
-# Run argv array: _att_run_supervised cmd args...
-# Sets: _ATT_RUN_RC (exit|timeout|output-cap|signal|spawn-error), _ATT_RUN_CODE (numeric),
-#       _ATT_RUN_OUT (bounded stdout), _ATT_RUN_MS
 _att_run_supervised() {
-  # Re-read bounds each call (tests/operators export FLOW_ATTEST_* after source).
-  local timeout_s="${FLOW_ATTEST_TIMEOUT_S:-30}"
-  local cap="${FLOW_ATTEST_OUT_CAP:-65536}"
-  local comb="${FLOW_ATTEST_COMBINED_CAP:-98304}"
-  local grace_s="${FLOW_ATTEST_GRACE_S:-2}"
-  local outf errf start end rc=0 pid="" pgid_file
+  local timeout_s="${FLOW_ATTEST_TIMEOUT_S:-30}" cap="${FLOW_ATTEST_OUT_CAP:-65536}"
+  local comb="${FLOW_ATTEST_COMBINED_CAP:-98304}" grace_s="${FLOW_ATTEST_GRACE_S:-2}"
+  local outf errf start end rc=0 pid="" pgid="" i
   _ATT_RUN_RC="spawn-error"; _ATT_RUN_CODE=127; _ATT_RUN_OUT=""; _ATT_RUN_MS=0
-  if ! _att_supervisor_capable; then
-    _ATT_RUN_RC="spawn-error"; return 1
-  fi
+  if ! _att_supervisor_capable; then _ATT_RUN_RC="spawn-error"; return 1; fi
   case "$timeout_s" in ''|*[!0-9]*|0) timeout_s=30 ;; esac
   case "$cap" in ''|*[!0-9]*|0) cap=65536 ;; esac
   case "$comb" in ''|*[!0-9]*|0) comb=98304 ;; esac
+  case "$grace_s" in ''|*[!0-9]*) grace_s=2 ;; esac
   outf="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/.att-out.$$")"
   errf="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/.att-err.$$")"
-  pgid_file="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/.att-pgid.$$")"
-  : > "$outf"; : > "$errf"; : > "$pgid_file"
+  : > "$outf"; : > "$errf"
   start="$(_att_now_s)"
-  # Prefer setsid so the child owns a distinct session we can kill by PGID.
-  if command -v setsid >/dev/null 2>&1; then
-    (
-      cd "$ROOT" || exit 127
-      setsid "$@" >"$outf" 2>"$errf"
-    ) &
-    pid=$!
-  else
-    (
-      cd "$ROOT" || exit 127
-      set -m
-      "$@" >"$outf" 2>"$errf"
-    ) &
-    pid=$!
-  fi
-  # Best-effort record of process group for the wrapper
-  printf '%s\n' "$pid" > "$pgid_file"
-  _att_kill_tree() {
-    local sig="$1"
-    kill -"$sig" -"$pid" 2>/dev/null || kill -"$sig" "$pid" 2>/dev/null || true
-    # also try children via pkill when available
-    if command -v pkill >/dev/null 2>&1; then
-      pkill -"$sig" -P "$pid" 2>/dev/null || true
-    fi
-  }
-  # Watchdog
-  (
-    sleep "$timeout_s" 2>/dev/null
+  ( cd "$ROOT" || exit 127; exec setsid "$@" ) >"$outf" 2>"$errf" &
+  pid=$!
+  i=0
+  while [ "$i" -lt 20 ]; do
     if kill -0 "$pid" 2>/dev/null; then
-      _att_kill_tree TERM
-      sleep "$grace_s" 2>/dev/null
-      _att_kill_tree KILL
-      echo timeout > "${outf}.to"
+      pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')"
+      [ -n "$pgid" ] && break
     fi
-  ) &
+    i=$((i+1)); sleep 0.05 2>/dev/null || true
+  done
+  [ -n "$pgid" ] || pgid="$pid"
+  ( sleep "$timeout_s" 2>/dev/null
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -TERM -"$pgid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+      sleep "$grace_s" 2>/dev/null
+      kill -KILL -"$pgid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+      echo timeout > "${outf}.to"
+    fi ) &
   local wd=$!
-  # Stream cap monitor
-  (
-    while kill -0 "$pid" 2>/dev/null; do
+  ( while kill -0 "$pid" 2>/dev/null; do
       local os es
       os="$(wc -c < "$outf" 2>/dev/null | tr -d ' ')"
       es="$(wc -c < "$errf" 2>/dev/null | tr -d ' ')"
       if [ "${os:-0}" -gt "$cap" ] || [ "${es:-0}" -gt "$cap" ] || [ $(( ${os:-0} + ${es:-0} )) -gt "$comb" ]; then
-        _att_kill_tree TERM
+        kill -TERM -"$pgid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
         sleep 1
-        _att_kill_tree KILL
-        echo cap > "${outf}.cap"
-        break
+        kill -KILL -"$pgid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+        echo cap > "${outf}.cap"; break
       fi
       sleep 0.1 2>/dev/null || sleep 1
-    done
-  ) &
+    done ) &
   local capw=$!
   wait "$pid" 2>/dev/null; rc=$?
   kill "$wd" 2>/dev/null; wait "$wd" 2>/dev/null
   kill "$capw" 2>/dev/null; wait "$capw" 2>/dev/null
+  kill -KILL -"$pgid" 2>/dev/null || true
   end="$(_att_now_s)"
-  _ATT_RUN_MS=$(( (end - start) * 1000 ))
-  [ "$_ATT_RUN_MS" -lt 0 ] && _ATT_RUN_MS=0
-  if [ -f "${outf}.cap" ]; then
-    _ATT_RUN_RC="output-cap"; _ATT_RUN_CODE=1
-    rm -f "${outf}.cap"
-  elif [ -f "${outf}.to" ]; then
-    _ATT_RUN_RC="timeout"; _ATT_RUN_CODE=124
-    rm -f "${outf}.to"
+  _ATT_RUN_MS=$(( (end - start) * 1000 )); [ "$_ATT_RUN_MS" -lt 0 ] && _ATT_RUN_MS=0
+  if [ -f "${outf}.cap" ]; then _ATT_RUN_RC="output-cap"; _ATT_RUN_CODE=1; rm -f "${outf}.cap"
+  elif [ -f "${outf}.to" ]; then _ATT_RUN_RC="timeout"; _ATT_RUN_CODE=124; rm -f "${outf}.to"
   elif [ "$rc" -eq 137 ] || [ "$rc" -eq 143 ]; then
-    if [ $((end - start)) -ge "$timeout_s" ]; then
-      _ATT_RUN_RC="timeout"; _ATT_RUN_CODE=124
-    else
-      _ATT_RUN_RC="signal"; _ATT_RUN_CODE="$rc"
-    fi
-  elif [ "$rc" -eq 127 ]; then
-    _ATT_RUN_RC="spawn-error"; _ATT_RUN_CODE=127
-  else
-    _ATT_RUN_RC="exit"; _ATT_RUN_CODE="$rc"
-  fi
+    if [ $((end - start)) -ge "$timeout_s" ]; then _ATT_RUN_RC="timeout"; _ATT_RUN_CODE=124
+    else _ATT_RUN_RC="signal"; _ATT_RUN_CODE="$rc"; fi
+  elif [ "$rc" -eq 127 ]; then _ATT_RUN_RC="spawn-error"; _ATT_RUN_CODE=127
+  else _ATT_RUN_RC="exit"; _ATT_RUN_CODE="$rc"; fi
   _ATT_RUN_OUT="$(head -c "$cap" "$outf" 2>/dev/null | tr -d '\000')"
-  rm -f "$outf" "$errf" "$pgid_file" 2>/dev/null || true
+  rm -f "$outf" "$errf" 2>/dev/null || true
   return 0
 }
 
@@ -769,6 +817,7 @@ _att_receipt_status() { # $1 path -> current|missing|stale|invalid|red|blocked-a
       if [ -n "$headfp" ] && [ "$headfp" != "$_ATT_R_subject_fingerprint" ]; then
         echo "stale"; return 1
       fi
+      if ! _att_require_clean_for_consume; then echo "stale"; return 1; fi
       ;;
     semantic_gate:card)
       local file; file="$(resolve_card_file "$_ATT_R_subject_id")"
@@ -799,21 +848,24 @@ _att_receipt_status() { # $1 path -> current|missing|stale|invalid|red|blocked-a
           echo "stale"; return 1
         fi
       fi
+      if ! _att_require_clean_for_consume; then echo "stale"; return 1; fi
       ;;
     live_verify:card)
       [ "$_ATT_R_verdict" = "pass" ] || { echo "red"; return 1; }
-      local head file proj cur_fp
+      local head file proj cur_fp ofp_now owner_rel
       head="$(_att_full_commit HEAD)"
       file="$(resolve_card_file "$_ATT_R_subject_id")"
       [ -f "$file" ] || { echo "stale"; return 1; }
-      if [ -n "$_ATT_R_subject_revision" ] && [ "$_ATT_R_subject_revision" != "$head" ] \
-         && ! _att_is_ancestor "$_ATT_R_subject_revision" "$head"; then
-        echo "stale"; return 1
-      fi
-      # Recompute live subject fingerprint from current Verify/Done-evidence + recorded owner/target/rev.
+      [ -n "$_ATT_R_subject_revision" ] || { echo "stale"; return 1; }
+      [ "$_ATT_R_subject_revision" = "$head" ] || { echo "stale"; return 1; }
+      case "${_ATT_R_owner_ref:-}" in repo:*) owner_rel="${_ATT_R_owner_ref#repo:}" ;; *) echo "stale"; return 1 ;; esac
+      if ! _att_load_owner_at_rev "$head" "$owner_rel"; then echo "stale"; return 1; fi
+      ofp_now="$(_att_owner_fingerprint "$owner_rel" "$head")" || { echo "stale"; return 1; }
+      [ "$ofp_now" = "${_ATT_R_owner_fingerprint}" ] || { echo "stale"; return 1; }
       proj="$(awk '/^## Verify/{p=1} /^## Done-evidence/{p=1} /^## Evidence/{p=0} /^## /{if($0!~/^## (Verify|Done-evidence)/)p=0} p{print}' "$file" | tr -d '\r')"
-      cur_fp="$(_att_hash_text "live|${_ATT_R_subject_revision}|${_ATT_R_target_id}|${_ATT_R_owner_fingerprint}|${proj}")"
+      cur_fp="$(_att_hash_text "live|${head}|${_ATT_R_target_id}|${ofp_now}|${proj}")"
       [ "$cur_fp" = "$_ATT_R_subject_fingerprint" ] || { echo "stale"; return 1; }
+      if ! _att_require_clean_for_consume; then echo "stale"; return 1; fi
       ;;
   esac
   case "$_ATT_R_verdict" in
@@ -991,28 +1043,26 @@ _att_mint_semantic_stage() {
   _att_is_stage "$stage" || { echo "FAIL: invalid stage '$stage'"; return 2; }
   _att_git_ok || { echo "FAIL: attest requires a Git repository"; return 2; }
   full="$(_att_full_commit "$rev")" || { echo "FAIL: bad revision"; return 2; }
-  _att_git_clean_for_attest || { echo "FAIL: dirty worktree (only .flow/ excluded)"; return 1; }
-  owner_abs="$ROOT/$owner_rel"
-  [ -f "$owner_abs" ] || { echo "FAIL: owner manifest not found: $owner_rel"; return 2; }
-  # owner must be tracked at revision
-  git -C "$ROOT" cat-file -e "${full}:${owner_rel}" 2>/dev/null || { echo "FAIL: owner not committed at revision"; return 1; }
-  _att_parse_kv_file "$owner_abs" || { echo "FAIL: invalid owner manifest"; return 2; }
+  _att_git_clean_for_attest || { echo "FAIL: dirty worktree (only .flow/, locks, status/Evidence allowed)"; return 1; }
+  if ! _att_load_owner_at_rev "$full" "$owner_rel"; then
+    echo "FAIL: owner/command must be committed regular files matching disk at revision (blob equality)"
+    return 1
+  fi
   [ "$_ATT_KV_kind" = "semantic_gate" ] || { echo "FAIL: owner kind must be semantic_gate"; return 2; }
   [ "$_ATT_KV_subject_id" = "$stage" ] || { echo "FAIL: owner subject_id mismatch"; return 2; }
   [ "$_ATT_KV_target_id" = "none" ] && [ "$_ATT_KV_revision_oracle" = "none" ] || { echo "FAIL: semantic owner must have target/oracle none"; return 2; }
-  case "$_ATT_KV_command" in repo:*) : ;; *) echo "FAIL: command must be repo:..."; return 2 ;; esac
   local cmd_rel="${_ATT_KV_command#repo:}"
-  [ -f "$ROOT/$cmd_rel" ] || { echo "FAIL: command not found"; return 2; }
-  git -C "$ROOT" cat-file -e "${full}:${cmd_rel}" 2>/dev/null || { echo "FAIL: command not committed"; return 1; }
   if ! _att_stage_fingerprint "$stage" "$full" >/dev/null; then echo "FAIL: stage fingerprint"; return 1; fi
   fp="$_ATT_LAST_FP"
   ofp="$(_att_owner_fingerprint "$owner_rel" "$full")" || { echo "FAIL: owner fingerprint"; return 1; }
 
-  local lname; lname="$(_att_subject_lock_name semantic_gate "$stage")"
+  local lname execf; lname="$(_att_subject_lock_name semantic_gate "$stage")"
   _att_lock_acquire "$lname" || return 1
-  # run producer
-  chmod +x "$ROOT/$cmd_rel" 2>/dev/null || true
-  _att_run_supervised "$ROOT/$cmd_rel" --subject-id "$stage" --subject-revision "$full" --subject-fingerprint "$fp"
+  execf="$(_att_materialize_blob_exec "$full" "$cmd_rel")" || {
+    _att_lock_release "$lname"; echo "FAIL: could not materialize committed producer"; return 1
+  }
+  _att_run_supervised "$execf" --subject-id "$stage" --subject-revision "$full" --subject-fingerprint "$fp"
+  rm -f "$execf" 2>/dev/null || true
   if [ "$_ATT_RUN_RC" != "exit" ] || [ "$_ATT_RUN_CODE" -ne 0 ]; then
     _ATT_W_kind=semantic_gate; _ATT_W_subject_type=stage; _ATT_W_subject_id="$stage"
     _ATT_W_subject_fingerprint="$fp"; _ATT_W_verdict=fail
@@ -1067,20 +1117,27 @@ _att_mint_semantic_card() {
   _att_git_clean_for_attest || { echo "FAIL: dirty worktree"; return 1; }
   full_base="$(_att_full_commit "$base")" || { echo "FAIL: bad base"; return 2; }
   full_head="$(_att_full_commit "$rev")" || { echo "FAIL: bad revision"; return 2; }
-  local owner_abs="$ROOT/$owner_rel"
-  [ -f "$owner_abs" ] || { echo "FAIL: owner missing"; return 2; }
-  git -C "$ROOT" cat-file -e "${full_head}:${owner_rel}" 2>/dev/null || { echo "FAIL: owner not at revision"; return 1; }
-  _att_parse_kv_file "$owner_abs" || { echo "FAIL: invalid owner"; return 2; }
+  if [ "$full_base" = "$full_head" ]; then
+    echo "FAIL: card semantic requires non-empty base..revision (base must differ from --revision)"
+    return 2
+  fi
+  if ! _att_load_owner_at_rev "$full_head" "$owner_rel"; then
+    echo "FAIL: owner/command must be committed regular files matching disk at revision"
+    return 1
+  fi
   [ "$_ATT_KV_kind" = "semantic_gate" ] || { echo "FAIL: owner kind"; return 2; }
   [ "$_ATT_KV_subject_id" = "$id" ] || { echo "FAIL: subject_id mismatch"; return 2; }
   local cmd_rel="${_ATT_KV_command#repo:}"
   if ! _att_card_semantic_fingerprint "$file" "$full_base" "$full_head" >/dev/null; then echo "FAIL: fingerprint"; return 1; fi
   fp="$_ATT_LAST_FP"
   ofp="$(_att_owner_fingerprint "$owner_rel" "$full_head")" || { echo "FAIL: owner fp"; return 1; }
-  local lname; lname="$(_att_subject_lock_name semantic_gate "$id")"
+  local lname execf; lname="$(_att_subject_lock_name semantic_gate "$id")"
   _att_lock_acquire "$lname" || return 1
-  chmod +x "$ROOT/$cmd_rel" 2>/dev/null || true
-  _att_run_supervised "$ROOT/$cmd_rel" --subject-id "$id" --subject-revision "$full_head" --subject-fingerprint "$fp"
+  execf="$(_att_materialize_blob_exec "$full_head" "$cmd_rel")" || {
+    _att_lock_release "$lname"; echo "FAIL: could not materialize committed producer"; return 1
+  }
+  _att_run_supervised "$execf" --subject-id "$id" --subject-revision "$full_head" --subject-fingerprint "$fp"
+  rm -f "$execf" 2>/dev/null || true
   local verdict=fail eref=none
   if [ "$_ATT_RUN_RC" = "exit" ] && [ "$_ATT_RUN_CODE" -eq 0 ]; then
     local sch sfp crit high
@@ -1109,16 +1166,17 @@ _att_mint_semantic_card() {
 
 _att_mint_live() {
   local id="$1" rev="$2" owner_rel="$3"
-  local file full owner_abs cmd_rel oracle_rel target ofp cfp lname ap
+  local file full cmd_rel oracle_rel target ofp cfp lname ap
   id="$(_att_norm_card_id "$id")" || { echo "FAIL: bad card"; return 2; }
   file="$(resolve_card_file "$id")"; [ -f "$file" ] || { echo "FAIL: card missing"; return 2; }
   _att_git_ok || { echo "FAIL: git required"; return 2; }
   if ! _att_supervisor_capable; then echo "FAIL: process supervisor unsupported on this platform"; return 1; fi
+  _att_git_clean_for_attest || { echo "FAIL: dirty worktree (live mint requires clean subject)"; return 1; }
   full="$(_att_full_commit "$rev")" || { echo "FAIL: bad revision"; return 2; }
-  owner_abs="$ROOT/$owner_rel"
-  [ -f "$owner_abs" ] || { echo "FAIL: owner missing"; return 2; }
-  git -C "$ROOT" cat-file -e "${full}:${owner_rel}" 2>/dev/null || { echo "FAIL: owner not committed"; return 1; }
-  _att_parse_kv_file "$owner_abs" || { echo "FAIL: invalid owner"; return 2; }
+  if ! _att_load_owner_at_rev "$full" "$owner_rel"; then
+    echo "FAIL: owner/command/oracle must be committed regular files matching disk at revision"
+    return 1
+  fi
   [ "$_ATT_KV_kind" = "live_verify" ] || { echo "FAIL: owner kind must be live_verify"; return 2; }
   [ "$_ATT_KV_subject_id" = "$id" ] || { echo "FAIL: subject mismatch"; return 2; }
   target="$_ATT_KV_target_id"
@@ -1126,9 +1184,13 @@ _att_mint_live() {
   case "$_ATT_KV_revision_oracle" in repo:*) : ;; *) echo "FAIL: live needs revision_oracle"; return 2 ;; esac
   cmd_rel="${_ATT_KV_command#repo:}"; oracle_rel="${_ATT_KV_revision_oracle#repo:}"
   ofp="$(_att_owner_fingerprint "$owner_rel" "$full")" || { echo "FAIL: owner fp"; return 1; }
-  local o_fp; o_fp="$(_att_hash_text "oracle:${oracle_rel}")"
-  cfp="$(_att_hash_text "argv:${cmd_rel}|${id}|${full}|${target}")"
-  # live subject fingerprint from verify+done-evidence projection
+  local o_blob o_mode o_fp cmd_blob cmd_mode
+  o_blob="$(_att_blob_at_rev "$full" "$oracle_rel")"
+  o_mode="$(_att_path_mode_at_rev "$full" "$oracle_rel")"
+  o_fp="$(_att_hash_text "oracle:${oracle_rel}:${o_mode}:${o_blob}")"
+  cmd_blob="$(_att_blob_at_rev "$full" "$cmd_rel")"
+  cmd_mode="$(_att_path_mode_at_rev "$full" "$cmd_rel")"
+  cfp="$(_att_hash_text "argv:${cmd_rel}:${cmd_mode}:${cmd_blob}|${id}|${full}|${target}")"
   local proj fp
   proj="$(awk '/^## Verify/{p=1} /^## Done-evidence/{p=1} /^## Evidence/{p=0} /^## /{if($0!~/^## (Verify|Done-evidence)/)p=0} p{print}' "$file" | tr -d '\r')"
   fp="$(_att_hash_text "live|${full}|${target}|${ofp}|${proj}")"
@@ -1137,20 +1199,26 @@ _att_mint_live() {
   ap="$(_att_attempt_path "$id")"
   mkdir -p "$(dirname "$ap")" 2>/dev/null || true
   printf 'pid=%s\nstart=%s\nhost=%s\n' "$$" "$(_att_now_s)" "$(uname -n 2>/dev/null || echo host)" > "$ap"
-
-  # oracle first
-  chmod +x "$ROOT/$oracle_rel" 2>/dev/null || true
-  _att_run_supervised "$ROOT/$oracle_rel" --subject-id "$id" --subject-revision "$full" --target-id "$target"
-  local oracle_oid verdict=fail rcode
+  local oracle_exec cmd_exec oracle_oid verdict=fail rcode
+  oracle_exec="$(_att_materialize_blob_exec "$full" "$oracle_rel")" || {
+    rm -f "$ap"; _att_lock_release "$lname"; echo "FAIL: materialize oracle"; return 1
+  }
+  _att_run_supervised "$oracle_exec" --subject-id "$id" --subject-revision "$full" --target-id "$target"
+  rm -f "$oracle_exec" 2>/dev/null || true
   rcode="$(_att_result_code_str)"
   if [ "$_ATT_RUN_RC" = "exit" ] && [ "$_ATT_RUN_CODE" -eq 0 ]; then
     oracle_oid="$(printf '%s' "$_ATT_RUN_OUT" | tr -d '\r\n[:space:]')"
     if [ "$oracle_oid" = "$full" ]; then
-      chmod +x "$ROOT/$cmd_rel" 2>/dev/null || true
-      _att_run_supervised "$ROOT/$cmd_rel" --subject-id "$id" --subject-revision "$full" --subject-fingerprint "$fp"
-      rcode="$(_att_result_code_str)"
-      if [ "$_ATT_RUN_RC" = "exit" ] && [ "$_ATT_RUN_CODE" -eq 0 ]; then
-        verdict=pass
+      cmd_exec="$(_att_materialize_blob_exec "$full" "$cmd_rel")" || true
+      if [ -n "${cmd_exec:-}" ]; then
+        _att_run_supervised "$cmd_exec" --subject-id "$id" --subject-revision "$full" --subject-fingerprint "$fp"
+        rm -f "$cmd_exec" 2>/dev/null || true
+        rcode="$(_att_result_code_str)"
+        if [ "$_ATT_RUN_RC" = "exit" ] && [ "$_ATT_RUN_CODE" -eq 0 ]; then
+          verdict=pass
+        fi
+      else
+        rcode="spawn-error"
       fi
     else
       rcode="exit:1"

@@ -29,12 +29,13 @@ has "$out" "BUILDABLE C-002" "C-002 buildable (dep C-001 done)"
 has "$out" "blocked   C-003" "C-003 blocked (dep C-002 not done)"
 rm -rf "$SB"
 
-echo "auto - preflight gates on planning-complete + cards"
+echo "auto - preflight gates (v0.28 attested: git + risk + Stage 05 receipt)"
 SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/flow"
 bash "$RUN" auto >/dev/null 2>&1; ck 1 $? "auto blocks with no planning"
 clean6 "$SB"; bash "$RUN" card >/dev/null
-out="$(bash "$RUN" auto)"; ck 0 $? "auto preflight passes with planning + a card"
-has "$out" "preflight ok" "auto reports preflight ok"
+# After planning+card alone (no git / no Stage 05 receipt), auto must still fail closed.
+out="$(bash "$RUN" auto 2>&1)"; ck 1 $? "auto still blocks without git/receipts after planning+card"
+has "$out" "Git repository|semantic receipt|risk|planning not complete|process supervisor" "auto names a v0.28 preflight gate"
 rm -rf "$SB"
 
 if [ -z "$PY" ]; then echo "(skipping harness gap tests - no python)"; echo; echo "RESULT: $pass passed, $fail failed"; [ "$fail" -eq 0 ]; exit $?; fi

@@ -96,6 +96,9 @@ rm -rf "$SB"
 echo "D) card semantic + live mint"
 setup_repo
 base="$(git -C "$SB" rev-parse HEAD)"
+# non-empty base..rev: commit a real code change after base
+mkdir -p "$SB/src"; printf 'v1\n' > "$SB/src/app.py"
+git -C "$SB" add -A && git -C "$SB" commit -qm code1
 bash "$RUN" attest semantic --card C-001 --base "$base" --revision HEAD --owner bin/owner_semantic_card.txt >/dev/null; ck 0 $? "card semantic"
 bash "$RUN" attest live-verify C-001 --revision HEAD --owner bin/owner_live.txt >/dev/null; ck 0 $? "live mint"
 rm -rf "$SB"
@@ -115,16 +118,22 @@ rm -rf "$SB"
 
 echo "G) reviewed non-card path change makes card semantic stale"
 setup_repo
+base="$(git -C "$SB" rev-parse HEAD)"
 mkdir -p "$SB/src"
 printf 'print("v1")\n' > "$SB/src/app.py"
 git -C "$SB" add -A && git -C "$SB" commit -qm addapp
-base="$(git -C "$SB" rev-parse HEAD)"
-# re-commit card owner already present
-bash "$RUN" attest semantic --card C-001 --base "$base" --revision HEAD --owner bin/owner_semantic_card.txt >/dev/null
+bash "$RUN" attest semantic --card C-001 --base "$base" --revision HEAD --owner bin/owner_semantic_card.txt >/dev/null; ck 0 $? "mint with non-empty range"
 printf 'print("v2")\n' > "$SB/src/app.py"
 git -C "$SB" add -A && git -C "$SB" commit -qm changeapp
 out="$(bash "$RUN" attest status C-001 2>&1)"
 has "$out" 'stale|invalid|missing|red' "path edit stale"
+rm -rf "$SB"
+
+echo "G2) reject empty base==rev card semantic"
+setup_repo
+base="$(git -C "$SB" rev-parse HEAD)"
+bash "$RUN" attest semantic --card C-001 --base "$base" --revision HEAD --owner bin/owner_semantic_card.txt >/dev/null 2>&1
+ck 2 $? "empty range exit 2"
 rm -rf "$SB"
 
 echo "H) Verify section change makes live receipt stale"

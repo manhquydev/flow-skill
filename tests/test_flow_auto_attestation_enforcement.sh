@@ -94,6 +94,8 @@ echo "D) active check with semantic+live on done passes"
 setup_green
 bash "$RUN" attest semantic --stage 05-contract --revision HEAD --owner bin/owner_stage.txt >/dev/null
 base="$(git -C "$SB" rev-parse HEAD)"
+mkdir -p "$SB/src"; printf 'x\n' > "$SB/src/a.py"
+git -C "$SB" add -A && git -C "$SB" commit -qm code
 bash "$RUN" attest semantic --card C-001 --base "$base" --revision HEAD --owner bin/owner_card.txt >/dev/null
 bash "$RUN" attest live-verify C-001 --revision HEAD --owner bin/owner_live.txt >/dev/null
 bash "$RUN" auto >/dev/null
