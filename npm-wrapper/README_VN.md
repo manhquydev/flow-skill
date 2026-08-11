@@ -10,7 +10,7 @@ Trình cài đặt một-lệnh sao chép skill [flow](https://github.com/manhqu
 ## Cài đặt
 
 ```
-# Newest GA — hiện tại: v0.3.0, ships skill v0.26.0
+# Newest GA — hiện tại: v0.3.1, ships skill v0.26.0
 npx @manhquy/flow-skill@latest
 ```
 

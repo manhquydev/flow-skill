@@ -1,7 +1,7 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **skill v0.26.0** (2026-08-11), **npm-wrapper v0.3.0 GA** LIVE on `latest` (`npx @manhquy/flow-skill@latest`).
+Updated as the skill evolves. Current: **skill v0.26.0** (2026-08-11), **npm-wrapper v0.3.1 GA** LIVE on `latest` (`npx @manhquy/flow-skill@latest`).
 
 Release process for future bumps: [`docs/release-process.md`](release-process.md).
 
@@ -13,11 +13,11 @@ class. Process-only hollow fails mechanically; decoy multi-signal stays offline 
 
 | Metric | Value | Notes |
 |---|---|---|
-| **npm package** | 0.3.0 | `latest` dist-tag; install with `npx @manhquy/flow-skill@latest` |
+| **npm package** | 0.3.1 | `latest` dist-tag; install with `npx @manhquy/flow-skill@latest` |
 | **Skill product in tarball** | 0.26.0 | SKILL.md metadata; plan JSONL `skillVersion` |
 | **Skill tests** | 48 suites green, ~1210 checks | full `tests/run_all.sh` (~3 min local) |
 | **Installer tests** | node:test suite | dual-version pins package.json + SKILL.md |
-| **dist-tags** | `latest`→0.3.0 | `@rc` retired; use `@latest` |
+| **dist-tags** | `latest`→0.3.1 | `@rc` retired; use `@latest` |
 | **Plan / review** | hollow-done trust eval | `plans/260811-1120-…` + independent review report |
 
 ## npm-wrapper v0.2.0 + skill v0.25.0 — graph executor, opt-in and default off (2026-07-27, was LIVE on `latest`)

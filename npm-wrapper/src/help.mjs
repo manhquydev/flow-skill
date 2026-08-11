@@ -11,7 +11,7 @@ export function renderHelp() {
 Install the flow skill into your coding agent(s).
 
 USAGE
-  npx @manhquy/flow-skill@rc
+  npx @manhquy/flow-skill@latest
   # or after stable ships: npx @manhquy/flow-skill
 
 OPTIONS

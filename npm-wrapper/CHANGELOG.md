@@ -2,6 +2,11 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.3.1] — 2026-08-11 — help USAGE shows @latest
+
+### Fixed
+- CLI `--help` USAGE line: `@rc` → **`@latest`** (rc channel retired).
+
 ## [0.3.0] — 2026-08-11 — ships skill v0.26.0 (hollow-done trust floor)
 
 Skill-content release; **installer code unchanged** vs 0.2.1. Ships skill product **v0.26.0**

@@ -10,7 +10,7 @@ One-command installer that copies the [flow](https://github.com/manhquydev/flow-
 ## Install
 
 ```
-# Newest GA — current: v0.3.0, ships skill v0.26.0
+# Newest GA — current: v0.3.1, ships skill v0.26.0
 npx @manhquy/flow-skill@latest
 ```
 
