@@ -683,49 +683,73 @@ revision_oracle_fingerprint: ${_ATT_W_revision_oracle_fingerprint}
 }
 
 # ---------- process supervisor ----------
+# Prefer setsid (Linux). macOS often lacks setsid: fall back to best-effort kill of
+# the launched PID (not a full session). Live-auto residual is documented for that case.
+_att_has_setsid() { command -v setsid >/dev/null 2>&1; }
+
 _att_supervisor_capable() {
   if [ "${FLOW_ATTEST_SUPERVISOR:-}" = "force-unsupported" ]; then return 1; fi
   if [ "${FLOW_ATTEST_SUPERVISOR:-}" = "force-ok" ]; then return 0; fi
-  command -v setsid >/dev/null 2>&1 || return 1
   if [ "${_ATT_SUP_CAP_CACHED:-}" = "1" ]; then
     [ "${_ATT_SUP_CAP_OK:-0}" = "1" ]; return $?
   fi
-  _ATT_SUP_CAP_CACHED=1; _ATT_SUP_CAP_OK=0
+  _ATT_SUP_CAP_CACHED=1
+  _ATT_SUP_CAP_OK=0
   local outf pid pgid
   outf="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/.att-cap.$$")"
   : > "$outf"
-  ( cd "${ROOT:-/tmp}" || exit 127; exec setsid sleep 30 ) >"$outf" 2>&1 &
+  if _att_has_setsid; then
+    ( cd "${ROOT:-/tmp}" || exit 127; exec setsid sleep 30 ) >"$outf" 2>&1 &
+  else
+    ( cd "${ROOT:-/tmp}" || exit 127; exec sleep 30 ) >"$outf" 2>&1 &
+  fi
   pid=$!
   sleep 0.15 2>/dev/null || true
   pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')"
   [ -n "$pgid" ] || pgid="$pid"
-  kill -TERM -"$pgid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+  if _att_has_setsid; then
+    kill -TERM -"$pgid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+  else
+    kill -TERM "$pid" 2>/dev/null || true
+  fi
   sleep 0.25 2>/dev/null || true
   if kill -0 "$pid" 2>/dev/null; then
-    kill -KILL -"$pgid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+    if _att_has_setsid; then
+      kill -KILL -"$pgid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+    else
+      kill -KILL "$pid" 2>/dev/null || true
+    fi
     sleep 0.1 2>/dev/null || true
   fi
   wait "$pid" 2>/dev/null || true
   rm -f "$outf" 2>/dev/null || true
-  kill -0 "$pid" 2>/dev/null && return 1
+  if kill -0 "$pid" 2>/dev/null; then
+    return 1
+  fi
   _ATT_SUP_CAP_OK=1
   return 0
 }
+
 _att_run_supervised() {
   local timeout_s="${FLOW_ATTEST_TIMEOUT_S:-30}" cap="${FLOW_ATTEST_OUT_CAP:-65536}"
   local comb="${FLOW_ATTEST_COMBINED_CAP:-98304}" grace_s="${FLOW_ATTEST_GRACE_S:-2}"
-  local outf errf start end rc=0 pid="" pgid="" i
+  local outf errf start end rc=0 pid="" pgid="" i use_setsid=0
   _ATT_RUN_RC="spawn-error"; _ATT_RUN_CODE=127; _ATT_RUN_OUT=""; _ATT_RUN_MS=0
   if ! _att_supervisor_capable; then _ATT_RUN_RC="spawn-error"; return 1; fi
   case "$timeout_s" in ''|*[!0-9]*|0) timeout_s=30 ;; esac
   case "$cap" in ''|*[!0-9]*|0) cap=65536 ;; esac
   case "$comb" in ''|*[!0-9]*|0) comb=98304 ;; esac
   case "$grace_s" in ''|*[!0-9]*) grace_s=2 ;; esac
+  _att_has_setsid && use_setsid=1
   outf="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/.att-out.$$")"
   errf="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/.att-err.$$")"
   : > "$outf"; : > "$errf"
   start="$(_att_now_s)"
-  ( cd "$ROOT" || exit 127; exec setsid "$@" ) >"$outf" 2>"$errf" &
+  if [ "$use_setsid" -eq 1 ]; then
+    ( cd "$ROOT" || exit 127; exec setsid "$@" ) >"$outf" 2>"$errf" &
+  else
+    ( cd "$ROOT" || exit 127; exec "$@" ) >"$outf" 2>"$errf" &
+  fi
   pid=$!
   i=0
   while [ "$i" -lt 20 ]; do
@@ -738,9 +762,15 @@ _att_run_supervised() {
   [ -n "$pgid" ] || pgid="$pid"
   ( sleep "$timeout_s" 2>/dev/null
     if kill -0 "$pid" 2>/dev/null; then
-      kill -TERM -"$pgid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-      sleep "$grace_s" 2>/dev/null
-      kill -KILL -"$pgid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+      if [ "$use_setsid" -eq 1 ]; then
+        kill -TERM -"$pgid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+        sleep "$grace_s" 2>/dev/null
+        kill -KILL -"$pgid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+      else
+        kill -TERM "$pid" 2>/dev/null || true
+        sleep "$grace_s" 2>/dev/null
+        kill -KILL "$pid" 2>/dev/null || true
+      fi
       echo timeout > "${outf}.to"
     fi ) &
   local wd=$!
@@ -749,9 +779,15 @@ _att_run_supervised() {
       os="$(wc -c < "$outf" 2>/dev/null | tr -d ' ')"
       es="$(wc -c < "$errf" 2>/dev/null | tr -d ' ')"
       if [ "${os:-0}" -gt "$cap" ] || [ "${es:-0}" -gt "$cap" ] || [ $(( ${os:-0} + ${es:-0} )) -gt "$comb" ]; then
-        kill -TERM -"$pgid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-        sleep 1
-        kill -KILL -"$pgid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+        if [ "$use_setsid" -eq 1 ]; then
+          kill -TERM -"$pgid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+          sleep 1
+          kill -KILL -"$pgid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+        else
+          kill -TERM "$pid" 2>/dev/null || true
+          sleep 1
+          kill -KILL "$pid" 2>/dev/null || true
+        fi
         echo cap > "${outf}.cap"; break
       fi
       sleep 0.1 2>/dev/null || sleep 1
@@ -760,7 +796,11 @@ _att_run_supervised() {
   wait "$pid" 2>/dev/null; rc=$?
   kill "$wd" 2>/dev/null; wait "$wd" 2>/dev/null
   kill "$capw" 2>/dev/null; wait "$capw" 2>/dev/null
-  kill -KILL -"$pgid" 2>/dev/null || true
+  if [ "$use_setsid" -eq 1 ]; then
+    kill -KILL -"$pgid" 2>/dev/null || true
+  else
+    kill -KILL "$pid" 2>/dev/null || true
+  fi
   end="$(_att_now_s)"
   _ATT_RUN_MS=$(( (end - start) * 1000 )); [ "$_ATT_RUN_MS" -lt 0 ] && _ATT_RUN_MS=0
   if [ -f "${outf}.cap" ]; then _ATT_RUN_RC="output-cap"; _ATT_RUN_CODE=1; rm -f "${outf}.cap"
