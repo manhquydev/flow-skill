@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.28.1 — 2026-08-11 — attestation harden package
+
+### Security / trust
+- Mint executes **committed blobs** at `--revision` (materialized temp), not dirty worktree bytes; owner/command/oracle require regular-file blob equality.
+- Live receipts require **exact HEAD tip** plus recomputed owner/oracle fingerprints.
+- Cleanliness on mint/consume/auto: allow `.flow/`, `flow/.lock*`, status/Evidence-only card dirt; reject empty `base==rev` card semantic.
+- Supervisor: real `setsid` PGID kill + capability probe; auto preflight order prints risk before clean gate.
+
+### Tests
+- `test_flow_attestation_harden.sh`; coverage_gaps auto expects v0.28 fail-closed without git/receipts.
+
 ## 0.28.0 — 2026-08-11 — attested execution / trust control plane
 
 ### Added

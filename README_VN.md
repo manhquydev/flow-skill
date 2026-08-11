@@ -14,7 +14,7 @@ CLI cài-chạy, library API, hoặc skill chạy thật). Chat là cửa mặc 
 
 | | |
 |---|---|
-| **Skill product** | **v0.28.0** |
+| **Skill product** | **v0.28.1** |
 | **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.5.x** (ship skill ở trên) |
 | **Test / CI** | 48 suite · Ubuntu · macOS · Windows |
 | **License** | MIT |
@@ -77,7 +77,7 @@ npx @manhquy/flow-skill@latest --help
 npx @manhquy/flow-skill@latest --help
 
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
-# expect: version: "0.28.0"  (hoặc skill product hiện tại)
+# expect: version: "0.28.1"  (hoặc skill product hiện tại)
 
 bash ~/.claude/skills/flow/runner/flow.sh doctor
 # expect: READY
@@ -89,11 +89,11 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 |-----|--------|
 | **`@latest`** mỗi lần muốn bản mới | Bare `npx @manhquy/flow-skill` (cache npx) |
 | **Chạy** CLI để skill vào agent home | Chỉ `npm i` — không copy skill |
-| Pin installer `@0.5.0` nếu cần cố định | Pin npm `@0.28.0` (đó là version **skill**, không phải package) |
+| Pin installer `@0.5.1` nếu cần cố định | Pin npm `@0.28.1` (đó là version **skill**, không phải package) |
 | `@latest` / `@0.5.x` | `@rc` (đã retire / cũ) |
 
 **Hai số version (cố ý):** package npm = installer CLI; skill product = `SKILL.md` metadata.
-`--help` in cả hai: `flow-skill v0.5.0 (ships skill v0.28.0)`.
+`--help` in cả hai: `flow-skill v0.5.1 (ships skill v0.28.1)`.
 
 Chi tiết flag: [npm-wrapper/README_VN.md](./npm-wrapper/README_VN.md).
 

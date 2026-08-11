@@ -1,19 +1,19 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **skill v0.28.0** (2026-08-11), **npm-wrapper v0.5.0** (`npx @manhquy/flow-skill@latest` after publish).
+Updated as the skill evolves. Current: **skill v0.28.1** (2026-08-11), **npm-wrapper v0.5.1** (`npx @manhquy/flow-skill@latest` after publish).
 
 Release process for future bumps: [`docs/release-process.md`](release-process.md).
 
-## npm-wrapper v0.5.0 + skill v0.28.0 — attested execution / trust control plane (2026-08-11)
+## npm-wrapper v0.5.1 + skill v0.28.1 — attested execution / trust control plane (2026-08-11)
 
 Fingerprint-bound semantic and live verification receipts; card risk state; auto-active
 enforcement. Receipts are workflow integrity (staleness), not actor authentication.
 
 | Axis | Value | Notes |
 |---|---|---|
-| **npm package** | 0.5.0 | ships skill v0.28.0; install `npx @manhquy/flow-skill@latest` |
-| **Skill product in tarball** | 0.28.0 | SKILL.md / plugin / portable-manifest |
+| **npm package** | 0.5.1 | ships skill v0.28.1; install `npx @manhquy/flow-skill@latest` |
+| **Skill product in tarball** | 0.28.1 | SKILL.md / plugin / portable-manifest |
 | **Prerelease dist-tag** | `next` | operational; historical `rc` remains history only |
 
 ## npm-wrapper v0.4.0 + skill v0.27.0 — harness authority continuity (2026-08-11)
@@ -635,7 +635,7 @@ assertions against auto-run.md) — the feature's value-prop, proven a second ti
 **Engine maintenance (out-of-band, not a card — `/flow` forbids runner edits mid-run):**
 - **DF-1 (now FIXED):** `flow coherence` now reads SKILL.md frontmatter `version:`, `*-manifest.json`,
   and `.claude-plugin/plugin.json` — for project-type=skill it had ZERO version source. The fix
-  immediately caught a real drift (plugin.json stuck at 0.3.0). All now 0.5.0 → coherence PASSES.
+  immediately caught a real drift (plugin.json stuck at 0.3.0). All now 0.5.1 → coherence PASSES.
 - **DF-6 (now FIXED):** the runner idempotently adds run-state (`MODE`, `PROJECT_TYPE`, `.flow/`)
   to `.gitignore` (only in a git repo) — no more host-repo pollution.
 - **DF-3 (partial):** `intervention --note` added as an additive alias for `--description`; full
