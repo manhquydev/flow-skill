@@ -14,8 +14,8 @@ claudekit required. Optional multi-model review (Claude · Codex · Antigravity)
 
 | | |
 |---|---|
-| **Skill product** | **v0.27.0** |
-| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.4.x** (ships the skill above) |
+| **Skill product** | **v0.28.0** |
+| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.5.x** (ships the skill above) |
 | **Tests / CI** | 48 suites · Ubuntu · macOS · Windows |
 | **License** | MIT |
 
@@ -68,7 +68,7 @@ npx @manhquy/flow-skill@latest --yes --all --dry-run --json
 
 # Confirm what you will get (installer + bundled skill versions)
 npx @manhquy/flow-skill@latest --help
-# expect: flow-skill v0.4.x (ships skill v0.27.x)
+# expect: flow-skill v0.5.x (ships skill v0.28.x)
 ```
 
 ### Verify install
@@ -79,7 +79,7 @@ npx @manhquy/flow-skill@latest --help
 
 # Skill product version on disk (Claude global path example)
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
-# expect: version: "0.27.0"  (or current skill product)
+# expect: version: "0.28.0"  (or current skill product)
 
 # Environment / runner
 bash ~/.claude/skills/flow/runner/flow.sh doctor
@@ -92,10 +92,10 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 |----|--------|
 | Use **`@latest`** every time you want the newest skill | Bare `npx @manhquy/flow-skill` (npx cache may re-run an old copy) |
 | **Run** the CLI so files land under agent homes | `npm i @manhquy/flow-skill` alone — that only adds the package; it does **not** install the skill |
-| Pin installer as `@0.4.1` if you need a fixed release | Pin `@0.27.0` on npm — that is the **skill** version, not the npm package name |
-| Use `@latest` / `@0.4.x` | Use `@rc` — retired / stale channel |
+| Pin installer as `@0.5.0` if you need a fixed release | Pin `@0.28.0` on npm — that is the **skill** version, not the npm package name |
+| Use `@latest` / `@0.5.x` | Use `@rc` — retired / stale channel |
 
-**Two version numbers (intentional):** npm package = installer CLI; skill product = `SKILL.md` `metadata.version`. `--help` prints both: `flow-skill v0.4.1 (ships skill v0.27.0)`.
+**Two version numbers (intentional):** npm package = installer CLI; skill product = `SKILL.md` `metadata.version`. `--help` prints both: `flow-skill v0.5.0 (ships skill v0.28.0)`.
 
 Full flag reference: [npm-wrapper/README.md](./npm-wrapper/README.md).
 

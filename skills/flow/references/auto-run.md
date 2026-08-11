@@ -1,8 +1,13 @@
 # /flow auto — autonomous build run
 
 `/flow auto` drives the card-building phase autonomously. Preflight via
-`flow.sh auto` (planning complete + cards exist), then YOU (Claude) orchestrate per the
-principles below. Operator chose: **Tier-A auto-merge green cards; halt at security-class.**
+`flow.sh auto` requires planning complete, classified card **risk** (no `unknown`),
+valid security-class DEBT acknowledgement when needed, a reliable live supervisor, and a
+current Stage 05 `semantic_gate` receipt — then writes shared `.flow/auto-state`. Full
+contract: `references/attestations.md`. Then YOU (Claude) orchestrate per the principles
+below. Operator chose: **Tier-A auto-merge green cards; halt at security-class.**
+While auto is active, mechanical transitions require current card semantic/live receipts;
+there is no hidden bypass — use `flow auto stop` for deliberate manual continuation.
 
 ## Tiers (decide per card before acting)
 

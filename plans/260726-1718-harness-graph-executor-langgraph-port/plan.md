@@ -6,9 +6,23 @@ priority: P1
 effort: "10-14d"
 tags: [harness, graph-executor, langgraph-port, breaking-change]
 created: 2026-07-26
+blockedBy: [260811-1542-attested-execution]
+blocks: []
 ---
 
 # harness graph executor - langgraph port
+
+## Supersession notice — 2026-08-11
+
+The graph journal/executor foundation already shipped and remains supported.
+The **remaining Phase 6 direction that makes Python mandatory and flips the
+graph executor default-on is superseded and blocked** by
+`plans/260811-1542-attested-execution/`.
+
+Do not remove or revert shipped graph code. Do not implement the old
+Python-mandatory/default-on release direction. v0.28 first establishes
+standalone risk state, fingerprint-bound receipts, and auto enforcement; graph
+default-on may be reconsidered only after that telemetry/dogfood evidence.
 
 <!-- Updated: Red Team Session 1 (2026-07-26) — 15 findings applied -->
 

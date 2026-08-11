@@ -6,3 +6,5 @@ f02b	02-scope	flow/02-scope.md	FLAG
 fcda	card	cards/C-001.md	PASS
 fcdb	card	cards/C-001.md	FLAG
 fcdc	card	cards/C-001.md	FLAG
+f05a	05-contract	flow/05-contract.md	PASS
+f05b	05-contract	flow/05-contract.md	FLAG

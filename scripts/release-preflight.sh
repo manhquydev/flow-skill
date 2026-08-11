@@ -13,6 +13,11 @@ warn() { echo "WARN: $*"; }
 echo "=== release-preflight ($(date -u +%Y-%m-%dT%H:%MZ)) ==="
 echo "ROOT=$ROOT"
 
+if ! bash "$ROOT/scripts/check-release-coherence.sh"; then
+  echo "FAIL: offline release coherence" >&2
+  exit 1
+fi
+
 # Resolve node (Git Bash on Windows often lacks node on PATH; try common locations).
 NODE=""
 if command -v node >/dev/null 2>&1; then

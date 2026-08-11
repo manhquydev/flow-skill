@@ -2,6 +2,11 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.5.0] — 2026-08-11 — ships skill v0.28.0 (attested execution)
+
+Installer minor: bundles skill **v0.28.0** (risk + attestation receipts + auto trust plane).
+Installer CLI contract unchanged. Prerelease dist-tag policy: **`next`**.
+
 ## [0.4.1] — 2026-08-11 — README + CLI help install UX
 
 Docs-only installer release (same skill **v0.27.0**). Professional install section, full

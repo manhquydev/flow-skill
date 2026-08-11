@@ -16,6 +16,9 @@ and used only to add color, never to pass a gate.
 | Card DONE | deploy ran + **live URL verified as a user** (world-state evidence pasted) | "merged" / "deploy succeeded" / "tests pass" |
 | Card DONE (mechanical floor) | `flow.sh check` / `card done`: `## Evidence` multi-signal score ≥2 (URL + curl/command/test-log/path/DB/skill categories; denylist example.com etc.) | process-only prose (PR approvals, CI green, release notes alone); empty/placeholder |
 | Dep ready / parallel | `ready` + graph deps-met: dep `status=done` **and** same Evidence multi-signal floor | hand-edit `status: done` with hollow Evidence |
+| Auto activation | risk set valid + current Stage 05 `semantic_gate` receipt (`attestations.md`) | prose “planning looks done” |
+| Auto `check` / `card done` | current fingerprint-bound `semantic_gate` (+ `live_verify` when done) | self-assessed review / Evidence text alone |
+| Merged worktree remove (auto) | both card receipts current for mapped card | `--force` without receipts |
 | Contract not drifted | contract-test card asserts every endpoint exists in live `/openapi.json` with matching shape | "backend and UI agree" (they don't, silently) |
 
 ## Rules

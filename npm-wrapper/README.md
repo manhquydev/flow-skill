@@ -5,7 +5,7 @@ Install the **flow** skill into coding agents with one command.
 | | |
 |---|---|
 | **Package** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) (installer CLI) |
-| **Current GA** | **0.4.1** — ships skill product **v0.27.0** |
+| **Current GA** | **0.5.0** — ships skill product **v0.28.0** |
 | **Platforms** | macOS · Linux · Windows (same Node path) |
 | **Requirement** | Node.js **≥ 22.14** |
 | **Source** | [github.com/manhquydev/flow-skill](https://github.com/manhquydev/flow-skill) |
@@ -34,7 +34,7 @@ npx @manhquy/flow-skill@latest
 
 ```bash
 npx @manhquy/flow-skill@latest --help
-# expect: flow-skill v0.4.x (ships skill v0.27.x)
+# expect: flow-skill v0.5.x (ships skill v0.27.x)
 ```
 
 ### Common commands
@@ -89,7 +89,7 @@ npx @manhquy/flow-skill@latest --yes --all --dry-run --json
 |----|--------|
 | `npx @manhquy/flow-skill@latest` | Bare `npx @manhquy/flow-skill` (stale npx cache) |
 | **Run** the CLI to copy the skill | `npm i` alone (package only; no skill files in agent homes) |
-| Pin installer `@0.4.1` if needed | Pin npm `@0.27.0` (skill version ≠ package version) |
+| Pin installer `@0.5.0` if needed | Pin npm `@0.28.0` (skill version ≠ package version) |
 | Prefer `@latest` | `@rc` (retired / behind) |
 
 **Two version axes:** `package.json` version = installer; `SKILL.md` metadata = skill product. Both appear in `--help` and in the `plan` JSONL event (`version` + `skillVersion`).
@@ -137,7 +137,7 @@ rm -rf <project>/.claude/skills/flow
 |---------|-----|
 | Agent has no `/flow` after `npm i` | Run `npx @manhquy/flow-skill@latest` (install must **execute**) |
 | Old skill after reinstall | Always use `@latest`; avoid bare package name |
-| `No matching version found` for `@0.27.0` | That is the **skill** version. Use `@latest` or `@0.4.x` |
+| `No matching version found` for `@0.28.0` | That is the **skill** version. Use `@latest` or `@0.5.x` |
 | Node too old | Install Node ≥ 22.14 (`nvm install 22`, etc.) |
 | Windows `EBUSY` / `EPERM` | Close the agent holding files under the skill dir; re-run |
 | Stale install lock | Delete `<parent>/.flow-skill.installing.lock` if reclaim fails |
@@ -147,7 +147,7 @@ rm -rf <project>/.claude/skills/flow
 ## JSONL (`--json`)
 
 ```jsonl
-{"event":"plan","version":"0.4.1","skillVersion":"0.27.0","dryRun":false,"scope":"global","targets":["claude"]}
+{"event":"plan","version":"0.5.0","skillVersion":"0.28.0","dryRun":false,"scope":"global","targets":["claude"]}
 {"event":"install:start","target":"claude","dests":["~/.claude/skills/flow"]}
 {"event":"install:done","target":"claude","dests":["~/.claude/skills/flow"],"result":"success","error":null,"warnings":[]}
 {"event":"summary","success":true,"total":1,"attempted":1,"installed":1,"failed":0,"skipped":0,"aborted":false}

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.28.0 — 2026-08-11 — attested execution / trust control plane
+
+### Added
+- Card risk fields (`risk`, `risk-reason`, `risk-ack`) with auto fail-closed preflight.
+- Attestation receipts (`semantic_gate`, `live_verify`) under `.flow/attestations/`.
+- `flow attest semantic|live-verify|status|recover` and `flow auto stop`.
+- Active-auto enforcement on `check` / `card done` / ready deps / merged worktree remove.
+- Canonical contract: `skills/flow/references/attestations.md`.
+
+### Changed
+- `/flow auto` activates shared policy only after full risk set + Stage 05 semantic receipt.
+- Process supervisor for attestation owner/oracle (streaming caps, process-group cleanup).
+- npm prerelease operational tag policy: `next` (not `rc`).
+
+### Security
+- Receipts detect subject staleness; they do not authenticate actors or resist a hostile host.
+- Attestation usage logs omit argv after `--` and raw command output.
+
+
 All notable changes to the flow skill. Versions follow the `version:` field in
 
 ## 0.27.0 — 2026-08-11 — harness authority continuity

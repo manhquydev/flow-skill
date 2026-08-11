@@ -39,3 +39,5 @@ A run HALTS and reports — never silently continues — on any of:
 
 On halt: state what stopped it, what's done so far, the open debt/blocker, and the 2-4
 concrete options for the operator. Let them decide — don't patch around a regression.
+
+See also: `references/attestations.md` for security-class **risk-ack** auto contract (v0.28).

@@ -1,7 +1,7 @@
 name: Publish npm-wrapper to npm (trusted publishing)
 
 on:
-  # Tag-triggered: push a tag shaped `npm@X.Y.Z` (or `npm@X.Y.Z-rc.N`) to release.
+  # Tag-triggered: push a tag shaped `npm@X.Y.Z` (or `npm@X.Y.Z-next.N`) to release.
   push:
     tags:
       - 'npm@*'
@@ -14,9 +14,9 @@ on:
       dist_tag:
         description: 'npm dist-tag'
         required: true
-        default: 'rc'
+        default: 'next'
         type: choice
-        options: [rc, latest]
+        options: [next, latest]
       dry_run:
         description: 'If true, run npm publish --dry-run only'
         required: false
@@ -28,7 +28,7 @@ on:
         required: false
         default: 'none'
         type: choice
-        options: ['none', 'latest', 'rc']
+        options: ['none', 'latest', 'next']
 
 permissions:
   contents: write   # git tag push after publish
@@ -55,7 +55,7 @@ jobs:
             # Tag shape: npm@<semver>. Extract the semver portion after the @.
             version="${GITHUB_REF_NAME#npm@}"
             case "$version" in
-              *"-"*) dist_tag=rc; dry_run=false ;;
+              *"-"*) dist_tag=next; dry_run=false ;;
               *)     dist_tag=latest; dry_run=false ;;
             esac
           else

@@ -1,9 +1,20 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **skill v0.27.0** (2026-08-11), **npm-wrapper v0.4.0** (`npx @manhquy/flow-skill@latest` after publish).
+Updated as the skill evolves. Current: **skill v0.28.0** (2026-08-11), **npm-wrapper v0.5.0** (`npx @manhquy/flow-skill@latest` after publish).
 
 Release process for future bumps: [`docs/release-process.md`](release-process.md).
+
+## npm-wrapper v0.5.0 + skill v0.28.0 — attested execution / trust control plane (2026-08-11)
+
+Fingerprint-bound semantic and live verification receipts; card risk state; auto-active
+enforcement. Receipts are workflow integrity (staleness), not actor authentication.
+
+| Axis | Value | Notes |
+|---|---|---|
+| **npm package** | 0.5.0 | ships skill v0.28.0; install `npx @manhquy/flow-skill@latest` |
+| **Skill product in tarball** | 0.28.0 | SKILL.md / plugin / portable-manifest |
+| **Prerelease dist-tag** | `next` | operational; historical `rc` remains history only |
 
 ## npm-wrapper v0.4.0 + skill v0.27.0 — harness authority continuity (2026-08-11)
 

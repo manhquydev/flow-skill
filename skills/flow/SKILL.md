@@ -3,12 +3,12 @@ name: flow
 description: Run the buildflow gated build process from idea to real done-evidence. Walk gated stages (Idea->Research->Scope->PRD->ADR->Contract->Cards->Build->Review->Deploy/Ship->Verify->Retro), each with a honest gate that must pass before advancing. Adapts to project type (web|cli|library|skill). Use when starting or driving a real product build, when the user types /flow, /flow next, /flow card, /flow check, or asks to scope/plan/ship a project through gates. Kill at any gate is a valid outcome.
 user-invocable: true
 when_to_use: "User wants to build a real product end-to-end with discipline (idea -> a deployed URL for web, or installs+runs for a CLI/library/skill), or types any /flow command, or asks for a gated build process, scope decision, contract-first plan, or card-based shipping."
-argument-hint: "[ resume | next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | workspace add|list|enter|remove|check|doctor | auto | doctor | retro | eval --stage 01|02|card|routing --fixture <id> --n 3 --keep-going --report | or just say what you want in plain language ]"
+argument-hint: "[ resume | next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | workspace add|list|enter|remove|check|doctor | auto [stop] | attest semantic|live-verify|status|recover | doctor | retro | eval --stage 01|02|05|card|routing --fixture <id> --n 3 --keep-going --report | or just say what you want in plain language ]"
 keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deploy, vertical-slice, cli, library, skill, worktree, parallel-agents, workspace, multi-agent]
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.27.0"
+  version: "0.28.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); durable-layer ancestry and improve-ritual spirit from repository-harness (protocol v1 EOL — flow-owned fork); agent patterns from claudekit-engineer, BMAD-METHOD. v0.22 concierge from BMAD bmad-help; forge-idea from bmad-forge-idea (MIT, BMad Code LLC)."
 ---
 
@@ -94,7 +94,8 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | `/flow mode teach\|work` | set who writes the artifacts (default `teach`) |
 | `/flow ready` | `flow.sh ready` — which todo cards are buildable + parallel-safety hint |
 | `/flow workspace add\|list\|enter\|remove\|check\|doctor` | `flow.sh workspace …` — **multi-agent worktree isolation** for running several agents (Claude/Codex/Antigravity, many terminals) in parallel WITHOUT the "one agent switches branch → every terminal flips" trap. Each agent gets its own `git worktree` (own HEAD/index/files, shared object store); git is the live registry (`git worktree list`) and a 10-field JSONL side-file (`.flow/workspaces.jsonl`) adds vendor/card/port/task. `add <branch> [--card C-NNN] [--vendor …] [--task …] [--copy-env]` provisions a worktree + distinct port-offset + paste-ready cd/env block; `list` shows who-is-where; `enter <branch>` re-prints a crashed terminal's env; `check <branch> [--card]` flags branch-claim + allowed-files overlap before you launch; `remove <branch> [--force]` tears down safely (never auto-forces); `doctor` reconciles orphan trees/records. Advisory layer; git's refusal to check out one branch twice is the real lock. |
-| `/flow auto` | `flow.sh auto` preflight, then drive the autonomous run (see AUTO principles) |
+| `/flow auto` | `flow.sh auto` — attested preflight (risk + Stage 05 receipt) activates shared auto policy; then drive the autonomous run (see AUTO principles). `auto stop` clears it. |
+| `/flow attest …` | `flow.sh attest semantic\|live-verify\|status\|recover` — mint/inspect fingerprint-bound receipts (`references/attestations.md`) |
 | `/flow recall` | `flow.sh recall` — read back durable memory (open debt, recent retro, previous-card scope, harness friction/backlog, playbooks) **at the start of a stage/card** so you don't re-learn known pain |
 | `/flow usage` | `flow.sh usage` — roll up the mechanical usage log (JSONL flight-recorder of every invocation) into `usage_event` and print build analytics: cycle-time, gate fail-rate, per-stage dwell, cycle completion, command breakdown. `--global` for the device-wide view; `--prune [--keep N]` caps the log (crash-safe). Local-only; disable with `FLOW_LOG_DISABLE=1`/`DO_NOT_TRACK=1`. `recall` now surfaces a one-line usage digest and `retro`'s `propose` flags chronically-failing stages. |
 | `/flow contract` | `flow.sh contract` — flag client base-URL vs served-path prefix drift (web; advisory; run after the contract gate) |
@@ -189,11 +190,16 @@ deliver the card set as one summary. Gates bind the same as `teach`.
 
 ## AUTO principles
 
-`/flow auto` drives the build phase autonomously (`references/auto-run.md`). Operator
-setting: **Tier-A auto-merge green cards; halt at security-class.** Per card: tier-classify
-→ one scoped subagent in its own worktree → build to contract → adversarial review →
-`flow.sh check` PASS → merge in card order → deploy → **verify on the LIVE URL** (merge ≠
-shipped) → world-state evidence → `status: done` → durable trace + `AUTO-LOG.md`.
+`/flow auto` drives the build phase autonomously (`references/auto-run.md`) under the
+**attested-execution** trust control plane (`references/attestations.md`). Mechanical
+preflight persists auto policy only when every card has classified risk (security-class
+needs a distinct-author DEBT ack) and Stage 05 has a current `semantic_gate` receipt.
+While auto is active, `check` / `card done` / ready deps / merged worktree remove require
+fingerprint-bound semantic and live receipts; `auto stop` returns to warning-only manual
+mode. Operator setting: **Tier-A auto-merge green cards; halt at security-class.** Per
+card: tier-classify → scoped subagent in its own worktree → build → adversarial review →
+owner-backed semantic receipt → `flow.sh check` PASS → merge → deploy → live_verify
+receipt → world-state evidence → `card done` → durable trace + `AUTO-LOG.md`.
 - **Tier A**: green + no security-class → auto-merge, no ask.
 - **Tier B**: fixable issues → one repair by a FRESH subagent (two-strikes), else escalate.
   If the fix needs >1 experimental attempt against a single numeric target (not a review

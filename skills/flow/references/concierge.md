@@ -63,6 +63,7 @@ operator-authority-only):
 - promote
 - mode
 - auto
+- attest
 - workspace
 - unlock
 - retro

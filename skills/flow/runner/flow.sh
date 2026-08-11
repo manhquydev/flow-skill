@@ -16,7 +16,7 @@
 
 set -u
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/../_templates"
 LAW_DIR="$SCRIPT_DIR/../law"
 PLAYBOOKS_DIR="$SCRIPT_DIR/../playbooks"
@@ -58,6 +58,10 @@ SKIPPED_FILE="$ROOT/flow/.skipped"
 LOCK_FILE="$ROOT/flow/.lock"
 LOCK_DIR="$ROOT/flow/.lock.d"   # atomic mkdir claim dir (W5 guard); winner then writes $LOCK_FILE metadata
 HARNESS_PY="$SCRIPT_DIR/../harness/flow_harness.py"
+
+# Attestations library (risk, receipts, auto policy) — optional-soft: missing file is fatal for v0.28+.
+# shellcheck source=attestations.sh
+. "$SCRIPT_DIR/attestations.sh"
 
 # Eval (LLM semantic-gate behavioral harness; opt-in, billable - see 'eval' command).
 # FLOW_EVAL_MANIFEST is a TEST-ONLY override (e.g. a synthetic CRLF manifest fixture) - it does
@@ -740,6 +744,8 @@ cmd_status() {
   echo "  project: $ROOT"
   echo "  mode:    $(cat "$MODE_FILE" 2>/dev/null | tr -d '\r' || echo teach) (default teach)"
   echo "  type:    $(get_project_type) (done = $(done_def_for_type "$(get_project_type)"))"
+  local _ast; _ast="$(_att_auto_state_read 2>/dev/null || echo INACTIVE)"
+  echo "  auto:    $_ast$([ "$_ast" = ACTIVE ] && echo " (receipts enforced)" || true)"
   lock_warn
   echo
   echo "NEXT -> $(_next_action)"
@@ -845,10 +851,15 @@ cmd_resume() {
 
   echo "flow resume"
   echo "  project: $ROOT"
+  local _ast; _ast="$(_att_auto_state_read 2>/dev/null || echo INACTIVE)"
+  echo "  auto:    $_ast"
   echo
 
   if [ ! -s "$EVENTS_FILE" ]; then
     echo "no telemetry - showing gate state only"
+    echo
+    local _ast; _ast="$(_att_auto_state_read 2>/dev/null || echo INACTIVE)"
+    echo "auto: $_ast"
     echo
     _gate_state_brief "$idx"
     echo
@@ -949,6 +960,21 @@ cmd_resume() {
 
 cmd_next() {
   lock_acquire next || return 1
+  # v0.28: warning-only stage semantic receipt guidance (never hard-blocks next)
+  if _att_git_ok 2>/dev/null; then
+    local _cur_stage _rp _st
+    _cur_stage="$(stage_name_at "$(current_stage_idx)" 2>/dev/null || true)"
+    if [ -n "$_cur_stage" ] && _att_is_stage "$_cur_stage" 2>/dev/null; then
+      _rp="$(_att_receipt_path semantic_gate stage "$_cur_stage" 2>/dev/null || true)"
+      if [ -n "$_rp" ]; then
+        _st="$(_att_receipt_status "$_rp" 2>/dev/null || echo missing)"
+        case "$_st" in
+          current) : ;;
+          *) echo "WARNING: stage $_cur_stage semantic receipt is $_st (auto will require a current pass; see references/attestations.md)" ;;
+        esac
+      fi
+    fi
+  fi
   local idx; idx="$(current_stage_idx)"
   if [ "$idx" -lt 0 ]; then
     mkdir -p "$FLOW_DIR"
@@ -1171,17 +1197,63 @@ cmd_card_done() { # CLI-owned flip to done, gated by the SAME done-rules as '/fl
   if [ -z "$file" ] || [ ! -f "$file" ]; then echo "FAIL: card not found for '$arg' (looked for ${file:-?})"; return 1; fi
   local id orig; id="$(basename "$file" .md)"; FLOW_LOG_CARD="$id"; orig="$(card_status "$file")"
   if [ -z "$orig" ]; then echo "FAIL: $id has no 'status:' line — run '/flow check $id' to see what's missing."; return 1; fi
+
+  # Attested auto: validate receipts BEFORE status mutation; integration-checkout owned.
+  local enforce=0
+  if _att_auto_is_enforcing; then
+    enforce=1
+    if ! _att_is_main_worktree; then
+      local mainp; mainp="$(_att_main_worktree_path)"
+      echo "FAIL: active auto card done is integration-checkout owned."
+      echo "  cd ${mainp:-<main>} && bash <skill>/runner/flow.sh card done $id"
+      return 1
+    fi
+    _att_auto_lock_acquire || return 1
+    local lname; lname="$(_att_subject_lock_name semantic_gate "$id")"
+    local lname2; lname2="$(_att_subject_lock_name live_verify "$id")"
+    _att_lock_acquire "$lname" || { _att_auto_lock_release; return 1; }
+    _att_lock_acquire "$lname2" || { _att_lock_release "$lname"; _att_auto_lock_release; return 1; }
+    if ! _att_enforce_card "$id" 1 1; then
+      _att_lock_release "$lname2"; _att_lock_release "$lname"; _att_auto_lock_release
+      return 1
+    fi
+    # prospective done evidence without mutating status
+    if ! {
+      local st0; st0="$(card_status "$file")"
+      # temporary view: require verify boxes + evidence as if done
+      if grep -qE '^[[:space:]]*- \[ \]' "$file" 2>/dev/null; then
+        echo "FAIL: Verify has unchecked boxes"; false
+      elif grep -q '\[FILL' "$file" 2>/dev/null; then
+        echo "FAIL: unfilled [FILL]"; false
+      else
+        local ev score
+        ev="$(_evidence_body "$file")"
+        if _evidence_is_empty "$ev"; then echo "FAIL: empty Evidence"; false
+        else
+          score="$(_evidence_signal_score "$ev" "${FLOW_PROJECT_ROOT:-$PWD}")"
+          [ "$score" -ge 2 ] || { echo "FAIL: Evidence multi-signal floor ($score/2)"; false; }
+        fi
+      fi
+    }; then
+      _att_lock_release "$lname2"; _att_lock_release "$lname"; _att_auto_lock_release
+      echo "FAIL: $id prospective done-evidence gate failed (status unchanged)."
+      return 1
+    fi
+  fi
+
   # On INT/TERM after flip-to-done: restore todo and abort (fail-closed). Never continue
   # into durable complete after a partial restore.
   # shellcheck disable=SC2064
   trap '_set_card_status "'"$file"'" "todo" 2>/dev/null || true; trap - INT TERM; exit 130' INT TERM
   if ! _set_card_status "$file" done; then
     trap - INT TERM
+    [ "$enforce" = "1" ] && { _att_lock_release "$lname2"; _att_lock_release "$lname"; _att_auto_lock_release; }
     echo "FAIL: could not write status for $id"
     return 1
   fi
   if cmd_check "$id"; then            # cmd_check enforces evidence/verify AND records the durable done-trace
     trap - INT TERM
+    [ "$enforce" = "1" ] && { _att_lock_release "$lname2"; _att_lock_release "$lname"; _att_auto_lock_release; }
     _inflight_clear "$id"
     # card-verify-live: the done boundary is the EVIDENCE gate passing, not the merge
     # (merge != shipped) - dependents unblock on card status, matching cmd_ready.
@@ -1190,6 +1262,7 @@ cmd_card_done() { # CLI-owned flip to done, gated by the SAME done-rules as '/fl
     return 0
   fi
   trap - INT TERM
+  [ "$enforce" = "1" ] && { _att_lock_release "$lname2"; _att_lock_release "$lname"; _att_auto_lock_release; }
   # Always force todo on gate fail (even if orig was hollow done) — never leave hollow done.
   _set_card_status "$file" todo
   echo
@@ -1432,6 +1505,22 @@ cmd_check() {
     fi
   fi
 
+  # Attestation: warn when inactive; hard-require when auto active/stale/invalid
+  local need_live=0 enforce=0
+  [ "$st" = "done" ] && need_live=1
+  if _att_auto_is_enforcing; then enforce=1; fi
+  if ! _att_enforce_card "$id" "$need_live" "$enforce"; then
+    found=1
+  fi
+  # risk advisory (manual)
+  if [ "$enforce" != "1" ]; then
+    local rv; rv="$(_card_risk_validate "$file" manual 2>/dev/null || echo invalid)"
+    case "$rv" in
+      unknown) echo "  note: risk=unknown — classify before /flow auto" ;;
+      invalid:*) echo "  note: risk metadata invalid ($rv)" ;;
+    esac
+  fi
+
   if [ "$found" -eq 0 ]; then
     echo "PASS: $id is valid (status: $st)."
     # card-review boundary: the gate verdict IS the evidence the executor records
@@ -1612,6 +1701,7 @@ cmd_ready() {
     echo "FAIL: planning not complete - no cards to schedule yet."
     return 1
   fi
+  local any_buildable=0
   local total; total="$(highest_card)"
   if [ "$total" -le 0 ]; then echo "No cards created yet. Run '/flow card'."; return 0; fi
   echo "flow ready - buildable todo cards (deps met). Operator dispatches; runner advises."
@@ -1637,34 +1727,112 @@ cmd_ready() {
       elif ! _card_done_evidence_ok "$depfile"; then
         ok=0
         echo "  note: dep $(basename "$depfile" .md) is status=done but ## Evidence fails world-state signal (re-check or paste real proof)"
+      elif _att_auto_is_enforcing; then
+        depid="$(basename "$depfile" .md)"
+        if ! _att_accepted_semantic card "$depid" || ! _att_accepted_live "$depid"; then
+          ok=0
+          echo "  note: dep $depid missing current semantic/live receipts (auto active)"
+        fi
       fi
     done
     if [ "$ok" -eq 1 ]; then
       echo "  BUILDABLE $id  (deps: ${deps:-none})"
       _card_allowed_files "$f" | sed 's/^/      allowed: /'
+      any_buildable=1
     else
       echo "  blocked   $id  (deps unmet or evidence floor failed: ${deps:-none})"
     fi
   done
+  # Auto-active: if any todo cards exist but none are buildable, exit non-zero so
+  # automation cannot treat a fully receipt-blocked graph as green.
+  if _att_auto_is_enforcing; then
+    local any_todo=0
+    for f in "$CARDS_DIR"/C-*.md; do
+      [ -e "$f" ] || continue
+      [ "$(card_status "$f")" = "todo" ] && any_todo=1
+    done
+    if [ "${any_todo:-0}" -eq 1 ] && [ "${any_buildable:-0}" -eq 0 ]; then
+      return 1
+    fi
+  fi
   return 0
 }
 
 cmd_auto() {
+  # flow auto [stop] — activate/refresh attested auto policy, or clear it
+  local sub="${1:-}"
+  if [ "$sub" = "stop" ]; then
+    if [ -n "${2:-}" ]; then echo "usage: /flow auto stop"; return 2; fi
+    _att_auto_lock_acquire || return 1
+    _att_auto_clear
+    _att_auto_lock_release
+    echo "PASS: auto state cleared (manual warning-only mode)."
+    return 0
+  fi
+  if [ -n "$sub" ]; then echo "usage: /flow auto | /flow auto stop"; return 2; fi
+
   lock_acquire auto || return 1
-  echo "flow auto - preflight"
+  _att_auto_lock_acquire || return 1
+  echo "flow auto - preflight (attested execution)"
+
+  if ! _att_git_ok; then
+    echo "FAIL: /flow auto requires a Git repository."; _att_auto_lock_release; return 1
+  fi
+  if ! _att_is_main_worktree; then
+    local mainp; mainp="$(_att_main_worktree_path)"
+    echo "FAIL: activate auto only from the main worktree (not a linked/detached checkout)."
+    echo "  cd ${mainp:-<main>} && FLOW_PROJECT_ROOT=${mainp:-} bash <skill>/runner/flow.sh auto"
+    _att_auto_lock_release; return 1
+  fi
+  local br; br="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null | tr -d '\r')"
+  if [ -z "$br" ] || [ "$br" = "HEAD" ]; then
+    echo "FAIL: detached HEAD — checkout an integration branch first."
+    _att_auto_lock_release; return 1
+  fi
+  if ! _att_supervisor_capable; then
+    echo "FAIL: reliable process-group supervisor unavailable — live auto refused on this platform."
+    _att_auto_lock_release; return 1
+  fi
   if ! planning_complete; then
     echo "FAIL: planning not complete. Finish stages 00-05 first."
-    return 1
+    _att_auto_lock_release; return 1
   fi
   if [ "$(highest_card)" -le 0 ]; then
     echo "FAIL: no cards. Run '/flow card' to create the build cards first."
-    return 1
+    _att_auto_lock_release; return 1
   fi
-  echo "PASS: preflight ok ($(highest_card) cards, planning complete)."
+
+  echo "--- risk set ---"
+  if ! _att_risk_preflight; then
+    echo "FAIL: risk preflight blocked activation (classify every card; security-class needs DEBT ack)."
+    _att_auto_lock_release; return 1
+  fi
+
+  echo "--- Stage 05 semantic receipt ---"
+  if ! _att_accepted_semantic stage 05-contract; then
+    echo "FAIL: need current accepted semantic_gate receipt for 05-contract."
+    echo "  mint: flow attest semantic --stage 05-contract --revision HEAD --owner <committed-manifest>"
+    _att_auto_lock_release; return 1
+  fi
+  local cfp; cfp="$_ATT_R_subject_fingerprint"
+  local rfp; rfp="$(_att_risk_fingerprint)"
+  local by; by="$(_att_sanitize_label "${FLOW_SESSION_ID:-session}")"
+  [ -n "$by" ] || by="session"
+  _ATT_W_activated_at="$(_att_now_rfc3339)"
+  _ATT_W_activated_by="$by"
+  _ATT_W_integration_branch="$br"
+  _ATT_W_risk_fingerprint="$rfp"
+  _ATT_W_contract_fingerprint="$cfp"
+  if ! _att_auto_write; then
+    echo "FAIL: could not write auto-state"
+    _att_auto_lock_release; return 1
+  fi
+  _att_auto_lock_release
+  echo "PASS: auto ACTIVE on branch '$br' ($(highest_card) cards)."
+  echo "  check/card done/ready/merged workspace remove now require current receipts."
+  echo "  stop: /flow auto stop"
   echo
-  echo "Autonomous orchestration is driven by the /flow SKILL.md AUTO PRINCIPLES"
-  echo "(subagent per card, planner review + verify, worktree isolation, Tier-C halts"
-  echo "for security-class debt, state in card files + AUTO-LOG.md)."
+  echo "Orchestration remains skill-driven (AUTO principles); receipts are the mechanical trust floor."
   echo "Run '/flow ready' to see parallel-safe groups."
   return 0
 }
@@ -2401,16 +2569,17 @@ _ws_enter() {
 }
 
 _ws_remove() {
-  local branch="" force=0
+  local branch="" force=0 card_arg=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --force) force=1 ;;
+      --card) shift; card_arg="${1:-}" ;;
       --*) echo "workspace remove: unknown arg '$1'"; return 1 ;;
       *) [ -z "$branch" ] && branch="$1" || { echo "workspace remove: extra arg '$1'"; return 1; } ;;
     esac
     shift
   done
-  [ -n "$branch" ] || { echo "usage: /flow workspace remove <branch> [--force]"; return 1; }
+  [ -n "$branch" ] || { echo "usage: /flow workspace remove <branch> [--force] [--card C-NNN]"; return 1; }
   lock_acquire workspace || return 1
   local rec wt rmout rc
   rec="$(_ws_latest_by_branch "$branch")"
@@ -2423,6 +2592,30 @@ _ws_remove() {
   # remove never journals a merge for a card still under active work.
   local _gcard _gcreated
   _gcard="$(_ws_get "$rec" card_id)"; _gcreated="$(_ws_get_num "$rec" created_at)"
+  # Attested auto: merged worktrees require semantic+live receipts for mapped card
+  if _att_auto_is_enforcing && _att_git_ok; then
+    local tip head_oid card_id merged=0
+    tip="$(git -C "$wt" rev-parse HEAD 2>/dev/null | tr -d '\r')"
+    head_oid="$(_att_full_commit HEAD)"
+    if [ -n "$tip" ] && [ -n "$head_oid" ] && { [ "$tip" = "$head_oid" ] || _att_is_ancestor "$tip" "$head_oid"; }; then
+      merged=1
+    fi
+    if [ "$merged" -eq 1 ]; then
+      card_id="$card_arg"
+      [ -n "$card_id" ] || card_id="$(_ws_get "$rec" card_id)"
+      card_id="$(printf '%s' "$card_id" | tr -d '\r')"
+      if [ -z "$card_id" ] || [ "$card_id" = "null" ] || [ "$card_id" = "none" ]; then
+        echo "FAIL: auto-active merged remove needs card identity (registry or --card C-NNN)."
+        return 1
+      fi
+      card_id="$(_att_norm_card_id "$card_id")" || { echo "FAIL: bad --card"; return 1; }
+      if ! _att_accepted_semantic card "$card_id" || ! _att_accepted_live "$card_id"; then
+        echo "FAIL: merged worktree remove blocked — card $card_id needs current semantic+live receipts (or /flow auto stop)."
+        return 1
+      fi
+    fi
+  fi
+
   if _graph_on && [ -f "$wt/.flow/events.jsonl" ]; then
     # Lifecycle-unique key: worktree paths are recycled, so a bare-path cursor would
     # swallow the next lifecycle's lines. Prefix = destination sink (usage/prune group it).
@@ -3549,13 +3742,13 @@ function cmd_eval {
       --timeout)    shift; timeout="${1:-120}" ;;
       --report)     report_mode=1 ;;
       --keep-going) keep_going=1 ;;
-      *) echo "usage: /flow eval [--stage 01|02|card|routing] [--fixture <id>] [--n 3] [--timeout <seconds>] [--keep-going] [--report]"; return 1 ;;
+      *) echo "usage: /flow eval [--stage 01|02|05|card|routing] [--fixture <id>] [--n 3] [--timeout <seconds>] [--keep-going] [--report]"; return 1 ;;
     esac
     shift 2>/dev/null || true
   done
   case "$n" in ''|*[!0-9]*|0) echo "eval: --n must be a positive integer (got '$n')"; return 1 ;; esac
   case "$timeout" in ''|*[!0-9]*|0) echo "eval: --timeout must be a positive integer seconds value (got '$timeout')"; return 1 ;; esac
-  case "$stage_filter" in ""|01|02|card|routing) : ;; *) echo "eval: --stage must be one of 01|02|card|routing (got '$stage_filter')"; return 1 ;; esac
+  case "$stage_filter" in ""|01|02|05|card|routing) : ;; *) echo "eval: --stage must be one of 01|02|05|card|routing (got '$stage_filter')"; return 1 ;; esac
   # Backoff between the in-run retry attempts. Default 5s; tests set 0 so the mock-suite is not
   # slowed by 15s+ per degraded-path case across 3-OS CI. Bare-int validation only - a bogus
   # value (`abc`) silently falls back to the default rather than aborting the batch.
@@ -3880,7 +4073,8 @@ usage: bash flow.sh <command> [args]
   workspace <verb>  Multi-agent worktree isolation: add|list|enter|remove|check|doctor (one worktree per agent)
   loop-prep <card>  Plumbing for ck-loop: isolated worktree + numeric Verify command + param block (thin wrapper; ck-loop is the engine)
   loop-log <card>   Record a finished ck-loop run (iterations/start/end/outcome) into usage-log telemetry
-  auto              Preflight an autonomous run (orchestration in SKILL.md)
+  auto [stop]        Activate attested auto (risk + Stage 05 receipt) or stop
+  attest <verb>      Mint/status/recover attestation receipts (semantic|live-verify|status|recover)
   recall            Read back prior knowledge (debt/retro/playbooks/prev-card/harness) before working
   unlock            Clear this project's concurrency lock (after a crashed/abandoned session)
   harness <args>    Passthrough to the durable layer CLI (intake/story/trace/decision/backlog/query)
@@ -3895,7 +4089,7 @@ usage: bash flow.sh <command> [args]
   doctor            Check the environment (bash/python/grep/git) across macOS/Linux/Windows
   eval [opts]       Behavioral eval: does the LLM semantic gate flag a hollow-but-mechanically-clean
                      fixture? Opt-in, BILLABLE (skips cleanly with zero calls if 'claude' CLI absent).
-                     [--stage 01|02|card|routing] [--fixture <id>] [--n 3] [--timeout <seconds>]
+                     [--stage 01|02|05|card|routing] [--fixture <id>] [--n 3] [--timeout <seconds>]
                      [--report]  offline: last complete batch's scorecard + drift, zero calls
                      --stage routing: SEPARATE judge (concierge routing, not gate-rules FLAG/PASS);
                      hard-capped at 90 calls/batch, own results stream, own --report
@@ -4054,6 +4248,17 @@ cmd="${1:-status}"
 shift 2>/dev/null || true
 FLOW_LOG_CMD="$cmd"
 FLOW_LOG_ARGS="$*"
+# Attestation privacy: never persist full argv (owner paths / potential secrets).
+if [ "$cmd" = "attest" ]; then
+  _att_sub="${1:-}"
+  _att_subj=""
+  case "$_att_sub" in
+    semantic|live-verify|status|recover) _att_subj="${2:-}" ;;
+  esac
+  # strip flag-like tokens from subject slot
+  case "$_att_subj" in --*) _att_subj="" ;; esac
+  FLOW_LOG_ARGS="${_att_sub}${_att_subj:+ ${_att_subj}}"
+fi
 FLOW_LOG_START="$(_now)"
 trap '_log_on_exit' EXIT
 case "$cmd" in
@@ -4071,7 +4276,8 @@ case "$cmd" in
   workspace)      cmd_workspace "$@" ;;
   loop-prep)      cmd_loop_prep "$@" ;;
   loop-log)       cmd_loop_log "$@" ;;
-  auto)           cmd_auto ;;
+  auto)           cmd_auto "$@" ;;
+  attest)         cmd_attest "$@" ;;
   recall)         cmd_recall ;;
   unlock)         cmd_unlock ;;
   retro)          cmd_retro ;;

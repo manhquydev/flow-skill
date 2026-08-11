@@ -34,20 +34,20 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Resolve target versions (rc + latest, deduped)
+      - name: Resolve target versions (next + latest, deduped)
         id: version
         run: |
-          # Smoke both `rc` and `latest` when they diverge so a stable regression cannot
+          # Smoke both `next` and `latest` when they diverge so a stable regression cannot
           # slip through undetected. Dedupe when they point at the same version. Single
           # explicit input override still wins if the operator specifies one.
           if [ -n "${{ inputs.version }}" ]; then
             versions="${{ inputs.version }}"
           else
-            rc="$(npm view @manhquy/flow-skill dist-tags.rc 2>/dev/null)"
+            next="$(npm view @manhquy/flow-skill dist-tags.next 2>/dev/null)"
             latest="$(npm view @manhquy/flow-skill dist-tags.latest 2>/dev/null)"
             versions=""
-            [ -n "$rc" ] && [ "$rc" != "undefined" ] && versions="$rc"
-            if [ -n "$latest" ] && [ "$latest" != "undefined" ] && [ "$latest" != "$rc" ]; then
+            [ -n "$next" ] && [ "$next" != "undefined" ] && versions="$next"
+            if [ -n "$latest" ] && [ "$latest" != "undefined" ] && [ "$latest" != "$next" ]; then
               versions="${versions:+$versions }$latest"
             fi
           fi

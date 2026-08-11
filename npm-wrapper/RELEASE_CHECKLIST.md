@@ -79,7 +79,7 @@ npm run sync
 node bin/cli.mjs --help | head -3
 
 # 2. Bump installer version only
-npm version prerelease --preid=rc    # RC channel
+npm version prerelease --preid=next    # RC channel
 # npm version patch|minor|major      # stable (drops -rc)
 # Ensure git tag is npm@X.Y.Z (workflow trigger shape), not vX.Y.Z:
 #   git tag npm@$(node -p "require('./package.json').version")
@@ -114,7 +114,7 @@ git push origin npm@<version>
 # Approve environment npm-publish when Actions prompts
 ```
 
-**Optional `workflow_dispatch`:** version must match `package.json`; `dist_tag=rc|latest`;
+**Optional `workflow_dispatch`:** version must match `package.json`; `dist_tag=next|latest`;
 `dry_run=true` for validation. **`promote_to` ≠ none exits immediately** with manual
 instructions — does not publish.
 
@@ -132,10 +132,10 @@ npm view @manhquy/flow-skill versions --json
 npm view @manhquy/flow-skill dist-tags --json
 
 # Use @rc or exact version — not bare name if latest lags
-npx --yes @manhquy/flow-skill@rc --help
+npx --yes @manhquy/flow-skill@next --help
 # expect: flow-skill v<new> (ships skill v<product>)
 
-npx --yes @manhquy/flow-skill@rc --yes --all --dry-run --json
+npx --yes @manhquy/flow-skill@next --yes --all --dry-run --json
 # expect skillVersion
 
 npm view @manhquy/flow-skill@<version> dist.attestations.provenance
@@ -145,14 +145,14 @@ cd /tmp   # Windows: empty dir under %TEMP%
 node /path/to/flow-skill/npm-wrapper/scripts/smoke.mjs <version>
 ```
 
-- [ ] Dual-version visible on the channel you ship (`@rc` and/or `@latest`)
-- [ ] Nightly will pick up new `rc`/`latest` on next cron (or dispatch Nightly manually)
+- [ ] Dual-version visible on the channel you ship (`@next` and/or `@latest`)
+- [ ] Nightly will pick up new `next`/`latest` on next cron (or dispatch Nightly manually)
 - [ ] If bare `npm view` / untagged install should use this version → **manual** `dist-tag add … latest`
 
 ## Promotion criterion (rc → stable v0.1.0)
 
 - [ ] RC window without critical installer bugs
-- [ ] External tester path exercised (`npx @manhquy/flow-skill@rc`)
+- [ ] External tester path exercised (`npx @manhquy/flow-skill@next`)
 - [ ] CI green including Windows bash-suite
 - [ ] `npm version` drops preid → tag `npm@0.1.0` → workflow `dist_tag=latest`
 - [ ] Update README to recommend stable pin / drop RC-only messaging

@@ -9,11 +9,11 @@ Ops detail and token hygiene live in [`npm-wrapper/RELEASE_CHECKLIST.md`](../npm
 |---|---|---|---|
 | **Skill product** | `skills/flow/SKILL.md` → `metadata.version` | Behavior change in flow runner/harness/refs | Content inside agent homes after install |
 | **Skill mirrors** | `.claude-plugin/plugin.json`, `portable-manifest.json` | Same as skill product | `/flow coherence` enforces agreement |
-| **npm installer** | `npm-wrapper/package.json` | Installer CLI, targets, sync, publish pipeline | `npx @manhquy/flow-skill@rc` or `@X.Y.Z` |
+| **npm installer** | `npm-wrapper/package.json` | Installer CLI, targets, sync, publish pipeline | `npx @manhquy/flow-skill@latest` or `@X.Y.Z` (prerelease: `@next`) |
 
 - CLI help prints both: `flow-skill v<pkg> (ships skill v<skill>)`.
 - JSONL `plan` event: `version` = npm package, `skillVersion` = skill product.
-- Git tags: **`npm@0.1.0-rc.N`** triggers npm publish; **`v0.22.0`** is skill product history / GitHub Release — **does not** publish npm.
+- Git tags: **`npm@0.1.0-next.N`** triggers npm publish; **`v0.22.0`** is skill product history / GitHub Release — **does not** publish npm.
 
 ## Pipelines (automation map)
 
@@ -25,10 +25,10 @@ skills/flow/**  ──sync──►  npm-wrapper/skills/flow  (prepack / CI Mate
        │
        └── git tag npm@X.Y.Z + push ──► publish-npm-wrapper.yml
                                          environment: npm-publish (required reviewer)
-                                         OIDC + npm publish --provenance --tag rc|latest
+                                         OIDC + npm publish --provenance --tag next|latest
                                          dist-tag ADD is NOT automated (manual token)
 
-Nightly (cron) ──► smoke.mjs vs dist-tags rc + latest (clean cwd, no npm-wrapper shadow)
+Nightly (cron) ──► smoke.mjs vs dist-tags next + latest (clean cwd, no npm-wrapper shadow)
 ```
 
 ### CI facts (measured)
@@ -44,7 +44,7 @@ Nightly (cron) ──► smoke.mjs vs dist-tags rc + latest (clean cwd, no npm-w
 
 ### Publish facts
 
-- Pre-release tag (`npm@0.1.0-rc.N`) → workflow dist-tag **`rc`** only.
+- Pre-release tag (`npm@0.1.0-next.N`) → workflow dist-tag **`next`** only.
 - Stable tag (`npm@0.1.0`) → dist-tag **`latest`**.
 - `promote_to` workflow input: **manual-only early exit** (prints `npm dist-tag add …`); OIDC cannot dist-tag (E401).
 - After every pre-release: decide whether `latest` should follow. If yes → manual promote (checklist).
@@ -65,7 +65,7 @@ bash scripts/release-preflight.sh
 | **Engine** | `flow.sh doctor` READY + harness path present |
 | **Memory** | Soft: `.flow/harness.db`, `.flow/events.jsonl` if dogfood exists |
 | **npm-wrapper** | `ships skill v…` on `--help` after sync |
-| **Registry** | Soft: compare local package.json vs dist-tag `rc` / `latest` lag |
+| **Registry** | Soft: compare local package.json vs dist-tag `next` / `latest` lag |
 
 `marketplace.json` → `metadata.version` is the **catalog** version, not skill product — do not force it equal to `0.22.x`.
 
@@ -93,7 +93,7 @@ bash scripts/release-preflight.sh
    - `git tag v0.24.0 && git push origin v0.24.0` + GitHub Release notes.
    - **Does not** publish npm.
 
-## npm installer release (e.g. 0.1.0-rc.4 or 0.1.0)
+## npm installer release (e.g. 0.1.0-next.N or 0.1.0)
 
 ### A. Pre-flight (local)
 
@@ -109,7 +109,7 @@ node bin/cli.mjs --help | head -3
 # expect: flow-skill vX.Y.Z (ships skill vA.B.C)
 
 # Bump installer only
-npm version prerelease --preid=rc   # or patch|minor|major for stable
+npm version prerelease --preid=next   # or patch|minor|major for stable
 # Ensure tag shape npm@* (workflow trigger). Prefer:
 git tag -d "v$(node -p "require('./package.json').version")" 2>/dev/null || true
 # If npm version created wrong tag name, delete and recreate:
@@ -127,7 +127,7 @@ Also:
 
 ```bash
 git push origin master
-git push origin npm@0.1.0-rc.4    # example
+git push origin npm@0.1.0-next.N    # example
 ```
 
 ### C. Approve environment
@@ -139,9 +139,9 @@ GitHub Actions → **Publish npm-wrapper to npm** → run for the tag → approv
 ```bash
 npm view @manhquy/flow-skill versions --json
 npm view @manhquy/flow-skill dist-tags --json
-# Pre-release: expect rc → new version; latest may lag
+# Pre-release: expect next → new version; latest may lag
 
-npx --yes @manhquy/flow-skill@rc --help
+npx --yes @manhquy/flow-skill@next --help
 # expect: flow-skill v<new> (ships skill v<product>)
 
 npx --yes @manhquy/flow-skill@<exact> --yes --all --dry-run --json
@@ -161,7 +161,7 @@ node /path/to/flow-skill/npm-wrapper/scripts/smoke.mjs <exact-version>
 
 | Situation | Action |
 |---|---|
-| Ship RC for testers | Keep `rc` only; document `@rc` in README |
+| Ship RC for testers | Keep `next` only; document `@next` in README |
 | Want bare `npm i` / untagged `npm view` on new RC | Manual: `npm dist-tag add @manhquy/flow-skill@VER latest` (token flow in RELEASE_CHECKLIST) |
 | Ship stable `0.1.0` | Tag without preid; workflow sets `latest` |
 
@@ -183,19 +183,19 @@ node /path/to/flow-skill/npm-wrapper/scripts/smoke.mjs <exact-version>
 | Re-add `NODE_AUTH_TOKEN must be empty` CI guard | Breaks setup-node OIDC (0% pass) |
 | Tag `v*` expecting npm publish | Wrong tag shape; need `npm@*` |
 
-## Quick reference — next RC
+## Quick reference — next prerelease
 
 ```bash
 # 1) skill content already on master, coherent
 # 2) installer
 cd npm-wrapper && npm run sync && npm test
-npm version prerelease --preid=rc
+npm version prerelease --preid=next
 # fix tag to npm@X.Y.Z-rc.N if needed
 # 3) docs bump CHANGELOG + README status
 git push origin master
 git push origin npm@$(node -p "require('./package.json').version")
 # 4) Approve npm-publish environment
-# 5) Post-publish verify @rc dual-version + provenance
+# 5) Post-publish verify @next dual-version + provenance
 # 6) Optional: promote latest via manual dist-tag
 ```
 
