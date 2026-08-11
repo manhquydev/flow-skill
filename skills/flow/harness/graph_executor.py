@@ -795,6 +795,132 @@ def _card_id(tok):
     return "C-%03d" % int(tok.split("-")[1])  # C-1 == C-001
 
 
+def _evidence_body_from_text(text):
+    """Extract ## Evidence section body (mirrors flow.sh _evidence_body)."""
+    lines, in_ev = [], False
+    for line in text.splitlines():
+        s = line.replace("\r", "")
+        if s.startswith("## Evidence"):
+            in_ev = True
+            continue
+        if in_ev and s.startswith("## "):
+            break
+        if in_ev and s.strip():
+            lines.append(s)
+    return "\n".join(lines)
+
+
+def _evidence_is_empty(ev):
+    if not ev or not ev.strip():
+        return True
+    low = ev.lower().strip()
+    if "(empty until done)" in low or low in ("---", "--"):
+        return True
+    return False
+
+
+_URL_HOST_RE = re.compile(r"https?://([^/\s]+)", re.IGNORECASE)
+_DENY_HOSTS = {
+    "example.com", "www.example.com", "example.org", "www.example.org",
+    "localhost", "127.0.0.1", "0.0.0.0", "[::1]", "invalid", "test", "example",
+}
+
+
+def _normalize_url_host(host):
+    """Lower, strip userinfo/port/trailing dots (mirrors flow.sh _evidence_url_host)."""
+    if not host:
+        return ""
+    h = host.lower()
+    if "@" in h:
+        h = h.rsplit("@", 1)[-1]
+    if h.startswith("["):
+        end = h.find("]")
+        if end != -1:
+            h = h[: end + 1]
+    else:
+        if h.count(":") == 1:
+            h = h.rsplit(":", 1)[0]
+    while h.endswith("."):
+        h = h[:-1]
+    return h
+
+
+def _url_host_ok(host):
+    if not host:
+        return False
+    h = _normalize_url_host(host)
+    if h in _DENY_HOSTS:
+        return False
+    for suf in (".invalid", ".test", ".example", ".localhost",
+                ".example.com", ".example.org"):
+        if h.endswith(suf) or h == suf.lstrip("."):
+            return False
+    return True
+
+
+def _evidence_signal_score(ev, root):
+    """Multi-signal score ≥2 required for done trust (mirrors flow.sh table v2)."""
+    if not ev:
+        return 0
+    score = 0
+    low = ev.lower()
+    # Strip URLs before C-token matching (https://ok.dev must not award C).
+    ev_c = re.sub(r"https?://\S+", "", low)
+    m = _URL_HOST_RE.search(ev)
+    if m and _url_host_ok(m.group(1)):
+        score += 1
+    if re.search(r"curl|(^|\s)\$\s|exit 0|exit code|->\s*200|http/[0-9]", low):
+        score += 1
+    if re.search(r"(^|[^a-z])(pass|passed|ok)([^a-z]|$)", ev_c):
+        score += 1
+    else:
+        # fence awards C only when body has positive tokens
+        fence = False
+        for line in ev.splitlines():
+            if line.strip().startswith("```"):
+                fence = not fence
+                continue
+            if fence and re.search(r"(^|[^a-z])(pass|passed|ok)([^a-z]|$)", line.lower()):
+                score += 1
+                break
+    for p in re.findall(r"[A-Za-z0-9_./-]+\.(?:png|jpg|jpeg|webp|gif|log|txt)", ev):
+        if p.startswith("/") or p.startswith("~"):
+            continue
+        if os.path.isfile(os.path.join(root, p)) or os.path.isfile(p):
+            score += 1
+            break
+    if re.search(r"rows?=[0-9]+|select\s+[a-z_*]|sqlite|inserted\s+[a-z0-9]", low):
+        score += 1
+    if re.search(r"~/\.claude/skills|~/\.codex/skills|~/\.agents/skills|skills/flow", ev):
+        score += 1
+    return score
+
+
+def _card_done_evidence_ok(path, root):
+    """status=done + multi-signal Evidence + no unchecked Verify + no [FILL]
+    (parity with flow.sh _card_done_evidence_ok / cmd_check done branch)."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError:
+        return False
+    status = ""
+    for line in text.splitlines():
+        if line.startswith("status:"):
+            status = line.split(":", 1)[1].strip().split()[0] if line.split(":", 1)[1].strip() else ""
+            break
+    if status != "done":
+        return False
+    if "[FILL" in text:
+        return False
+    if re.search(r"^\s*- \[ \]", text, re.M):
+        return False
+    ev = _evidence_body_from_text(text)
+    if _evidence_is_empty(ev):
+        return False
+    return _evidence_signal_score(ev, root) >= 2
+
+
 def _read_cards(cards_dir):
     """Parse the REAL card format (no YAML frontmatter): a `deps:` body line whose
     free text is scraped for C-NNN ids (mirrors flow.sh:1310-1319) and a
@@ -808,8 +934,9 @@ def _read_cards(cards_dir):
         if not m:
             continue
         cid = _card_id(m.group(1))
+        path = os.path.join(cards_dir, name)
         status, deps, files, in_allowed, fill = "", [], set(), False, False
-        with open(os.path.join(cards_dir, name), encoding="utf-8", errors="replace") as fh:
+        with open(path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
                 s = line.rstrip("\n")
                 if s.startswith("## Allowed files"):
@@ -837,7 +964,7 @@ def _read_cards(cards_dir):
         # A self-dep is kept (not silently dropped): cmd_ready blocks such a card, so the
         # compiler must too - dropping it would advertise an undispatchable card as ready.
         cards[cid] = {"id": cid, "status": status, "deps": sorted(set(deps)),
-                      "files": sorted(files), "fill": fill}
+                      "files": sorted(files), "fill": fill, "path": path}
     return cards
 
 
@@ -865,10 +992,11 @@ def _dep_cycles(cards):
 
 
 def compile_cards(root, active_files=()):
-    """Card DAG + ready-set. deps-met mirrors cmd_ready (status of each dep == done);
-    overlap serialization is NEW deliberate behavior (legacy `ready` only advises,
-    flow.sh:1302): cards sharing an allowed-file token, or overlapping a currently
-    active worktree's tokens, are held back so two agents never edit one file."""
+    """Card DAG + ready-set. deps-met mirrors cmd_ready: each dep is status=done AND
+    Evidence passes the multi-signal world-state floor (hollow hand-edit cannot unblock).
+    overlap serialization is NEW deliberate behavior (legacy `ready` only advises):
+    cards sharing an allowed-file token, or overlapping a currently active worktree's
+    tokens, are held back so two agents never edit one file."""
     cards = _read_cards(os.path.join(root, "cards"))
     cycles = _dep_cycles(cards)
     # Only `todo` is buildable - cmd_ready's exact semantics (an invalid/blank status is
@@ -877,7 +1005,13 @@ def compile_cards(root, active_files=()):
     in_cycle = {n for cyc in cycles for n in cyc}
     deps_met, blocked = [], {}
     for c in sorted(todo, key=lambda x: x["id"]):
-        missing = [d for d in c["deps"] if cards.get(d, {}).get("status") != "done"]
+        missing = []
+        for d in c["deps"]:
+            dep = cards.get(d, {})
+            if dep.get("status") != "done":
+                missing.append(d)
+            elif not _card_done_evidence_ok(dep.get("path") or "", root):
+                missing.append(d)
         if c["id"] in in_cycle:
             blocked[c["id"]] = {"reason": "dep cycle",
                                 "cycle": next("->".join(x) for x in cycles if c["id"] in x)}

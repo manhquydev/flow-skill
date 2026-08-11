@@ -43,7 +43,7 @@ rm -rf "$SB"
 
 echo "C) start refuses a done card; coexist with hand-edit + check"
 SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/cards"
-mkcard done "x" 'real proof here'
+mkcard done "x" '$ curl https://x/healthz -> 200 PASS healthcheck'
 bash "$RUN" card start C-001 >/dev/null 2>&1; ck 1 $? "card start on an already-done card -> exit 1"
 bash "$RUN" check C-001 >/dev/null 2>&1; ck 0 $? "hand-edited done card still passes '/flow check' (coexist, no regression)"
 rm -rf "$SB"
@@ -57,7 +57,9 @@ rm -rf "$SB"
 
 echo "E) card done on a status-less card refuses cleanly (no misleading revert message)"
 SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/cards"
-printf '# C-001 — no status line\ndeps: none\n## Scope\nx\n## Allowed files\nx\n## Verify\n- [x] x\n## Done-evidence\nu\n## Evidence\nreal proof\n' > "$SB/cards/C-001.md"
+printf '# C-001 — no status line\ndeps: none\n## Scope\nx\n## Allowed files\nx\n## Verify\n- [x] x\n## Done-evidence\nu\n## Evidence
+$ curl https://x/healthz -> 200 PASS healthcheck
+' > "$SB/cards/C-001.md"
 out="$(bash "$RUN" card done C-001 2>&1)"; ck 1 $? "card done on a card with no status: line -> exit 1"
 has "$out" "no 'status:' line" "refuses with a clear no-status message (not a fake revert)"
 no "$out" "REVERTED" "does not print a misleading REVERTED line"
@@ -73,7 +75,9 @@ if command -v python >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1; then
   # seed durable story (same as card create would) then check done
   FLOW_PROJECT_ROOT="$SB" "$PY" "$H" init >/dev/null
   FLOW_PROJECT_ROOT="$SB" "$PY" "$H" story add --id C-001 --title C-001 --lane normal >/dev/null
-  printf '# C-001 — scaffold\nstatus: done\ndeps: none\n## Scope\nx\n## Allowed files\nx\n## Verify\n- [x] curl 200\n## Done-evidence\nurl\n## Evidence\nreal curl proof\n' > "$SB/cards/C-001.md"
+  printf '# C-001 — scaffold\nstatus: done\ndeps: none\n## Scope\nx\n## Allowed files\nx\n## Verify\n- [x] curl 200\n## Done-evidence\nurl\n## Evidence
+$ curl https://x/healthz -> 200 PASS healthcheck
+' > "$SB/cards/C-001.md"
   bash "$RUN" check C-001 >/dev/null 2>&1; ck 0 $? "check done with harness ON -> exit 0"
   row="$("$PY" - "$SB/.flow/harness.db" <<'PY'
 import sqlite3,sys

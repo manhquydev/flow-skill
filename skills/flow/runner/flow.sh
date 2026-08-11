@@ -1171,8 +1171,17 @@ cmd_card_done() { # CLI-owned flip to done, gated by the SAME done-rules as '/fl
   if [ -z "$file" ] || [ ! -f "$file" ]; then echo "FAIL: card not found for '$arg' (looked for ${file:-?})"; return 1; fi
   local id orig; id="$(basename "$file" .md)"; FLOW_LOG_CARD="$id"; orig="$(card_status "$file")"
   if [ -z "$orig" ]; then echo "FAIL: $id has no 'status:' line — run '/flow check $id' to see what's missing."; return 1; fi
-  if ! _set_card_status "$file" done; then echo "FAIL: could not write status for $id"; return 1; fi
+  # On INT/TERM after flip-to-done: restore todo and abort (fail-closed). Never continue
+  # into durable complete after a partial restore.
+  # shellcheck disable=SC2064
+  trap '_set_card_status "'"$file"'" "todo" 2>/dev/null || true; trap - INT TERM; exit 130' INT TERM
+  if ! _set_card_status "$file" done; then
+    trap - INT TERM
+    echo "FAIL: could not write status for $id"
+    return 1
+  fi
   if cmd_check "$id"; then            # cmd_check enforces evidence/verify AND records the durable done-trace
+    trap - INT TERM
     _inflight_clear "$id"
     # card-verify-live: the done boundary is the EVIDENCE gate passing, not the merge
     # (merge != shipped) - dependents unblock on card status, matching cmd_ready.
@@ -1180,9 +1189,11 @@ cmd_card_done() { # CLI-owned flip to done, gated by the SAME done-rules as '/fl
     _graph_record "$id" card-verify-live --gate-exit 0 --card-status done
     return 0
   fi
-  _set_card_status "$file" "${orig:-todo}"   # NOT done — never leave a hollow 'done'
+  trap - INT TERM
+  # Always force todo on gate fail (even if orig was hollow done) — never leave hollow done.
+  _set_card_status "$file" todo
   echo
-  echo "REVERTED: $id left at status '${orig:-todo}' — the done-gate above must pass first."
+  echo "REVERTED: $id left at status 'todo' — the done-gate above must pass first."
   return 1
 }
 
@@ -1224,6 +1235,131 @@ cmd_card() {
   fi
   _harness_or_fail story add --id "$id" --title "$id" --lane normal   # durable tracking handle
   return 0
+}
+
+# ---- done-evidence world-state signal (hollow-done trust floor; plan 260811) ----
+# When status=done, ## Evidence must score ≥2 distinct categories (A–F). Process-only
+# prose (PR/CI/release notes) without that floor fails. Decoy multi-signal may still
+# pass mechanically — residual for offline semantic eval (fcdc). Pure bash, no python.
+
+_evidence_body() { # $1=card file → Evidence section body (non-empty lines)
+  awk '/^## Evidence/{f=1; next} f && /^## /{f=0} f{print}' "$1" | tr -d '\r' | sed '/^[[:space:]]*$/d'
+}
+
+_evidence_is_empty() { # $1=evidence body; return 0 if empty/placeholder
+  local ev="$1" ev_lc
+  [ -z "$ev" ] && return 0
+  ev_lc="$(printf '%s' "$ev" | tr '[:upper:]' '[:lower:]')"
+  case "$ev_lc" in *"(empty until done)"*|"---"|"--") return 0 ;; esac
+  return 1
+}
+
+# Host from first http(s) URL; empty if none. Normalize: lower, strip userinfo/port/trailing dots.
+_evidence_url_host() {
+  local ev="$1" u host
+  u="$(printf '%s\n' "$ev" | grep -oiE 'https?://[^[:space:]/]+' | head -1 | tr '[:upper:]' '[:lower:]')"
+  [ -z "$u" ] && return 0
+  host="${u#http://}"; host="${host#https://}"; host="${host%%/*}"
+  # userinfo@host
+  case "$host" in *@*) host="${host##*@}" ;; esac
+  # [ipv6] or [ipv6]:port
+  case "$host" in
+    \[*\])
+      host="$(printf '%s' "$host" | sed 's/^\(\[[^]]*\]\).*/\1/')"
+      ;;
+    *)
+      # hostname:port (single colon) — leave bare IPv6 alone (multiple colons)
+      case "$host" in
+        *:*)
+          # if exactly one colon, treat as port
+          case "${host#*:}" in *:*) : ;; *) host="${host%%:*}" ;; esac
+          ;;
+      esac
+      ;;
+  esac
+  # trailing dots
+  while [ "${host%.}" != "$host" ]; do host="${host%.}"; done
+  printf '%s' "$host"
+}
+
+_evidence_url_host_ok() { # $1=host; 0=counts for category A
+  local h="$1"
+  [ -z "$h" ] && return 1
+  h="$(printf '%s' "$h" | tr '[:upper:]' '[:lower:]')"
+  case "$h" in
+    example.com|www.example.com|example.org|www.example.org) return 1 ;;
+    *.example.com|*.example.org) return 1 ;;
+    localhost|127.0.0.1|0.0.0.0|'[::1]') return 1 ;; # need B/C — no A alone
+    *.invalid|*.test|*.example|*.localhost) return 1 ;;
+  esac
+  case "$h" in invalid|test|example) return 1 ;; esac
+  return 0
+}
+
+# Echo integer score 0..6 for distinct categories hit. $1=evidence $2=project root for path exists.
+_evidence_signal_score() {
+  local ev="$1" root="${2:-.}"
+  local score=0 ev_lc host ev_c
+  ev_lc="$(printf '%s' "$ev" | tr '[:upper:]' '[:lower:]')"
+  # Strip URLs before C-token matching so https://ok.dev/x does not award C.
+  ev_c="$(printf '%s' "$ev_lc" | sed -E 's|https?://[^[:space:]]+||g')"
+
+  # A: non-denylist URL
+  host="$(_evidence_url_host "$ev")"
+  if _evidence_url_host_ok "$host"; then score=$((score + 1)); fi
+
+  # B: command / curl / exit / HTTP status / line-leading $ prompt
+  if printf '%s' "$ev_lc" | grep -qE 'curl|(^|[[:space:]])\$[[:space:]]|exit 0|exit code|->[[:space:]]*200|http/[0-9]'; then
+    score=$((score + 1))
+  fi
+
+  # C: positive test-log tokens only (not fail/failed); never match inside stripped URLs
+  if printf '%s' "$ev_c" | grep -qE '([^a-z]|^)(pass|passed|ok)([^a-z]|$)'; then
+    score=$((score + 1))
+  elif printf '%s' "$ev" | awk '
+      /^[[:space:]]*```/ {fence=!fence; next}
+      fence {
+        low=tolower($0)
+        if (low ~ /(^|[^a-z])(pass|passed|ok)([^a-z]|$)/) { print "yes"; exit }
+      }
+    ' | grep -q yes; then
+    # fence awards C only when body contains positive tokens (not bare 2-line blob)
+    score=$((score + 1))
+  fi
+
+  # D: repo-relative media/log path that exists
+  local p
+  for p in $(printf '%s\n' "$ev" | grep -oE '[A-Za-z0-9_./-]+\.(png|jpg|jpeg|webp|gif|log|txt)' | head -20); do
+    case "$p" in /*|~*) continue ;; esac
+    if [ -f "$root/$p" ] || [ -f "$p" ]; then score=$((score + 1)); break; fi
+  done
+
+  # E: DB-ish row proof (no bare id=1; need rows=N / SELECT / sqlite / inserted <id>)
+  if printf '%s' "$ev_lc" | grep -qE 'rows?=[0-9]+|select[[:space:]]+[a-z_*]|sqlite|inserted[[:space:]]+[a-z0-9]'; then
+    score=$((score + 1))
+  fi
+
+  # F: skill install path
+  if printf '%s' "$ev" | grep -qE '~/.claude/skills|~/.codex/skills|~/.agents/skills|skills/flow'; then
+    score=$((score + 1))
+  fi
+
+  printf '%s' "$score"
+}
+
+# Done dep trust: status=done + multi-signal Evidence + no unchecked Verify + no [FILL].
+# Mirrors the done branch of cmd_check (ready/graph must not be weaker).
+_card_done_evidence_ok() { # $1=card file
+  local file="$1" st ev score root
+  st="$(card_status "$file")"
+  [ "$st" = "done" ] || return 1
+  if grep -q '\[FILL' "$file" 2>/dev/null; then return 1; fi
+  if grep -qE '^[[:space:]]*- \[ \]' "$file" 2>/dev/null; then return 1; fi
+  ev="$(_evidence_body "$file")"
+  if _evidence_is_empty "$ev"; then return 1; fi
+  root="${FLOW_PROJECT_ROOT:-$PWD}"
+  score="$(_evidence_signal_score "$ev" "$root")"
+  [ "$score" -ge 2 ]
 }
 
 cmd_check() {
@@ -1270,7 +1406,7 @@ cmd_check() {
     fi
   done
 
-  # 5) if done: all Verify boxes checked AND Evidence is real world-state
+  # 5) if done: all Verify boxes checked AND Evidence is real world-state (multi-signal floor)
   if [ "$st" = "done" ]; then
     local unchecked; unchecked="$(grep -nE '^[[:space:]]*- \[ \]' "$file" 2>/dev/null || true)"
     if [ -n "$unchecked" ]; then
@@ -1279,16 +1415,20 @@ cmd_check() {
       found=1
     fi
     # Evidence body: lines between the '## Evidence' header and the next '## ' heading (or EOF).
-    # Bounded awk avoids counting a stray later '## Evidence' as content. tr consumes all stdin
-    # (no SIGPIPE); case-glob instead of 'grep -q' which closes the pipe early.
-    local ev ev_lc empty_ev=0
-    ev="$(awk '/^## Evidence/{f=1; next} f && /^## /{f=0} f{print}' "$file" | tr -d '\r' | sed '/^[[:space:]]*$/d')"
-    ev_lc="$(printf '%s' "$ev" | tr '[:upper:]' '[:lower:]')"
-    [ -z "$ev" ] && empty_ev=1
-    case "$ev_lc" in *"(empty until done)"*|"---"|"--") empty_ev=1 ;; esac
+    local ev empty_ev=0 score=0
+    ev="$(_evidence_body "$file")"
+    if _evidence_is_empty "$ev"; then empty_ev=1; fi
     if [ "$empty_ev" -eq 1 ]; then
       echo "  [x] status is 'done' but ## Evidence is empty (paste world-state proof: URL/curl/DB row)"
       found=1
+    else
+      score="$(_evidence_signal_score "$ev" "${FLOW_PROJECT_ROOT:-$PWD}")"
+      if [ "$score" -lt 2 ]; then
+        echo "  [x] status is 'done' but ## Evidence has no world-state signal for type '$(get_project_type)' (score $score/2)"
+        echo "      (need ≥2 of: URL/curl-or-command/test-log/existing-path/DB-row/skill-path — not only PR/CI/process prose)"
+        echo "      hint: done means: $(done_def_for_type "$(get_project_type)")"
+        found=1
+      fi
     fi
   fi
 
@@ -1350,6 +1490,16 @@ cmd_project_type() {
   fi
   case "$arg" in
     web|cli|library|skill)
+      # After planning is complete AND an explicit type file exists, refuse silent
+      # type flips unless FLOW_FORCE=1 (D6). Default-web with no file is not "locked".
+      if planning_complete 2>/dev/null && [ -f "$PROJECT_TYPE_FILE" ]; then
+        local cur; cur="$(get_project_type)"
+        if [ -n "$cur" ] && [ "$cur" != "$arg" ] && [ "${FLOW_FORCE:-0}" != "1" ]; then
+          echo "FAIL: project type is locked to '$cur' after planning completes (would change done-evidence lens)."
+          echo "  re-set with FLOW_FORCE=1 if intentional, and record a DEBT.md line for the change."
+          return 1
+        fi
+      fi
       printf '%s\n' "$arg" > "$PROJECT_TYPE_FILE"; _ignore_run_state
       echo "PASS: project type set to '$arg'."
       echo "  done-evidence now means: $(done_def_for_type "$arg")"
@@ -1475,19 +1625,25 @@ cmd_ready() {
     [ "$st" = "todo" ] || continue
     deps="$(grep -m1 -E '^deps:' "$f" | sed 's/^deps:[[:space:]]*//' | tr -d '\r')"
     ok=1
-    # deps met if every referenced card is status done (normalize C-1 / C-001 to canonical path)
+    # deps met if every referenced card is status done AND Evidence passes world-state
+    # signal floor (hand-edit done without multi-signal cannot unblock dependents).
     for dep in $(printf '%s' "$deps" | grep -oiE 'C-[0-9]+' || true); do
       local depnum depfile
       depnum="${dep#C-}"; depnum="${depnum#c-}"
       case "$depnum" in (*[!0-9]*) continue;; esac
       depfile="$(printf '%s/C-%03d.md' "$CARDS_DIR" "$((10#$depnum))")"
-      if [ ! -f "$depfile" ] || [ "$(card_status "$depfile")" != "done" ]; then ok=0; fi
+      if [ ! -f "$depfile" ] || [ "$(card_status "$depfile")" != "done" ]; then
+        ok=0
+      elif ! _card_done_evidence_ok "$depfile"; then
+        ok=0
+        echo "  note: dep $(basename "$depfile" .md) is status=done but ## Evidence fails world-state signal (re-check or paste real proof)"
+      fi
     done
     if [ "$ok" -eq 1 ]; then
       echo "  BUILDABLE $id  (deps: ${deps:-none})"
       _card_allowed_files "$f" | sed 's/^/      allowed: /'
     else
-      echo "  blocked   $id  (deps not all done: ${deps:-none})"
+      echo "  blocked   $id  (deps unmet or evidence floor failed: ${deps:-none})"
     fi
   done
   return 0

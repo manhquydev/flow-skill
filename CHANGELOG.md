@@ -2,6 +2,30 @@
 
 All notable changes to the flow skill. Versions follow the `version:` field in
 
+## 0.26.0 — 2026-08-11 — hollow-done mechanical trust floor
+
+Mechanical multi-signal floor for card `## Evidence` when `status: done`, so process-only
+prose (PR approvals / CI green / release notes) cannot mark a card done or unblock
+dependents via hand-edit. Residual decoy multi-signal remains offline semantic (`fcdc`).
+
+- **World-state signal score ≥ 2** (categories URL / command-curl / positive test tokens /
+  existing path / DB rows / skill path) in `cmd_check` and `cmd_card_done`.
+- **`ready` + graph deps-met re-validate** done deps: Evidence multi-signal + no unchecked
+  Verify + no `[FILL]` (hand-edit hollow cannot unblock parallel/auto dependents).
+- **Host denylist** for category A (`example.com`, localhost, `*.invalid`, port-stripped).
+- **C-tokens** not matched inside URLs; `fail`/`failed` do not award C; fence needs positive
+  tokens.
+- **`card done` fail-closed**: INT/TERM restores `todo` + exit 130; gate fail always forces
+  `todo` (never hollow `done`).
+- **Project-type lock** after planning when a type file exists (`FLOW_FORCE=1` to flip).
+- **Eval fixtures**: `fcdb` process-only → mechanical FAIL; **`fcdc`** hollow-with-signal for
+  offline LLM FLAG; seven-fixture manifest; CI stays mechanical-only (no billable `eval`).
+- **Tests**: `test_flow_done_evidence.sh`, `test_flow_auto_done_path.sh`; full suite **48**
+  suites green. Docs: `ground-truth-gates.md`, `gate-eval.md` scorecard, `auto-run.md`.
+
+Plan: `plans/260811-1120-flow-hollow-done-trust-eval/`. Independent review report:
+`plans/reports/code-review-independent-260811-hollow-done-vi.md`.
+
 ## 0.25.0 — 2026-07-27 — graph executor (opt-in, default off)
 
 A graph executor lands in the durable layer, porting LangGraph **concepts** — not code —

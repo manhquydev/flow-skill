@@ -25,13 +25,31 @@ rule text is enforceable by *a* judge," not "this build's self-review caught eve
 
 ## Fixtures and thresholds
 
-Six shipped fixtures (`skills/flow/eval/fixtures/`, manifest `skills/flow/eval/manifest.tsv`):
+Seven shipped fixtures (`skills/flow/eval/fixtures/`, manifest `skills/flow/eval/manifest.tsv`):
 sound/hollow pairs for Stage 01 (Research — fabricated quotes, vague "users"), Stage 02 (Scope —
-grade laundering, a real C quietly graded B), and the card gate ("merge ≈ shipped" evidence).
+grade laundering, a real C quietly graded B), and the card gate:
+- **fcda** — sound multi-signal Evidence (mechanical PASS, semantic PASS)
+- **fcdb** — process-only hollow (mechanical **FAIL** after hollow-done floor; still listed for
+  historical FLAG text / offline inspection)
+- **fcdc** — hollow-with-decoy multi-signal (mechanical PASS, semantic **FLAG** — the residual
+  attack class the mechanical floor does not claim to close)
+
 Fixture content maps 1:1 to the failure modes already documented in `gate-rules.md`, not an
 invented taxonomy. The v1 input set is **manifest-listed shipped fixtures only** — `eval` never
 accepts a caller-supplied artifact path; widening that is a v2 change that reopens security
 review (an unvetted artifact reaching an LLM judge is a different trust boundary).
+
+### Scorecard policy (CI vs offline)
+
+| Suite | Where | Blocks merge? |
+|-------|-------|---------------|
+| Mechanical done-evidence + auto-path + ready re-validate | `tests/run_all.sh` / GHA | **Yes** |
+| Fixture structure / manifest paths | CI shell tests | **Yes** |
+| LLM semantic `flow.sh eval` batch | Operator offline (billable) | **No** by default |
+| Offline `eval --report` drift | Local | Advisory |
+
+CI-measurable process-only catch rate: process-only fixtures must exit 1 from `flow.sh check`.
+Billable LLM catch-rate is never a default CI gate (see `flow.sh` eval header).
 
 Per fixture, N=3 judge calls (`--n`), majority vote: **healthy = hollow fixtures flagged at
 ≥2/3 majority, sound fixtures passed at majority**. More than 1/3 of a fixture's runs coming
@@ -43,14 +61,14 @@ separately from a real mismatch — never silently counted as a gate pass or fai
 `eval` is **opt-in and billable** — it makes real `claude -p` API calls. Zero cost when the
 `claude` CLI isn't on `PATH` (clean skip, exit 0). When present, exactly one minimal probe call
 is made to confirm the CLI runs headless before any real judging starts; a probe failure means
-one billable call was made, then a clean skip. A full default batch is 6 fixtures × N=3 = 18
-judge calls + the 1 probe = 19 calls.
+one billable call was made, then a clean skip. A full default batch is 7 fixtures × N=3 = 21
+judge calls + the 1 probe = 22 calls.
 
 **Measured real cost** (this machine, 2026-07-10, default/unforced model, no `--bare` available
 under an OAuth/subscription session — see the build's spike notes): roughly **$0.30–0.37 per
 call**, driven almost entirely by this repo's large global `CLAUDE.md` + skill/agent/MCP
 declarations loading as system-prompt context on every call (~50–60K cache-creation tokens),
-not by the judging prompt itself. A full 19-call baseline batch is real money, order **$6–7**
+not by the judging prompt itself. A full 22-call baseline batch is real money, order **$6–7**
 on this setup — not the trivial "a token or two" a casual reader might assume from "opt-in".
 Forcing a cheaper model (`--model haiku` on the underlying CLI, not currently plumbed as a flow
 flag) cuts this roughly 5x, but changes what the eval measures (a cheaper, possibly weaker judge)
@@ -128,7 +146,7 @@ yet (the same "measure, don't assume" discipline that gated this build in the fi
   platform: a signal arriving while the runner is blocked on a foreground judge call was not
   observed to preempt that call promptly. Cleanup between fixtures/calls fires reliably; a
   normal (uninterrupted) run always cleans up its temp files immediately.
-- **Small fixture corpus (six)**: enough to prove the mechanism and give a real number, not
+- **Small fixture corpus (seven)**: enough to prove the mechanism and give a real number, not
   enough for statistical confidence across every stage/failure-mode combination. Widening the
   corpus is a natural v1.x follow-up, not a v1 blocker.
 
@@ -157,7 +175,7 @@ window; the mechanism was never confirmed at the time (rate-limit vs hook conten
    aborts the batch with a distinct nonzero exit code (2) and NO `done` trailer written — the
    junk batch is invisible to `--report`/drift, so it cannot poison the baseline. `--keep-going`
    forces the full batch; document worst case (≤ N_fixtures × n × 2 + 1 probe ≈ 37 calls at
-   default 6 × 3).
+   default 7 × 3).
 
 ### Rate-limit visibility (advisory, best-effort)
 

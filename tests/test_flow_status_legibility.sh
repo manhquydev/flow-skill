@@ -31,7 +31,7 @@ newsb() { SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/cards
 clean() { rm -rf "$SB" 2>/dev/null; unset FLOW_PROJECT_ROOT FLOW_SESSION_ID; }
 clean_stage() { printf '#%s\n## Gate\n- [x] ok\n\nreal content.\n' "$1" > "$SB/flow/$1.md"; }
 mkcard() { # $1 num $2 status
-  printf '# C-%03d — card\nstatus: %s\ndeps: none\n## Scope\none thing\n## Allowed files\ninfra/\n## Verify (run these before done)\n- [ ] curl 200\n## Done-evidence (world-state proof)\nurl\n## Evidence (paste actual proof when done)\n%s\n' "$1" "$2" "$([ "$2" = "done" ] && echo "real proof" || echo "(empty until done)")" > "$SB/cards/C-$(printf '%03d' "$1").md"
+  printf '# C-%03d — card\nstatus: %s\ndeps: none\n## Scope\none thing\n## Allowed files\ninfra/\n## Verify (run these before done)\n- [ ] curl 200\n## Done-evidence (world-state proof)\nurl\n## Evidence (paste actual proof when done)\n%s\n' "$1" "$2" "$([ "$2" = "done" ] && echo "$ curl https://x/healthz -> 200 PASS healthcheck" || echo "(empty until done)")" > "$SB/cards/C-$(printf '%03d' "$1").md"
 }
 
 echo "A) NEXT-> is the first content line after the header block, and singular"

@@ -1,11 +1,26 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **skill v0.25.0** (2026-07-27), **npm-wrapper v0.2.0 GA** LIVE on `latest` (bare `npx @manhquy/flow-skill`).
+Updated as the skill evolves. Current: **skill v0.26.0** (2026-08-11), **npm-wrapper v0.3.0 GA** LIVE on `latest` (`npx @manhquy/flow-skill@latest`).
 
 Release process for future bumps: [`docs/release-process.md`](release-process.md).
 
-## npm-wrapper v0.2.0 + skill v0.25.0 — graph executor, opt-in and default off (2026-07-27, LIVE on `latest`)
+## npm-wrapper v0.3.0 + skill v0.26.0 — hollow-done mechanical trust floor (2026-08-11, LIVE on `latest`)
+
+Mechanical multi-signal Evidence floor for `status: done`, ready/graph re-validate (Evidence +
+Verify + no FILL), fail-closed `card done`, project-type lock when typed, eval `fcdc` residual
+class. Process-only hollow fails mechanically; decoy multi-signal stays offline semantic.
+
+| Metric | Value | Notes |
+|---|---|---|
+| **npm package** | 0.3.0 | `latest` dist-tag; install with `npx @manhquy/flow-skill@latest` |
+| **Skill product in tarball** | 0.26.0 | SKILL.md metadata; plan JSONL `skillVersion` |
+| **Skill tests** | 48 suites green, ~1210 checks | full `tests/run_all.sh` (~3 min local) |
+| **Installer tests** | node:test suite | dual-version pins package.json + SKILL.md |
+| **dist-tags** | `latest`→0.3.0 | `@rc` retired; use `@latest` |
+| **Plan / review** | hollow-done trust eval | `plans/260811-1120-…` + independent review report |
+
+## npm-wrapper v0.2.0 + skill v0.25.0 — graph executor, opt-in and default off (2026-07-27, was LIVE on `latest`)
 
 Ports LangGraph concepts (checkpoint journal, resume-by-evidence, gate-as-interrupt) into the
 python harness — schema band 014+, `flow harness graph …`, topology-as-trusted-data with a

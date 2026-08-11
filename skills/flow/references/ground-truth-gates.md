@@ -14,6 +14,8 @@ and used only to add color, never to pass a gate.
 | Story proof | `flow.sh harness story verify <id>` -> `verify_command` exit 0 | "I wrote tests" |
 | Build merged-safe | review green (adversarial) + `flow.sh check` pass | "the diff is small" |
 | Card DONE | deploy ran + **live URL verified as a user** (world-state evidence pasted) | "merged" / "deploy succeeded" / "tests pass" |
+| Card DONE (mechanical floor) | `flow.sh check` / `card done`: `## Evidence` multi-signal score ≥2 (URL + curl/command/test-log/path/DB/skill categories; denylist example.com etc.) | process-only prose (PR approvals, CI green, release notes alone); empty/placeholder |
+| Dep ready / parallel | `ready` + graph deps-met: dep `status=done` **and** same Evidence multi-signal floor | hand-edit `status: done` with hollow Evidence |
 | Contract not drifted | contract-test card asserts every endpoint exists in live `/openapi.json` with matching shape | "backend and UI agree" (they don't, silently) |
 
 ## Rules
@@ -26,6 +28,15 @@ and used only to add color, never to pass a gate.
 4. **A red signal stops the run.** No "probably fine" override. Fix or open debt.
 5. **Capture the proof.** Paste the real curl/URL/exit into the card `## Evidence` and the
    harness `trace` — so the next session sees ground truth, not a claim.
+6. **Mechanical multi-signal is a floor, not a ceiling.** A decoy URL + genuine positive
+   tokens (e.g. staging host + `PASS` log) can still score ≥2; that residual is for the
+   **offline semantic** layer (`flow.sh eval` / fcdc), never claimed closed by regex alone.
+   C-tokens are **not** matched inside URLs; `fail`/`failed` do not award C; denylist hosts
+   ignore `:port` spoofing. Durable `card_markdown_gate` only records that the markdown floor
+   passed — it is not stronger than that floor.
+7. **Hand-edit `status: done` is not trusted for deps** until Evidence **and** Verify boxes
+   pass the same floor (`ready` re-validates Evidence + unchecked Verify + `[FILL]`; graph
+   executor mirrors).
 
 ## Bug-fix cards: prove the test was tied to the bug
 When a card's job is fixing a bug/regression (not new behavior), a passing test is not yet

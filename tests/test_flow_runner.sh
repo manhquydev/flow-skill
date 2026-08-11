@@ -38,8 +38,21 @@ rm -rf "$SB"
 
 echo "D) done-card gates: empty/--- evidence + unchecked verify fail; real evidence passes"
 SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/cards"
-mkcard() { # $1 status $2 verifybox $3 evidence
-  printf '# C-001 — scaffold\nstatus: %s\ndeps: none\n## Scope\none thing\n## Allowed files\ninfra/\n## Verify (run these before calling the card done)\n- [%s] curl 200\n## Done-evidence (world-state proof)\nurl\n## Evidence (paste the actual proof here when done)\n%s\n' "$1" "$2" "$3" > "$SB/cards/C-001.md"
+mkcard() { # $1 status  $2 verifybox  $3 evidence
+  printf '# C-001 — scaffold
+status: %s
+deps: none
+## Scope
+one thing
+## Allowed files
+infra/
+## Verify (run these before calling the card done)
+- [%s] curl 200
+## Done-evidence (world-state proof)
+url
+## Evidence (paste the actual proof here when done)
+%s
+' "$1" "$2" "$3" > "$SB/cards/C-001.md"
 }
 mkcard done " " "(empty until done)"; bash "$RUN" check C-001 >/dev/null 2>&1; ck 1 $? "done + empty evidence + unchecked verify fails"
 mkcard done "x" "---"; bash "$RUN" check C-001 >/dev/null 2>&1; ck 1 $? "done + '---' evidence fails"
@@ -51,7 +64,7 @@ echo "E) full happy E2E + ready resolves short dep id"
 SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/flow" "$SB/cards"
 for s in 00-idea 01-research 02-scope 03-prd 04-adr 05-contract; do stage_clean "$s" "$SB/flow/$s.md"; done
 bash "$RUN" card >/dev/null; ck 0 $? "card after planning complete"
-printf '# C-001 — base\nstatus: done\ndeps: none\n## Scope\na\n## Allowed files\na.py\n## Verify\n- [x] x\n## Done-evidence\nu\n## Evidence\nreal proof\n' > "$SB/cards/C-001.md"
+printf '# C-001 — base\nstatus: done\ndeps: none\n## Scope\na\n## Allowed files\na.py\n## Verify\n- [x] x\n## Done-evidence\nu\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' > "$SB/cards/C-001.md"
 printf '# C-002 — next\nstatus: todo\ndeps: C-1\n## Scope\nb\n## Allowed files\nb.py\n## Verify\n- [ ] y\n## Done-evidence\nu\n## Evidence\n(empty until done)\n' > "$SB/cards/C-002.md"
 has "$(bash "$RUN" ready)" "BUILDABLE C-002" "short dep id C-1 resolves to done C-001"
 rm -rf "$SB"

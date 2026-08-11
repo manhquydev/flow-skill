@@ -22,7 +22,7 @@ git init -q .
 mkdir -p flow cards
 for s in 00-idea 01-research 02-scope 03-prd 04-adr 05-contract; do printf '# %s\nok\n' "$s" > "flow/$s.md"; done
 card() { # id status deps files
-  printf '# %s — t\nstatus: %s\ndeps: %s\nimplements: FR1\n## Scope\nx\n## Allowed files\n%s\n## Verify\n- [x] v\n## Done-evidence\nu\n## Evidence\nreal\n' \
+  printf '# %s — t\nstatus: %s\ndeps: %s\nimplements: FR1\n## Scope\nx\n## Allowed files\n%s\n## Verify\n- [x] v\n## Done-evidence\nu\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' \
     "$1" "$2" "$3" "$4" > "cards/$1.md"
 }
 card C-001 done none "src/a.ts"

@@ -27,7 +27,7 @@ rm -rf "$SB"
 echo "Round 3 - end-to-end: card built to done with durable wiring"
 SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/flow"; clean6 "$SB"
 bash "$RUN" card >/dev/null; ck 0 $? "card created after planning"
-printf '# C-001 - x\nstatus: done\ndeps: none\n## Scope\na\n## Allowed files\na.py\n## Verify\n- [x] curl 200\n## Done-evidence\nurl\n## Evidence\n$ curl ... 200 ok\n' > "$SB/cards/C-001.md"
+printf '# C-001 - x\nstatus: done\ndeps: none\n## Scope\na\n## Allowed files\na.py\n## Verify\n- [x] curl 200\n## Done-evidence\nurl\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' > "$SB/cards/C-001.md"
 bash "$RUN" check C-001 >/dev/null; ck 0 $? "done card with real evidence passes"
 rm -rf "$SB"
 

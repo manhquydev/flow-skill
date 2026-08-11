@@ -27,7 +27,7 @@ echo "B) soft: check-done durable fail still exits 0 with warn (missing story id
 SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/cards"
 unset FLOW_HARNESS_DISABLE
 unset FLOW_HARNESS_STRICT
-printf '# C-001\nstatus: done\ndeps: none\n## Scope\nx\n## Allowed files\nx\n## Verify\n- [x] x\n## Done-evidence\nu\n## Evidence\nproof here\n' > "$SB/cards/C-001.md"
+printf '# C-001\nstatus: done\ndeps: none\n## Scope\nx\n## Allowed files\nx\n## Verify\n- [x] x\n## Done-evidence\nu\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' > "$SB/cards/C-001.md"
 # init empty harness so complete fails not-found
 FLOW_PROJECT_ROOT="$SB" "$PY" "$H" init >/dev/null
 errf="$(mktemp)"
@@ -41,7 +41,7 @@ echo "C) STRICT=fail: check-done fails when durable complete fails"
 SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/cards"
 unset FLOW_HARNESS_DISABLE
 export FLOW_HARNESS_STRICT=fail
-printf '# C-001\nstatus: done\ndeps: none\n## Scope\nx\n## Allowed files\nx\n## Verify\n- [x] x\n## Done-evidence\nu\n## Evidence\nproof here\n' > "$SB/cards/C-001.md"
+printf '# C-001\nstatus: done\ndeps: none\n## Scope\nx\n## Allowed files\nx\n## Verify\n- [x] x\n## Done-evidence\nu\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' > "$SB/cards/C-001.md"
 FLOW_PROJECT_ROOT="$SB" "$PY" "$H" init >/dev/null
 rc=0
 out="$(bash "$RUN" check C-001 2>&1)" || rc=$?
@@ -54,7 +54,7 @@ echo "D) STRICT=1: loud fail message, soft exit when story present succeeds quie
 SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/cards"
 unset FLOW_HARNESS_DISABLE
 export FLOW_HARNESS_STRICT=1
-printf '# C-001\nstatus: done\ndeps: none\n## Scope\nx\n## Allowed files\nx\n## Verify\n- [x] x\n## Done-evidence\nu\n## Evidence\nproof here\n' > "$SB/cards/C-001.md"
+printf '# C-001\nstatus: done\ndeps: none\n## Scope\nx\n## Allowed files\nx\n## Verify\n- [x] x\n## Done-evidence\nu\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' > "$SB/cards/C-001.md"
 FLOW_PROJECT_ROOT="$SB" "$PY" "$H" init >/dev/null
 FLOW_PROJECT_ROOT="$SB" "$PY" "$H" story add --id C-001 --title C-001 --lane normal >/dev/null
 rc=0

@@ -2,6 +2,16 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.3.0] — 2026-08-11 — ships skill v0.26.0 (hollow-done trust floor)
+
+Skill-content release; **installer code unchanged** vs 0.2.1. Ships skill product **v0.26.0**
+(mechanical multi-signal done Evidence floor, ready/graph re-validate, fcdc residual fixture;
+see root `CHANGELOG.md` `## 0.26.0`). Publishes to dist-tag **`latest`**.
+
+### Changed
+- Bundled skill tree re-synced from monorepo `skills/flow/` (48 test suites green at ship).
+- Install command remains **`npx @manhquy/flow-skill@latest`**.
+
 ## [0.2.1] — 2026-08-01 — docs sync (`@latest` canonical, `rc` retired)
 
 Docs-only installer release. **No CLI, detection, lock, or target change** vs 0.2.0 — same

@@ -26,7 +26,7 @@ SB="$(mktemp -d)"; cd "$SB" || exit 1
 git init -q .; git -c user.email=t@t -c user.name=t commit -qm base --allow-empty
 mkdir -p flow cards
 for s in 00-idea 01-research 02-scope 03-prd 04-adr 05-contract; do printf '# %s\nok\n' "$s" > "flow/$s.md"; done
-card() { printf '# %s — t\nstatus: %s\ndeps: %s\nimplements: FR1\n## Scope\nx\n## Allowed files\n%s\n## Verify\n- [x] v\n## Done-evidence\nu\n## Evidence\n%s\n' "$1" "$2" "$3" "$4" "${5:-real}" > "cards/$1.md"; }
+card() { printf '# %s — t\nstatus: %s\ndeps: %s\nimplements: FR1\n## Scope\nx\n## Allowed files\n%s\n## Verify\n- [x] v\n## Done-evidence\nu\n## Evidence\n%s\n' "$1" "$2" "$3" "$4" "${5:-$ curl https://x/healthz -> 200 PASS healthcheck}" > "cards/$1.md"; }
 card C-001 todo none "src/a.ts"
 card C-002 todo none "src/b.ts"
 card C-003 todo "C-001" "src/c.ts"
@@ -77,7 +77,7 @@ CN="$(q "$DB" "SELECT COUNT(*) FROM graph_checkpoint WHERE ns IN ('card:C-002','
 [ "$CN" -ge 4 ]; ck 0 $? "concurrent worktree records all landed in the shared DB ($CN)"
 
 echo "D) card-done revert removes dependents from the ready set"
-card C-001 done none "src/a.ts" "https://live.example/ok"
+card C-001 done none "src/a.ts" '$ curl https://x/healthz -> 200 PASS healthcheck'
 R1="$(FLOW_PROJECT_ROOT="$SB" "$PY" "$H" graph cards)"
 has "$R1" '"ready": \["C-002", "C-003"\]' "C-003 becomes ready once its dep C-001 is done"
 card C-001 todo none "src/a.ts" "(empty until done)"
@@ -183,7 +183,7 @@ RC="$(mktemp -d)"; git init -q "$RC/m"
 ( cd "$RC/m" && git -c user.email=t@t -c user.name=t commit -qm b --allow-empty ) >/dev/null 2>&1
 mkdir -p "$RC/m/flow" "$RC/m/cards"
 for s in 00-idea 01-research 02-scope 03-prd 04-adr 05-contract; do printf '# %s\nok\n' "$s" > "$RC/m/flow/$s.md"; done
-printf '# C-001 — t\nstatus: todo\ndeps: none\n## Scope\nx\n## Allowed files\nsrc/a.ts\n## Verify\n- [x] v\n## Done-evidence\nu\n## Evidence\nreal\n' > "$RC/m/cards/C-001.md"
+printf '# C-001 — t\nstatus: todo\ndeps: none\n## Scope\nx\n## Allowed files\nsrc/a.ts\n## Verify\n- [x] v\n## Done-evidence\nu\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' > "$RC/m/cards/C-001.md"
 ( cd "$RC/m" && git add -A && git -c user.email=t@t -c user.name=t commit -qm cards ) >/dev/null 2>&1
 ( cd "$RC/m" && git worktree add -q "$RC/w1" -b p1 && git worktree add -q "$RC/w2" -b p2 ) >/dev/null 2>&1
 ( cd "$RC/m"  && FLOW_GRAPH_EXECUTOR=1 bash "$RUN" check C-001 >/dev/null 2>&1 ) &
@@ -247,7 +247,7 @@ PB="$(mktemp -d)"; ( cd "$PB" && git init -q . \
   && git -c user.email=t@t -c user.name=t commit -qm b --allow-empty ) >/dev/null 2>&1
 mkdir -p "$PB/flow" "$PB/cards"
 for s0 in 00-idea 01-research 02-scope 03-prd 04-adr 05-contract; do printf '# %s\nok\n' "$s0" > "$PB/flow/$s0.md"; done
-printf '# C-001 — t\nstatus: todo\ndeps: none\n## Scope\nx\n## Allowed files\nsrc/a.ts\n## Verify\n- [x] v\n## Done-evidence\nu\n## Evidence\nreal\n' > "$PB/cards/C-001.md"
+printf '# C-001 — t\nstatus: todo\ndeps: none\n## Scope\nx\n## Allowed files\nsrc/a.ts\n## Verify\n- [x] v\n## Done-evidence\nu\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' > "$PB/cards/C-001.md"
 ( cd "$PB" && git add -A && git -c user.email=t@t -c user.name=t commit -qm c ) >/dev/null 2>&1
 ( cd "$PB" && FLOW_GRAPH_EXECUTOR=1 bash "$RUN" workspace add card/C-001 --card C-001 ) >/dev/null 2>&1
 ( cd "$PB" && FLOW_GRAPH_EXECUTOR=1 bash "$RUN" check C-001 ) >/dev/null 2>&1

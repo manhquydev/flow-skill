@@ -3,7 +3,7 @@
 *Read this in [English](README.md).*
 
 [![npm](https://img.shields.io/npm/v/@manhquy/flow-skill?label=npm&color=cb3837)](https://www.npmjs.com/package/@manhquy/flow-skill)
-[![tests](https://img.shields.io/badge/tests-46%20suites%20%2F%201188%20checks-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-48%20suites%20%2F%201210%20checks-brightgreen)](tests/)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions%20%C2%B7%203%20OS-blue)](.github/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -44,9 +44,9 @@ chen ngang một lệnh `/flow <verb>` tường minh. Xem đầy đủ luật đ
 
 | Trường | Giá trị |
 |---|---|
-| Phiên bản | **v0.25.0** (2026-07-27) |
-| npm package | [`@manhquy/flow-skill@0.2.1`](https://www.npmjs.com/package/@manhquy/flow-skill) — GA trên **`latest`**; cài bằng **`npx @manhquy/flow-skill@latest`** (`npm i` **không** cài skill) |
-| Test | 46 bộ xanh (full `run_all.sh`) |
+| Phiên bản | **v0.26.0** (2026-08-11) |
+| npm package | [`@manhquy/flow-skill@0.3.0`](https://www.npmjs.com/package/@manhquy/flow-skill) — GA trên **`latest`**; cài bằng **`npx @manhquy/flow-skill@latest`** (`npm i` **không** cài skill) |
+| Test | 48 bộ xanh (full `run_all.sh`) |
 | CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines chuyển thành fallback dự phòng) |
 | License | MIT |
 
@@ -165,7 +165,7 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 **A. npm — một lệnh, cross-OS** (khuyến nghị, đã LIVE trên [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
 ```bash
-npx @manhquy/flow-skill@latest            # bản GA mới nhất — hiện tại: 0.2.1 (ships skill v0.25.0)
+npx @manhquy/flow-skill@latest            # bản GA mới nhất — hiện tại: 0.3.0 (ships skill v0.26.0)
 ```
 
 > **Luôn dùng `@latest`.** npx cache theo tên trần, nên `npx @manhquy/flow-skill` (không đuôi)
@@ -173,12 +173,12 @@ npx @manhquy/flow-skill@latest            # bản GA mới nhất — hiện t�
 
 > **Hai số version (không phải bug):** package npm = `0.2.x` (installer CLI); skill
 > product = `v0.25.x` (`SKILL.md`). `npx … --help` in cả hai, ví dụ
-> `flow-skill v0.2.1 (ships skill v0.25.0)`. **Không** `npm i @…@0.25.0` — version đó
+> `flow-skill v0.3.0 (ships skill v0.26.0)`. **Không** `npm i @…@0.25.0` — version đó
 > không tồn tại trên npm. `npm i @manhquy/flow-skill` chỉ bỏ CLI vào `node_modules`; phải
 > **chạy** CLI (`npx @manhquy/flow-skill@latest`) mới copy skill vào `~/.claude/skills/flow`.
 >
 > **Cách ship lên npm:** `git tag npm@X.Y.Z && git push origin npm@X.Y.Z` → Actions
-> `publish-npm-wrapper.yml` (OIDC + provenance). Tag skill (`v0.25.0`) **không** auto-publish npm.
+> `publish-npm-wrapper.yml` (OIDC + provenance). Tag skill (`v0.26.0`) **không** auto-publish npm.
 
 Pure Node (>= 22.14.0), tương tác multi-select 5 target (Claude Code, Codex CLI, Agents home —
 cũng là thư mục Agent-Skills chung mà các tool tuân chuẩn khác như Cursor đọc — Antigravity

@@ -10,37 +10,36 @@ Trình cài đặt một-lệnh sao chép skill [flow](https://github.com/manhqu
 ## Cài đặt
 
 ```
-# Stable (latest) — hiện tại: v0.1.0, ships skill v0.24.0
-npx @manhquy/flow-skill
-
-# Kênh pre-release (tùy chọn)
-npx @manhquy/flow-skill@rc
+# Newest GA — hiện tại: v0.3.0, ships skill v0.26.0
+npx @manhquy/flow-skill@latest
 ```
 
 Prompt tương tác hỏi cài vào agent nào. Chọn một hoặc nhiều, xác nhận, xong.
 
-> **Stable ở `latest`**: bare `npx @manhquy/flow-skill` (hoặc `@0.1.x`) lấy bản GA. Pin `@rc` nếu muốn kênh pre-release. Xem [SECURITY.md](./SECURITY.md).
+> **Luôn dùng `@latest`.** npx cache theo bare name nên `npx @manhquy/flow-skill` có thể chạy
+> bản cache cũ; `@latest` ép lấy GA mới nhất. Kênh `rc` đã retire — không dùng `@rc`.
 >
-> **`npm i` alone chưa đủ** — phải **chạy** CLI (`npx @manhquy/flow-skill`). Hai trục version: package npm vs skill product (`ships skill v…` / `skillVersion` trong JSONL).
+> **`npm i` alone chưa đủ** — phải **chạy** CLI. Hai trục version: package npm vs skill product
+> (`ships skill v…` / `skillVersion` trong JSONL). Xem [SECURITY.md](./SECURITY.md).
 
 ## Non-interactive
 
 ```
 # Chọn mặc định (Claude + những agent detect được)
-npx @manhquy/flow-skill@rc --yes
+npx @manhquy/flow-skill@latest --yes
 
 # Target rõ ràng
-npx @manhquy/flow-skill@rc --yes -t claude -t codex
-npx @manhquy/flow-skill@rc --yes -t claude,codex           # Dạng comma OK
+npx @manhquy/flow-skill@latest --yes -t claude -t codex
+npx @manhquy/flow-skill@latest --yes -t claude,codex           # Dạng comma OK
 
 # Ép cài cả 5 target dù không detect
-npx @manhquy/flow-skill@rc --yes --all
+npx @manhquy/flow-skill@latest --yes --all
 
 # Project scope (chỉ Claude — xem bên dưới)
-npx @manhquy/flow-skill@rc --yes --project --dir .
+npx @manhquy/flow-skill@latest --yes --project --dir .
 
 # JSONL cho CI
-npx @manhquy/flow-skill@rc --yes --all --dry-run --json
+npx @manhquy/flow-skill@latest --yes --all --dry-run --json
 ```
 
 ## Targets

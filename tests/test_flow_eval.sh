@@ -44,7 +44,8 @@ for pair in "f01a:flow/01-research.md" "f01b:flow/01-research.md" "f02a:flow/02-
   rc=$(bash -c "export FLOW_LOG_DISABLE=1; source '$RUN' status >/dev/null 2>&1; scan_gate '$f' >/dev/null 2>&1; echo \$?")
   ck 0 "$rc" "$fid mechanically passes scan_gate"
 done
-for fid in fcda fcdb; do
+# fcda multi-signal PASS; fcdb process-only FAIL; fcdc decoy multi-signal PASS (LLM FLAG corpus)
+for fid in fcda fcdc; do
   CB="$(mktemp -d)"
   cp -r "$EVAL_DIR/fixtures/$fid/." "$CB/"
   out="$(FLOW_PROJECT_ROOT="$CB" FLOW_LOG_DISABLE=1 bash "$RUN" check C-001 2>&1)"; rc=$?
@@ -52,6 +53,11 @@ for fid in fcda fcdb; do
   no "$out" "note: using flow root" "$fid check has no ancestor-adoption note"
   rm -rf "$CB"
 done
+CB="$(mktemp -d)"
+cp -r "$EVAL_DIR/fixtures/fcdb/." "$CB/"
+out="$(FLOW_PROJECT_ROOT="$CB" FLOW_LOG_DISABLE=1 bash "$RUN" check C-001 2>&1)"; rc=$?
+ck 1 "$rc" "fcdb process-only hollow fails mechanical check"
+rm -rf "$CB"
 
 # ---------- B) skip path: claude absent from PATH ----------
 echo "B) claude absent -> skip, exit 0, zero calls"
@@ -135,8 +141,8 @@ nonce_line=\"\$(printf '%s' \"\$prompt\" | grep -oE 'GATE-EVAL-[A-Za-z0-9-]+: FL
 marker=\"\${nonce_line% FLAG}\"
 if [ \"\$n\" -le 2 ]; then printf '%s FLAG\n' \"\$marker\"; else printf '%s PASS\n' \"\$marker\"; fi
 "
-out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcdb --n 3 --timeout 20 2>&1)"; rc=$?
-ck 0 "$rc" "2 FLAG + 1 PASS majority-votes FLAG, matches expected FLAG for fcdb (hollow fixture)"
+out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcdc --n 3 --timeout 20 2>&1)"; rc=$?
+ck 0 "$rc" "2 FLAG + 1 PASS majority-votes FLAG, matches expected FLAG for fcdc (hollow-with-signal fixture)"
 has "$out" "flag=2 pass=1" "vote tally shown correctly (flag=2 pass=1)"
 clean
 
@@ -234,12 +240,12 @@ batch_out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --n 3 --timeout 20 2>&1)"
 # this mock always returns PASS regardless of fixture, so the 3 FLAG-expected fixtures
 # correctly mismatch - assert all 6 were genuinely evaluated (not silently skipped), not that
 # they all matched.
-has "$batch_out" "of 6 evaluated" "the full 6-fixture batch actually completed (not a silent skip)"
+has "$batch_out" "of 7 evaluated" "the full 7-fixture batch actually completed (not a silent skip)"
 after_count=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -type d 2>/dev/null | wc -l)
 # Allow +/-1 ambient noise from other processes on the system - the real regression this test
 # guards is "N rundirs leak per batch", which would show +6 or more, not +/-1.
 delta=$((after_count - before_count)); [ "$delta" -lt 0 ] && delta=$((-delta))
-if [ "$delta" -le 1 ]; then echo "  ok   [TMPDIR delta=$delta after a full 6-fixture batch (no rundir residue - allowing +/-1 ambient noise)]"; pass=$((pass+1)); else echo "  FAIL [TMPDIR delta=$delta after a full 6-fixture batch - rundir cleanup regression]"; fail=$((fail+1)); fi
+if [ "$delta" -le 1 ]; then echo "  ok   [TMPDIR delta=$delta after a full 7-fixture batch (no rundir residue - allowing +/-1 ambient noise)]"; pass=$((pass+1)); else echo "  FAIL [TMPDIR delta=$delta after a full 7-fixture batch - rundir cleanup regression]"; fail=$((fail+1)); fi
 clean
 
 # ---------- L) results/report cases ----------
@@ -320,14 +326,14 @@ unset FLOW_EVAL_RETRY_BACKOFF
 clean
 
 # ---------- P) v0.21: --keep-going overrides the first-fixture breaker ----------
-echo "P) v0.21 --keep-going: all-invalid mock runs the full 6-fixture batch instead of aborting"
+echo "P) v0.21 --keep-going: all-invalid mock runs the full 7-fixture batch instead of aborting"
 newsb
 export FLOW_EVAL_RETRY_BACKOFF=0
 mkmock '
 echo "nothing parseable"
 '
 out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --n 1 --timeout 20 --keep-going 2>&1)"; rc=$?
-has "$out" "of 6 evaluated" "--keep-going ran the full 6-fixture batch"
+has "$out" "of 7 evaluated" "--keep-going ran the full 7-fixture batch"
 no  "$out" "ABORT after first fixture" "--keep-going suppresses the breaker abort line"
 ck 1 "$rc" "--keep-going full batch UNRELIABLE -> exit 1 (FAIL path), not 2 (abort path)"
 unset FLOW_EVAL_RETRY_BACKOFF

@@ -54,7 +54,7 @@ echo "D) card done surfaces the harness trace tier (capture-quality signal)"
 newsb; mkdir -p "$SB/cards"
 for s in 00-idea 01-research 02-scope 03-prd 04-adr 05-contract; do clean_stage "$s" "$SB/flow/$s.md"; done
 bash "$RUN" card >/dev/null 2>&1
-printf '# C-001 - x\nstatus: done\ndeps: none\n## Scope\na\n## Allowed files\nb\n## Verify\n- [x] v\n## Done-evidence\nu\n## Evidence\nreal world-state proof\n' > "$SB/cards/C-001.md"
+printf '# C-001 - x\nstatus: done\ndeps: none\n## Scope\na\n## Allowed files\nb\n## Verify\n- [x] v\n## Done-evidence\nu\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' > "$SB/cards/C-001.md"
 out="$(bash "$RUN" check C-001 2>&1)"
 has "$out" "PASS: C-001" "card check passes"
 has "$out" "harness:" "trace output surfaced at card done"
