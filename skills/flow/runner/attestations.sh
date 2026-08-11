@@ -534,17 +534,20 @@ _att_card_semantic_fingerprint() { # $1 card file $2 base $3 head -> prints fp; 
   head="$(_att_full_commit "$head")" || return 1
   tree="$(git -C "$ROOT" rev-parse "${head}^{tree}" 2>/dev/null | tr -d '\r\n')" || return 1
   proj="$(_att_card_contract_projection "$file")"
-  # changed paths base..head excluding card path
-  path_manifest="$(git -C "$ROOT" diff-tree -r --no-commit-id --name-status "$base" "$head" 2>/dev/null \
-    | awk -v card="cards/${id}.md" '$2 != card && $3 != card {print}' \
-    | while read -r st p rest; do
-        case "$st" in
-          R*|C*) p="$rest" ;;
-        esac
-        [ -z "$p" ] && continue
-        mode_oid="$(git -C "$ROOT" ls-tree "$head" -- "$p" 2>/dev/null | awk '{print $1" "$3}')"
-        printf '%s %s\n' "$p" "$mode_oid"
-      done | sort)"
+  # changed paths base..head excluding card path.
+  # Bash 3.2 + set -u: avoid `read st p rest` (unbound rest) and case R*|C* inside
+  # command substitution (macOS /bin/bash syntax error). Use name-only only.
+  path_manifest="$(
+    git -C "$ROOT" diff-tree -r --name-only "$base" "$head" 2>/dev/null \
+      | while IFS= read -r p || [ -n "$p" ]; do
+          p="$(printf '%s' "$p" | tr -d '\r')"
+          [ -z "$p" ] && continue
+          [ "$p" = "cards/${id}.md" ] && continue
+          mode_oid="$(git -C "$ROOT" ls-tree "$head" -- "$p" 2>/dev/null | awk '{print $1" "$3}')"
+          [ -n "$mode_oid" ] || continue
+          printf '%s %s\n' "$p" "$mode_oid"
+        done | sort
+  )"
   body="base=${base}"$'\n'"head=${head}"$'\n'"tree=${tree}"$'\n'"proj<<"$'\n'"${proj}"$'\n'">>"$'\n'"paths<<"$'\n'"${path_manifest}"$'\n'">>"$'\n'
   fmt="$(_att_object_format)"
   oid="$(printf '%s' "$body" | git -C "$ROOT" hash-object --stdin 2>/dev/null | tr -d '\r\n')"
