@@ -1793,6 +1793,10 @@ cmd_auto() {
     echo "FAIL: reliable process-group supervisor unavailable — live auto refused on this platform."
     _att_auto_lock_release; return 1
   fi
+  if ! _att_require_clean_for_consume; then
+    echo "FAIL: dirty worktree — auto activation requires clean tree (except .flow/, locks, status/Evidence)."
+    _att_auto_lock_release; return 1
+  fi
   if ! planning_complete; then
     echo "FAIL: planning not complete. Finish stages 00-05 first."
     _att_auto_lock_release; return 1
