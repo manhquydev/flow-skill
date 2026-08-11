@@ -1793,10 +1793,6 @@ cmd_auto() {
     echo "FAIL: reliable process-group supervisor unavailable — live auto refused on this platform."
     _att_auto_lock_release; return 1
   fi
-  if ! _att_require_clean_for_consume; then
-    echo "FAIL: dirty worktree — auto activation requires clean tree (except .flow/, locks, status/Evidence)."
-    _att_auto_lock_release; return 1
-  fi
   if ! planning_complete; then
     echo "FAIL: planning not complete. Finish stages 00-05 first."
     _att_auto_lock_release; return 1
@@ -1816,6 +1812,11 @@ cmd_auto() {
   if ! _att_accepted_semantic stage 05-contract; then
     echo "FAIL: need current accepted semantic_gate receipt for 05-contract."
     echo "  mint: flow attest semantic --stage 05-contract --revision HEAD --owner <committed-manifest>"
+    _att_auto_lock_release; return 1
+  fi
+  # Cleanliness last among preflight diagnostics so risk/receipt messages still print.
+  if ! _att_require_clean_for_consume; then
+    echo "FAIL: dirty worktree — auto activation requires clean tree (except .flow/, locks, status/Evidence)."
     _att_auto_lock_release; return 1
   fi
   local cfp; cfp="$_ATT_R_subject_fingerprint"

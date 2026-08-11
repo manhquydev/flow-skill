@@ -35,7 +35,7 @@ bash "$RUN" auto >/dev/null 2>&1; ck 1 $? "auto blocks with no planning"
 clean6 "$SB"; bash "$RUN" card >/dev/null
 # After planning+card alone (no git / no Stage 05 receipt), auto must still fail closed.
 out="$(bash "$RUN" auto 2>&1)"; ck 1 $? "auto still blocks without git/receipts after planning+card"
-has "$out" "Git repository|semantic receipt|risk|planning not complete|process supervisor" "auto names a v0.28 preflight gate"
+has "$out" "Git repository" "auto names a v0.28 preflight gate (no git in fixture)"
 rm -rf "$SB"
 
 if [ -z "$PY" ]; then echo "(skipping harness gap tests - no python)"; echo; echo "RESULT: $pass passed, $fail failed"; [ "$fail" -eq 0 ]; exit $?; fi
