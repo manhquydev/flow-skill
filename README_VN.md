@@ -119,14 +119,13 @@ Release: [`CHANGELOG.md`](./CHANGELOG.md) · quy trình: [`docs/release-process.
 
 | Agent | Path | Gọi |
 |-------|------|-----|
-| Claude Code | `~/.claude/skills/flow` | `/flow` |
-| Codex CLI | `~/.codex/skills/flow` | `$flow` (restart Codex) |
+| Claude Code | `~/.claude/skills/flow` (hoặc project `.claude/skills/flow`) | `/flow` |
+| Codex CLI | `~/.codex/skills/flow` | `$flow` (restart Codex sau cài) |
 | Agents home | `~/.agents/skills/flow` | theo host |
-| Antigravity | 2 path dưới `~/.gemini/…` | `/flow` sau reload |
-| Cursor | `~/.cursor/skills/flow` | panel skill sau reload |
+| Antigravity | `~/.gemini/antigravity-cli/skills/flow` + `~/.gemini/config/skills/flow` | `/flow` sau reload |
+| Cursor | `~/.cursor/skills/flow` | panel agent skills sau reload |
 
-**Phụ thuộc runtime skill:** bash (Git Bash trên Windows), python3 khuyến nghị, git tùy chọn.
-Không có python thì cổng vẫn chạy; lớp SQLite tắt.
+**Phụ thuộc runtime skill (sau cài):** bash (Git Bash trên Windows), python3 khuyến nghị cho harness durable, git tùy chọn cho worktree/`auto`. Không có python thì cổng vẫn chạy; lớp SQLite tắt.
 
 ---
 
@@ -135,17 +134,20 @@ Không có python thì cổng vẫn chạy; lớp SQLite tắt.
 Ưu tiên **npm** ở trên. Thêm cho contributor / offline:
 
 ```bash
-bash install.sh global                 # hoặc: pwsh install.ps1 global
-bash install.sh project [dir]
+# Từ git checkout — script cài (đồng bộ agent homes + doctor)
+bash install.sh global                 # hoặc: pwsh install.ps1 global  (Windows)
+bash install.sh project [dir]          # skill Claude theo project
 
-/plugin marketplace add <path-hoặc-url>
+# Plugin / marketplace (Claude Code)
+/plugin marketplace add <path-hoặc-url-tới-repo-này>
 /plugin install flow@flow-marketplace
 
-# Thủ công: copy skills/flow/ → ~/.claude/skills/flow/ + chmod +x runner
+# Thủ công: copy skills/flow/ → ~/.claude/skills/flow/ và chmod +x runner/flow.sh
 ```
 
-Windows: ưu tiên `pwsh install.ps1` hoặc npm. Trong PowerShell, `bash` trần có thể là WSL —
-dùng `runner/flow.cmd` khi gọi runner ngoài Git Bash.
+Trên Windows, ưu tiên `pwsh install.ps1` hoặc đường npm. Trong PowerShell, `bash` trần có thể là WSL (filesystem sai); dùng `runner/flow.cmd` khi gọi runner ngoài Git Bash của Claude.
+
+**Chỉ dev:** `git clone … && cd npm-wrapper && npm i && npm run sync && npm link`.
 
 ---
 
@@ -153,27 +155,28 @@ dùng `runner/flow.cmd` khi gọi runner ngoài Git Bash.
 
 | Hiện tượng | Cách xử lý |
 |------------|------------|
-| Không có `/flow` sau `npm i` | Chạy `npx @manhquy/flow-skill@latest` (phải **chạy** CLI) |
+| Không có `/flow` sau `npm i` | Chạy `npx @manhquy/flow-skill@latest` (phải **execute** CLI) |
 | Skill cũ sau “cài lại” | Luôn `@latest`; tránh bare package name |
-| Agent không list skill | Restart agent một lần sau cài lần đầu |
-| `flow.sh: No such file` trên PowerShell | Dùng `…/runner/flow.cmd` |
+| Claude / Codex không list skill | Restart agent **một lần** sau cài lần đầu |
+| `flow.sh: No such file` trên PowerShell | Dùng `…/runner/flow.cmd` (không dùng WSL `bash`) |
 | `durable layer DISABLED` | Cài python3, hoặc bỏ qua (cổng cơ học vẫn chạy) |
+| CRLF / bad interpreter | Repo ép LF qua `.gitattributes`; clone lại nếu cần |
 
 ---
 
 ## Lệnh hằng ngày
 
 ```
-/flow            status
+/flow            status — đang ở đâu, cái gì chặn
 /flow next       kiểm gate + mở stage kế
-/flow assess     brownfield
-/flow card       tạo card
-/flow check C-001  validate card
-/flow auto       build tự động
+/flow assess     đánh giá brownfield
+/flow card       tạo build card
+/flow check C-001  validate card (done = bằng chứng thế giới thật)
+/flow auto       build tự động (HALT nhóm bảo mật)
 /flow doctor     kiểm môi trường
 ```
 
-Codex: `$flow`. Danh sách đầy đủ: [`skills/flow/SKILL.md`](skills/flow/SKILL.md).
+Codex dùng `$flow` thay `/flow`. Đầy đủ: [`skills/flow/SKILL.md`](skills/flow/SKILL.md).
 
 ## Tham chiếu lệnh
 
