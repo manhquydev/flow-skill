@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Lineage contract: gap matrix + schema inventory + rust refuse (plan phase 1).
+# Lineage contract: gap matrix + schema inventory + rust refuse (authority continuity).
 # Run: bash tests/test_flow_harness_lineage_contract.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -13,26 +13,23 @@ pass=0; fail=0
 ck() { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected=$1 got=$2"; fail=$((fail+1)); fi; }
 has() { if printf '%s' "$1" | grep -qE "$2"; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] missing /$2/ in: $(printf '%.80s' "$1")"; fail=$((fail+1)); fi; }
 no()  { if printf '%s' "$1" | grep -qiE "$2"; then echo "  FAIL [$3] unexpected /$2/"; fail=$((fail+1)); else echo "  ok   [$3]"; pass=$((pass+1)); fi; }
-# Capture stdout+stderr and real exit code (do not use `out=$(cmd) || true` — that zeroes $?).
-run_cap() { # sets CAP_OUT CAP_RC
-  CAP_OUT=""; CAP_RC=0
-  CAP_OUT="$("$@" 2>&1)" || CAP_RC=$?
-}
 
-echo "A) GAP matrix required content"
+echo "A) GAP matrix required content (superseded / historical)"
 test -f "$MATRIX"; ck 0 $? "GAP-MATRIX-0.1.17.md exists"
 M="$(cat "$MATRIX" 2>/dev/null || true)"
-has "$M" "0\.1\.14" "pin protocol floor 0.1.14"
-has "$M" "0\.1\.17" "pin trust CLI 0.1.17"
-has "$M" "0\.1\.16" "mentions 0.1.16 (do-not-use)"
+has "$M" "[Ss]UPERSEDED|no (further )?schema sync|no upstream schema sync" "supersede / no-sync policy"
+has "$M" "flow-owned|flow owned" "flow-owned ownership"
+# Historical archive may still mention old pins under Historical section
+has "$M" "0\.1\.22|0\.1\.17|historical|archive|EOL|end of life|end-of-life" "historical/EOL archive noted"
 has "$M" "009.*012|009–012|009-012" "009-012 collision noted"
 has "$M" "[Rr]ust refuse|refuse-forward|flow-lineage" "rust refuse documented"
 has "$M" "005" "005 caveat present"
 has "$M" "014" "flow-owned graph band 014+ documented"
-has "$M" "[Ss]upersed" "work-graph red-line supersession recorded"
-# ban false parity claims (not the phrase "does not claim … US-101")
-if printf '%s' "$M" | grep -qiE 'bit-identical US-101|isomorphic to US-101|US-101 parity'; then
-  bad=1; echo "  FAIL [false US-101 parity language]"; fail=$((fail+1))
+has "$M" "[Ss]upersed|[Ss]UPERSED" "work-graph red-line supersession recorded"
+# Ban affirmative parity claims (negations like "does not claim …" are OK)
+if printf '%s' "$M" | grep -niE 'bit-identical US-101|isomorphic to US-101|US-101 parity' \
+  | grep -viE 'not |never |no ' >/dev/null; then
+  echo "  FAIL [false US-101 parity language]"; fail=$((fail+1))
 else
   echo "  ok   [no false US-101 parity claim]"; pass=$((pass+1))
 fi
@@ -49,15 +46,20 @@ no "$SCH" "007-" "no 007 migration file"
 no "$SCH" "008-" "no 008 migration file"
 no "$SCH" "013-" "no 013 migration file"
 
-echo "C) README pins"
+echo "C) README live authority (not live trust pin table)"
 R="$(cat "$README" 2>/dev/null || true)"
-has "$R" "0\.1\.17" "README pin 0.1.17"
-has "$R" "0\.1\.14" "README pin 0.1.14"
+has "$R" "flow-owned|live authority" "README live authority / flow-owned"
+has "$R" "story complete" "README story complete"
+has "$R" "proof_source|proof-source" "README proof-source"
+if printf '%s' "$R" | grep -E '^\| *Trust / consumer *\|' | grep -q '0\.1\.17'; then
+  echo "  FAIL [live Trust/consumer pin table]"; fail=$((fail+1))
+else
+  echo "  ok   [no live Trust/consumer pin table]"; pass=$((pass+1))
+fi
 
 echo "D) rust refuse on flow-lineage DB"
 SB="$(mktemp -d)"
 FLOW_PROJECT_ROOT="$SB" "$PY" "$H" init >/dev/null
-# Fake rust backend binary that would succeed if called
 FAKE="$SB/fake-harness-cli"
 printf '#!/bin/sh\necho should-not-run\nexit 0\n' > "$FAKE"
 chmod +x "$FAKE" 2>/dev/null || true

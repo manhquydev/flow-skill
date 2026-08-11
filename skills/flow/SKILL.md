@@ -8,8 +8,8 @@ keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deplo
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.26.0"
-  attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); harness/agent layers from repository-harness, claudekit-engineer, BMAD-METHOD. v0.22 concierge routing pattern adapted from BMAD-METHOD's bmad-help; forge-idea ritual adapted from BMAD-METHOD's bmad-forge-idea (both MIT, BMad Code LLC)."
+  version: "0.27.0"
+  attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); durable-layer ancestry and improve-ritual spirit from repository-harness (protocol v1 EOL — flow-owned fork); agent patterns from claudekit-engineer, BMAD-METHOD. v0.22 concierge from BMAD bmad-help; forge-idea from bmad-forge-idea (MIT, BMad Code LLC)."
 ---
 
 # /flow — buildflow gated build harness
@@ -235,7 +235,7 @@ Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, r
 - `references/gate-eval.md` — `/flow eval` behavioral proof for the semantic layer: what it
   measures (a fresh-judge lower bound, NOT the work-mode self-challenge), cost, thresholds,
   and the honest authorship-bias limitation. Read before running or relaying a scorecard.
-- `harness/` — durable layer (`flow.sh harness ...`): intake/story/**complete**/trace/decision/backlog. Pins: protocol floor `harness-cli-v0.1.14`, trust CLI `0.1.17` (never `0.1.16`). See `harness/README.md` + `harness/GAP-MATRIX-0.1.17.md`. Never `story update --status implemented` — use `story complete --proof-source …`.
+- `harness/` — **flow-owned** durable layer (`flow.sh harness ...`): intake/story/**complete**/trace/decision/backlog. Live authority = this Python CLI + `flow.sh` + gate-rules (not external `harness-cli`). Historical gap: `harness/GAP-MATRIX-0.1.17.md` (SUPERSEDED). Never `story update --status implemented` — use `story complete --proof-source …`. Improve skill/harness guidance: ritual **R-IMPROVE-HARNESS** in `references/native-rituals.md` (explicit-only; fresh-agent rerun before keep).
 - `playbooks/` — paid-for stack knowledge: read before building a card on that stack, harvest the lesson after.
 - `_templates/` — the 7 artifacts the runner copies into `flow/` and `cards/`. Never edit during a run.
 

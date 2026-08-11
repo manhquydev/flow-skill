@@ -23,9 +23,14 @@ clean_inspect() {
 - [x] risks listed
 - [x] tests noted
 - [x] human reviewed
+- [x] Every material claim in this assessment is tagged in the Evidence ledger
 - [x] no fill remains
 ## What this product is
 A real existing product, assessed from the code.
+## Evidence ledger (claims)
+| Claim | Tag | Source (path or "none") |
+|-------|-----|-------------------------|
+| package.json names the app | Observed | package.json:1 |
 ## Verdict
 Healthy enough to build on; fix X first.
 EOF
@@ -37,8 +42,13 @@ printf '{"name":"x"}\n' > "$SB/package.json"; mkdir -p "$SB/.github/workflows"
 out="$(bash "$RUN" assess 2>&1)"; ck 0 $? "assess exit 0"
 has "$out" "created" "creates the assessment artifact"
 ck 0 "$(exists "$SB/flow/00-inspect.md")" "flow/00-inspect.md created"
-has "$(cat "$SB/flow/00-inspect.md")" "node (package.json)" "auto-scan detected node"
-has "$(cat "$SB/flow/00-inspect.md")" "github actions" "auto-scan detected CI"
+insp="$(cat "$SB/flow/00-inspect.md")"
+has "$insp" "node (package.json)" "auto-scan detected node"
+has "$insp" "github actions" "auto-scan detected CI"
+has "$insp" "Evidence ledger" "scaffold has Evidence ledger"
+has "$insp" "Authoritative" "scaffold has Authoritative tag vocab"
+has "$insp" "Decision required" "scaffold has Decision required tag vocab"
+has "$insp" "material claim" "scaffold has claim-tagging gate checkbox"
 rm -rf "$SB"
 
 echo "B) unfilled template -> gate NOT clean (exit 1)"

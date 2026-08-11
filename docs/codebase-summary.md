@@ -14,7 +14,7 @@ flow-skill/
 │   │   ├── flow_harness.py      # CLI: init/intake/story/trace/decision/backlog/tool/intervention/query
 │   │   ├── _db.py               # sqlite connect + atomic migrations
 │   │   ├── _domain.py           # pure rules: input types, risk lanes, hard gates, trace tiers
-│   │   ├── schema/00N-*.sql     # DDL verbatim from repository-harness
+│   │   ├── schema/00N-*.sql     # 001-005 ancestry + flow-owned 009-012/014+
 │   │   └── README.md
 │   ├── _templates/              # 00-idea..05-contract + card (verbatim buildflow)
 │   ├── law/                     # CLAUDE.md, DESIGN.md, RETRO.md

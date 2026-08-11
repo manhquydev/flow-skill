@@ -1,20 +1,26 @@
 # flow-harness — durable layer
 
 The durable memory of `/flow`: intake classification, story packets with proof status,
-auto-scored execution traces, decision records, and the growth-rule backlog. Ported from
-`repository-harness` (shared base schema + flow-only usage extensions). State lives at
+auto-scored execution traces, decision records, and the growth-rule backlog. State lives at
 `<project>/.flow/harness.db` and survives across sessions — this is the "external memory"
 that fights context rot.
 
-## Authority pins (repository-harness)
+## Live authority (flow-owned)
 
-| Pin | Tag | Use |
-|-----|-----|-----|
-| Protocol floor | **`harness-cli-v0.1.14`** | protocol v1 discovery floor |
-| Trust / consumer | **`harness-cli-v0.1.17`** | US-101 spirit + release proof |
-| **Do not use** | `harness-cli-v0.1.16` | tag without published assets |
+| Layer | Authority |
+|-------|-----------|
+| **Mechanical gates** | `runner/flow.sh` exit codes |
+| **Semantic gates** | `references/gate-rules.md` + `law/` |
+| **Durable memory** | **this Python CLI** (`flow_harness.py`) + `.flow/harness.db` — **flow-owned** |
 
-Gap inventory: [`GAP-MATRIX-0.1.17.md`](./GAP-MATRIX-0.1.17.md). Flow does **not** claim bit-identical US-101.
+Schema bands **001–005** are frozen shared ancestry with pre-EOL `repository-harness`;
+**009–012** and **014+** are flow-owned forever. **No further upstream schema sync**
+(repository-harness protocol v1 / `harness-cli` is EOL — ADR 0027; last published archive
+`harness-cli-v0.1.22`). Historical gap inventory:
+[`GAP-MATRIX-0.1.17.md`](./GAP-MATRIX-0.1.17.md) (SUPERSEDED comparison only).
+
+**Self-improving this skill:** explicit-only ritual **`R-IMPROVE-HARNESS`** in
+`references/native-rituals.md` (fresh-agent rerun before claiming a keep).
 
 ## Backends
 

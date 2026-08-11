@@ -2,6 +2,16 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.4.0] — 2026-08-11 — ships skill v0.27.0 (harness authority continuity)
+
+Skill-content release. Ships skill product **v0.27.0**: flow-owned durable authority,
+SUPERSEDED GAP matrix, R-IMPROVE-HARNESS ritual, brownfield Evidence ledger + material-authority
+stop (see root `CHANGELOG.md` `## 0.27.0`). Publishes to dist-tag **`latest`**.
+
+### Changed
+- Bundled skill tree re-synced from monorepo `skills/flow/` (48 test suites green at ship).
+- Install: **`npx @manhquy/flow-skill@latest`**.
+
 ## [0.3.1] — 2026-08-11 — help USAGE shows @latest
 
 ### Fixed

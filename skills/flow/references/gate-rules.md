@@ -19,6 +19,20 @@ artifact, never silently block a sound one.
 > the bad shape, not less, and a hedging "unless it matters" clause turns a crisp recipe noisy. Pick
 > the form deliberately; don't reflexively reach for another "do NOT".
 
+## Brownfield assess (flow/00-inspect.md)
+
+Separate from Stage 00 Idea. After `flow.sh assess` mechanical PASS (no `[FILL]`, boxes
+checked), apply this semantic challenge before planning:
+
+- Are material claims in the **Evidence ledger** tagged
+  (Authoritative / Observed / Derived / Decision required / Unknown)?
+- Is any **Observed** or **Derived** claim silently promoted to must-build product law
+  without operator authority?
+- Are **Decision required** / **Unknown** items listed for the operator — not invented into
+  Scope/PRD?
+- If the ledger is empty or only `[FILL]` rows remain while the gate boxes are checked,
+  the assessment is hollow — report mechanically-passed-but-qualitatively-weak.
+
 ## Stage 00 — Idea
 Mechanical: pitch present, one real person named, no FILL.
 **Challenge:** Is the pitch really 3 sentences (who / pain / what)? Is the named person a
@@ -52,6 +66,9 @@ Mechanical: 7 boxes checked, no FILL.
 Mechanical: every feature has Impact (H/M/L) + Grade (A/B/C), no L-above-A in v1, cut list,
 GO/KILL, no FILL.
 **Challenge — watch for GRADE LAUNDERING:**
+- **Material-authority stop:** if materially different externally observable product choices
+  remain open (quota, identity key, tenancy model, response contract, enforcement owner, …),
+  **stop** — list the choice and consequences. Configurable defaults are not authority.
 - Is any expensive feature quietly graded B when it's really C? (realtime, payments from
   scratch, custom auth, autonomous agentic pipeline, heavy concurrency = C). Call C a C.
 - For every C in scope, is it justified as one of: (1) C IS the product -> it goes FIRST;
@@ -66,6 +83,8 @@ GO/KILL, no FILL.
 ## Stage 03 — PRD
 Mechanical: filled from stage 02, numeric success metric, pain&gain table, no FILL.
 **Challenge:**
+- **Material-authority stop:** if the PRD invents policy (who can access what, retention,
+  billing rules) with no prior operator/ADR authority, stop and list Decision-required items.
 - Is the success metric a real NUMBER ("first response < 2h"), not "save time" / "better UX"?
 - The pain&gain table is the spine: does *every pain* cite evidence (a stage-01 quote or
   named observation) AND name the v1 feature that kills it? Does *every v1 feature* kill at
@@ -91,6 +110,8 @@ access/effects column filled, no FILL.
 **The "interface" is the project type's seam** (`/flow project-type`): web=endpoint,
 cli=command+flags+output/exit, library=public function+args+return, skill=command/file.
 **Challenge — this is where producer/consumer drift is born (every type):**
+- **Material-authority stop:** access/effects (public/token/admin, writes) that encode product
+  policy without operator authority → stop; do not invent tenancy/auth from convenience.
 - Does every PRD feature map to at least one interface, and vice versa?
 - Does every interface have BOTH input and output shapes, with field/flag names that will not
   drift (the #1 AI-build failure: backend ships `player_email`, UI assumed `email`, both green;

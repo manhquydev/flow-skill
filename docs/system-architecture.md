@@ -22,9 +22,9 @@ cheatable mechanics while the model handles judgment, and durable records surviv
               | reads/writes (best-effort, graceful degrade)
               v
 +---------------------------------------------------------------+
-|  Durable layer  -  harness/flow_harness.py  (Python+sqlite3)  |
-|  intake/risk-lane, story+proof, trace+tier, decision, backlog |
-|  (Rust harness-cli power-path via FLOW_HARNESS_BACKEND=rust)  |
+|  Durable layer  -  harness/flow_harness.py  (Python+sqlite3, flow-owned) |
+|  intake/risk-lane, story+proof, trace+tier, decision, backlog       |
+|  (Rust forward frozen: refuse on flow-lineage DBs; not a live pin)  |
 +---------------------------------------------------------------+
 
 On-disk artifacts (in the project being built):

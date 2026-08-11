@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Optional harness-cli-v0.1.17 smoke (plan phase 5). Default skip unless HARNESS_CLI_SMOKE=1.
+# Archive pin file + rust refuse smoke. Optional network download of EOL harness-cli
+# only when HARNESS_CLI_SMOKE=1 (not a live product install path).
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HDIR="$HERE/../skills/flow/harness"
@@ -20,18 +21,19 @@ out="$(FLOW_PROJECT_ROOT="$SB" FLOW_HARNESS_BACKEND=rust FLOW_HARNESS_CLI="$FAKE
 ck 2 "$rc" "rust refuse exit 2"
 rm -rf "$SB"; unset rc
 
-echo "B) pin file present (sha256 sums for release assets)"
-test -f "$PIN" && ck 0 0 "sha256sums pin file exists" || ck 0 1 "sha256sums pin file exists"
+echo "B) historical archive pin file present (not live trust)"
+test -f "$PIN" && ck 0 0 "archive sha256sums pin file exists" || ck 0 1 "archive sha256sums pin file exists"
 if [ -f "$PIN" ]; then
   has "$(cat "$PIN")" "harness-cli" "pin lists harness-cli assets"
+  has "$(cat "$PIN")" "HISTORICAL ARCHIVE|archive" "pin header marks historical archive"
 fi
 
-echo "C) optional download smoke"
+echo "C) optional download smoke (archive binary only; never product install)"
 if [ "${HARNESS_CLI_SMOKE:-0}" != "1" ]; then
-  echo "  ok   [skip optional smoke — set HARNESS_CLI_SMOKE=1 to run]"
+  echo "  ok   [skip optional archive smoke — set HARNESS_CLI_SMOKE=1 to run]"
   pass=$((pass+1))
 else
-  # Network path: download windows-x64 or linux-x64 by uname
+  # Network path: download archive tag only
   TAG="harness-cli-v0.1.17"
   BASE="https://github.com/hoangnb24/repository-harness/releases/download/${TAG}"
   case "$(uname -s 2>/dev/null)" in

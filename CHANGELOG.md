@@ -2,6 +2,22 @@
 
 All notable changes to the flow skill. Versions follow the `version:` field in
 
+## 0.27.0 — 2026-08-11 — harness authority continuity
+
+Post repository-harness protocol-v1 EOL: durable layer is **flow-owned**; live pin
+narrative for `harness-cli` 0.1.14/0.1.17 removed; improve + assess protocol ports.
+
+- **Live authority** table in `harness/README.md` (flow_harness.py + flow.sh + gate-rules).
+- **GAP-MATRIX SUPERSEDED**: no further upstream schema sync; historical archive notes
+  (last published `harness-cli-v0.1.22` per upstream ADR 0027).
+- **Contract tests flipped**: require flow-owned / no-sync; keep story-complete trust greps.
+- **R-IMPROVE-HARNESS** native ritual (fresh-agent rerun before keep); native-rituals 6.
+- **Brownfield assess**: Evidence ledger claim tags + gate-rules section; material-authority
+  stop on Scope/PRD/Contract.
+- **harness-skill** redirects to `/flow harness`; complete-only preserved; no live pin claim.
+- Pin file + optional smoke reframed as historical archive only.
+- Plan: `plans/260811-1405-flow-harness-authority-continuity/`.
+
 ## 0.26.0 — 2026-08-11 — hollow-done mechanical trust floor
 
 Mechanical multi-signal floor for card `## Evidence` when `status: done`, so process-only

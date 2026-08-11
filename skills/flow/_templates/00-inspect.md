@@ -12,6 +12,7 @@ then check the gate. `/flow assess` seeds the auto-scan and validates this gate.
 - [ ] I listed the top risks / tech-debt / known issues
 - [ ] I noted the test + quality baseline (what is covered vs not)
 - [ ] A human reviewed this assessment (brownfield assessment is operator-gated)
+- [ ] Every material claim in this assessment is tagged in the Evidence ledger (no Unknown/Decision-required silently treated as product law)
 - [ ] No FILL placeholders remain in this file
 
 ## Detected (auto-scan)
@@ -37,6 +38,23 @@ is most likely to hide. [FILL: note which ranked surfaces you inspected + what y
 
 ## Test + quality baseline
 [FILL: what is tested vs not; how to run the suite; coverage if known]
+
+## Evidence ledger (claims)
+
+Tag every material claim from Functionality / Risks / Verdict. Do **not** write product
+policy as fact unless **Authoritative**. Tags:
+
+| Tag | Meaning |
+|-----|---------|
+| **Authoritative** | Instruction, accepted decision, product contract, documented procedure |
+| **Observed** | Code/config/tests show current behavior |
+| **Derived** | Direct operational consequence of observed implementation |
+| **Decision required** | Normative/product choice with no authority yet |
+| **Unknown** | Repo does not establish the answer |
+
+| Claim | Tag | Source (path or "none") |
+|-------|-----|-------------------------|
+| [FILL: one material claim] | Observed \| Authoritative \| Derived \| Decision required \| Unknown | path:line or none |
 
 ## Verdict
 [FILL: is the codebase healthy enough to build on? what must be fixed first?]

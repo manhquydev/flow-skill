@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Regression suite for v0.22 Phase 2: standalone native gate rituals — the 5 clean-room
+# Regression suite for standalone native gate rituals — the 6 clean-room
 # playbooks (references/native-rituals.md) that make flow self-sufficient without ck/BMAD
-# installed, wired native-first into the 4 seam files + the catalog. Run:
+# installed (5 product-gate rituals + R-IMPROVE-HARNESS). Run:
 # bash tests/test_flow_native_rituals.sh (Git Bash on Windows or any POSIX bash).
 # Exit 0 = all pass, 1 = any fail.
 
@@ -29,7 +29,7 @@ before() { # $1=file $2=pattern-that-must-come-first $3=pattern-second $4=label 
   fi
 }
 
-echo "A) native-rituals.md exists with 5 named sections"
+echo "A) native-rituals.md exists with 6 named sections"
 if [ -f "$RITUALS" ]; then echo "  ok   [native-rituals.md exists]"; pass=$((pass+1)); else echo "  FAIL [native-rituals.md exists]"; fail=$((fail+1)); fi
 rr="$(cat "$RITUALS" 2>/dev/null)"
 has "$rr" "Persona-debate ritual" "ritual 1: persona-debate"
@@ -37,14 +37,16 @@ has "$rr" "Edge-case decomposition ritual" "ritual 2: edge-case decomposition"
 has "$rr" "STRIDE" "ritual 3: STRIDE security"
 has "$rr" "Numeric retro ritual" "ritual 4: numeric retro"
 has "$rr" "Native loop protocol" "ritual 5: native loop protocol"
+has "$rr" "Improve-flow-harness ritual" "ritual 6: Improve-flow-harness"
+has "$rr" "R-IMPROVE-HARNESS" "ritual id R-IMPROVE-HARNESS"
 
 echo "B) each ritual carries Purpose/When/Steps markers + informs-not-judges line"
 n_purpose=$(printf '%s' "$rr" | grep -c '^Purpose:')
 n_when=$(printf '%s' "$rr" | grep -c '^When:')
 n_informs=$(printf '%s' "$rr" | grep -c 'never judges')
-ck "5" "$n_purpose" "5 Purpose: markers"
-ck "5" "$n_when" "5 When: markers"
-ck "5" "$n_informs" "5 informs-never-judges lines"
+ck "6" "$n_purpose" "6 Purpose: markers"
+ck "6" "$n_when" "6 When: markers"
+ck "6" "$n_informs" "6 informs-never-judges lines"
 
 echo "C) positive authorship markers (flow-native voice, not pasted)"
 has "$rr" "gate" "flow-vocabulary: gate"

@@ -1,11 +1,25 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **skill v0.26.0** (2026-08-11), **npm-wrapper v0.3.1 GA** LIVE on `latest` (`npx @manhquy/flow-skill@latest`).
+Updated as the skill evolves. Current: **skill v0.27.0** (2026-08-11), **npm-wrapper v0.4.0** (`npx @manhquy/flow-skill@latest` after publish).
 
 Release process for future bumps: [`docs/release-process.md`](release-process.md).
 
-## npm-wrapper v0.3.0 + skill v0.26.0 — hollow-done mechanical trust floor (2026-08-11, LIVE on `latest`)
+## npm-wrapper v0.4.0 + skill v0.27.0 — harness authority continuity (2026-08-11)
+
+Flow-owned durable authority after repository-harness protocol-v1 EOL; R-IMPROVE-HARNESS;
+brownfield claim ledger + material-authority stop. Plan:
+`plans/260811-1405-flow-harness-authority-continuity/`.
+
+| Metric | Value | Notes |
+|---|---|---|
+| **npm package** | 0.4.0 | ships skill v0.27.0; install `npx @manhquy/flow-skill@latest` |
+| **Skill product in tarball** | 0.27.0 | SKILL.md / plugin / portable-manifest |
+| **Skill tests** | 48 suites green | full `tests/run_all.sh` (~176s local) |
+| **Installer tests** | node:test after sync | dual-version help |
+| **Plan** | authority continuity | red-team + validate applied |
+
+## npm-wrapper v0.3.0 + skill v0.26.0 — hollow-done mechanical trust floor (2026-08-11)
 
 Mechanical multi-signal Evidence floor for `status: done`, ready/graph re-validate (Evidence +
 Verify + no FILL), fail-closed `card done`, project-type lock when typed, eval `fcdc` residual

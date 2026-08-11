@@ -1,39 +1,46 @@
 ---
 name: harness
 description: >-
-  Cổng tuân thủ harness (Claude Code + Codex). Intake → lane → (agent implements) → trace.
-  Pin CLI harness-cli-v0.1.17 (protocol floor v0.1.14). Complete-only story status.
-  Kích hoạt khi cwd có scripts/bin/harness-cli(.exe) hoặc user gõ /harness. Không code.
+  Cổng durable harness cho flow projects (Claude Code + Codex). Prefer /flow harness
+  (Python). Complete-only story status. Optional legacy harness-cli binary is archive-only.
+  Kích hoạt khi cwd có flow project hoặc scripts/bin/harness-cli(.exe) hoặc user gõ /harness.
+  Không code.
 ---
 
 # Harness — compliance gate (canonical in-repo)
 
-**Authority:** [repository-harness](https://github.com/hoangnb24/repository-harness)  
-**Pins:** protocol floor `harness-cli-v0.1.14` · trust CLI **`harness-cli-v0.1.17`** · **never** `0.1.16` assets.
+**Live authority:** flow durable Python (`/flow harness` → `skills/flow/harness/flow_harness.py`)
++ mechanical `flow.sh` + semantic `gate-rules.md`.  
+**Historical:** pre-EOL repository-harness protocol v1 is archive only (last published
+`harness-cli-v0.1.22`). See `skills/flow/harness/GAP-MATRIX-0.1.17.md` (SUPERSEDED).
 
-Install optional copy to `~/.agents/skills/harness` for global discovery; this file is the **CI-tested** source of truth under `flow-skill/skills/harness-skill/`.
+Install optional copy to `~/.agents/skills/harness` for global discovery; this file is the
+**CI-tested** source of truth under `flow-skill/skills/harness-skill/`.
 
 ## Scope guard
 
-- If cwd has **neither** `scripts/bin/harness-cli` / `harness-cli.exe` **nor** a flow project using `/flow harness` → early-exit (not a harness task).
+- Prefer **flow projects**: use `/flow harness …` (Python backend).
+- If cwd has **neither** a flow project (`.flow/` or `flow/`) **nor**
+  `scripts/bin/harness-cli` / `harness-cli.exe` → early-exit (not a harness task).
 - Non-dev questions → early-exit; do not force intake.
 
 ## Before any mutation
 
-1. Prefer: `harness-cli query contract --json` (discover protocol / schema / capabilities).
-2. Require awareness of protocol_version 1 when using machine orchestration.
+1. On flow projects: `flow.sh harness query matrix` (or `/flow harness query matrix`).
+2. Legacy archive binary (if present): optional `harness-cli query contract --json` —
+   **not** required; not a live product pin.
 3. Read-only requests (explain, review, status) must **not** intake/trace/bootstrap.
 
 ## Story status (trust)
 
 - **Forbidden:** `story update --status implemented`
-- **Required:** `story complete` with proof (upstream) **or** flow-native  
+- **Required:** `story complete` with proof **or** flow-native  
   `story complete --id … --proof-source card_markdown_gate|manual|verify_command`
 - Never forge shell verify pass from markdown alone.
 
 ## SQL
 
-- If using `query sql`: treat as **read-only**. Mutating SQL is a trust violation on modern CLI.
+- If using `query sql` on an archive binary: treat as **read-only**. Mutating SQL is a trust violation.
 
 ## Lane (FEATURE_INTAKE spirit)
 
@@ -54,4 +61,5 @@ See `skills/flow/harness/GAP-MATRIX-0.1.17.md`.
 
 - Start task → intake + lane  
 - Complete task → story complete + trace  
-- Decision / friction / status (`query matrix`)
+- Decision / friction / status (`query matrix`)  
+- Improve skill guidance → ritual **R-IMPROVE-HARNESS** (`native-rituals.md`)

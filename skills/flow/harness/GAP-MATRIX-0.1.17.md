@@ -1,42 +1,61 @@
-# Gap matrix: flow durable layer vs repository-harness CLI 0.1.17
+# SUPERSEDED (2026-08) — historical comparison only
 
-**Authority:** `repository-harness` (local `D:\project\flow\repository-harness`).  
-**Pins:** protocol floor **`harness-cli-v0.1.14`** · trust/consumer CLI **`harness-cli-v0.1.17`** · **never** install/use **`0.1.16`** release assets (tag without published proof).  
-**Scope:** inventory only — does **not** claim US-101 bit-identical or protocol-v1 parity for flow Python.
+> **Live policy:** durable layer is **flow-owned**. **No further schema sync** from
+> repository-harness / `harness-cli`. Last published protocol-v1 archive:
+> **`harness-cli-v0.1.22`** (EOL; no features). Do not treat 0.1.14/0.1.17 as live trust pins.
+>
+> **Live authority:** `flow_harness.py` + `flow.sh` + `gate-rules.md` (see `harness/README.md`).
 
-Supersedes: brainstorm 260703 Thread1 (“nothing to upgrade”).
+---
+
+# Gap matrix (archive): flow durable layer vs repository-harness CLI 0.1.17
+
+**Historical authority note:** compared against `harness-cli-v0.1.17` during v0.24 trust-align.
+Pins below are **archive labels**, not install targets.
+
+| Archive label | Tag | Historical use |
+|---------------|-----|----------------|
+| Protocol floor (archive) | `harness-cli-v0.1.14` | protocol v1 discovery floor at trust-align time |
+| Trust-align snapshot | `harness-cli-v0.1.17` | US-101 spirit inspiration |
+| Do not use | `harness-cli-v0.1.16` | tag without published assets |
+| Last published archive | `harness-cli-v0.1.22` | EOL max (repository-harness ADR 0027) |
+
+Flow does not claim US-101 parity or an isomorphic control plane.
+
+**Supersession:** upstream work-graph / protocol-v1 is not a sync target (recorded 2026-07-26 graph band + 2026-08 EOL).
 
 ## Schema
 
-| Ver | Flow | Harness 0.1.17 | Notes |
-|-----|------|----------------|-------|
-| 001–004 | present (shared) | present | Hash-identical at last measure (2026-07-18) |
-| 005 | present | present | File hash may differ on comments only — do not overclaim DDL fork |
-| 006–008 | **absent** (reserved gap) | changesets / deps / hierarchy | Not adopted this plan |
-| 009–012 | **usage/accessed** (flow-only) | improvement identity / links / closure | **Semantic collision** — same numbers, different DDL |
-| 013 | absent | changeset content sha | Not adopted — stays reserved/absent |
-| 014+ | **graph-executor** (flow-owned band) | absent | Flow-owned since the 2026-07-26 supersession (plan `260726-1718-harness-graph-executor-langgraph-port`) |
+| Ver | Flow | Harness 0.1.17 (archive) | Notes |
+|-----|------|--------------------------|-------|
+| 001–004 | present (shared ancestry) | present | Frozen; no further sync |
+| 005 | present | present | tool registry ancestry |
+| 006–008 | **absent** (reserved gap) | changesets / deps / hierarchy | Not adopted |
+| 009–012 | **usage/accessed** (flow-owned) | different upstream meaning | Semantic collision avoided |
+| 013 | absent | changeset content sha | Reserved/absent |
+| 014+ | **graph-executor** (flow-owned) | absent | Flow-owned since 2026-07-26 |
 
-## Commands / invariants
+## Commands / invariants (still live in flow Python)
 
-| Surface | Flow status | Harness 0.1.17 | Trust note |
-|---------|-------------|----------------|------------|
-| `story update --status implemented` | rejected (trust-align) | rejected (US-101) | Use `story complete` |
-| `story complete` | flow-native flags + honest `proof_source` | `story complete` + live verify | Flow may complete via `card_markdown_gate` **without** setting `last_verified_result=pass` |
-| `story verify` | optional shell verify_command | required for shell-proven complete | shell=True = operator-authored only |
-| `query sql` | **not exposed** | read-only connection | Do not add mutating SQL |
-| Rust forward | refused on flow-lineage DB | n/a | `FLOW_HARNESS_BACKEND=rust` → exit 2 when usage mirror / schema≥9 |
-| Changesets / work-graph | **flow-owned graph executor** (schema band 014+) | 006–013 | **Superseded 2026-07-26** (was: out of scope, FOMO red line) — flow builds its own work-graph; upstream 006–013 will NOT be adopted. Decision record: plan `260726-1718-harness-graph-executor-langgraph-port` |
-| `query contract --json` | not on Python CLI | protocol v1 discovery | Optional external binary smoke only |
+| Surface | Flow status | Trust note |
+|---------|-------------|------------|
+| `story update --status implemented` | rejected | Use `story complete` |
+| `story complete` | flow-native `proof_source` | Never forge `last_verified_result=pass` from markdown alone |
+| Rust forward | refused on flow-lineage DB | exit 2 when usage mirror / schema≥9 |
+| Changesets 006–013 | not adopted | graph band 014+ is flow-owned |
 
-## Pins (consumer)
+## Historical pins (do not install as product dependency)
 
 ```
-HARNESS_PROTOCOL_V1_TAG = harness-cli-v0.1.14   # floor
-HARNESS_CLI_TRUST_TAG   = harness-cli-v0.1.17   # trust features + release proof
-DO_NOT_USE              = harness-cli-v0.1.16   # no assets / failed promotion
+# archive labels only — not live authority
+HARNESS_PROTOCOL_V1_TAG_ARCHIVE = harness-cli-v0.1.14
+HARNESS_CLI_TRUST_ALIGN_SNAPSHOT = harness-cli-v0.1.17
+HARNESS_CLI_LAST_PUBLISHED_ARCHIVE = harness-cli-v0.1.22
+DO_NOT_USE = harness-cli-v0.1.16
 ```
 
 ## Rust refuse-forward
 
-Any DB with `usage_event` or `MAX(schema_version) >= 9` is **flow-lineage**. Python entrypoint must refuse forwarding to external `harness-cli` (exit 2). `graph` verbs are NEVER forwarded regardless of DB state (flow-only surface, band 014+). The former "schema re-home ≥014 (separate epic)" note is superseded 2026-07-26: 014+ is now the flow-owned graph-executor band; 013 remains reserved/absent.
+Any DB with `usage_event` or `MAX(schema_version) >= 9` is **flow-lineage**. Python entrypoint
+must refuse forwarding to external `harness-cli` (exit 2). `graph` verbs are NEVER forwarded.
+**Supersession:** upstream work-graph / protocol-v1 is not a sync target.

@@ -1,13 +1,15 @@
-# Native gate rituals — standalone baseline (v0.22)
+# Native gate rituals — standalone baseline (v0.22+)
 
-Five clean-room playbooks that make flow self-sufficient without any external skill kit
-installed. Each was written fresh from public/generic patterns (persona-panel review,
+Six clean-room playbooks that make flow self-sufficient without any external skill kit
+installed. Rituals 1–5 cover product gates; **R-IMPROVE-HARNESS** covers skill/harness
+maintenance. Each was written fresh from public/generic patterns (persona-panel review,
 generic edge-case taxonomy, STRIDE — public Microsoft SDL methodology, git-log
-retrospection, iterate-to-numeric-target loops) — none of this text is copied from
-claudekit-engineer (proprietary, All Rights Reserved) or any other kit. Where a matching
-ck skill is installed, it is offered as a **richer alternative**, never a requirement —
-see the seam files (`gate-rules.md`, `adversarial-review.md`, `law/RETRO.md`) for the
-native-first wiring, and `claudekit-skills.md` for the optional-enrichment annex.
+retrospection, iterate-to-numeric-target loops, evidence-backed harness improvement) —
+none of this text is copied from claudekit-engineer (proprietary, All Rights Reserved)
+or any other kit. Where a matching ck skill is installed, it is offered as a **richer
+alternative**, never a requirement — see the seam files (`gate-rules.md`,
+`adversarial-review.md`, `law/RETRO.md`) for the native-first wiring, and
+`claudekit-skills.md` for the optional-enrichment annex.
 
 Every ritual below follows the same rule as the ck skills it stands in for: it
 **informs** the gate; the gate (the `flow.sh` exit code + the semantic challenge) still
@@ -131,3 +133,38 @@ Steps:
 Informs, never judges: this is execution machinery, not a gate — the card's Build/Verify
 gate (`flow.sh check`) still judges the final diff, exactly as it does for any other
 card.
+
+## 6. Improve-flow-harness ritual (R-IMPROVE-HARNESS)
+
+Purpose: improve one bounded future-agent behavior in **this skill** (guidance, templates,
+gate wording, playbooks, diagnostics) without turning every difficult task into permanent
+process. Port of the *spirit* of repository-harness `$improve-harness` — not a binary
+dependency. **Stable id: `R-IMPROVE-HARNESS`.** (Deferred strategist counsel is
+`R-STRATEGIST` — do not conflate.)
+
+When: the operator/maintainer **explicitly** asks to improve the harness/skill after
+observed reusable agent friction. Never auto-fire from `next`/`check`/`auto`. Inspection
+or "report friction" alone does **not** authorize skill edits.
+
+Steps:
+1. **Authority** — confirm explicit improve request; record repo root/revision.
+2. **Baseline** — representative job, concrete failure, evidence, human intervention,
+   known limitations. No observed baseline → stop with an experiment *proposal* only.
+3. **Earliest gap owner** — context | capability | domain | authority | proof | environment.
+4. **One intervention hypothesis** before editing:
+   ```
+   If <smallest change> at <owner>, then a fresh agent will <observable>
+   on <job>, because <mechanism>.
+   Evidence that would weaken this: …
+   ```
+5. Apply **only** that authorized change (prefer skill docs/templates/playbooks over
+   new frameworks). Run focused tests for the changed boundary.
+6. **Fresh rerun** — new agent session, equivalent start state. Record whether the
+   intervention was available, retrieved/invoked, and relevant. If no fresh rerun:
+   decision stays **pending fresh rerun** — **never claim keep**.
+7. **Decision:** keep | revise | remove | pending fresh rerun.
+8. On **keep**, prefer a durable note: `flow.sh harness backlog close …` or
+   `decision add` with `fresh_agent_rerun=yes` + session id.
+
+Informs, never judges: this ritual maintains the skill; it never passes a product gate
+and never auto-runs on the build path.

@@ -43,8 +43,8 @@ below; the concierge never intercepts an explicit `/flow <verb>`. See
 
 | Field | Value |
 |---|---|
-| Version | **v0.26.0** (2026-08-11) |
-| npm package | [`@manhquy/flow-skill@0.3.1`](https://www.npmjs.com/package/@manhquy/flow-skill) — GA on **`latest`**; install with **`npx @manhquy/flow-skill@latest`** (`npm i` does **not** install the skill) |
+| Version | **v0.27.0** (2026-08-11) — harness authority continuity (flow-owned durable layer) |
+| npm package | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) — install with **`npx @manhquy/flow-skill@latest`** (`npm i` does **not** install the skill) |
 | Tests | 48 suites green (full `run_all.sh`) |
 | CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines demoted to unused fallback) |
 | License | MIT |
@@ -161,7 +161,7 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 **A. npm — one command, cross-OS** (recommended, LIVE at [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
 ```bash
-npx @manhquy/flow-skill@latest            # newest GA — current: 0.3.0 (ships skill v0.26.0)
+npx @manhquy/flow-skill@latest            # newest GA — current: 0.4.0 (ships skill v0.27.0)
 ```
 
 > **Always use `@latest`.** npx caches by bare name, so a plain `npx @manhquy/flow-skill`
@@ -169,7 +169,7 @@ npx @manhquy/flow-skill@latest            # newest GA — current: 0.3.0 (ships 
 
 > **Two version numbers (not a bug):** the **npm package** is `0.2.x` (installer CLI);
 > the **skill product** is `v0.25.x` (`SKILL.md` metadata). `npx … --help` prints both, e.g.
-> `flow-skill v0.3.1 (ships skill v0.26.0)`. Do **not** `npm i @manhquy/flow-skill@0.25.0`
+> `flow-skill v0.4.0 (ships skill v0.27.0)`. Do **not** `npm i @manhquy/flow-skill@0.25.0`
 > — that version does not exist on npm. Also: `npm i @manhquy/flow-skill` only puts the CLI
 > in `node_modules`; it does **not** copy the skill into `~/.claude/skills/flow` until you
 > **run** the CLI (`npx @manhquy/flow-skill@latest`).

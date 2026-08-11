@@ -44,8 +44,8 @@ chen ngang một lệnh `/flow <verb>` tường minh. Xem đầy đủ luật đ
 
 | Trường | Giá trị |
 |---|---|
-| Phiên bản | **v0.26.0** (2026-08-11) |
-| npm package | [`@manhquy/flow-skill@0.3.1`](https://www.npmjs.com/package/@manhquy/flow-skill) — GA trên **`latest`**; cài bằng **`npx @manhquy/flow-skill@latest`** (`npm i` **không** cài skill) |
+| Phiên bản | **v0.27.0** (2026-08-11) — harness authority continuity (lớp durable flow-owned) |
+| npm package | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) — cài bằng **`npx @manhquy/flow-skill@latest`** (`npm i` **không** cài skill) |
 | Test | 48 bộ xanh (full `run_all.sh`) |
 | CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines chuyển thành fallback dự phòng) |
 | License | MIT |
@@ -165,7 +165,7 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 
 **A. npm — một lệnh, cross-OS** (khuyến nghị, đã LIVE trên [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
 ```bash
-npx @manhquy/flow-skill@latest            # bản GA mới nhất — hiện tại: 0.3.1 (ships skill v0.26.0)
+npx @manhquy/flow-skill@latest            # bản GA mới nhất — hiện tại: 0.4.0 (ships skill v0.27.0)
 ```
 
 > **Luôn dùng `@latest`.** npx cache theo tên trần, nên `npx @manhquy/flow-skill` (không đuôi)
@@ -173,12 +173,12 @@ npx @manhquy/flow-skill@latest            # bản GA mới nhất — hiện t�
 
 > **Hai số version (không phải bug):** package npm = `0.2.x` (installer CLI); skill
 > product = `v0.25.x` (`SKILL.md`). `npx … --help` in cả hai, ví dụ
-> `flow-skill v0.3.1 (ships skill v0.26.0)`. **Không** `npm i @…@0.25.0` — version đó
+> `flow-skill v0.4.0 (ships skill v0.27.0)`. **Không** `npm i @…@0.25.0` — version đó
 > không tồn tại trên npm. `npm i @manhquy/flow-skill` chỉ bỏ CLI vào `node_modules`; phải
 > **chạy** CLI (`npx @manhquy/flow-skill@latest`) mới copy skill vào `~/.claude/skills/flow`.
 >
 > **Cách ship lên npm:** `git tag npm@X.Y.Z && git push origin npm@X.Y.Z` → Actions
-> `publish-npm-wrapper.yml` (OIDC + provenance). Tag skill (`v0.26.0`) **không** auto-publish npm.
+> `publish-npm-wrapper.yml` (OIDC + provenance). Tag skill (`v0.27.0`) **không** auto-publish npm.
 
 Pure Node (>= 22.14.0), tương tác multi-select 5 target (Claude Code, Codex CLI, Agents home —
 cũng là thư mục Agent-Skills chung mà các tool tuân chuẩn khác như Cursor đọc — Antigravity
