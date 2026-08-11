@@ -56,7 +56,11 @@ if grep -E 'Pins: protocol floor `harness-cli-v0\.1\.14`' "$ROOT/SKILL.md" >/dev
 else
   ok "SKILL.md harness bullet without live pin line"
 fi
-grep -qiE 'flow-owned|R-IMPROVE|Improve-flow-harness|native-rituals' "$ROOT/SKILL.md" && ok "SKILL links ownership or improve ritual" || ok "SKILL ownership optional if harness README primary"
+if grep -qiE 'flow-owned|R-IMPROVE|Improve-flow-harness' "$ROOT/SKILL.md"; then
+  ok "SKILL links ownership or improve ritual"
+else
+  bad "SKILL must mention flow-owned or R-IMPROVE-HARNESS"
+fi
 
 echo
 echo "RESULT: $pass passed, $fail failed"
