@@ -1,266 +1,189 @@
-# flow — a gated build harness skill for Claude Code
+# flow — gated build harness for coding agents
 
-*Read this in [Tiếng Việt](README_VN.md).*
+*Tiếng Việt: [README_VN.md](README_VN.md).*
 
 [![npm](https://img.shields.io/npm/v/@manhquy/flow-skill?label=npm&color=cb3837)](https://www.npmjs.com/package/@manhquy/flow-skill)
-[![tests](https://img.shields.io/badge/tests-48%20suites%20%2F%201210%20checks-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-48%20suites-brightgreen)](tests/)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions%20%C2%B7%203%20OS-blue)](.github/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-`/flow` takes a product from **idea to real done-evidence** through honest gates — a deployed
-URL for a web app, install-and-run for a CLI, public API + coverage for a library, a real run
-for a Claude Code skill. **Just talk to it** — chat is the default front door (a concierge
-routes your ask to the right next step); typed verbs (`/flow next`, `/flow card`...) still work
-for power users. **Standalone**: install flow alone and every gate ritual is available natively
-— ck: and BMAD are optional enrichment, never a requirement. It adds a durable harness layer
-(intake / story / trace / decision / backlog), cross-vendor agent orchestration (Claude + Codex
-GPT-5.x + Antigravity Gemini-3 → three-model adversarial gate), and project-type awareness.
+`/flow` walks a product from **idea → real done-evidence** through honest gates (deployed URL,
+install-and-run CLI, library API, or a real skill run). Chat is the default front door;
+typed verbs (`/flow next`, `/flow card`, …) still work. **Standalone** — no AgentKit /
+claudekit required. Optional multi-model review (Claude · Codex · Antigravity) when present.
 
-## Install
+| | |
+|---|---|
+| **Skill product** | **v0.27.0** |
+| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.4.x** (ships the skill above) |
+| **Tests / CI** | 48 suites · Ubuntu · macOS · Windows |
+| **License** | MIT |
+
+---
+
+## Install (recommended)
+
+**Requirement:** [Node.js](https://nodejs.org/) **≥ 22.14**.
+
+### Standard command (copy this)
 
 ```bash
+# Always use @latest so npx fetches the newest release (bare package name can hit a stale cache).
 npx @manhquy/flow-skill@latest
 ```
 
-Cross-OS (macOS · Linux · Windows), pure Node ≥22.14, interactive multi-select. See
-[Install methods](#install-methods) for CI-friendly flags, dev checkout, and the bash /
-PowerShell installers.
+What happens:
 
-## Quickstart — just chat
+1. Downloads the **current GA** installer from npm (`latest` dist-tag).
+2. Opens an **interactive** multi-select of agents detected on this machine.
+3. Copies the skill tree into each selected home (e.g. `~/.claude/skills/flow`).
 
-No verbs to learn. After install, open a fresh Claude Code session in your project and say
-what you want:
+Then **restart / reload the agent** and invoke:
+
+| Agent | After install |
+|--------|----------------|
+| Claude Code | type `/flow` |
+| Codex CLI | restart once, type `$flow` |
+| Cursor / Agents home | reload the tool, open the flow skill |
+| Antigravity | restart IDE/`agy`, then `/flow` |
+
+### Common variants
+
+```bash
+# Non-interactive: Claude + any agents already detected
+npx @manhquy/flow-skill@latest --yes
+
+# Explicit agents only
+npx @manhquy/flow-skill@latest --yes --target claude
+npx @manhquy/flow-skill@latest --yes -t claude -t codex
+
+# All supported targets (claude, codex, agents, antigravity, cursor)
+npx @manhquy/flow-skill@latest --yes --all
+
+# Project-scoped Claude skill (commit under the repo)
+npx @manhquy/flow-skill@latest --yes --project --dir .
+
+# Preview without writing files (CI / dry-run)
+npx @manhquy/flow-skill@latest --yes --all --dry-run --json
+
+# Confirm what you will get (installer + bundled skill versions)
+npx @manhquy/flow-skill@latest --help
+# expect: flow-skill v0.4.x (ships skill v0.27.x)
+```
+
+### Verify install
+
+```bash
+# Version printed by the installer
+npx @manhquy/flow-skill@latest --help
+
+# Skill product version on disk (Claude global path example)
+grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
+# expect: version: "0.27.0"  (or current skill product)
+
+# Environment / runner
+bash ~/.claude/skills/flow/runner/flow.sh doctor
+# expect: READY
+```
+
+### Rules (read once)
+
+| Do | Don’t |
+|----|--------|
+| Use **`@latest`** every time you want the newest skill | Bare `npx @manhquy/flow-skill` (npx cache may re-run an old copy) |
+| **Run** the CLI so files land under agent homes | `npm i @manhquy/flow-skill` alone — that only adds the package; it does **not** install the skill |
+| Pin installer as `@0.4.1` if you need a fixed release | Pin `@0.27.0` on npm — that is the **skill** version, not the npm package name |
+| Use `@latest` / `@0.4.x` | Use `@rc` — retired / stale channel |
+
+**Two version numbers (intentional):** npm package = installer CLI; skill product = `SKILL.md` `metadata.version`. `--help` prints both: `flow-skill v0.4.1 (ships skill v0.27.0)`.
+
+Full flag reference: [npm-wrapper/README.md](./npm-wrapper/README.md).
+
+---
+
+## Quickstart
+
+After install, open a **fresh** agent session in your project:
 
 > "I want to build an inventory app for my shop."
 
-The concierge runs `flow.sh status` (ground truth, never a guess), asks one plain question
-("draft the steps and you review each one?"), and walks you toward the Scope gate — zero
-`/flow` verbs typed. Prefer typing commands yourself? They still work exactly as documented
-below; the concierge never intercepts an explicit `/flow <verb>`. See
-[`references/concierge.md`](skills/flow/references/concierge.md) for the full routing contract.
+The concierge reads `flow.sh status` (mechanical ground truth), asks one plain consent
+question, and routes you to the next gate. Explicit `/flow …` verbs always win over chat
+routing. Details: [`skills/flow/references/concierge.md`](skills/flow/references/concierge.md).
 
-## Status
+**Core ideas:** done = world-state proof (not “tests pass”); mechanical gate (`flow.sh`) +
+semantic gate (skill) must both agree; kill at a gate is valid.
 
-| Field | Value |
-|---|---|
-| Version | **v0.27.0** (2026-08-11) — harness authority continuity (flow-owned durable layer) |
-| npm package | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) — install with **`npx @manhquy/flow-skill@latest`** (`npm i` does **not** install the skill) |
-| Tests | 48 suites green (full `run_all.sh`) |
-| CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines demoted to unused fallback) |
-| License | MIT |
-
-Release notes in [`CHANGELOG.md`](./CHANGELOG.md); session journals in [`docs/journals/`](./docs/journals/).  
-**Shipping a new version (skill and/or npm):** [`docs/release-process.md`](./docs/release-process.md).
+Release notes: [`CHANGELOG.md`](./CHANGELOG.md) · process: [`docs/release-process.md`](./docs/release-process.md).
 
 
-## What ships
+## Where it installs
 
-```
-flow-skill/
-├── skills/flow/                 # the installable skill  (-> ~/.claude/skills/flow)
-│   ├── SKILL.md                 # command dispatch + semantic gatekeeper + agent orchestration
-│   ├── runner/flow.sh           # gate engine (exit 0/1): status/next/assess/card/check/mode/project-type/
-│   │                            #   skip/ready/workspace/auto/recall/unlock/harness/debt/design/contract/
-│   │                            #   tokens/coherence/consistency/constitution/promote/doctor/usage/retro/
-│   │                            #   loop-prep/loop-log (ck-loop thin wrapper)
-│   ├── _templates/              # 00-idea .. 05-contract + card + 00-inspect (brownfield)
-│   ├── law/                     # CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md
-│   ├── references/              # 21 semantic playbooks (gates, agents, codex/antigravity, loop, design,
-│   │                            #   project-types, concierge, native-rituals, forge-idea)
-│   ├── eval/                    # behavioral-eval fixtures: artifact-vs-gate + v0.22 routing judge
-│   ├── harness/                 # durable layer: flow_harness.py + _db.py + _domain.py + schema
-│   └── playbooks/               # paid-for stack knowledge (read before, harvest after)
-├── .claude-plugin/              # plugin.json + marketplace.json (plugin/marketplace install)
-├── install.sh / install.ps1     # one-command install (global or per-project)
-├── tests/run_all.sh             # 48 suites (… + done-evidence + auto-done-path; graph-executor)
-└── docs/                        # architecture + codebase summary
-```
+| Agent | Path | Invoke |
+|-------|------|--------|
+| Claude Code | `~/.claude/skills/flow` (or project `.claude/skills/flow`) | `/flow` |
+| Codex CLI | `~/.codex/skills/flow` | `$flow` (restart Codex after install) |
+| Agents home | `~/.agents/skills/flow` | host-specific |
+| Antigravity | `~/.gemini/antigravity-cli/skills/flow` + `~/.gemini/config/skills/flow` | `/flow` after reload |
+| Cursor | `~/.cursor/skills/flow` | agent skills panel after reload |
 
-## Standalone by design (v0.22)
-
-Installing flow alone gets you the **full** experience — no other skill kit required. Five
-gate seams that used to lean on optional external skills now ship **native rituals**
-(`references/native-rituals.md`): persona-debate @ ADR, edge-case decomposition @ Contract,
-STRIDE security @ Review, numeric retro @ Retro, and a native loop protocol @ Build/Verify.
-If claudekit's `ck-predict`/`ck-scenario`/`ck-security`/`ck-loop` or BMAD's `retro` skill
-happen to be installed, they're offered as **richer alternatives** — never a requirement, and
-never something the gate depends on. A sixth ritual, `references/forge-idea.md`, is adapted
-from BMAD-METHOD's `bmad-forge-idea` (MIT) for pressure-testing an idea at the Idea/Scope
-stages before it locks.
+**Runtime deps for the skill (after install):** bash (Git Bash on Windows), python3 recommended for durable harness, git optional for worktrees/`auto`. Without python, gates still run; durable SQLite layer disables.
 
 ---
 
-# Installation
+## Other install methods
 
-`/flow` is a **portable skill** — a folder with a `SKILL.md` that the same format runs in
-Claude Code **and** Codex CLI (and other SKILL.md-aware agents). Install it once and the
-installer drops it into every harness you have:
-
-| Harness | Install dir | Invoke |
-|---|---|---|
-| **Claude Code** | `~/.claude/skills/flow/` (or `<project>/.claude/skills/flow/`) | `/flow` |
-| **Codex CLI** | `~/.codex/skills/flow/` | `$flow` |
-| **Agents / claudekit** | `~/.agents/skills/flow/` | per host |
-| **Antigravity** | `~/.gemini/antigravity-cli/skills/flow/` (CLI) · `~/.gemini/config/skills/flow/` (IDE) | auto-match (`agy inspect`) |
-
-It works the same on **macOS, Linux (Ubuntu), and Windows**.
-
-## Prerequisites
-
-| Tool | Required? | Why | macOS | Ubuntu | Windows |
-|---|---|---|---|---|---|
-| **bash** | **Required** | the gate engine is a bash script | built-in (3.2) | built-in | Git Bash (Git for Windows) |
-| **python3** | Recommended | the durable harness layer (sqlite3) | `brew install python` | `sudo apt install python3` | python.org / winget |
-| **git** | Optional | worktree parallel builds + `/flow auto` | built-in / Xcode CLT | `sudo apt install git` | Git for Windows |
-| **cargo** | Optional | Rust harness power-path only | — | — | — |
-
-> Without python the **gate engine still works fully**; only the durable records layer is
-> auto-disabled. `sqlite3` ships inside python's standard library on all three OSes — no
-> separate install. macOS's built-in bash 3.2 is fine (`/flow` avoids bash-4 features); install
-> bash 4+ via Homebrew only if you prefer.
-
-## Per-platform setup
-
-### macOS
-```bash
-# 1. python3 (not preinstalled on macOS 12.3+):
-brew install python            # or: xcode-select --install
-# 2. install /flow globally:
-cd /path/to/flow-skill
-bash install.sh global         # -> ~/.claude/skills/flow
-# 3. verify:
-bash ~/.claude/skills/flow/runner/flow.sh doctor
-```
-Note: macOS BSD `grep` has no `-P`, so the optional `flow design` emoji check degrades
-gracefully (everything else works).
-
-### Linux (Ubuntu / Debian)
-```bash
-sudo apt update && sudo apt install -y bash python3 git
-cd /path/to/flow-skill
-bash install.sh global         # -> ~/.claude/skills/flow
-bash ~/.claude/skills/flow/runner/flow.sh doctor
-```
-
-### Windows
-Requires **Git for Windows** (provides Git Bash). Install python from python.org (tick "Add
-to PATH") or `winget install Python.Python.3.12` — avoid the Microsoft Store stub.
-```powershell
-# PowerShell:
-cd C:\path\to\flow-skill
-pwsh .\install.ps1 global       # -> %USERPROFILE%\.claude\skills\flow  (PowerShell 7+)
-```
-```bash
-# or from Git Bash:
-cd /c/path/to/flow-skill
-bash install.sh global
-bash ~/.claude/skills/flow/runner/flow.sh doctor
-```
-
-## Install methods
-
-**A. npm — one command, cross-OS** (recommended, LIVE at [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
-```bash
-npx @manhquy/flow-skill@latest            # newest GA — current: 0.4.0 (ships skill v0.27.0)
-```
-
-> **Always use `@latest`.** npx caches by bare name, so a plain `npx @manhquy/flow-skill`
-> can re-run a stale cached copy; `@latest` forces npx to fetch the newest release.
-
-> **Two version numbers (not a bug):** the **npm package** is `0.2.x` (installer CLI);
-> the **skill product** is `v0.25.x` (`SKILL.md` metadata). `npx … --help` prints both, e.g.
-> `flow-skill v0.4.0 (ships skill v0.27.0)`. Do **not** `npm i @manhquy/flow-skill@0.25.0`
-> — that version does not exist on npm. Also: `npm i @manhquy/flow-skill` only puts the CLI
-> in `node_modules`; it does **not** copy the skill into `~/.claude/skills/flow` until you
-> **run** the CLI (`npx @manhquy/flow-skill@latest`).
->
-> **How npm ships:** push a git tag `npm@X.Y.Z` (or `npm@X.Y.Z-rc.N`) → GitHub Actions
-> `publish-npm-wrapper.yml` publishes with OIDC + provenance. Skill product tags (`v0.25.0`)
-> are a separate axis and do **not** auto-publish to npm.
-
-Interactive multi-select of the 5 target agents (Claude Code, Codex CLI, Agents home —
-also the universal Agent-Skills home other spec-compliant tools like Cursor read —
-Antigravity CLI + IDE, Cursor), or non-interactive:
+Prefer **npm** above. Alternatives for contributors / air-gapped setups:
 
 ```bash
-npx @manhquy/flow-skill@latest --yes                    # install to detected + Claude
-npx @manhquy/flow-skill@latest --yes -t claude -t codex # explicit targets
-npx @manhquy/flow-skill@latest --yes --all              # force all 5 targets
-npx @manhquy/flow-skill@latest --yes --all --dry-run --json  # CI-friendly JSONL preview
-```
+# From a git checkout — install script (syncs detected agent homes + doctor)
+bash install.sh global                 # or: pwsh install.ps1 global  (Windows)
+bash install.sh project [dir]          # project-local Claude skill
 
-Pure Node ≥22.14 — no bash, no PowerShell, works identically on macOS/Linux/Windows regardless of terminal. See [npm-wrapper/README.md](./npm-wrapper/README.md) for the full flag reference, JSONL contract, and troubleshooting. Full source at [`npm-wrapper/`](./npm-wrapper/) in this repo.
-
-> **Dev checkout** (for contributors, not end users): `git clone https://github.com/manhquydev/flow-skill && cd flow-skill/npm-wrapper && npm install && npm run sync && npm link` then `flow-skill --help`.
-
-**B. Install script (upstream reference)** — installs into **every harness present** + runs a doctor check:
-```bash
-bash install.sh global            # ~/.claude/skills/flow (always) + ~/.codex/skills/flow
-                                  #   + ~/.agents/skills/flow  (each added only if that harness exists)
-bash install.sh global codex      # one harness: claude | codex | agents | antigravity
-bash install.sh project [dir]     # <dir>/.claude/skills/flow (one project, commit-able)
-# Windows PowerShell: pwsh install.ps1 global | pwsh install.ps1 global codex | pwsh install.ps1 project [dir]
-```
-The repo is the single source of truth — **re-run the installer after any update** to re-sync
-every harness (no drift between your Claude Code and Codex copies).
-
-> **Windows:** use **`pwsh install.ps1 global`**, not `bash install.sh` — in PowerShell a bare
-> `bash` may be **WSL**, which installs into the WSL filesystem (`/home/...`) instead of your
-> Windows home. Run `bash install.sh` only from **Git Bash**.
-
-**C. Plugin / marketplace** (for sharing across machines or a team):
-```
-/plugin marketplace add <path-or-git-url-to-flow-skill>
+# Plugin / marketplace (Claude Code)
+/plugin marketplace add <path-or-url-to-this-repo>
 /plugin install flow@flow-marketplace
+
+# Manual: copy skills/flow/ → ~/.claude/skills/flow/ and chmod +x runner/flow.sh
 ```
-The repo ships `.claude-plugin/plugin.json` + `marketplace.json`.
 
-**D. Manual** — copy `skills/flow/` to `~/.claude/skills/flow/` (or `<project>/.claude/skills/flow/`)
-and `chmod +x` the runner on macOS/Linux.
+On Windows, prefer `pwsh install.ps1` or the npm path. In PowerShell, bare `bash` may be WSL
+(wrong filesystem); use `runner/flow.cmd` when calling the runner outside Claude’s Git Bash.
 
-## Activate & verify
-- **Claude Code:** a **new** skills directory needs Claude Code restarted once so it starts
-  watching it; edits to an already-watched skill apply within the session. Type **`/flow`**.
-- **Codex CLI:** Codex loads its skill catalog **at startup**, so **fully restart Codex** after
-  installing, then type **`$flow`** (or `/skills` to confirm `flow` is listed). Codex invokes
-  skills with a `$` prefix — `$flow`, `$flow next`, `$flow assess` — not `/flow`.
-- Confirm the environment any time: `bash ~/.claude/skills/flow/runner/flow.sh doctor`.
-- **Windows manual runner calls (PowerShell/cmd/Codex):** use the launcher, not bare `bash` —
-  `~/.codex/skills/flow/runner/flow.cmd doctor`. In PowerShell a bare `bash` usually means WSL,
-  which can't read `C:/` paths and fails with "No such file or directory"; `flow.cmd` finds Git
-  Bash for you. (Inside Claude Code's own Bash tool, `bash …/flow.sh` is fine — that's Git Bash.)
+**Dev only:** `git clone … && cd npm-wrapper && npm i && npm run sync && npm link`.
+
+---
 
 ## Troubleshooting
-| Symptom | Cause | Fix |
-|---|---|---|
-| `\r: command not found` / `bad interpreter` | CRLF line endings (Windows clone) | the repo enforces LF via `.gitattributes`; re-clone, or `sed -i 's/\r$//' runner/flow.sh` |
-| `/flow` not listed | new skills dir not watched yet | restart Claude Code once after first install |
-| `$flow` not found in Codex | skill not in `~/.codex/skills` or Codex not restarted | `bash install.sh global` then fully restart Codex; `/skills` to confirm |
-| runner: `flow.sh: No such file or directory` in PowerShell/Codex | bare `bash` = WSL, can't read `C:/` paths | call `…/runner/flow.cmd <command>` (finds Git Bash) instead of `bash …/flow.sh` |
-| `durable layer DISABLED` in doctor | python not found | install python3 (see per-platform) or ignore — engine still works |
-| `flow design` finds no emoji on macOS | BSD grep has no `-P` | expected; the rest of the design check still runs |
-| PowerShell `??` parse error | PowerShell 5.1 | use `pwsh` (PowerShell 7+) or the Git Bash `install.sh` |
+
+| Symptom | Fix |
+|---------|-----|
+| No `/flow` after `npm i` | Run `npx @manhquy/flow-skill@latest` (must **execute** the CLI) |
+| Old skill after “reinstall” | Always use `@latest`; avoid bare package name |
+| Claude / Codex does not list skill | Fully restart the agent once after first install |
+| `flow.sh: No such file` in PowerShell | Use `…/runner/flow.cmd` (not WSL `bash`) |
+| `durable layer DISABLED` | Install python3, or ignore (mechanical gates still work) |
+| CRLF / bad interpreter | Repo uses LF via `.gitattributes`; re-clone if needed |
 
 ---
 
-## Quick start (`/flow ...`  ·  Codex: `$flow ...`)
+## Everyday commands
+
 ```
-/flow                  where am I, what's blocking, memory summary
-/flow assess           brownfield: scaffold + gate a current-state assessment of an existing repo
-/flow project-type cli set what you're building (web|cli|library|skill) -> adapts done-evidence
-/flow next             gate-check current stage, unlock the next (or list what's missing)
-/flow recall           read back prior knowledge (debt/retro/previous-card/friction/playbooks) first
-/flow card             create a build card (after all planning gates pass)
-/flow check C-001      validate a card (done = real-world proof, not "tests pass")
-/flow auto             autonomous build run (Tier-A auto-merge green, halt at security-class)
-/flow loop-prep C-001  iterate-to-numeric-target: worktree + Verify/Guard for the ck-loop skill
-/flow contract|tokens|coherence|consistency   drift/coverage checks (path-resolution · design tokens · version · cross-artifact FR mapping)
-/flow doctor           environment check across macOS/Linux/Windows
+/flow            status — where am I, what's blocking
+/flow next       gate-check + unlock next stage
+/flow assess     brownfield assessment
+/flow card       create a build card
+/flow check C-001  validate card (done = world-state proof)
+/flow auto       autonomous build (halts on security-class)
+/flow doctor     environment check
 ```
 
-## Commands
+Codex uses `$flow` instead of `/flow`. Full list: [`skills/flow/SKILL.md`](skills/flow/SKILL.md).
 
-Quick start above is the common path; this is the full reference — all 28 commands the engine dispatches (`bash skills/flow/runner/flow.sh <command>`):
+## Command reference
+
+All engine verbs (`bash …/runner/flow.sh <command>`):
 
 | Command | What it does |
 |---|---|

@@ -1,262 +1,183 @@
-# flow — skill "build có cổng kiểm soát" cho Claude Code
+# flow — harness build có cổng cho coding agent
 
-*Read this in [English](README.md).*
+*English: [README.md](README.md).*
 
 [![npm](https://img.shields.io/npm/v/@manhquy/flow-skill?label=npm&color=cb3837)](https://www.npmjs.com/package/@manhquy/flow-skill)
-[![tests](https://img.shields.io/badge/tests-48%20suites%20%2F%201210%20checks-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-48%20suites-brightgreen)](tests/)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions%20%C2%B7%203%20OS-blue)](.github/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-`/flow` đưa một sản phẩm từ **ý tưởng đến bằng chứng "done" thật** qua các **cổng (gate) trung
-thực** — một URL đã deploy cho web, "cài + chạy được" cho CLI, public API + coverage cho
-library, một lần chạy thật cho skill Claude Code. **Chỉ cần chat** — trò chuyện tự nhiên là cửa
-vào mặc định (concierge tự định tuyến việc bạn muốn làm tới bước kế tiếp đúng); các lệnh gõ tay
-(`/flow next`, `/flow card`...) vẫn dùng được cho người quen. **Độc lập**: chỉ cần cài flow là
-đủ, mọi nghi thức cổng đều có sẵn ngay trong flow — ck: và BMAD chỉ là bổ trợ tùy chọn, không
-bắt buộc. Bổ sung **lớp harness bền vững** (intake / story / trace / decision / backlog), điều
-phối agent đa nhà cung cấp (Claude + Codex GPT-5.x + Antigravity Gemini-3 → gate đối kháng ba mô
-hình), và nhận biết loại dự án.
+`/flow` đưa sản phẩm từ **ý tưởng → bằng chứng done thật** qua các cổng trung thực (URL deploy,
+CLI cài-chạy, library API, hoặc skill chạy thật). Chat là cửa mặc định; lệnh gõ
+(`/flow next`, …) vẫn dùng được. **Độc lập** — không bắt buộc AgentKit/claudekit. Review
+đa model (Claude · Codex · Antigravity) khi có.
 
-## Cài nhanh
+| | |
+|---|---|
+| **Skill product** | **v0.27.0** |
+| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.4.x** (ship skill ở trên) |
+| **Test / CI** | 48 suite · Ubuntu · macOS · Windows |
+| **License** | MIT |
+
+---
+
+## Cài đặt (khuyến nghị)
+
+**Yêu cầu:** [Node.js](https://nodejs.org/) **≥ 22.14**.
+
+### Lệnh chuẩn (copy nguyên)
 
 ```bash
+# Luôn dùng @latest để npx lấy bản mới (tên package trần có thể trúng cache cũ).
 npx @manhquy/flow-skill@latest
 ```
 
-Cross-OS (macOS · Linux · Windows), Node ≥22.14 thuần, tương tác multi-select. Xem
-[Các cách cài](#các-cách-cài) để biết flag non-interactive cho CI, dev checkout, và installer
-bash / PowerShell.
+Diễn biến:
 
-## Bắt đầu nhanh — chỉ cần chat
+1. Tải installer GA hiện tại từ npm (dist-tag `latest`).
+2. Hỏi tương tác các agent detect được trên máy.
+3. Copy skill vào từng home (vd. `~/.claude/skills/flow`).
 
-Không cần học lệnh nào. Sau khi cài, mở session Claude Code mới trong dự án và nói thẳng điều
-bạn muốn:
+Sau đó **restart/reload agent** và gọi:
+
+| Agent | Sau khi cài |
+|--------|-------------|
+| Claude Code | gõ `/flow` |
+| Codex CLI | restart một lần, gõ `$flow` |
+| Cursor / Agents home | reload tool, mở skill flow |
+| Antigravity | restart IDE/`agy`, rồi `/flow` |
+
+### Biến thể thường dùng
+
+```bash
+# Không prompt: Claude + agent đã detect
+npx @manhquy/flow-skill@latest --yes
+
+# Chỉ định agent
+npx @manhquy/flow-skill@latest --yes --target claude
+npx @manhquy/flow-skill@latest --yes -t claude -t codex
+
+# Cả 5 target (claude, codex, agents, antigravity, cursor)
+npx @manhquy/flow-skill@latest --yes --all
+
+# Skill trong repo (Claude project scope)
+npx @manhquy/flow-skill@latest --yes --project --dir .
+
+# Xem kế hoạch, không ghi đĩa (CI)
+npx @manhquy/flow-skill@latest --yes --all --dry-run --json
+
+# Xác nhận phiên bản installer + skill trong tarball
+npx @manhquy/flow-skill@latest --help
+# expect: flow-skill v0.4.x (ships skill v0.27.x)
+```
+
+### Kiểm tra sau cài
+
+```bash
+npx @manhquy/flow-skill@latest --help
+
+grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
+# expect: version: "0.27.0"  (hoặc skill product hiện tại)
+
+bash ~/.claude/skills/flow/runner/flow.sh doctor
+# expect: READY
+```
+
+### Quy tắc
+
+| Nên | Không |
+|-----|--------|
+| **`@latest`** mỗi lần muốn bản mới | Bare `npx @manhquy/flow-skill` (cache npx) |
+| **Chạy** CLI để skill vào agent home | Chỉ `npm i` — không copy skill |
+| Pin installer `@0.4.1` nếu cần cố định | Pin npm `@0.27.0` (đó là version **skill**, không phải package) |
+| `@latest` / `@0.4.x` | `@rc` (đã retire / cũ) |
+
+**Hai số version (cố ý):** package npm = installer CLI; skill product = `SKILL.md` metadata.
+`--help` in cả hai: `flow-skill v0.4.1 (ships skill v0.27.0)`.
+
+Chi tiết flag: [npm-wrapper/README_VN.md](./npm-wrapper/README_VN.md).
+
+---
+
+## Bắt đầu nhanh
+
+Sau cài, mở session agent **mới** trong project:
 
 > "Tôi muốn build app quản lý kho cho cửa hàng."
 
-Concierge chạy `flow.sh status` (bằng chứng cơ học, không đoán mò), hỏi đúng một câu ("để tôi
-soạn nháp từng bước, anh duyệt nhé?"), rồi dẫn bạn tới cổng Scope — không cần gõ lệnh `/flow`
-nào. Vẫn thích gõ lệnh tay? Vẫn hoạt động y hệt như tài liệu bên dưới; concierge không bao giờ
-chen ngang một lệnh `/flow <verb>` tường minh. Xem đầy đủ luật định tuyến tại
-[`references/concierge.md`](skills/flow/references/concierge.md).
+Concierge đọc `flow.sh status` (ground truth cơ học), hỏi một câu đồng ý, rồi dẫn tới cổng
+tiếp. Lệnh `/flow …` tường minh luôn thắng chat. Chi tiết:
+[`skills/flow/references/concierge.md`](skills/flow/references/concierge.md).
 
-## Trạng thái
+**Ý chính:** done = bằng chứng thế giới thật; cổng cơ học + cổng ngữ nghĩa phải cùng pass;
+kill tại gate là hợp lệ.
 
-| Trường | Giá trị |
-|---|---|
-| Phiên bản | **v0.27.0** (2026-08-11) — harness authority continuity (lớp durable flow-owned) |
-| npm package | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) — cài bằng **`npx @manhquy/flow-skill@latest`** (`npm i` **không** cài skill) |
-| Test | 48 bộ xanh (full `run_all.sh`) |
-| CI | GitHub Actions · Ubuntu · macOS · Windows (Azure Pipelines chuyển thành fallback dự phòng) |
-| License | MIT |
-
-Release notes trong [`CHANGELOG.md`](./CHANGELOG.md); nhật ký session trong [`docs/journals/`](./docs/journals/).  
-**Ship bản mới (skill và/hoặc npm):** [`docs/release-process.md`](./docs/release-process.md).
+Release: [`CHANGELOG.md`](./CHANGELOG.md) · quy trình: [`docs/release-process.md`](./docs/release-process.md).
 
 
-## Triết lý cốt lõi
-- **"Done" = bằng chứng thật ngoài đời**, không phải "tests pass" / "đã merge". Mỗi card khai báo
-  done-evidence (URL bấm được, curl thật, dòng DB) TRƯỚC khi build.
-- **Hai lớp**: runner bash (cơ học, exit 0/1) bắt những thứ "gian lận được" (ô gate chưa tick,
-  `[FILL]`, evidence rỗng); SKILL.md (Claude) là người gác cổng ngữ nghĩa (research bịa,
-  scope "dìm hạng", evidence giả). Gate qua khi **cả hai** đồng ý.
-- **Kill tại gate là kết quả hợp lệ** — giết một ý tưởng yếu ở Scope là rẻ và khôn ngoan.
+## Cài vào đâu
 
-## Có gì trong repo
+| Agent | Path | Gọi |
+|-------|------|-----|
+| Claude Code | `~/.claude/skills/flow` | `/flow` |
+| Codex CLI | `~/.codex/skills/flow` | `$flow` (restart Codex) |
+| Agents home | `~/.agents/skills/flow` | theo host |
+| Antigravity | 2 path dưới `~/.gemini/…` | `/flow` sau reload |
+| Cursor | `~/.cursor/skills/flow` | panel skill sau reload |
 
-```
-flow-skill/
-├── skills/flow/                 # skill cài được  (-> ~/.claude/skills/flow)
-│   ├── SKILL.md                 # điều phối lệnh + gác cổng ngữ nghĩa + orchestration agent
-│   ├── runner/flow.sh           # engine gate (exit 0/1): status/next/assess/card/check/mode/project-type/
-│   │                            #   skip/ready/workspace/auto/recall/unlock/harness/debt/design/contract/
-│   │                            #   tokens/coherence/consistency/constitution/promote/doctor/usage/retro/
-│   │                            #   loop-prep/loop-log (bọc ck-loop)
-│   ├── _templates/              # 00-idea .. 05-contract + 00-inspect + card
-│   ├── law/                     # CLAUDE.md (luật build-session), DESIGN.md (luật UI), RETRO.md
-│   ├── references/              # 21 playbook ngữ nghĩa (gates, agents, loop, design, project-types,
-│   │                            #   concierge, native-rituals, forge-idea)
-│   ├── eval/                    # fixture behavioral-eval: artifact-vs-gate + bộ chấm định tuyến v0.22
-│   ├── harness/                 # lớp bền vững: flow_harness.py + _db.py + _domain.py + schema
-│   └── playbooks/               # tri thức stack "trả giá mới có" (đọc trước, đúc kết sau)
-├── .claude-plugin/              # plugin.json + marketplace.json (cài kiểu plugin/marketplace)
-├── install.sh / install.ps1     # cài một lệnh (toàn máy hoặc theo dự án)
-├── tests/run_all.sh             # 34 bộ test / 926 check
-└── docs/                        # kiến trúc + tóm tắt codebase
-```
-
-## Độc lập theo thiết kế (v0.22)
-
-Chỉ cần cài flow là có đủ trải nghiệm **đầy đủ** — không cần bộ kit nào khác. 5 nghi thức cổng
-từng dựa vào skill ngoài (tùy chọn) giờ có **nghi thức bản địa** ngay trong flow
-(`references/native-rituals.md`): tranh luận đa vai trò @ ADR, phân rã edge-case @ Contract,
-bảo mật STRIDE @ Review, retro có số liệu @ Retro, và giao thức lặp bản địa @ Build/Verify. Nếu
-máy có sẵn `ck-predict`/`ck-scenario`/`ck-security`/`ck-loop` của claudekit hay skill `retro`
-của BMAD, chúng được đề xuất như **lựa chọn phong phú hơn** — không bao giờ bắt buộc, cổng
-không bao giờ phụ thuộc vào chúng. Nghi thức thứ sáu, `references/forge-idea.md`, được chuyển
-thể từ `bmad-forge-idea` của BMAD-METHOD (MIT) để tra vấn/dò bền ý tưởng ở giai đoạn Idea/Scope
-trước khi chốt.
+**Phụ thuộc runtime skill:** bash (Git Bash trên Windows), python3 khuyến nghị, git tùy chọn.
+Không có python thì cổng vẫn chạy; lớp SQLite tắt.
 
 ---
 
-# Cài đặt
+## Cách cài khác
 
-`/flow` là một **skill portable** — một thư mục có `SKILL.md` mà cùng định dạng chạy được trên
-Claude Code **và** Codex CLI (và các agent đọc SKILL.md khác). Cài một lần, installer tự đặt vào
-mọi harness bạn có:
+Ưu tiên **npm** ở trên. Thêm cho contributor / offline:
 
-| Harness | Thư mục cài | Gọi bằng |
-|---|---|---|
-| **Claude Code** | `~/.claude/skills/flow/` (hoặc `<project>/.claude/skills/flow/`) | `/flow` |
-| **Codex CLI** | `~/.codex/skills/flow/` | `$flow` |
-| **Agents / claudekit** | `~/.agents/skills/flow/` | tùy host |
-| **Antigravity** | `~/.gemini/antigravity-cli/skills/flow/` (CLI) · `~/.gemini/config/skills/flow/` (IDE) | tự khớp (`agy inspect`) |
-
-Chạy như nhau trên **macOS, Linux (Ubuntu), Windows**.
-
-## Yêu cầu
-
-| Công cụ | Bắt buộc? | Để làm gì | macOS | Ubuntu | Windows |
-|---|---|---|---|---|---|
-| **bash** | **Bắt buộc** | engine gate là script bash | có sẵn (3.2) | có sẵn | Git Bash (Git for Windows) |
-| **python3** | Khuyến nghị | lớp harness bền vững (sqlite3) | `brew install python` | `sudo apt install python3` | python.org / winget |
-| **git** | Tuỳ chọn | build song song bằng worktree + `/flow auto` | có sẵn / Xcode CLT | `sudo apt install git` | Git for Windows |
-| **cargo** | Tuỳ chọn | chỉ cho power-path harness Rust | — | — | — |
-
-> Không có python thì **engine gate vẫn chạy đầy đủ**; chỉ lớp ghi durable tự tắt. `sqlite3` nằm
-> sẵn trong thư viện chuẩn của python trên cả ba HĐH — không cần cài riêng. bash 3.2 mặc định của
-> macOS dùng tốt (`/flow` tránh tính năng bash-4).
-
-## Cài theo nền tảng
-
-### macOS
 ```bash
-brew install python            # hoặc: xcode-select --install
-cd /path/to/flow-skill
-bash install.sh global         # -> ~/.claude/skills/flow
-bash ~/.claude/skills/flow/runner/flow.sh doctor
-```
-Lưu ý: `grep` BSD trên macOS không có `-P`, nên phần kiểm emoji của `flow design` tự bỏ qua êm
-(mọi thứ khác vẫn chạy).
+bash install.sh global                 # hoặc: pwsh install.ps1 global
+bash install.sh project [dir]
 
-### Linux (Ubuntu / Debian)
-```bash
-sudo apt update && sudo apt install -y bash python3 git
-cd /path/to/flow-skill
-bash install.sh global
-bash ~/.claude/skills/flow/runner/flow.sh doctor
-```
-
-### Windows
-Cần **Git for Windows** (cung cấp Git Bash). Cài python từ python.org (tick "Add to PATH") hoặc
-`winget install Python.Python.3.12` — tránh bản Microsoft Store stub.
-```powershell
-cd C:\path\to\flow-skill
-pwsh .\install.ps1 global       # -> %USERPROFILE%\.claude\skills\flow  (PowerShell 7+)
-```
-```bash
-# hoặc từ Git Bash:
-cd /c/path/to/flow-skill
-bash install.sh global
-bash ~/.claude/skills/flow/runner/flow.sh doctor
-```
-
-## Các cách cài
-
-**A. npm — một lệnh, cross-OS** (khuyến nghị, đã LIVE trên [@manhquy/flow-skill](https://www.npmjs.com/package/@manhquy/flow-skill)):
-```bash
-npx @manhquy/flow-skill@latest            # bản GA mới nhất — hiện tại: 0.4.0 (ships skill v0.27.0)
-```
-
-> **Luôn dùng `@latest`.** npx cache theo tên trần, nên `npx @manhquy/flow-skill` (không đuôi)
-> có thể chạy lại bản cũ trong cache; `@latest` ép npx lấy bản mới nhất từ registry.
-
-> **Hai số version (không phải bug):** package npm = `0.2.x` (installer CLI); skill
-> product = `v0.25.x` (`SKILL.md`). `npx … --help` in cả hai, ví dụ
-> `flow-skill v0.4.0 (ships skill v0.27.0)`. **Không** `npm i @…@0.25.0` — version đó
-> không tồn tại trên npm. `npm i @manhquy/flow-skill` chỉ bỏ CLI vào `node_modules`; phải
-> **chạy** CLI (`npx @manhquy/flow-skill@latest`) mới copy skill vào `~/.claude/skills/flow`.
->
-> **Cách ship lên npm:** `git tag npm@X.Y.Z && git push origin npm@X.Y.Z` → Actions
-> `publish-npm-wrapper.yml` (OIDC + provenance). Tag skill (`v0.27.0`) **không** auto-publish npm.
-
-Pure Node (>= 22.14.0), tương tác multi-select 5 target (Claude Code, Codex CLI, Agents home —
-cũng là thư mục Agent-Skills chung mà các tool tuân chuẩn khác như Cursor đọc — Antigravity
-CLI + IDE, Cursor), chạy giống nhau trên macOS + Linux + Windows.
-Non-interactive cho CI:
-```bash
-npx @manhquy/flow-skill@latest --yes                    # cài vào target được detect + Claude
-npx @manhquy/flow-skill@latest --yes -t claude -t codex # target rõ ràng
-npx @manhquy/flow-skill@latest --yes --all              # ép cả 5 target
-npx @manhquy/flow-skill@latest --yes --all --dry-run --json  # preview JSONL cho CI
-```
-Xem [npm-wrapper/README.md](./npm-wrapper/README.md) để biết đầy đủ flag, hợp đồng JSONL và troubleshooting.
-
-> **Dev checkout** (chỉ dành cho contributor): `git clone https://github.com/manhquydev/flow-skill && cd flow-skill/npm-wrapper && npm install && npm run sync && npm link` rồi `flow-skill --help`.
-
-**B. Script cài (dùng cho dev/repo checkout)** — cài vào **mọi harness đang có** + chạy doctor:
-```bash
-bash install.sh global            # ~/.claude/skills/flow (luôn) + ~/.codex/skills/flow
-                                  #   + ~/.agents/skills/flow  (chỉ thêm nếu harness đó tồn tại)
-bash install.sh global codex      # target 1 harness: claude | codex | agents
-bash install.sh project [dir]     # <dir>/.claude/skills/flow (một dự án, commit được)
-# Windows PowerShell: pwsh install.ps1 global | pwsh install.ps1 global codex | pwsh install.ps1 project [dir]
-```
-Repo là single source of truth — **chạy lại installer sau mỗi lần update** để đồng bộ mọi
-harness (không lệch giữa bản Claude Code và Codex).
-
-> **Windows:** dùng **`pwsh install.ps1 global`**, đừng dùng `bash install.sh` — trong PowerShell
-> `bash` trần có thể là **WSL**, sẽ cài vào filesystem WSL (`/home/...`) thay vì home Windows.
-> Chỉ chạy `bash install.sh` từ **Git Bash**.
-
-**C. Plugin / marketplace** (chia sẻ giữa nhiều máy / cả team):
-```
-/plugin marketplace add <path-hoặc-git-url-tới-flow-skill>
+/plugin marketplace add <path-hoặc-url>
 /plugin install flow@flow-marketplace
-```
-**C. Thủ công** — copy `skills/flow/` vào `~/.claude/skills/flow/` và `chmod +x` runner trên macOS/Linux.
 
-## Kích hoạt & kiểm tra
-- **Claude Code:** thư mục skill **mới** cần khởi động lại Claude Code một lần để nó theo dõi; sửa
-  skill đang theo dõi thì áp dụng ngay trong phiên. Gõ **`/flow`**.
-- **Codex CLI:** Codex nạp danh mục skill **lúc khởi động**, nên **thoát hẳn rồi mở lại Codex** sau
-  khi cài, rồi gõ **`$flow`** (hoặc `/skills` để xác nhận có `flow`). Codex gọi skill bằng tiền tố
-  `$` — `$flow`, `$flow next`, `$flow assess` — không phải `/flow`.
-- Kiểm môi trường bất kỳ lúc nào: `bash ~/.claude/skills/flow/runner/flow.sh doctor`.
-- **Gọi runner thủ công trên Windows (PowerShell/cmd/Codex):** dùng launcher, KHÔNG dùng `bash`
-  trần — `~/.codex/skills/flow/runner/flow.cmd doctor`. Trong PowerShell, `bash` trần thường là
-  WSL, không đọc được path `C:/` → báo "No such file or directory"; `flow.cmd` tự tìm Git Bash.
-  (Trong Bash tool của Claude Code thì `bash …/flow.sh` vẫn OK vì đó là Git Bash.)
+# Thủ công: copy skills/flow/ → ~/.claude/skills/flow/ + chmod +x runner
+```
+
+Windows: ưu tiên `pwsh install.ps1` hoặc npm. Trong PowerShell, `bash` trần có thể là WSL —
+dùng `runner/flow.cmd` khi gọi runner ngoài Git Bash.
+
+---
 
 ## Khắc phục sự cố
-| Triệu chứng | Nguyên nhân | Cách sửa |
-|---|---|---|
-| `\r: command not found` / `bad interpreter` | line-ending CRLF (clone trên Windows) | repo ép LF qua `.gitattributes`; clone lại, hoặc `sed -i 's/\r$//' runner/flow.sh` |
-| `/flow` không hiện | thư mục skill mới chưa được theo dõi | khởi động lại Claude Code một lần sau khi cài lần đầu |
-| `durable layer DISABLED` trong doctor | không tìm thấy python | cài python3 (xem theo nền tảng) hoặc bỏ qua — engine vẫn chạy |
-| `flow design` không thấy emoji trên macOS | grep BSD không có `-P` | bình thường; phần còn lại của design check vẫn chạy |
-| PowerShell lỗi parse `??` | PowerShell 5.1 | dùng `pwsh` (PowerShell 7+) hoặc `install.sh` trong Git Bash |
+
+| Hiện tượng | Cách xử lý |
+|------------|------------|
+| Không có `/flow` sau `npm i` | Chạy `npx @manhquy/flow-skill@latest` (phải **chạy** CLI) |
+| Skill cũ sau “cài lại” | Luôn `@latest`; tránh bare package name |
+| Agent không list skill | Restart agent một lần sau cài lần đầu |
+| `flow.sh: No such file` trên PowerShell | Dùng `…/runner/flow.cmd` |
+| `durable layer DISABLED` | Cài python3, hoặc bỏ qua (cổng cơ học vẫn chạy) |
 
 ---
 
-## Bắt đầu nhanh (`/flow ...`)
+## Lệnh hằng ngày
+
 ```
-/flow                  đang ở đâu, cái gì đang chặn, tóm tắt bộ nhớ
-/flow assess           brownfield: tạo + gate bản đánh giá hiện trạng của repo có sẵn
-/flow project-type cli chọn bạn đang build gì (web|cli|library|skill) -> đổi định nghĩa "done"
-/flow next             kiểm gate stage hiện tại, mở stage kế (hoặc liệt kê cái còn thiếu)
-/flow recall           đọc lại tri thức trước (debt/retro/card-trước/friction/playbooks) TRƯỚC khi làm
-/flow card             tạo build card (sau khi mọi gate planning đã qua)
-/flow check C-001      kiểm card (done = bằng chứng thật, không phải "tests pass")
-/flow auto             chạy build tự động (Tier-A auto-merge xanh, HALT ở nhóm bảo mật)
-/flow loop-prep C-001  lặp-tới-mục-tiêu-số: worktree + Verify/Guard cho skill ck-loop
-/flow contract|tokens|coherence|consistency   drift/coverage checks (path-resolution · design token · version · map FR liên-artifact)
-/flow doctor           kiểm môi trường trên macOS/Linux/Windows
+/flow            status
+/flow next       kiểm gate + mở stage kế
+/flow assess     brownfield
+/flow card       tạo card
+/flow check C-001  validate card
+/flow auto       build tự động
+/flow doctor     kiểm môi trường
 ```
 
-## Lệnh (đầy đủ)
+Codex: `$flow`. Danh sách đầy đủ: [`skills/flow/SKILL.md`](skills/flow/SKILL.md).
 
-"Bắt đầu nhanh" ở trên là đường đi thường gặp; đây là tham chiếu đầy đủ — cả 28 lệnh engine dispatch (`bash skills/flow/runner/flow.sh <command>`):
+## Tham chiếu lệnh
+
+Engine dispatch (`bash …/runner/flow.sh <command>`):
 
 | Lệnh | Làm gì |
 |---|---|

@@ -2,6 +2,11 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.4.1] — 2026-08-11 — README + CLI help install UX
+
+Docs-only installer release (same skill **v0.27.0**). Professional install section, full
+standard-command recipes, `@latest`-only help EXAMPLES, dual-version accuracy.
+
 ## [0.4.0] — 2026-08-11 — ships skill v0.27.0 (harness authority continuity)
 
 Skill-content release. Ships skill product **v0.27.0**: flow-owned durable authority,
