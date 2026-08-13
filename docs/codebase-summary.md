@@ -18,11 +18,11 @@ flow-skill/
 │   │   └── README.md
 │   ├── _templates/              # 00-idea..05-contract + card (verbatim buildflow)
 │   ├── law/                     # CLAUDE.md, DESIGN.md, RETRO.md
-│   ├── references/              # 21 semantic playbooks (gates, state machine, agents,
+│   ├── references/              # 24 semantic playbooks (gates, state machine, agents,
 │   │                            #   mode-work, auto-run, loop principles, ground-truth,
 │   │                            #   adversarial, debt-and-halts, design checklist, ui-tcr,
 │   │                            #   concierge, native-rituals, forge-idea — v0.22)
-│   ├── eval/                    # behavioral-eval fixtures: artifact-vs-gate + v0.22 routing judge
+│   ├── eval/                    # behavioral-eval fixtures: artifact-vs-gate + v0.22 routing + v0.29 converge judge
 │   └── playbooks/               # 3 stack playbooks + README (read before / harvest after)
 ├── npm-wrapper/                 # npm channel (cross-OS Node installer)
 │   ├── bin/cli.mjs              # npx @manhquy/flow-skill@latest — dual-version help
@@ -49,9 +49,9 @@ build card) · `check C-NNN` (validate card) · `status` (NEXT -> line, stage dw
 list/compact summary) · `mode teach|work` · `ready` (parallel-safe cards) · `auto` (autonomous
 run) · `retro` · `loop-prep` / `loop-log` (ck-loop iteration) · `harness <args>` (durable layer)
 · `debt add|list` · `design <file>` (UI check) · `usage [--global|--prune]` (telemetry analytics)
-· `eval --stage 01|02|card|routing` (behavioral gate proof + v0.22 concierge routing judge) —
+· `eval --stage 01|02|card|routing|converge` (behavioral gate proof + v0.22 concierge routing judge) —
 plus coherence/consistency/constitution/contract/tokens/workspace/doctor/promote/unlock/
-project-type/skip. 27 dispatcher verbs; see README.md's full table. **v0.22**: chat is now the
+project-type/skip. 29 dispatcher verbs; see README.md's full table. **v0.22**: chat is now the
 default entry — see `references/concierge.md`; typed verbs above still work unchanged.
 
 ## Key invariants
@@ -67,7 +67,7 @@ bash (Git Bash on Windows) for the engine; Python 3 + stdlib sqlite3 for the dur
 (optional Rust `harness-cli` power-path); no third-party install required.
 
 ## Tests
-`bash tests/run_all.sh` — 46 suites, all green (GitHub Actions `bash-suite` job,
+`bash tests/run_all.sh` — 58 suites, all green (GitHub Actions `bash-suite` job,
 ubuntu/macos/windows matrix — replaces the parked Azure Pipelines setup as of v0.22).
 Covers gate pass/fail, lifecycle, card validation, intake classification, trace tiers, story
 verify, debt, design, the 6 buildflow scenario rounds, loop-engineering (ck-loop wrapper),
