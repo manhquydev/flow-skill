@@ -48,6 +48,12 @@ done-rules are identical in both modes.
 
 ## Standard card sequence
 
+The first *value* card after the vertical slice must be independently demoable.
+Do not emit a models-only (or services-only, or migrations-only) card: if it
+cannot name a user-visible `## Independent test`, it is not a card — fold the
+work into the slice that ships the value, or write `infra` / `none` only for
+scaffold/CI/contract-test/e2e plumbing.
+
 1. **Scaffold + CI/CD** — repo, deploy pipeline, `/healthz` on a public URL. The scaffold
    picks the spec-serving mechanism (FastAPI: free at `/docs` + `/openapi.json`; other
    stacks: choose the generator in the ADR) — API docs are plumbing, not a later feature.
@@ -138,3 +144,4 @@ in parallel. The runner advises; the OPERATOR dispatches. Rules:
   marking them safe (planning all cards up front is fine).
 - Editing `_templates/` or `flow.sh` during a project run.
 - Frontend code before the UI mock card is approved.
+- A models-only (or layer-only) card whose Independent test is empty or "unit tests pass".

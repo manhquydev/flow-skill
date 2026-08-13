@@ -16,3 +16,4 @@ adr-decision-ask	stage-04	next	offers the native persona-debate ritual before lo
 contract-hardening-ask	stage-05	contract	offers the native edge-case decomposition ritual to harden the seam before the Contract gate	ck-scenario	flow
 security-review-ask	security-class-card	check	runs the native STRIDE ritual on every security-class card (guaranteed baseline)	ck-security	flow
 loop-fix-ask	build-verify-numeric-gap	status	offers the native loop protocol (flow.sh loop-prep/loop-log) when a fix needs more than one attempt against a numeric target	ck-loop	flow
+open-decision-ask	stage-02-or-03-or-05	clarify	lists ## Open decisions bullets; skill offers references/clarify.md write-back (opt-in, never a next prereq)	-	flow

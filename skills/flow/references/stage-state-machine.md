@@ -32,13 +32,21 @@ honored outcome, not a failure of the flow.
 | 03 PRD | `flow/03-prd.md` | numeric success metric, pain&gain mapping table, user-action->observable-result features |
 | 04 ADR | `flow/04-adr.md` | decisions with why+rejected covering storage/auth/deploy, NOT-doing list |
 | 05 Contract | `flow/05-contract.md` | every feature->endpoint, request+response shapes, auth per endpoint |
-| Card | `cards/C-NNN.md` | one-thing scope, deps, allowed files, verify steps, named done-evidence, pasted evidence when done |
+| Card | `cards/C-NNN.md` | one-thing scope, Independent test (user-visible sentence or infra/none), deps, allowed files, verify steps, named done-evidence, pasted evidence when done |
 
 ## Shipping stages live inside cards
 Build -> Review -> Deploy -> Verify-live are NOT `/flow next` stages. They happen inside
 each card: the `## Verify` checklist (run for real) and `## Evidence` (world-state proof).
 Card sequence (scaffold/CI -> vertical slice -> backend -> contract-tests -> UI mock ->
 frontend -> e2e) is governed by `law/CLAUDE.md`.
+
+## After a change (artifact lifecycle)
+
+Unlock order is not a mutation policy. Default: **living plan + append-only
+cards** — amend `flow/*.md` in place; never rewrite issued cards; a v2 cycle
+is new cards + a plan amendment, not a `specs/` tree. The three named models
+(living / cycle-forward / flow-back) and the converge closer live in
+`references/artifact-lifecycle.md`.
 
 ## Runner contract
 - `flow.sh` exit `0` = pass/advanced, `1` = gate fail or usage error.

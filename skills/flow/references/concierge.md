@@ -45,6 +45,7 @@ SKILL.md's Forbidden list). When a brand-new user's ask requires you to draft so
 - contract
 - tokens
 - constitution
+- clarify
 - design
 - doctor
 - ready
