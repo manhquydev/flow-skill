@@ -29,9 +29,11 @@ Idea -> Research -> Scope -> PRD -> ADR -> Contract -> Cards -> Build -> Review 
 `/flow` is **two layers working together**:
 
 1. **Mechanical layer — `runner/flow.sh`** (deterministic, exit 0/1). It manages the
-   stage/card lifecycle and checks the *cheatable* things: unchecked gate boxes,
-   leftover `[FILL]` placeholders, card status validity, empty done-evidence. Always run
-   it first — its exit code is ground truth, never your own judgment.
+   stage/card lifecycle and checks the *cheatable* things: unchecked gate boxes
+   (including leftover `- [ ]` bullets under `## Open decisions` — same scanner), leftover
+   `[FILL]` placeholders, card status validity, empty done-evidence. Always run it first
+   — its exit code is ground truth, never your own judgment. `/flow clarify` is an
+   advisory printer of those open-decision bullets, not a second gate.
 2. **Semantic layer — YOU (Claude), via this skill** (quality gatekeeper). The script
    cannot tell a real competitor quote from a fabricated one, or a grade-laundered C
    feature from an honest B. **That is your job.** After the script passes, apply the
@@ -103,6 +105,7 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | `/flow coherence` | `flow.sh coherence` — flag version drift across declared version fields (doc-vs-code coherence; advisory) |
 | `/flow consistency` | `flow.sh consistency` — audit cross-artifact coverage: every PRD `FRn` is claimed by a card (`implements:`) and served by a contract interface; numeric success metric; no leftover placeholders (advisory; run after the contract gate, before cards) |
 | `/flow constitution` | `flow.sh constitution` — check operator-authored per-project invariants in `flow/constitution.md` (structure + optional grep-markers); **advisory and NOT a `next` gate** — run it at the scope/PRD/contract seam, then apply the semantic challenge in `gate-rules.md` |
+| `/flow clarify` | `flow.sh clarify` — list leftover `- [ ]` bullets under `## Open decisions` on scope/PRD/contract (section-scoped, always exit 0); **advisory and NOT a `next` gate**. Write-back is the ritual in `references/clarify.md` (opt-in). |
 | `/flow eval [--stage 01\|02\|card] [--fixture <id>] [--n 3] [--timeout <s>] [--keep-going]` | `flow.sh eval` — **behavioral eval**: does the LLM semantic gate (`gate-rules.md`) actually flag a hollow-but-mechanically-clean fixture? Opt-in, **billable** (skips cleanly, zero calls, if `claude` CLI absent); prints a per-stage scorecard. v0.21: on a final-INVALID vote, raw stdout + stderr + rc are persisted to `.flow/eval-raw/<run_id>/` (git-ignored, envelope-stripped) so an INVALID storm is postmortemable; the first UNRELIABLE fixture aborts the batch (`--keep-going` forces full-batch, worst-case ~37 calls at `--n 3`); the retry backoff is env-injectable (`FLOW_EVAL_RETRY_BACKOFF`, default 5s, set 0 in tests). See `references/gate-eval.md` for scope/cost/limitations. |
 | `/flow eval --report` | `flow.sh eval --report` — **offline**, zero calls: last complete batch's scorecard + drift vs the prior complete batch |
 | `/flow promote <file>` | `flow.sh promote <file>` — copy a playbook into the cross-project KB (`~/.claude/flow/playbooks`); `recall` then surfaces it everywhere |
@@ -224,6 +227,7 @@ Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, r
 - `references/concierge.md` — the default conversational entry: routing loop, May-run/Must-ask default-deny classification, new-user consent script.
 - `references/flow-catalog.tsv` — the intent-class × state → action routing table the concierge reads (source of truth for automated checks).
 - `references/forge-idea.md` — the Idea/Scope persona-interrogation ritual (adapted from BMAD-METHOD's `bmad-forge-idea`, MIT, opt-in, never a gate condition).
+- `references/clarify.md` — bounded sequential write-back for leftover `## Open decisions` bullets on Scope/PRD/Contract (opt-in, never a `next` prereq).
 - `references/agent-detection.md` — detect ck:/bmad agents + priority + fallback.
 - `references/agent-stage-mapping.md` — stage→agent map, scoped prompt template, durable hooks.
 - `references/claudekit-skills.md` — the **skill layer** on top of the agents: the curated per-stage ck-skill whitelist ("what to use when"), the 6 deep-wired high-ROI skills (ck-predict@ADR, ck-scenario@Contract, review-pr@Review/Ship, ck-security@security-cards, retro@Retro, ck-loop@Build/Verify), the binding rules (skill INFORMS / gate JUDGES; Claude-side detection + silent degrade; opt-in-with-prompt, off the hot path), and the loop-vs-two-strikes decision matrix (`flow.sh loop-prep`/`loop-log` plumbing, ck-loop as the untouched execution engine).

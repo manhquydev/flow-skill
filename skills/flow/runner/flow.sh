@@ -2379,6 +2379,42 @@ EOF
   return 0
 }
 
+cmd_clarify() {
+  # Advisory: list leftover ## Open decisions bullets on 02/03/05. Does not resolve them.
+  # Write-back is the skill (references/clarify.md). Deliberately NOT called from cmd_next:
+  # leftover open-decision boxes already fail scan_gate, which next/gate/planning_complete already run.
+  echo "flow clarify - leftover open decisions (advisory list; next fails until they are gone)"
+  local any=0 seen_heading=0 s f bullets
+  for s in 02-scope 03-prd 05-contract; do
+    f="$FLOW_DIR/$s.md"
+    [ -f "$f" ] || continue
+    if ! awk '/^##[[:space:]]+Open decisions/{found=1} END{exit !found}' "$f"; then
+      continue
+    fi
+    seen_heading=1
+    bullets="$(awk '/^##[[:space:]]+Open decisions/{f=1;next} /^##[[:space:]]/{f=0} f && /^[[:space:]]*- \[ \]/{print NR":"$0}' "$f")"
+    if [ -n "$bullets" ]; then
+      any=1
+      echo
+      echo "  $s.md:"
+      printf '%s\n' "$bullets" | sed 's/^/    L/'
+    fi
+  done
+  if [ "$any" -eq 0 ]; then
+    if [ "$seen_heading" -eq 0 ]; then
+      echo "  no ## Open decisions"
+    else
+      echo "  no open decisions under ## Open decisions."
+    fi
+    echo "  if a decision is still fuzzy, add an unchecked bullet under ## Open decisions then re-run."
+    return 0
+  fi
+  echo
+  echo "  resolve: sequential write-back in references/clarify.md (opt-in, never a next prereq)."
+  echo "  or: record a reasonable default under ## Assumptions and check/remove the bullet."
+  return 0
+}
+
 # ---------- workspace (multi-agent worktree layer) ----------
 # Lets a HUMAN orchestrate several agents (Claude/Codex/Antigravity, many terminals) in PARALLEL
 # without the "one agent switches branch -> every terminal flips" trap: each agent gets its own
@@ -4090,6 +4126,7 @@ usage: bash flow.sh <command> [args]
   coherence         Flag version drift across declared version fields (doc-vs-code coherence)
   consistency       Audit cross-artifact coverage (PRD features <-> cards <-> contract; FR ids)
   constitution      Check operator-authored per-project invariants in flow/constitution.md (advisory; not a next-gate)
+  clarify           List leftover ## Open decisions bullets on scope/PRD/contract (advisory; not a next-gate)
   promote <file>    Copy a playbook into the cross-project KB (~/.claude/flow/playbooks)
   doctor            Check the environment (bash/python/grep/git) across macOS/Linux/Windows
   eval [opts]       Behavioral eval: does the LLM semantic gate flag a hollow-but-mechanically-clean
@@ -4137,7 +4174,7 @@ _flow_version() {
 
 _log_is_readonly() { # $1 = command -> true|false (does it mutate the flow plan?)
   case "$1" in
-    status|resume|recall|ready|usage|tokens|coherence|consistency|contract|constitution|doctor|design|gate|help|-h|--help|"") echo true ;;
+    status|resume|recall|ready|usage|tokens|coherence|consistency|contract|constitution|clarify|doctor|design|gate|help|-h|--help|"") echo true ;;
     *) echo false ;;
   esac
 }
@@ -4294,6 +4331,7 @@ case "$cmd" in
   coherence)      cmd_coherence ;;
   consistency)    cmd_consistency ;;
   constitution)   cmd_constitution ;;
+  clarify)        cmd_clarify ;;
   promote)        cmd_promote "${1:-}" ;;
   doctor)         cmd_doctor ;;
   eval)           cmd_eval "$@" ;;

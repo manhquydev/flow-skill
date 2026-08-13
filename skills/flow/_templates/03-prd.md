@@ -9,6 +9,7 @@
 - [ ] Pain & gain is a MAPPING TABLE: every pain cites evidence (a stage-01 quote or a named observation), and names the v1 feature that kills it; every v1 feature kills at least one pain
 - [ ] A stranger could build v1 from this without asking me anything
 - [ ] No FILL placeholders remain in this file
+- [ ] No unresolved open decisions (resolve via /flow clarify, or assume/cut)
 
 ## Context
 
@@ -55,3 +56,11 @@ interface in the contract (`FRn →`); `/flow consistency` checks this mechanica
 ## Success metric (numbers only)
 
 [FILL: e.g. "10 tickets filed by real residents in week 1; median first-response < 2h"]
+
+## Open decisions
+
+Record unresolved product choices here (add a line like `- [ ] which tenant key?`). Do not invent auth, tenancy, retention, or billing to clear FILL. Resolve via /flow clarify, or assume/cut.
+
+## Assumptions
+
+Informed defaults (industry-standard or already locked by the operator or an ADR). A bullet that encodes product law (who can access what, tenancy, retention, billing) with no operator/ADR authority is an open decision or a stop, not a silent default.

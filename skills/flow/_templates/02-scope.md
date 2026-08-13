@@ -43,6 +43,7 @@ When a C feature is the real need, three honest paths:
 - [ ] The cut list is written (what I am NOT building in v1)
 - [ ] GO / KILL decision is written below
 - [ ] No FILL placeholders remain in this file
+- [ ] No unresolved open decisions (resolve via /flow clarify, or assume/cut)
 
 ## Time budget
 
@@ -69,3 +70,11 @@ decision.
 ## Decision
 
 [FILL: GO or KILL — one sentence why]
+
+## Open decisions
+
+Record unresolved product choices here (add a line like `- [ ] which tenant key?`). Do not invent auth, tenancy, retention, or billing to clear FILL. Resolve via /flow clarify, or assume/cut.
+
+## Assumptions
+
+Informed defaults (industry-standard or already locked by the operator or an ADR). A bullet that encodes product law (who can access what, tenancy, retention, billing) with no operator/ADR authority is an open decision or a stop, not a silent default.

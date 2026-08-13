@@ -79,6 +79,15 @@ GO/KILL, no FILL.
 - **Offer the forge-idea ritual (opt-in-with-prompt — `references/forge-idea.md`)** when a
   GO/KILL call is genuinely close. It informs the decision; it never decides it — the
   operator still calls GO or KILL.
+- **Assumption vs open decision:** read `## Assumptions`. A bullet that encodes product
+  law (who can access what, tenancy, retention, billing, enforcement owner) with no
+  operator/ADR authority is an **open decision or a stop**, not a silent default — move
+  it under `## Open decisions` (a line like `- [ ] which tenant key?`) or halt. Do not
+  invent auth/tenancy/retention/billing to clear `[FILL]`.
+- **Too many open decisions** is a semantic judgment (there is no mechanical cap): if
+  the section is a pile, assume or cut rather than interview everything. Offer the
+  clarify ritual (`references/clarify.md`, opt-in, never a `next` prereq) when any
+  open decision remains.
 
 ## Stage 03 — PRD
 Mechanical: filled from stage 02, numeric success metric, pain&gain table, no FILL.
@@ -90,6 +99,13 @@ Mechanical: filled from stage 02, numeric success metric, pain&gain table, no FI
   named observation) AND name the v1 feature that kills it? Does *every v1 feature* kill at
   least one pain? Orphans on either side = scope drift.
 - Could a stranger build v1 from this without asking the operator anything?
+- **Assumption vs open decision:** read `## Assumptions`. A bullet that encodes product
+  law (who can access what, tenancy, retention, billing, enforcement owner) with no
+  operator/ADR authority is an **open decision or a stop**, not a silent default — move
+  it under `## Open decisions` or halt. Do not invent policy to clear `[FILL]`.
+- **Too many open decisions** is a semantic judgment (no mechanical cap): assume or
+  cut rather than interview a pile. Offer the clarify ritual (`references/clarify.md`,
+  opt-in, never a `next` prereq) when any open decision remains.
 
 ## Stage 04 — ADR
 Mechanical: each decision has why + rejected, NOT-doing list, covers storage/auth/deploy.
@@ -118,6 +134,14 @@ cli=command+flags+output/exit, library=public function+args+return, skill=comman
   the cli equivalent: `--out` vs `--output`)?
 - Is the access/effects column real for every interface (web: public/token/admin · non-web:
   writes/side-effects or "none")? Do NOT let a web product blank the access column.
+- **Assumption vs open decision:** access/effects or shared shapes that encode product
+  law (tenancy, auth, retention, billing) with no operator/ADR authority are an **open
+  decision or a stop**, not a silent default — add a `## Open decisions` bullet or halt.
+  (Contract has no `## Assumptions` section; do not invent one.) Do not invent
+  tenancy/auth from convenience to clear `[FILL]`.
+- **Too many open decisions** is a semantic judgment (no mechanical cap): assume or
+  cut rather than interview a pile. Offer the clarify ritual (`references/clarify.md`,
+  opt-in, never a `next` prereq) when any open decision remains.
 - One-way rule: this file is planning source of truth. For web the served spec
   (`/openapi.json`) is the runtime artifact of the SAME contract (amend file -> code -> spec).
   For non-web there is no served spec — the no-drift check is the per-type done-evidence.

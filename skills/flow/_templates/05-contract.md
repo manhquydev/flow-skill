@@ -15,6 +15,7 @@ another, both look green. This file is the cheap fix.
 - [ ] Every interface has its INPUT and OUTPUT shapes written (web: request+response · cli: flags+output/exit code · library: args+return)
 - [ ] Access/effects column filled for every interface (web: public/token/admin · non-web: writes/side-effects, or "none")
 - [ ] No FILL placeholders remain in this file
+- [ ] No unresolved open decisions (resolve via /flow clarify, or assume/cut)
 
 ## OpenAPI / Swagger rule  (web only — N/A for cli/library/skill)
 
@@ -57,3 +58,7 @@ Reference each PRD feature by its `FRn` id so the mapping is machine-checkable
 (`/flow consistency` flags any `FRn` with no interface here).
 
 - [FILL: FR1 → interface(s) that serve it]
+
+## Open decisions
+
+Record unresolved product choices here (add a line like `- [ ] which tenant key?`). Do not invent auth, tenancy, retention, or billing to clear FILL. Resolve via /flow clarify, or assume/cut.
