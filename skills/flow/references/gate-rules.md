@@ -99,6 +99,7 @@ Mechanical: filled from stage 02, numeric success metric, pain&gain table, no FI
   named observation) AND name the v1 feature that kills it? Does *every v1 feature* kill at
   least one pain? Orphans on either side = scope drift.
 - Could a stranger build v1 from this without asking the operator anything?
+- Read Features and NFRs as a reviewer of English, not of code: any unquantified adjective (fast/secure/intuitive) or an `FRn` with no named failure/empty case is a rewrite, not a vibe.
 - **Assumption vs open decision:** read `## Assumptions`. A bullet that encodes product
   law (who can access what, tenancy, retention, billing, enforcement owner) with no
   operator/ADR authority is an **open decision or a stop**, not a silent default — move
@@ -134,6 +135,7 @@ cli=command+flags+output/exit, library=public function+args+return, skill=comman
   the cli equivalent: `--out` vs `--output`)?
 - Is the access/effects column real for every interface (web: public/token/admin · non-web:
   writes/side-effects or "none")? Do NOT let a web product blank the access column.
+- Read each write interface as a reviewer of English, not of code: if the failure shape is missing or Access/effects is a vibe word (secure/authenticated/restricted), the seam is not written yet.
 - **Assumption vs open decision:** access/effects or shared shapes that encode product
   law (tenancy, auth, retention, billing) with no operator/ADR authority are an **open
   decision or a stop**, not a silent default — add a `## Open decisions` bullet or halt.
@@ -167,6 +169,12 @@ Mechanical: no FILL, valid status, required sections, if done -> verify boxes ch
 evidence non-empty.
 **Challenge:**
 - Is the scope ONE thing? If it's two, split the card.
+- **Independent test:** if the field is empty, missing on a value card, or is
+  "unit tests pass" / "code merged", split or rewrite. A value card names a
+  user-visible proof ("resident files a ticket at /new and sees it on /tickets").
+  Scaffold/CI/contract-test/e2e may say `infra` or `none`. Mechanical leftover
+  `[FILL]` fails `check` only while the heading remains (the heading is not a
+  required `cmd_check` section — §1.6 is cut).
 - Does the diff touch only `## Allowed files`? Drift outside = stop, amend the card first.
 - Do request/response shapes match `flow/05-contract.md` exactly? No improvised shapes.
 - For UI cards: reviewed against `law/DESIGN.md` (tokens, affordance ladder, object-first,

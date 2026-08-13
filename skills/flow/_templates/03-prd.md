@@ -10,6 +10,8 @@
 - [ ] A stranger could build v1 from this without asking me anything
 - [ ] No FILL placeholders remain in this file
 - [ ] No unresolved open decisions (resolve via /flow clarify, or assume/cut)
+- [ ] No unquantified adjectives (fast / secure / intuitive / robust / prominent) in Features or NFRs — a number, a named constraint, or cut the word
+- [ ] Every `FRn` names the failure or empty case (what the user sees when it fails or there is nothing), or an explicit `none`
 
 ## Context
 

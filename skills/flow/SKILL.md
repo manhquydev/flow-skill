@@ -222,6 +222,7 @@ Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, r
 - `law/RETRO.md` — one honest line per run.
 - `references/gate-rules.md` — the per-stage semantic challenges (the heart of your gatekeeping).
 - `references/stage-state-machine.md` — stage order, unlock conditions, what each artifact must contain.
+- `references/artifact-lifecycle.md` — named mutation models (living plan + append-only cards default; cycle-forward; flow-back). Converge is the flow-back closer. Prevents a `specs/` import. Not a `next` gate.
 - `references/project-types.md` — per-type (web|cli|library|skill) adaptations of the stages, gate lenses, and done-evidence.
 - `references/command-dispatch.md` — exact mapping of each `/flow` command to runner call + your duties.
 - `references/concierge.md` — the default conversational entry: routing loop, May-run/Must-ask default-deny classification, new-user consent script.

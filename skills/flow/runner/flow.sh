@@ -1296,7 +1296,7 @@ cmd_card() {
     return 1
   fi
   echo "PASS: created $id -> cards/$id.md"
-  echo "Fill its Scope / Allowed files / Verify / Done-evidence, build it, then '/flow check $id'."
+  echo "Fill its Scope / Independent test / Allowed files / Verify / Done-evidence, build it, then '/flow check $id'."
   local pc dbt
   pc="$(recall_prev_card)"
   dbt="$(recall_open_debt)"

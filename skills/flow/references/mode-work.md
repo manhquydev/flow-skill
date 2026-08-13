@@ -28,6 +28,8 @@
 5. **Deliver the card set as one summary.** After stage 05 passes, run `/flow card` to
    create the cards, fill their scopes, and present the whole set + build order + which are
    parallel-safe (`/flow ready`) in a single summary for the operator to review.
+   Group cards under PRD `FRn` (the user-visible story), not under layer (all models, then
+   all services). Every value card fills `## Independent test`.
 
 ## Rules that still hold in work mode
 - Every gate must pass mechanically (`flow.sh`) AND semantically (`gate-rules.md`). Drafting

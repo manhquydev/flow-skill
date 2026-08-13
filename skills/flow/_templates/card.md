@@ -11,6 +11,10 @@ risk-ack: none
 
 [FILL: exactly what this card builds. If it's two things, split it.]
 
+## Independent test
+
+[FILL: one sentence — if only this card shipped, what can a user do? Or `infra` / `none` for scaffold/CI. "Unit tests pass" is not an independent test.]
+
 ## Allowed files
 
 [FILL: which files/dirs this card may touch — keeps the diff reviewable]
