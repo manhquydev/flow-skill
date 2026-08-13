@@ -2814,8 +2814,8 @@ _converge_render_card() { # $1=dest $2=id $3=title $4=implements $5=deps $6=gapt
 }
 
 cmd_converge() { # [--file <payload>]  append-only remainder cards from a flow-converge/v1 payload
-  local payload="$LOG_DIR/converge-pending.md"
-  [ "${1:-}" = "--file" ] && payload="${2:-}"
+  local payload="$LOG_DIR/converge-pending.md" explicit_file=0
+  [ "${1:-}" = "--file" ] && { payload="${2:-}"; explicit_file=1; }
 
   if ! planning_complete >/dev/null 2>&1; then
     echo "converge: FAIL - planning is not complete. Finish flow/00..05 before reconciling code vs plan."
@@ -2828,6 +2828,10 @@ cmd_converge() { # [--file <payload>]  append-only remainder cards from a flow-c
   fi
 
   if [ -z "$payload" ] || [ ! -f "$payload" ]; then
+    if [ "$explicit_file" -eq 1 ]; then
+      echo "converge: FAIL - --file payload not found at '${payload:-<empty>}'."
+      return 1
+    fi
     echo "CONVERGED: no converge payload found${payload:+ at $payload}. Nothing to append (cards/ unchanged)."
     echo "  Assess code vs plan per references/converge.md, write findings to $LOG_DIR/converge-pending.md, then re-run."
     return 0
@@ -2844,8 +2848,12 @@ cmd_converge() { # [--file <payload>]  append-only remainder cards from a flow-c
     rec>0 { print >> (d"/"rec) }
   ' "$payload"
 
-  local n=0 f
-  for f in "$td/rec"/*; do [ -f "$f" ] && [ -s "$f" ] && n=$((n+1)); done
+  # Ordered list of NON-EMPTY record files (a genuinely empty ---/--- block is skipped, so the
+  # position -> card-id mapping never desyncs). Record filenames are integers -> word-split safe.
+  local recs="" rf n=0
+  for rf in $(ls "$td/rec" 2>/dev/null | sort -n); do
+    [ -s "$td/rec/$rf" ] && { recs="$recs $rf"; n=$((n + 1)); }
+  done
   if [ "$n" -eq 0 ]; then
     echo "CONVERGED: payload has zero findings. Nothing to append (cards/ unchanged)."
     return 0
@@ -2854,33 +2862,35 @@ cmd_converge() { # [--file <payload>]  append-only remainder cards from a flow-c
   # Present the findings table BEFORE any write, and stage+validate every card first.
   echo "converge: $n remainder finding(s) vs plan (present-state assessment):"
   printf '  %-8s %-12s %-8s %-11s %s\n' id gap-type severity implements source-ref
-  local i=1 id title impl deps gt sev sref allowed rf
-  while [ "$i" -le "$n" ]; do
-    rf="$td/rec/$i"
+  local pos=0 id title impl deps gt sev sref allowed
+  for rf in $recs; do
+    pos=$((pos + 1)); rf="$td/rec/$rf"
     gt="$(_converge_field "$rf" gap-type)"; title="$(_converge_field "$rf" title)"
     sev="$(_converge_field "$rf" severity)"; [ -n "$sev" ] || sev="-"
     impl="$(_converge_field "$rf" implements)"; deps="$(_converge_field "$rf" deps)"
     sref="$(_converge_field "$rf" source-ref)"; allowed="$(_converge_field "$rf" allowed)"
-    id="$(printf 'C-%03d' "$((hc + i))")"
-    case "$gt" in missing|partial|contradicts|unrequested) : ;; *) echo "converge: FAIL - finding $i has invalid gap-type '$gt'. Nothing written."; return 1 ;; esac
-    [ -n "$title" ] || { echo "converge: FAIL - finding $i has no title. Nothing written."; return 1; }
+    id="$(printf 'C-%03d' "$((hc + pos))")"
+    case "$gt" in missing|partial|contradicts|unrequested) : ;; *) echo "converge: FAIL - finding $pos has invalid gap-type '$gt'. Nothing written."; return 1 ;; esac
+    [ -n "$title" ] || { echo "converge: FAIL - finding $pos has no title. Nothing written."; return 1; }
     [ -e "$CARDS_DIR/$id.md" ] && { echo "converge: FAIL - $id already exists (append-only refuses to overwrite). Nothing written."; return 1; }
     if [ "$gt" = "unrequested" ]; then impl="none"; title="review unrequested surface: $title"; fi
     printf '  %-8s %-12s %-8s %-11s %s\n' "$id" "$gt" "$sev" "${impl:-none}" "${sref:--}"
     _converge_render_card "$td/staged/$id.md" "$id" "$title" "$impl" "$deps" "$gt" "$sref" "$allowed"
-    i=$((i + 1))
   done
 
   # Commit: move every staged card into cards/. Rollback on any failure (all-or-nothing).
+  # Accumulate BASENAMES (C-NNN.md, never spaced) so the rollback list is word-split-safe even
+  # when the project path contains spaces, and the target is always reconstructed quoted.
   mkdir -p "$CARDS_DIR"
-  local appended="" committed="" bn c
+  local appended="" committed_bns="" bn cb
   for f in "$td/staged"/*.md; do
     [ -f "$f" ] || continue
     bn="$(basename "$f")"
     if mv "$f" "$CARDS_DIR/$bn"; then
-      committed="$committed $CARDS_DIR/$bn"; appended="$appended $bn"
+      committed_bns="$committed_bns $bn"; appended="$appended $bn"
     else
-      for c in $committed; do rm -f "$c"; done
+      rm -f "$CARDS_DIR/$bn"                                    # drop any truncated partial target (cross-fs mv)
+      for cb in $committed_bns; do rm -f "$CARDS_DIR/$cb"; done # roll back prior commits
       echo "converge: FAIL - commit error on $bn; rolled back$appended. Nothing appended."
       return 1
     fi

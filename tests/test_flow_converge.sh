@@ -116,6 +116,19 @@ if [ -f "$SB/cards/C-002.md" ]; then echo "  FAIL [C-002 must NOT persist (all-o
 ck "$before" "$(cards_sum)" "cards/ byte-identical (nothing appended)"
 rm -rf "$SB"
 
+echo "L) explicit --file with a missing path -> FAIL (not a false CONVERGED)"
+newsb; seed_planning; seed_c001
+out="$(bash "$RUN" converge --file "$SB/.flow/nope.md" 2>&1)"; ck 1 $? "--file <missing> exits 1"
+no "$out" "CONVERGED" "does not falsely report CONVERGED"
+rm -rf "$SB"
+
+echo "M) an empty ---/--- block between two real findings is skipped (positions stay in sync)"
+newsb; seed_planning; seed_c001
+printf 'schema: flow-converge/v1\nfindings: 2\n\n---\ngap-type: missing\ntitle: first real\n---\n---\ngap-type: partial\ntitle: second real\n' > "$SB/.flow/converge-pending.md"
+out="$(CV)"; ck 0 $? "empty middle block -> exit 0"
+if [ -f "$SB/cards/C-002.md" ] && [ -f "$SB/cards/C-003.md" ] && [ ! -f "$SB/cards/C-004.md" ]; then echo "  ok   [exactly 2 cards appended (empty block skipped)]"; pass=$((pass+1)); else echo "  FAIL [exactly 2 cards appended] ($(ls "$SB/cards"))"; fail=$((fail+1)); fi
+rm -rf "$SB"
+
 echo "I) LAW: cmd_next never calls cmd_converge; cmd_converge never calls cmd_auto"
 nextbody="$(sed -n '/^cmd_next()/,/^}/p' "$RUN")"
 n1="$(printf '%s' "$nextbody" | grep -c 'cmd_converge' || true)"
