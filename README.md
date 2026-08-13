@@ -14,7 +14,7 @@ claudekit required. Optional multi-model review (Claude · Codex · Antigravity)
 
 | | |
 |---|---|
-| **Skill product** | **v0.28.1** |
+| **Skill product** | **v0.29.0** |
 | **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.5.x** (ships the skill above) |
 | **Tests / CI** | 48 suites · Ubuntu · macOS · Windows |
 | **License** | MIT |
@@ -79,7 +79,7 @@ npx @manhquy/flow-skill@latest --help
 
 # Skill product version on disk (Claude global path example)
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
-# expect: version: "0.28.1"  (or current skill product)
+# expect: version: "0.29.0"  (or current skill product)
 
 # Environment / runner
 bash ~/.claude/skills/flow/runner/flow.sh doctor
@@ -92,10 +92,10 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 |----|--------|
 | Use **`@latest`** every time you want the newest skill | Bare `npx @manhquy/flow-skill` (npx cache may re-run an old copy) |
 | **Run** the CLI so files land under agent homes | `npm i @manhquy/flow-skill` alone — that only adds the package; it does **not** install the skill |
-| Pin installer as `@0.5.1` if you need a fixed release | Pin `@0.28.1` on npm — that is the **skill** version, not the npm package name |
+| Pin installer as `@0.6.0` if you need a fixed release | Pin `@0.29.0` on npm — that is the **skill** version, not the npm package name |
 | Use `@latest` / `@0.5.x` | Use `@rc` — retired / stale channel |
 
-**Two version numbers (intentional):** npm package = installer CLI; skill product = `SKILL.md` `metadata.version`. `--help` prints both: `flow-skill v0.5.1 (ships skill v0.28.1)`.
+**Two version numbers (intentional):** npm package = installer CLI; skill product = `SKILL.md` `metadata.version`. `--help` prints both: `flow-skill v0.6.0 (ships skill v0.29.0)`.
 
 Full flag reference: [npm-wrapper/README.md](./npm-wrapper/README.md).
 
@@ -194,6 +194,8 @@ All engine verbs (`bash …/runner/flow.sh <command>`):
 | `/flow card` | Create the next build card (after all planning gates pass) |
 | `/flow card start\|done C-NNN` | Optional: mark a card "in flight" / CLI-owned flip to `done` (gated like `check`, reverts on fail). Coexists with hand-edit. |
 | `/flow check C-NNN` | Validate a card (FILL/status/sections/done-evidence) |
+| `/flow clarify` | List leftover `- [ ]` bullets under `## Open decisions` on Scope/PRD/Contract (advisory, not a `next` gate); write-back ritual in `references/clarify.md` |
+| `/flow converge` | **Append-only** remainder cards reconciling present code vs plan: assess per `references/converge.md`, write a `flow-converge/v1` payload, then run (transactional; prints `CONVERGED` + writes nothing when there is no gap). Semantic proof: `flow.sh eval --stage converge` |
 | `/flow mode [teach\|work]` | Show or set who writes the gate artifacts |
 | `/flow project-type [t]` | Show or set project type (`web\|cli\|library\|skill`); adapts done-evidence |
 | `/flow skip <stage> --reason` | Advance past a gate that has a matching open DEBT (non-security only) |

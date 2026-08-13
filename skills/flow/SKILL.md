@@ -3,12 +3,12 @@ name: flow
 description: Run the buildflow gated build process from idea to real done-evidence. Walk gated stages (Idea->Research->Scope->PRD->ADR->Contract->Cards->Build->Review->Deploy/Ship->Verify->Retro), each with a honest gate that must pass before advancing. Adapts to project type (web|cli|library|skill). Use when starting or driving a real product build, when the user types /flow, /flow next, /flow card, /flow check, or asks to scope/plan/ship a project through gates. Kill at any gate is a valid outcome.
 user-invocable: true
 when_to_use: "User wants to build a real product end-to-end with discipline (idea -> a deployed URL for web, or installs+runs for a CLI/library/skill), or types any /flow command, or asks for a gated build process, scope decision, contract-first plan, or card-based shipping."
-argument-hint: "[ resume | next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | workspace add|list|enter|remove|check|doctor | auto [stop] | attest semantic|live-verify|status|recover | doctor | retro | eval --stage 01|02|05|card|routing --fixture <id> --n 3 --keep-going --report | or just say what you want in plain language ]"
+argument-hint: "[ resume | next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | workspace add|list|enter|remove|check|doctor | auto [stop] | attest semantic|live-verify|status|recover | doctor | retro | eval --stage 01|02|05|card|routing|converge --fixture <id> --n 3 --keep-going --report | clarify | converge | or just say what you want in plain language ]"
 keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deploy, vertical-slice, cli, library, skill, worktree, parallel-agents, workspace, multi-agent]
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.28.1"
+  version: "0.29.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); durable-layer ancestry and improve-ritual spirit from repository-harness (protocol v1 EOL — flow-owned fork); agent patterns from claudekit-engineer, BMAD-METHOD. v0.22 concierge from BMAD bmad-help; forge-idea from bmad-forge-idea (MIT, BMad Code LLC)."
 ---
 
