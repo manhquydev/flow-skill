@@ -2383,7 +2383,7 @@ cmd_clarify() {
   # Advisory: list leftover ## Open decisions bullets on 02/03/05. Does not resolve them.
   # Write-back is the skill (references/clarify.md). Deliberately NOT called from cmd_next:
   # leftover open-decision boxes already fail scan_gate, which next/gate/planning_complete already run.
-  echo "flow clarify - leftover open decisions (advisory list; next fails until they are gone)"
+  echo "flow clarify - leftover open decisions (advisory list; next fails while any gate box or open decision remains)"
   local any=0 seen_heading=0 s f bullets
   for s in 02-scope 03-prd 05-contract; do
     f="$FLOW_DIR/$s.md"
@@ -2411,7 +2411,7 @@ cmd_clarify() {
   fi
   echo
   echo "  resolve: sequential write-back in references/clarify.md (opt-in, never a next prereq)."
-  echo "  or: record a reasonable default under ## Assumptions and check/remove the bullet."
+  echo "  or: record a reasonable default (02/03: under ## Assumptions; 05 contract: the access/effects cell or a shared shape) and check/remove the bullet."
   return 0
 }
 

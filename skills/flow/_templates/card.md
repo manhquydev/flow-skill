@@ -13,7 +13,7 @@ risk-ack: none
 
 ## Independent test
 
-[FILL: one sentence — if only this card shipped, what can a user do? Or `infra` / `none` for scaffold/CI. "Unit tests pass" is not an independent test.]
+[FILL: one sentence — if only this card shipped, what can a user do? Or `infra` / `none` for scaffold/CI/contract-test/e2e plumbing. "Unit tests pass" is not an independent test.]
 
 ## Allowed files
 
