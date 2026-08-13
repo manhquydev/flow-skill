@@ -74,7 +74,7 @@ has "$LIFE" 'cycle-forward' "names cycle-forward"
 has "$LIFE" 'flow-back' "names flow-back"
 has "$LIFE" 'append-only' "default is append-only cards"
 has "$LIFE" 'converge' "points at converge as closer"
-has "$LIFE" 'when it exists' "honest forward-ref (converge when it exists)"
+has "$LIFE" 'append-only' "artifact-lifecycle describes converge as the append-only flow-back closer"
 has "$LIFE" 'Do not add' "positive ban-line (Do not add) — not a no-specs/ grep"
 
 echo "T13 mechanical proof: /flow card + leftover FILL in Independent test fails check"

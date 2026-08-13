@@ -69,6 +69,7 @@ operator-authority-only):
 - unlock
 - retro
 - eval
+- converge
 
 **Default-deny:** any verb not explicitly listed under May-run above is must-ask — this
 includes any verb added to flow after this file was written. When in doubt, ask.

@@ -40,12 +40,13 @@ The flow-back model needs a step that reads the present code against the plan
 remainder cards for whatever is `missing` / `partial` / `contradicts` /
 `unrequested` — without rewriting history. That closer is `/flow converge`.
 
-`/flow converge` is a **deferred cycle** (fixture-first): it ships only after a
-hollow-complete eval fixture proves the semantic gap-detection works. Until then,
-run the flow-back reconciliation **by hand**: read the tree vs PRD+contract, then
-`/flow card` the remainder yourself. So the pointer here is "the flow-back closer
-is converge, **when it exists**" — an honest forward-reference, with the hand-card
-fallback in the meantime.
+The skill assesses code vs plan per `references/converge.md` and writes a
+`flow-converge/v1` payload; `/flow converge` then **appends** the remainder cards
+transactionally (all-or-nothing, never editing an existing card, byte-identical
+`cards/` when nothing remains). The semantic gap-detection has its own eval
+modality (`flow.sh eval --stage converge`) proving it flags a declared `FRn` the
+code never built. The appended cards are `[FILL]` stubs — build them through the
+normal `/flow ready` + `/flow check` path.
 
 ## What not to do
 

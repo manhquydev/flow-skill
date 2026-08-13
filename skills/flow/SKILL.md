@@ -3,12 +3,12 @@ name: flow
 description: Run the buildflow gated build process from idea to real done-evidence. Walk gated stages (Idea->Research->Scope->PRD->ADR->Contract->Cards->Build->Review->Deploy/Ship->Verify->Retro), each with a honest gate that must pass before advancing. Adapts to project type (web|cli|library|skill). Use when starting or driving a real product build, when the user types /flow, /flow next, /flow card, /flow check, or asks to scope/plan/ship a project through gates. Kill at any gate is a valid outcome.
 user-invocable: true
 when_to_use: "User wants to build a real product end-to-end with discipline (idea -> a deployed URL for web, or installs+runs for a CLI/library/skill), or types any /flow command, or asks for a gated build process, scope decision, contract-first plan, or card-based shipping."
-argument-hint: "[ resume | next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | workspace add|list|enter|remove|check|doctor | auto [stop] | attest semantic|live-verify|status|recover | doctor | retro | eval --stage 01|02|05|card|routing --fixture <id> --n 3 --keep-going --report | or just say what you want in plain language ]"
+argument-hint: "[ resume | next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | workspace add|list|enter|remove|check|doctor | auto [stop] | attest semantic|live-verify|status|recover | doctor | retro | eval --stage 01|02|05|card|routing|converge --fixture <id> --n 3 --keep-going --report | clarify | converge | or just say what you want in plain language ]"
 keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deploy, vertical-slice, cli, library, skill, worktree, parallel-agents, workspace, multi-agent]
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.28.1"
+  version: "0.29.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); durable-layer ancestry and improve-ritual spirit from repository-harness (protocol v1 EOL — flow-owned fork); agent patterns from claudekit-engineer, BMAD-METHOD. v0.22 concierge from BMAD bmad-help; forge-idea from bmad-forge-idea (MIT, BMad Code LLC)."
 ---
 
@@ -106,6 +106,7 @@ takes over a lock you're sure is dead; `/flow unlock` clears it.
 | `/flow consistency` | `flow.sh consistency` — audit cross-artifact coverage: every PRD `FRn` is claimed by a card (`implements:`) and served by a contract interface; numeric success metric; no leftover placeholders (advisory; run after the contract gate, before cards) |
 | `/flow constitution` | `flow.sh constitution` — check operator-authored per-project invariants in `flow/constitution.md` (structure + optional grep-markers); **advisory and NOT a `next` gate** — run it at the scope/PRD/contract seam, then apply the semantic challenge in `gate-rules.md` |
 | `/flow clarify` | `flow.sh clarify` — list leftover `- [ ]` bullets under `## Open decisions` on scope/PRD/contract (section-scoped, always exit 0); **advisory and NOT a `next` gate**. Write-back is the ritual in `references/clarify.md` (opt-in). |
+| `/flow converge` | `flow.sh converge [--file <payload>]` — **append-only** remainder cards reconciling present code vs plan. Assess per `references/converge.md`, write a `flow-converge/v1` payload, then run: transactional (all cards or none), never edits an existing card, prints `CONVERGED` + writes nothing when there is no gap. Semantic proof: `flow.sh eval --stage converge`. |
 | `/flow eval [--stage 01\|02\|card] [--fixture <id>] [--n 3] [--timeout <s>] [--keep-going]` | `flow.sh eval` — **behavioral eval**: does the LLM semantic gate (`gate-rules.md`) actually flag a hollow-but-mechanically-clean fixture? Opt-in, **billable** (skips cleanly, zero calls, if `claude` CLI absent); prints a per-stage scorecard. v0.21: on a final-INVALID vote, raw stdout + stderr + rc are persisted to `.flow/eval-raw/<run_id>/` (git-ignored, envelope-stripped) so an INVALID storm is postmortemable; the first UNRELIABLE fixture aborts the batch (`--keep-going` forces full-batch, worst-case ~37 calls at `--n 3`); the retry backoff is env-injectable (`FLOW_EVAL_RETRY_BACKOFF`, default 5s, set 0 in tests). See `references/gate-eval.md` for scope/cost/limitations. |
 | `/flow eval --report` | `flow.sh eval --report` — **offline**, zero calls: last complete batch's scorecard + drift vs the prior complete batch |
 | `/flow promote <file>` | `flow.sh promote <file>` — copy a playbook into the cross-project KB (`~/.claude/flow/playbooks`); `recall` then surfaces it everywhere |
@@ -229,6 +230,7 @@ Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, r
 - `references/flow-catalog.tsv` — the intent-class × state → action routing table the concierge reads (source of truth for automated checks).
 - `references/forge-idea.md` — the Idea/Scope persona-interrogation ritual (adapted from BMAD-METHOD's `bmad-forge-idea`, MIT, opt-in, never a gate condition).
 - `references/clarify.md` — bounded sequential write-back for leftover `## Open decisions` bullets on Scope/PRD/Contract (opt-in, never a `next` prereq).
+- `references/converge.md` — the flow-back closer: assess code vs plan, append remainder cards transactionally (`/flow converge`); gap taxonomy + `flow-converge/v1` payload schema. Semantic proof via `eval --stage converge`.
 - `references/agent-detection.md` — detect ck:/bmad agents + priority + fallback.
 - `references/agent-stage-mapping.md` — stage→agent map, scoped prompt template, durable hooks.
 - `references/claudekit-skills.md` — the **skill layer** on top of the agents: the curated per-stage ck-skill whitelist ("what to use when"), the 6 deep-wired high-ROI skills (ck-predict@ADR, ck-scenario@Contract, review-pr@Review/Ship, ck-security@security-cards, retro@Retro, ck-loop@Build/Verify), the binding rules (skill INFORMS / gate JUDGES; Claude-side detection + silent degrade; opt-in-with-prompt, off the hot path), and the loop-vs-two-strikes decision matrix (`flow.sh loop-prep`/`loop-log` plumbing, ck-loop as the untouched execution engine).

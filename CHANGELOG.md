@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.29.0 — 2026-08-13 — spec-kit imports + converge (flow-back closer)
+
+Mined from GitHub spec-kit, redesigned to flow's DNA (mechanical half via the existing
+scanner; semantic half as a ritual). npm installer → **0.6.0**.
+
+### Added
+- **Open decisions + `/flow clarify`.** Unresolved product decisions are `- [ ]` bullets
+  under `## Open decisions` on Scope/PRD/Contract, counted by the *existing* `scan_gate`
+  box scanner (no new scan code, no self-poisoning `[ASK]` token). `/flow clarify` is an
+  advisory, section-scoped printer; `references/clarify.md` is the bounded write-back ritual.
+  Not wired into the `cmd_next` hot path.
+- **Card `## Independent test`** field (user-visible slice proof, or `infra`/`none`); leftover
+  `[FILL]` there fails `check`. PRD/contract "requirements-quality" Gate boxes. `law` forbids
+  models-only cards. `references/artifact-lifecycle.md` names the 3 mutation models.
+- **`/flow converge`** — append-only remainder cards reconciling present code vs plan.
+  Transactional (validate all, commit all-or-nothing); never edits an existing card; prints
+  `CONVERGED` + writes nothing when there is no gap; `unrequested` → review card, never a
+  delete. Payload schema `flow-converge/v1` (`references/converge.md`).
+- **Converge eval modality** — `flow.sh eval --stage converge`: a third judge (alongside
+  gate + routing) that feeds a repo-state (flow docs + card claims + allow-listed source) and
+  asks `GAP|CONVERGED`. Fixtures `gap-01` / `conv-01`; fully offline-tested (mock engine).
+
+### Tests
+- `test_flow_open_decisions.sh`, `test_flow_slice_quality.sh`, `test_flow_converge.sh`, and
+  7 converge-modality cases in `test_flow_eval.sh`. All 3 OS `bash-suite` green.
+
 ## 0.28.1 — 2026-08-11 — attestation harden package
 
 ### Security / trust

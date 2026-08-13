@@ -1,0 +1,3 @@
+id	stage	repo-dir	allow-list	expected
+gap-01	converge	gap-01	src/app.py	GAP
+conv-01	converge	conv-01	src/app.py	CONVERGED
