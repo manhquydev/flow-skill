@@ -3,7 +3,7 @@
 *English: [README.md](README.md).*
 
 [![npm](https://img.shields.io/npm/v/@manhquy/flow-skill?label=npm&color=cb3837)](https://www.npmjs.com/package/@manhquy/flow-skill)
-[![tests](https://img.shields.io/badge/tests-48%20suites-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-58%20suites-brightgreen)](tests/)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions%20%C2%B7%203%20OS-blue)](.github/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -14,9 +14,9 @@ CLI cài-chạy, library API, hoặc skill chạy thật). Chat là cửa mặc 
 
 | | |
 |---|---|
-| **Skill product** | **v0.28.1** |
-| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.5.x** (ship skill ở trên) |
-| **Test / CI** | 48 suite · Ubuntu · macOS · Windows |
+| **Skill product** | **v0.29.0** |
+| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.6.x** (ship skill ở trên) |
+| **Test / CI** | 58 suite · Ubuntu · macOS · Windows |
 | **License** | MIT |
 
 ---
@@ -68,7 +68,7 @@ npx @manhquy/flow-skill@latest --yes --all --dry-run --json
 
 # Xác nhận phiên bản installer + skill trong tarball
 npx @manhquy/flow-skill@latest --help
-# expect: flow-skill v0.5.x (ships skill v0.28.x)
+# expect: flow-skill v0.6.x (ships skill v0.29.x)
 ```
 
 ### Kiểm tra sau cài
@@ -77,7 +77,7 @@ npx @manhquy/flow-skill@latest --help
 npx @manhquy/flow-skill@latest --help
 
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
-# expect: version: "0.28.1"  (hoặc skill product hiện tại)
+# expect: version: "0.29.0"  (hoặc skill product hiện tại)
 
 bash ~/.claude/skills/flow/runner/flow.sh doctor
 # expect: READY
@@ -89,11 +89,11 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 |-----|--------|
 | **`@latest`** mỗi lần muốn bản mới | Bare `npx @manhquy/flow-skill` (cache npx) |
 | **Chạy** CLI để skill vào agent home | Chỉ `npm i` — không copy skill |
-| Pin installer `@0.5.1` nếu cần cố định | Pin npm `@0.28.1` (đó là version **skill**, không phải package) |
-| `@latest` / `@0.5.x` | `@rc` (đã retire / cũ) |
+| Pin installer `@0.6.0` nếu cần cố định | Pin npm `@0.29.0` (đó là version **skill**, không phải package) |
+| `@latest` / `@0.6.x` | `@rc` (đã retire / cũ) |
 
 **Hai số version (cố ý):** package npm = installer CLI; skill product = `SKILL.md` metadata.
-`--help` in cả hai: `flow-skill v0.5.1 (ships skill v0.28.1)`.
+`--help` in cả hai: `flow-skill v0.6.0 (ships skill v0.29.0)`.
 
 Chi tiết flag: [npm-wrapper/README_VN.md](./npm-wrapper/README_VN.md).
 
@@ -191,6 +191,8 @@ Engine dispatch (`bash …/runner/flow.sh <command>`):
 | `/flow card` | Tạo build card kế tiếp (sau khi mọi gate planning đã qua) |
 | `/flow card start\|done C-NNN` | Tùy chọn: đánh dấu card "in flight" / flip `done` do CLI sở hữu (gate như `check`, revert nếu fail). Song song với sửa tay. |
 | `/flow check C-NNN` | Kiểm một card (FILL/status/sections/done-evidence) |
+| `/flow clarify` | Liệt kê bullet `- [ ]` còn lại dưới `## Open decisions` ở Scope/PRD/Contract (advisory, KHÔNG phải gate `next`); ritual write-back ở `references/clarify.md` |
+| `/flow converge` | Card remainder **append-only** đối chiếu code hiện tại vs plan: assess theo `references/converge.md`, ghi payload `flow-converge/v1` rồi chạy (transactional; in `CONVERGED` + không ghi gì khi không có gap). Bằng chứng semantic: `flow.sh eval --stage converge` |
 | `/flow mode [teach\|work]` | Xem/đặt ai viết artifact ở gate |
 | `/flow project-type [t]` | Xem/đặt loại dự án (`web\|cli\|library\|skill`); đổi done-evidence |
 | `/flow skip <stage> --reason` | Vượt qua một gate có DEBT đang mở khớp (không áp dụng cho nhóm bảo mật) |
