@@ -50,6 +50,40 @@ code keeps it. Judge behaviour and interfaces, not line counts.
 Emit a findings table (id, gap-type, severity, source-ref, one-line) to the operator BEFORE
 any card is written. Then hand the payload to the runner, which appends the cards.
 
+## Payload schema (`flow-converge/v1`)
+Write findings to `.flow/converge-pending.md` (run-state, gitignored — so a `CONVERGED` run
+never dirties `cards/`), then run `/flow converge` (or `flow.sh converge --file <path>`). The
+runner is transactional: it appends every card or none. Format — a header, then one `---`-fenced
+block per finding:
+
+```
+schema: flow-converge/v1
+findings: 2
+
+---
+gap-type: missing
+severity: HIGH
+implements: FR2
+source-ref: 03-prd.md:FR2
+title: implement the mark-task-done endpoint
+deps: C-002
+allowed: src/app.py
+---
+gap-type: unrequested
+severity: LOW
+implements: none
+source-ref: src/app.py:debug_dump
+title: the debug_dump surface no feature asked for
+deps:
+allowed: src/app.py
+```
+
+Each block: `gap-type` (missing|partial|contradicts|unrequested — the runner rejects anything
+else and writes nothing), `title` (required), and optional `severity`/`implements`/`deps`/
+`source-ref`/`allowed`. `unrequested` becomes a **review** card (`implements: none`) — never a
+delete instruction. Zero findings (or no payload) → the runner prints `CONVERGED` and writes
+nothing. Appended cards ship with `[FILL]` Verify/Done-evidence (they are not built yet).
+
 ## Converge challenge
 
 *(Sliced by the converge eval judge. This section is the criteria a reviewer applies when

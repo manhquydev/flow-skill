@@ -2789,6 +2789,108 @@ _ws_doctor() {
   return 1
 }
 
+# ---------- converge: append-only remainder cards (plan vs present code) ----------
+# Consumes a flow-converge/v1 payload (produced by the skill per references/converge.md) and
+# APPENDS remainder cards - transactionally (validate all, then commit all-or-nothing with
+# rollback), never editing an existing card, byte-identical cards/ when there are no findings.
+_converge_field() { # $1=recfile $2=key -> first value, CR-stripped (value may itself contain ':')
+  grep -m1 "^$2:" "$1" 2>/dev/null | sed "s/^$2:[[:space:]]*//" | tr -d '\r'
+}
+
+_converge_render_card() { # $1=dest $2=id $3=title $4=implements $5=deps $6=gaptype $7=srcref $8=allowed
+  local dest="$1" id="$2" title="$3" impl="$4" deps="$5" gt="$6" sref="$7" allowed="$8"
+  [ -n "$impl" ] || impl="none"; [ -n "$deps" ] || deps="none"
+  [ -n "$sref" ] || sref="-"; [ -n "$allowed" ] || allowed="[FILL: which files/dirs this card may touch]"
+  {
+    printf '# %s — %s\n\n' "$id" "$title"
+    printf 'status: todo\ndeps: %s\nimplements: %s\nrisk: unknown\nrisk-reason:\nrisk-ack: none\n\n' "$deps" "$impl"
+    printf '## Scope\n\n%s (converge gap: %s; source-ref: %s)\n\n' "$title" "$gt" "$sref"
+    printf '## Independent test\n\n[FILL: user-visible proof this slice ships, or infra/none]\n\n'
+    printf '## Allowed files\n\n%s\n\n' "$allowed"
+    printf '## Verify (run these before calling the card done)\n\n- [ ] [FILL: a concrete check]\n\n'
+    printf '## Done-evidence (world-state proof, named BEFORE building)\n\n[FILL: observable world-state when done]\n\n'
+    printf '## Evidence (paste the actual proof here when done)\n\n(empty until done)\n'
+  } > "$dest"
+}
+
+cmd_converge() { # [--file <payload>]  append-only remainder cards from a flow-converge/v1 payload
+  local payload="$LOG_DIR/converge-pending.md"
+  [ "${1:-}" = "--file" ] && payload="${2:-}"
+
+  if ! planning_complete >/dev/null 2>&1; then
+    echo "converge: FAIL - planning is not complete. Finish flow/00..05 before reconciling code vs plan."
+    return 1
+  fi
+  local hc; hc="$(highest_card)"; case "$hc" in ''|*[!0-9]*) hc=0 ;; esac
+  if [ "$hc" -le 0 ]; then
+    echo "converge: FAIL - no cards yet. Build the plan with '/flow card' first."
+    return 1
+  fi
+
+  if [ -z "$payload" ] || [ ! -f "$payload" ]; then
+    echo "CONVERGED: no converge payload found${payload:+ at $payload}. Nothing to append (cards/ unchanged)."
+    echo "  Assess code vs plan per references/converge.md, write findings to $LOG_DIR/converge-pending.md, then re-run."
+    return 0
+  fi
+
+  local schema; schema="$(head -1 "$payload" | tr -d '\r')"
+  case "$schema" in schema:*flow-converge/v1*) : ;; *) echo "converge: FAIL - payload first line must be 'schema: flow-converge/v1' (got '$schema'). Nothing written."; return 1 ;; esac
+
+  local td; td="$(mktemp -d)"; _register_td "$td"; mkdir -p "$td/rec" "$td/staged"
+  awk -v d="$td/rec" '
+    /^schema:/ { next }
+    /^findings:/ { next }
+    /^[[:space:]]*---[[:space:]]*$/ { rec++; next }
+    rec>0 { print >> (d"/"rec) }
+  ' "$payload"
+
+  local n=0 f
+  for f in "$td/rec"/*; do [ -f "$f" ] && [ -s "$f" ] && n=$((n+1)); done
+  if [ "$n" -eq 0 ]; then
+    echo "CONVERGED: payload has zero findings. Nothing to append (cards/ unchanged)."
+    return 0
+  fi
+
+  # Present the findings table BEFORE any write, and stage+validate every card first.
+  echo "converge: $n remainder finding(s) vs plan (present-state assessment):"
+  printf '  %-8s %-12s %-8s %-11s %s\n' id gap-type severity implements source-ref
+  local i=1 id title impl deps gt sev sref allowed rf
+  while [ "$i" -le "$n" ]; do
+    rf="$td/rec/$i"
+    gt="$(_converge_field "$rf" gap-type)"; title="$(_converge_field "$rf" title)"
+    sev="$(_converge_field "$rf" severity)"; [ -n "$sev" ] || sev="-"
+    impl="$(_converge_field "$rf" implements)"; deps="$(_converge_field "$rf" deps)"
+    sref="$(_converge_field "$rf" source-ref)"; allowed="$(_converge_field "$rf" allowed)"
+    id="$(printf 'C-%03d' "$((hc + i))")"
+    case "$gt" in missing|partial|contradicts|unrequested) : ;; *) echo "converge: FAIL - finding $i has invalid gap-type '$gt'. Nothing written."; return 1 ;; esac
+    [ -n "$title" ] || { echo "converge: FAIL - finding $i has no title. Nothing written."; return 1; }
+    [ -e "$CARDS_DIR/$id.md" ] && { echo "converge: FAIL - $id already exists (append-only refuses to overwrite). Nothing written."; return 1; }
+    if [ "$gt" = "unrequested" ]; then impl="none"; title="review unrequested surface: $title"; fi
+    printf '  %-8s %-12s %-8s %-11s %s\n' "$id" "$gt" "$sev" "${impl:-none}" "${sref:--}"
+    _converge_render_card "$td/staged/$id.md" "$id" "$title" "$impl" "$deps" "$gt" "$sref" "$allowed"
+    i=$((i + 1))
+  done
+
+  # Commit: move every staged card into cards/. Rollback on any failure (all-or-nothing).
+  mkdir -p "$CARDS_DIR"
+  local appended="" committed="" bn c
+  for f in "$td/staged"/*.md; do
+    [ -f "$f" ] || continue
+    bn="$(basename "$f")"
+    if mv "$f" "$CARDS_DIR/$bn"; then
+      committed="$committed $CARDS_DIR/$bn"; appended="$appended $bn"
+    else
+      for c in $committed; do rm -f "$c"; done
+      echo "converge: FAIL - commit error on $bn; rolled back$appended. Nothing appended."
+      return 1
+    fi
+  done
+  echo
+  echo "PASS: appended$appended (append-only; existing cards untouched)."
+  echo "  These are remainder stubs with [FILL] Verify/Done-evidence - build them via /flow ready + /flow check."
+  return 0
+}
+
 cmd_workspace() {
   local sub="${1:-}"; shift 2>/dev/null || true
   case "$sub" in
@@ -4390,6 +4492,7 @@ usage: bash flow.sh <command> [args]
   consistency       Audit cross-artifact coverage (PRD features <-> cards <-> contract; FR ids)
   constitution      Check operator-authored per-project invariants in flow/constitution.md (advisory; not a next-gate)
   clarify           List leftover ## Open decisions bullets on scope/PRD/contract (advisory; not a next-gate)
+  converge [--file] Append-only remainder cards from a flow-converge/v1 payload (plan vs present code)
   promote <file>    Copy a playbook into the cross-project KB (~/.claude/flow/playbooks)
   doctor            Check the environment (bash/python/grep/git) across macOS/Linux/Windows
   eval [opts]       Behavioral eval: does the LLM semantic gate flag a hollow-but-mechanically-clean
@@ -4595,6 +4698,7 @@ case "$cmd" in
   consistency)    cmd_consistency ;;
   constitution)   cmd_constitution ;;
   clarify)        cmd_clarify ;;
+  converge)       cmd_converge "$@" ;;
   promote)        cmd_promote "${1:-}" ;;
   doctor)         cmd_doctor ;;
   eval)           cmd_eval "$@" ;;
