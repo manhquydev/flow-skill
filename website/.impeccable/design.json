@@ -1,0 +1,264 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-13T13:40:00.000Z",
+  "title": "Design System: flow website",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "primary",
+        "displayName": "Press Black",
+        "canonical": "#111111",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(20% 0 0)",
+          "oklch(30% 0 0)",
+          "oklch(42% 0 0)",
+          "oklch(55% 0 0)",
+          "oklch(68% 0 0)",
+          "oklch(82% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "newsprint": {
+        "role": "neutral",
+        "displayName": "Cool Newsprint",
+        "canonical": "#c9c6bb",
+        "tonalRamp": [
+          "oklch(15% 0.008 95)",
+          "oklch(26% 0.010 95)",
+          "oklch(38% 0.011 95)",
+          "oklch(50% 0.012 95)",
+          "oklch(62% 0.012 95)",
+          "oklch(72% 0.012 95)",
+          "oklch(81% 0.012 95)",
+          "oklch(95% 0.008 95)"
+        ]
+      },
+      "newsprint-dark": {
+        "role": "neutral",
+        "displayName": "Newsprint Shadow",
+        "canonical": "#b7b3a6",
+        "tonalRamp": [
+          "oklch(15% 0.009 95)",
+          "oklch(25% 0.011 95)",
+          "oklch(36% 0.013 95)",
+          "oklch(47% 0.014 95)",
+          "oklch(58% 0.015 95)",
+          "oklch(68% 0.015 95)",
+          "oklch(75% 0.015 95)",
+          "oklch(92% 0.010 95)"
+        ]
+      },
+      "process-cyan": {
+        "role": "secondary",
+        "displayName": "Process Cyan",
+        "canonical": "#1aa3c4",
+        "tonalRamp": [
+          "oklch(15% 0.045 220)",
+          "oklch(25% 0.065 220)",
+          "oklch(35% 0.085 220)",
+          "oklch(45% 0.098 220)",
+          "oklch(55% 0.105 220)",
+          "oklch(65% 0.108 220)",
+          "oklch(80% 0.070 220)",
+          "oklch(95% 0.028 220)"
+        ]
+      },
+      "cyan-deep": {
+        "role": "secondary",
+        "displayName": "Deep Process Cyan",
+        "canonical": "#0a4e5e",
+        "tonalRamp": [
+          "oklch(15% 0.035 220)",
+          "oklch(22% 0.045 220)",
+          "oklch(30% 0.055 220)",
+          "oklch(38% 0.060 220)",
+          "oklch(50% 0.075 220)",
+          "oklch(64% 0.090 220)",
+          "oklch(80% 0.060 220)",
+          "oklch(95% 0.025 220)"
+        ]
+      },
+      "kill-vermillion": {
+        "role": "tertiary",
+        "displayName": "Kill Vermillion",
+        "canonical": "#d63a2f",
+        "tonalRamp": [
+          "oklch(15% 0.070 28)",
+          "oklch(25% 0.100 28)",
+          "oklch(35% 0.135 28)",
+          "oklch(45% 0.165 28)",
+          "oklch(58% 0.190 28)",
+          "oklch(70% 0.150 28)",
+          "oklch(83% 0.090 28)",
+          "oklch(95% 0.035 28)"
+        ]
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "Soft Ink",
+        "canonical": "color-mix(in srgb, #111111 78%, #c9c6bb)",
+        "tonalRamp": [
+          "oklch(15% 0.004 95)",
+          "oklch(22% 0.005 95)",
+          "oklch(30% 0.006 95)",
+          "oklch(40% 0.006 95)",
+          "oklch(52% 0.007 95)",
+          "oklch(66% 0.007 95)",
+          "oklch(80% 0.006 95)",
+          "oklch(95% 0.004 95)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The wordmark at the head of the sheet. One per page, never above 6rem."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The page h1, balanced and capped at an 18ch measure."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Column heads and band heads inside the sheet."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Reading text: 38-46ch inside ruled columns, up to 68ch in full-width bands."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Pipeline slugs and navigation."
+      },
+      "command": {
+        "displayName": "Command",
+        "purpose": "Machine text only: the install line, stage artifact paths, version edition line."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "crayon-draw",
+        "value": "760ms cubic-bezier(0.16, 1, 0.3, 1) 420ms backwards",
+        "purpose": "The single authored moment: the kill crayon is drawn left to right across one line on load, from an already-visible default. Suppressed under prefers-reduced-motion."
+      },
+      {
+        "name": "state-shift",
+        "value": "140ms ease-out",
+        "purpose": "Background change on the copy control and the primary action. The only other motion on the site."
+      }
+    ],
+    "breakpoints": [
+      { "name": "stand", "value": "900px" },
+      { "name": "sheet", "value": "720px" },
+      { "name": "bar", "value": "560px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Press Bar",
+      "kind": "custom",
+      "refersTo": "press-bar",
+      "description": "The install command as a full-bleed black bar. The bar is the primary call to action; it is never a pill or a centered button.",
+      "html": "<div class=\"ds-press-bar\"><svg class=\"ds-press-reg\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><circle cx=\"8\" cy=\"8\" r=\"5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1\"/><line x1=\"8\" y1=\"0\" x2=\"8\" y2=\"16\" stroke=\"currentColor\" stroke-width=\"1\"/><line x1=\"0\" y1=\"8\" x2=\"16\" y2=\"8\" stroke=\"currentColor\" stroke-width=\"1\"/></svg><code class=\"ds-press-cmd\">npx @manhquy/flow-skill@latest</code><button class=\"ds-press-copy\" type=\"button\">Copy</button><a class=\"ds-press-folio\" href=\"#\">Install guide</a></div>",
+      "css": ".ds-press-bar { display: flex; align-items: center; gap: 0.85rem; min-height: 3.4rem; padding-left: 1.25rem; background: var(--ink, #111111); color: var(--newsprint, #c9c6bb); } .ds-press-reg { width: 14px; height: 14px; flex: none; color: var(--cyan, #1aa3c4); } .ds-press-cmd { min-width: 0; font-family: var(--font-mono, 'Azeret Mono', ui-monospace, monospace); font-size: 1rem; letter-spacing: 0.01em; user-select: all; } .ds-press-copy { font: inherit; font-family: var(--font-body, Archivo, sans-serif); font-weight: 700; font-size: 0.9rem; color: inherit; background: transparent; border: 1px solid color-mix(in srgb, var(--newsprint, #c9c6bb) 45%, transparent); border-radius: 0; padding: 0.35rem 0.85rem; cursor: pointer; transition: background-color 140ms ease-out; } .ds-press-copy:hover { background: color-mix(in srgb, var(--newsprint, #c9c6bb) 18%, transparent); } .ds-press-copy:focus-visible, .ds-press-folio:focus-visible { outline: 2px solid var(--cyan, #1aa3c4); outline-offset: 3px; } .ds-press-folio { display: flex; align-items: center; align-self: stretch; margin-left: auto; padding: 0 1.4rem; border-left: 1px solid color-mix(in srgb, var(--newsprint, #c9c6bb) 35%, transparent); color: inherit; font-family: var(--font-body, Archivo, sans-serif); font-weight: 700; text-decoration: none; } .ds-press-folio:hover { background: color-mix(in srgb, var(--newsprint, #c9c6bb) 18%, transparent); }"
+    },
+    {
+      "name": "Primary Action",
+      "kind": "button",
+      "refersTo": "action-primary",
+      "description": "The square ink block used for the one action a band asks for.",
+      "html": "<a class=\"ds-action-primary\" href=\"#\">Install and first run</a>",
+      "css": ".ds-action-primary { display: inline-block; padding: 0.9rem 1.5rem; background: var(--ink, #111111); color: var(--newsprint, #c9c6bb); border-radius: 0; font-family: var(--font-body, Archivo, sans-serif); font-weight: 700; text-decoration: none; transition: background-color 140ms ease-out; } .ds-action-primary:hover { background: var(--cyan-deep, #0a4e5e); } .ds-action-primary:focus-visible { outline: 2px solid var(--ink, #111111); outline-offset: 3px; }"
+    },
+    {
+      "name": "Quiet Action",
+      "kind": "button",
+      "refersTo": "action-quiet",
+      "description": "The secondary link. Emphasis comes from underline weight, never from color.",
+      "html": "<a class=\"ds-action-quiet\" href=\"#\">Read the documentation</a>",
+      "css": ".ds-action-quiet { color: var(--ink, #111111); font-family: var(--font-body, Archivo, sans-serif); font-weight: 600; text-decoration-thickness: 1px; text-underline-offset: 0.28em; } .ds-action-quiet:hover { text-decoration-thickness: 3px; } .ds-action-quiet:focus-visible { outline: 2px solid var(--ink, #111111); outline-offset: 3px; }"
+    },
+    {
+      "name": "Galley Block",
+      "kind": "card",
+      "refersTo": "galley-block",
+      "description": "A ruled editorial column: display head, one sentence, then proof lines divided by cyan hairlines. This is what replaces a card in this system.",
+      "html": "<article class=\"ds-galley\"><h2 class=\"ds-galley-head\">Mechanical</h2><p class=\"ds-galley-lede\">The runner (<code>flow.sh</code>) exits 0 or 1. No vibes. No maybe.</p><ul class=\"ds-galley-proofs\"><li>Gate boxes left unchecked.</li><li>[FILL] placeholders still sitting in an artifact.</li><li>Evidence blocks with nothing inside them.</li></ul></article>",
+      "css": ".ds-galley { padding: 1.35rem 1.5rem 1.25rem; border-top: 1px solid var(--ink, #111111); border-radius: 0; background: transparent; color: var(--ink, #111111); font-family: var(--font-body, Archivo, sans-serif); } .ds-galley-head { margin: 0 0 0.85rem; font-family: var(--font-display, 'Big Shoulders Display', sans-serif); font-weight: 800; font-size: 1.85rem; letter-spacing: -0.03em; } .ds-galley-lede { margin: 0; max-width: 38ch; line-height: 1.5; } .ds-galley-lede code { font-family: var(--font-mono, 'Azeret Mono', ui-monospace, monospace); font-size: 0.92em; } .ds-galley-proofs { list-style: none; margin: 1.1rem 0 0; padding: 0; max-width: 46ch; font-size: 0.95rem; } .ds-galley-proofs li { padding: 0.55rem 0; border-top: 1px solid color-mix(in srgb, var(--cyan, #1aa3c4) 55%, transparent); }"
+    },
+    {
+      "name": "Pipeline Slugs",
+      "kind": "nav",
+      "refersTo": "pipeline-slug",
+      "description": "The stage strip at the foot of the sheet, divided by hairline guides with registration crosses at each division.",
+      "html": "<ol class=\"ds-pipeline\"><li class=\"ds-pipe\">Idea</li><li class=\"ds-pipe\">Research</li><li class=\"ds-pipe\">Scope</li><li class=\"ds-pipe\">PRD</li><li class=\"ds-pipe\">ADR</li><li class=\"ds-pipe\">Contract</li></ol>",
+      "css": ".ds-pipeline { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--ink, #111111); font-family: var(--font-body, Archivo, sans-serif); color: var(--ink, #111111); } .ds-pipe { position: relative; padding: 0.7rem 0.85rem 0.8rem; font-size: 0.82rem; font-weight: 600; border-right: 1px solid color-mix(in srgb, var(--cyan, #1aa3c4) 55%, transparent); } .ds-pipe:last-child { border-right: 0; } .ds-pipe::before { content: ''; position: absolute; top: -6px; right: -7px; width: 12px; height: 12px; color: var(--cyan, #1aa3c4); background: currentColor; mask: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='none' stroke='black' stroke-width='1'/%3E%3Cline x1='8' y1='0' x2='8' y2='16' stroke='black' stroke-width='1'/%3E%3Cline x1='0' y1='8' x2='16' y2='8' stroke='black' stroke-width='1'/%3E%3C/svg%3E\") center / contain no-repeat; } .ds-pipe:last-child::before { display: none; }"
+    },
+    {
+      "name": "Kill Crayon",
+      "kind": "custom",
+      "refersTo": "kill-crayon",
+      "description": "The vermillion strike. An authored SVG mask with a lift in the middle, tilted -2deg, drawn once on load. One per page.",
+      "html": "<p class=\"ds-kill-host\">The skill judges whether the work is hollow. <span class=\"ds-kill\">A weak idea is killed on the proof.</span></p>",
+      "css": ".ds-kill-host { margin: 0; color: var(--ink, #111111); font-family: var(--font-body, Archivo, sans-serif); line-height: 1.5; max-width: 38ch; } .ds-kill { position: relative; display: inline-block; margin-top: 0.65rem; } .ds-kill::after { content: ''; position: absolute; left: -0.15em; right: -0.25em; top: 40%; height: 0.62em; background: var(--kill, #d63a2f); transform: rotate(-2deg); mask: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 15' preserveAspectRatio='none'%3E%3Cpath d='M2 5.2 C30 4.2 60 6 96 4.8 L96 10.3 C60 11.5 30 9.7 2 10.7 Z' fill='black'/%3E%3Cpath d='M104 4.8 C140 3.8 190 5.8 238 4.6 L238 10.1 C190 11.3 140 9.3 104 10.3 Z' fill='black' opacity='0.93'/%3E%3C/svg%3E\") left center / 100% 100% no-repeat; animation: ds-strike 760ms cubic-bezier(0.16, 1, 0.3, 1) 420ms backwards; } @keyframes ds-strike { from { mask-size: 0% 100%; } } @media (prefers-reduced-motion: reduce) { .ds-kill::after { animation: none; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Galley Proof",
+    "overview": "This is a letterpress galley proof pinned to the stone: cool newsprint under dense black ink, a publisher's blue pencil marking the guides, and a vermillion crayon reserved for the one line that gets killed. The page is a printed sheet, not an application surface. It has gutters and rules instead of containers and cards, registration crosses where the grid intersects, and a full-bleed black press bar carrying the line that goes to press. Density is editorial: text sits in ruled columns, the paper carries visible grain, and nothing floats above the sheet.\n\nThe system is flat by physical necessity. There is no elevation vocabulary at all, because ink cannot hover over paper. Separation is done with a 1px black rule where the structure is real and a cyan hairline where the mark is only a guide. Corners are square everywhere; a rounded corner would betray the material. The type does the shouting: a monumental condensed gothic for the display voice, a plain grotesque for reading, and a mono face used only where the reader is looking at an actual command.\n\nThe confirmed anti-look is the neighboring category: the dark AI-coding-agent landing with a neon terminal hero and a star-count row. The other confirmed rejection is its opposite — the cream-parchment, timid-serif documentation splash. Cool gray paper and a hard black gothic keep the page out of both ruts.",
+    "keyCharacteristics": [
+      "Cool newsprint (#c9c6bb) with a tiled paper grain, never cream or white",
+      "Zero radius on every element, including the primary action",
+      "1px black rules for structure; cyan hairlines for guides only",
+      "Vermillion appears once per page, as a drawn crayon strike",
+      "Condensed gothic display at up to 6rem against 1.05rem grotesque body",
+      "No shadows, no glass, no cards"
+    ],
+    "rules": [
+      {
+        "name": "The Reading Cyan Rule",
+        "body": "#1aa3c4 may only carry marks, hairlines, and focus rings on black. Anything the reader has to read on paper uses #0a4e5e. Bright process cyan measures about 1.7:1 against newsprint and fails on sight.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Crayon Rule",
+        "body": "Vermillion strikes exactly one line per page. A second vermillion mark turns an editorial verdict into decoration and cancels the first one.",
+        "section": "colors"
+      },
+      {
+        "name": "The Six-Rem Ceiling Rule",
+        "body": "Display type stops at 6rem and tracking never goes tighter than -0.04em. The wordmark is monumental because the column is narrow, not because the number is big.",
+        "section": "typography"
+      },
+      {
+        "name": "The Machine-Text-Only Rule",
+        "body": "Azeret Mono appears only where the reader is looking at something a machine will read back: a command, a file path, a version. Mono as a costume for \"technical\" is a different world's habit.",
+        "section": "typography"
+      },
+      {
+        "name": "The Ink-On-Paper Rule",
+        "body": "If an element needs to feel separate, give it a rule or a gutter. A box-shadow anywhere on this site is a defect, including the zero-blur block shadow.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do set the page on cool newsprint #c9c6bb with the tiled grain, and keep text ink black.",
+      "Do separate with a 1px #111111 rule for structure and a 55% cyan hairline for guides.",
+      "Do keep every corner square, including calls to action.",
+      "Do use #0a4e5e when a blue must be read on paper, and reserve #1aa3c4 for marks, hairlines, and focus rings on black.",
+      "Do let one authored moment carry the motion: the crayon draws left to right on load, 760ms cubic-bezier(0.16, 1, 0.3, 1) after a 420ms delay, from an already-visible default, and it does not run under prefers-reduced-motion.",
+      "Do name controls by their action (Copy, Install and first run) and report both the success and the recovery path."
+    ],
+    "donts": [
+      "Don't add a shadow, glass, blur, or gradient anywhere. There is no elevation in this world.",
+      "Don't round a corner, and don't reach for the zero-blur block shadow as a substitute for depth.",
+      "Don't use vermillion for emphasis, borders, or a second strike. One killed line per page.",
+      "Don't set body or navigation text in bright #1aa3c4; it fails contrast on newsprint.",
+      "Don't build page structure out of same-size cards, or put a kicker or eyebrow above a heading.",
+      "Don't set mono type as a \"technical\" flourish; it is for commands, paths, and versions.",
+      "Don't dress the page as the neighboring category — dark terminal hero, neon edge, star counts — or as a cream-parchment documentation splash."
+    ]
+  }
+}

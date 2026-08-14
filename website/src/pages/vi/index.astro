@@ -1,0 +1,112 @@
+---
+import Landing from '../../layouts/Landing.astro';
+import InstallLockup from '../../components/InstallLockup.astro';
+
+const command = 'npx @manhquy/flow-skill@latest';
+const tutorial = '/vi/docs/tutorials/install-and-first-run/';
+const stages = [
+	{ name: 'Idea', file: 'flow/00-idea.md' },
+	{ name: 'Research', file: 'flow/01-research.md' },
+	{ name: 'Scope', file: 'flow/02-scope.md' },
+	{ name: 'PRD', file: 'flow/03-prd.md' },
+	{ name: 'ADR', file: 'flow/04-adr.md' },
+	{ name: 'Contract', file: 'flow/05-contract.md' },
+];
+const mechanical = [
+	'Còn ô cổng chưa tick.',
+	'[FILL] còn trong file.',
+	'Khối evidence để trống.',
+];
+const semantic = [
+	'Research chưa làm thật.',
+	'Hạ scope để lọt cổng.',
+	'“tests pass” thế cho bằng chứng done.',
+];
+---
+
+<Landing lang="vi">
+	<title slot="head">flow: cổng chỉ mở khi cả hai cùng đồng ý</title>
+	<meta
+		slot="head"
+		name="description"
+		content="Agent vẫn viết code, còn cổng mở hay đóng thì flow quyết. Phải cả flow.sh lẫn skill thì cổng mới mở. Bị chặn ở cổng thì dừng luôn, chứ không phải fail."
+	/>
+	<main>
+		<section class="sheet" aria-label="flow.sh và skill">
+			<div class="hero">
+				<p class="display" translate="no">flow</p>
+				<h1 class="headline">Cổng chỉ mở khi cả hai cùng đồng ý.</h1>
+				<p class="lede">
+					Agent vẫn viết code, còn cổng mở hay đóng thì flow quyết. Bị chặn ở cổng thì dừng luôn,
+					chứ không phải fail.
+				</p>
+				<p class="verdict">Phải cả flow.sh lẫn skill thì cổng mới mở.</p>
+			</div>
+			<div class="galleys">
+				<article class="galley" aria-labelledby="mechanical-title">
+					<h2 id="mechanical-title" translate="no">flow.sh</h2>
+					<svg class="pass-mark" aria-hidden="true"><use href="#tick"></use></svg>
+					<p>
+						<code translate="no">flow.sh</code> chỉ trả 0 hoặc 1. Cảm tính hay “chắc là được” thì
+						cổng này không mở.
+					</p>
+					<ul class="proofs">{mechanical.map((item) => <li>{item}</li>)}</ul>
+				</article>
+				<article class="galley" aria-labelledby="semantic-title">
+					<h2 id="semantic-title">Skill</h2>
+					<p>
+						Skill bắt việc rỗng, cái <code translate="no">flow.sh</code> không bắt được.
+						<span class="kill-line">Ý tưởng yếu thì bỏ ngay tại cổng.</span>
+					</p>
+					<ul class="proofs">{semantic.map((item) => <li>{item}</li>)}</ul>
+				</article>
+			</div>
+			<InstallLockup
+				command={command}
+				copyLabel="Sao chép"
+				copiedLabel="Đã sao chép"
+				selectLabel="Đã chọn, nhấn Ctrl+C"
+				secondaryHref={tutorial}
+				secondaryLabel="Cách cài"
+			/>
+			<ol class="pipeline" aria-label="Sáu cổng trước khi build">
+				{stages.map((stage) => <li class="pipe">{stage.name}</li>)}
+			</ol>
+		</section>
+
+		<section class="band run" aria-labelledby="run-title">
+			<h2 class="band-title" id="run-title">Sáu cổng rồi mới tới card build đầu</h2>
+			<p class="band-lede">
+				Mỗi cổng để lại một file thật trong repo. File hiện tại chưa qua cả hai bên thì
+				<code translate="no">/flow next</code> không mở cổng sau.
+			</p>
+			<ol class="run-list">
+				{
+					stages.map((stage) => (
+						<li>
+							<span class="run-stage">{stage.name}</span>
+							<code class="run-file" translate="no">
+								{stage.file}
+							</code>
+						</li>
+					))
+				}
+			</ol>
+			<p class="band-foot">
+				Rồi mới tới <code translate="no">/flow card</code>. Done thì phải có bằng chứng done: URL đã
+				deploy, CLI cài được và chạy được, public API, hoặc một lần chạy skill thật.
+			</p>
+		</section>
+
+		<section class="band stand" aria-labelledby="stand-title">
+			<div class="stand-copy">
+				<h2 class="stand-title" id="stand-title">flow gác cổng, chứ không viết code.</h2>
+				<p>Agent vẫn viết. Được đi tiếp hay phải dừng thì cổng quyết.</p>
+			</div>
+			<div class="stand-actions">
+				<a class="action primary" href={tutorial}>Cài và chạy lần đầu</a>
+				<a class="action" href="/vi/docs/">Đọc tài liệu</a>
+			</div>
+		</section>
+	</main>
+</Landing>

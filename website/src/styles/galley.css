@@ -1,0 +1,95 @@
+:root {
+	--ink: #111111;
+	--cyan: #1aa3c4;
+	--cyan-deep: #0a4e5e;
+	--kill: #d63a2f;
+	--newsprint: #c9c6bb;
+	--newsprint-dark: #b7b3a6;
+	--ink-soft: color-mix(in srgb, var(--ink) 78%, var(--newsprint));
+	--font-display: 'Big Shoulders Display', sans-serif;
+	--font-body: 'Archivo', ui-sans-serif, sans-serif;
+	--font-mono: 'Azeret Mono', ui-monospace, monospace;
+	--rule: 1px solid var(--ink);
+	--guide: 1px solid color-mix(in srgb, var(--cyan) 55%, transparent);
+}
+
+/*
+ * Starlight token names are semantic, not literal.
+ * Light mode: --sl-color-white = ink (text), --sl-color-black = paper (bg).
+ * Search.astro sets input color to white and chrome bg to black.
+ * Mapping white→newsprint and black→ink paints a black hole with invisible text.
+ *
+ * Pin BOTH data-theme values to this light newsprint map. Aside hues, hairlines,
+ * accent, and shadows are pinned too: ThemeProvider still writes data-theme from
+ * OS/localStorage, and unpinned aside/EC tokens would invert against ink text.
+ * Bright process cyan (#1aa3c4) is 1.73:1 on newsprint — never a reading color.
+ */
+:root,
+:root[data-theme='light'],
+:root[data-theme='dark'] {
+	--sl-font: var(--font-body);
+	--sl-font-system: var(--font-body);
+	--sl-font-mono: var(--font-mono);
+	--sl-color-accent-low: var(--newsprint-dark);
+	--sl-color-accent: var(--cyan-deep);
+	--sl-color-accent-high: var(--cyan-deep);
+	--sl-color-white: var(--ink);
+	--sl-color-gray-1: #1a1a1a;
+	--sl-color-gray-2: #2a2a2a;
+	--sl-color-gray-3: #4a4a4a;
+	--sl-color-gray-4: var(--ink-soft);
+	--sl-color-gray-5: var(--newsprint-dark);
+	--sl-color-gray-6: var(--newsprint);
+	--sl-color-gray-7: var(--newsprint);
+	--sl-color-black: var(--newsprint);
+	--sl-color-bg: var(--newsprint);
+	--sl-color-bg-nav: var(--newsprint);
+	--sl-color-bg-sidebar: #c4c0b4;
+	--sl-color-bg-inline-code: var(--newsprint-dark);
+	--sl-color-bg-accent: var(--cyan-deep);
+	--sl-color-text: var(--ink);
+	--sl-color-text-accent: var(--cyan-deep);
+	--sl-color-text-invert: var(--newsprint);
+	--sl-color-hairline: var(--ink);
+	--sl-color-hairline-light: color-mix(in srgb, var(--cyan) 55%, transparent);
+	--sl-color-hairline-shade: var(--ink);
+	--sl-color-backdrop-overlay: color-mix(in srgb, var(--ink) 45%, transparent);
+	--sl-shadow-sm: none;
+	--sl-shadow-md: none;
+	--sl-shadow-lg: none;
+	--sl-menu-button-size: 2.75rem;
+	/* 44px toggle + 8px summary padding on each side (border-box). */
+	--sl-mobile-toc-height: 3.75rem;
+
+	/* Asides stay on the four-ink press when OS/theme is dark. */
+	--sl-color-orange-low: var(--newsprint-dark);
+	--sl-color-orange: var(--ink);
+	--sl-color-orange-high: var(--ink);
+	--sl-color-green-low: var(--newsprint-dark);
+	--sl-color-green: var(--cyan-deep);
+	--sl-color-green-high: var(--cyan-deep);
+	--sl-color-blue-low: var(--newsprint-dark);
+	--sl-color-blue: var(--cyan-deep);
+	--sl-color-blue-high: var(--cyan-deep);
+	--sl-color-purple-low: var(--newsprint-dark);
+	--sl-color-purple: var(--cyan-deep);
+	--sl-color-purple-high: var(--cyan-deep);
+	--sl-color-red-low: var(--newsprint-dark);
+	--sl-color-red: var(--kill);
+	--sl-color-red-high: var(--ink);
+
+	color-scheme: light;
+}
+
+html,
+html[data-theme='light'],
+html[data-theme='dark'] {
+	color-scheme: light;
+}
+
+.site-title {
+	font-family: var(--font-display);
+	font-weight: 800;
+	letter-spacing: -0.03em;
+	text-transform: lowercase;
+}

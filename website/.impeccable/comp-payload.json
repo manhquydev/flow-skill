@@ -1,0 +1,36 @@
+{
+  "title": "Approve a composition",
+  "question": "Galley Proof is locked. Which first-viewport composition should we build?",
+  "options": [
+    {
+      "id": "comp-a",
+      "label": "Two-column proof",
+      "kicker": "SPLIT",
+      "thesis": "The sheet is the page: offer on the left, both layers on the right, install as the lockup bar.",
+      "viewport": "Header docket; 58/42 split; Mechanical PASS over Semantic kill; full-width npx bar; pipeline tabs at the fold.",
+      "risk": "Reads as a docs homepage if the install bar is treated as a footer instead of the press.",
+      "hero": ".impeccable/mocks/comp-a-two-column-proof.webp"
+    },
+    {
+      "id": "comp-b",
+      "label": "Chase lockup",
+      "kicker": "FRAME",
+      "thesis": "Everything lives inside one forme; the press bar cannot drop until both galleys are locked.",
+      "viewport": "Inset chase, header on the rail, monumental flow, two equal galleys, press-bar command, pipeline cells outside.",
+      "risk": "The frame becomes decoration if the two galleys shrink into cards.",
+      "hero": ".impeccable/mocks/comp-b-chase-lockup.webp"
+    },
+    {
+      "id": "comp-c",
+      "label": "Pass sheet",
+      "kicker": "STAMPS",
+      "thesis": "Two overlapping stamps are the mechanism; TO PRESS is the only next action.",
+      "viewport": "Gutter stages 00–05, MECHANICAL over SEMANTIC, headline under the stamps, TO PRESS + npx at the lower right.",
+      "risk": "Stamp theater can hide the install command; kill-at-ADR in the gutter must stay a demonstration, not a claim.",
+      "hero": ".impeccable/mocks/comp-c-pass-sheet.webp"
+    }
+  ],
+  "reroll": false,
+  "canon": false,
+  "steer": true
+}

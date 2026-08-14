@@ -1,0 +1,591 @@
+/*
+ * Docs chrome on the Galley Proof press. Tokens live in galley.css.
+ * Unlayered so these beat Starlight @layer starlight.core / .content.
+ */
+
+html {
+	background-color: var(--newsprint);
+	background-image: url('../assets/newsprint.png');
+	background-size: 256px 256px;
+	overflow-x: clip;
+}
+
+body {
+	background-color: transparent;
+	overflow-x: clip;
+}
+
+/* Flex/grid children default to min-width:auto and will blow the sheet. */
+.page,
+.main-frame,
+.main-pane,
+.content-panel,
+.sl-container,
+.sl-markdown-content {
+	min-width: 0;
+	max-width: 100%;
+}
+
+/* No dark theme. The picker still mutates data-theme; chrome does not follow. */
+starlight-theme-select {
+	display: none;
+}
+
+:focus-visible {
+	outline: 2px solid var(--cyan-deep);
+	outline-offset: 2px;
+}
+
+/* ——— Header / title ——— */
+
+.header {
+	border-bottom: var(--rule);
+}
+
+.site-title:hover,
+.site-title:focus-visible {
+	box-shadow: inset 0 -1px 0 var(--ink);
+}
+
+.site-title:focus-visible {
+	outline: 2px solid var(--cyan-deep);
+	outline-offset: 2px;
+}
+
+/* ——— Search button (header) ——— */
+
+button[data-open-modal] {
+	color: var(--ink);
+	width: var(--sl-menu-button-size);
+	height: var(--sl-menu-button-size);
+	min-width: var(--sl-menu-button-size);
+	justify-content: center;
+	padding: 0;
+	border: var(--rule);
+	border-radius: 0;
+	background-color: var(--newsprint);
+}
+
+button[data-open-modal]:hover,
+button[data-open-modal]:focus-visible {
+	border-color: var(--cyan-deep);
+	color: var(--ink);
+	background-color: var(--newsprint-dark);
+}
+
+@media (min-width: 50rem) {
+	button[data-open-modal] {
+		width: 100%;
+		max-width: 22rem;
+		height: 2.5rem;
+		min-width: 0;
+		justify-content: flex-start;
+		padding-inline-start: 0.75rem;
+		padding-inline-end: 0.5rem;
+		border: var(--rule);
+		border-radius: 0;
+		background-color: var(--newsprint);
+		color: var(--ink);
+	}
+
+	button[data-open-modal]:hover,
+	button[data-open-modal]:focus-visible {
+		border-color: var(--cyan-deep);
+		color: var(--ink);
+		background-color: var(--newsprint-dark);
+	}
+
+	button[data-open-modal] kbd,
+	button[data-open-modal] > kbd {
+		border-radius: 0;
+		background-color: var(--newsprint-dark);
+		color: var(--ink);
+		border: var(--rule);
+	}
+}
+
+/* ——— Search dialog + Pagefind ——— */
+
+site-search dialog {
+	background-color: var(--newsprint);
+	border: var(--rule);
+	border-radius: 0;
+	box-shadow: none;
+}
+
+site-search dialog::backdrop {
+	background-color: var(--sl-color-backdrop-overlay);
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+button[data-close-modal] {
+	color: var(--cyan-deep);
+	min-height: 2.75rem;
+	min-width: 4.5rem;
+	padding-inline: 0.75rem;
+	font-size: 1rem;
+	align-items: center;
+	justify-content: center;
+}
+
+site-search .dialog-frame {
+	max-width: 100%;
+	min-width: 0;
+}
+
+#starlight__search {
+	--pagefind-ui-primary: var(--ink);
+	--pagefind-ui-text: var(--ink);
+	--pagefind-ui-background: var(--newsprint);
+	--pagefind-ui-border: var(--ink);
+	--pagefind-ui-border-width: 1px;
+	--pagefind-ui-tag: var(--newsprint-dark);
+	--pagefind-ui-border-radius: 0;
+}
+
+#starlight__search .pagefind-ui__form::before {
+	--pagefind-ui-text: var(--ink);
+	opacity: 1;
+}
+
+#starlight__search .pagefind-ui__search-input {
+	color: var(--ink);
+	background-color: var(--newsprint);
+	border-radius: 0;
+	font-weight: 400;
+	font-size: 1rem;
+	min-height: 2.75rem;
+	max-width: 100%;
+}
+
+#starlight__search .pagefind-ui__search-input::placeholder {
+	opacity: 1;
+	color: var(--ink-soft);
+}
+
+#starlight__search input:focus {
+	--pagefind-ui-border: var(--cyan-deep);
+	outline: 2px solid var(--cyan-deep);
+	outline-offset: 0;
+}
+
+#starlight__search .pagefind-ui__search-clear:focus {
+	outline: 2px solid var(--cyan-deep);
+}
+
+#starlight__search .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)),
+#starlight__search .pagefind-ui__result-nested,
+#starlight__search .pagefind-ui__result-tags {
+	background-color: var(--newsprint-dark);
+	border-radius: 0;
+}
+
+#starlight__search .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)):hover,
+#starlight__search
+	.pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)):focus-within,
+#starlight__search .pagefind-ui__result-nested:hover,
+#starlight__search .pagefind-ui__result-nested:focus-within {
+	outline: 1px solid var(--cyan-deep);
+}
+
+#starlight__search
+	.pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)):focus-within,
+#starlight__search .pagefind-ui__result-nested:focus-within {
+	background-color: var(--newsprint-dark);
+}
+
+#starlight__search .pagefind-ui__result-link {
+	--pagefind-ui-text: var(--ink);
+	color: var(--ink);
+	overflow-wrap: anywhere;
+}
+
+#starlight__search .pagefind-ui__result-excerpt {
+	color: var(--ink-soft);
+	overflow-wrap: anywhere;
+}
+
+#starlight__search mark {
+	color: var(--ink);
+	background-color: color-mix(in srgb, var(--cyan-deep) 22%, var(--newsprint));
+	font-weight: 700;
+}
+
+/* ——— Sidebar ——— */
+
+.sidebar-pane {
+	background-color: var(--sl-color-bg-sidebar);
+	border-inline-end: var(--rule);
+}
+
+.sidebar a,
+.sidebar summary {
+	border-radius: 0;
+	color: var(--ink);
+}
+
+.sidebar a:hover,
+.sidebar a:focus-visible {
+	color: var(--ink);
+	box-shadow: inset 0 -1px 0 var(--ink);
+}
+
+.sidebar a[aria-current='page'],
+.sidebar a[aria-current='page']:hover,
+.sidebar a[aria-current='page']:focus-visible {
+	color: var(--ink);
+	background-color: transparent;
+	box-shadow: inset 0 -2px 0 var(--cyan-deep);
+}
+
+.sidebar .large {
+	color: var(--ink);
+}
+
+.sidebar ul ul li {
+	border-inline-start: var(--guide);
+}
+
+/* ——— ToC ——— */
+
+.right-sidebar-panel h2 {
+	color: var(--ink);
+	font-family: var(--font-display);
+	font-weight: 800;
+	letter-spacing: -0.03em;
+}
+
+.right-sidebar-panel a {
+	color: var(--ink-soft);
+	border-radius: 0;
+}
+
+.right-sidebar-panel a:hover,
+.right-sidebar-panel a:focus-visible {
+	color: var(--ink);
+	box-shadow: inset 0 -1px 0 var(--ink);
+}
+
+.right-sidebar-panel a[aria-current='true'] {
+	color: var(--cyan-deep);
+	box-shadow: inset 0 -2px 0 var(--cyan-deep);
+}
+
+/* ——— Mobile nav ——— */
+
+starlight-menu-button button {
+	border-radius: 0;
+	width: var(--sl-menu-button-size);
+	height: var(--sl-menu-button-size);
+	background-color: var(--ink);
+	color: var(--newsprint);
+	box-shadow: none;
+}
+
+starlight-menu-button button:focus-visible {
+	outline: 2px solid var(--cyan);
+	outline-offset: 2px;
+}
+
+starlight-menu-button[aria-expanded='true'] button,
+:root[data-theme='light'] starlight-menu-button[aria-expanded='true'] button,
+:root[data-theme='dark'] starlight-menu-button[aria-expanded='true'] button {
+	background-color: var(--cyan-deep);
+	color: var(--newsprint);
+	box-shadow: none;
+}
+
+mobile-starlight-toc nav {
+	border-top: var(--rule);
+	background-color: var(--newsprint);
+}
+
+mobile-starlight-toc summary {
+	border-bottom: var(--rule);
+	min-height: var(--sl-mobile-toc-height);
+}
+
+mobile-starlight-toc .toggle {
+	border: var(--rule);
+	border-radius: 0;
+	background-color: var(--newsprint);
+	color: var(--ink);
+	min-height: 2.75rem;
+}
+
+mobile-starlight-toc details[open] .toggle,
+mobile-starlight-toc details .toggle:hover {
+	color: var(--ink);
+	border-color: var(--cyan-deep);
+	background-color: var(--newsprint-dark);
+}
+
+mobile-starlight-toc .display-current {
+	color: var(--ink);
+}
+
+mobile-starlight-toc .dropdown {
+	border: var(--rule);
+	background-color: var(--newsprint);
+	box-shadow: none;
+}
+
+mobile-starlight-toc .isMobile a {
+	border-top: var(--guide);
+	color: var(--ink);
+	min-height: 2.75rem;
+	align-items: center;
+}
+
+mobile-starlight-toc .isMobile a[aria-current='true'],
+mobile-starlight-toc .isMobile a[aria-current='true']:hover,
+mobile-starlight-toc .isMobile a[aria-current='true']:focus {
+	color: var(--ink);
+	box-shadow: inset 0 -2px 0 var(--cyan-deep);
+}
+
+/* ——— Pagination / selects / social ——— */
+
+.pagination-links a {
+	border: var(--rule);
+	border-radius: 0;
+	box-shadow: none;
+	color: var(--ink-soft);
+	min-height: 2.75rem;
+}
+
+.pagination-links a:hover,
+.pagination-links a:focus-visible {
+	border-color: var(--cyan-deep);
+	color: var(--ink);
+}
+
+.pagination-links .link-title {
+	color: var(--ink);
+	font-family: var(--font-display);
+	font-weight: 800;
+	letter-spacing: -0.03em;
+}
+
+starlight-lang-select label,
+.social-icons a {
+	color: var(--ink);
+}
+
+starlight-lang-select label:hover,
+.social-icons a:hover {
+	color: var(--ink);
+}
+
+.mobile-preferences {
+	border-top: var(--rule);
+}
+
+.mobile-preferences starlight-lang-select label,
+.mobile-preferences .social-icons a {
+	min-height: 2.75rem;
+	align-items: center;
+}
+
+.social-icons::after {
+	border-inline-end: var(--rule);
+}
+
+/* ——— Markdown type ——— */
+
+.content-panel h1,
+.sl-markdown-content :is(h1, h2, h3) {
+	font-family: var(--font-display);
+	font-weight: 800;
+	letter-spacing: -0.03em;
+	color: var(--ink);
+	overflow-wrap: anywhere;
+}
+
+.content-panel h1 {
+	font-size: 1.85rem;
+	line-height: 1.05;
+}
+
+.sl-markdown-content :is(h4, h5, h6) {
+	color: var(--ink);
+	font-weight: 700;
+}
+
+.sl-markdown-content a {
+	color: var(--cyan-deep);
+}
+
+.sl-markdown-content a:hover {
+	color: var(--ink);
+}
+
+.sl-markdown-content :is(p, li, dd) {
+	overflow-wrap: anywhere;
+}
+
+.sl-markdown-content code {
+	background-color: var(--newsprint-dark);
+	color: var(--ink);
+	border-radius: 0;
+	overflow-wrap: anywhere;
+}
+
+.sl-markdown-content pre {
+	border: var(--rule);
+	border-radius: 0;
+	background-color: var(--ink);
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+.sl-markdown-content table {
+	max-width: 100%;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+.sl-markdown-content pre code {
+	color: var(--newsprint);
+	background-color: transparent;
+}
+
+.sl-markdown-content blockquote {
+	border-inline-start: var(--rule);
+	color: var(--ink);
+}
+
+.sl-markdown-content :is(th, td) {
+	border-bottom: var(--rule);
+}
+
+.sl-markdown-content th {
+	color: var(--ink);
+}
+
+.sl-markdown-content hr {
+	border-bottom: var(--rule);
+}
+
+.sl-markdown-content details {
+	--sl-details-border-color: var(--ink);
+	--sl-details-border-color--hover: var(--cyan-deep);
+}
+
+.sl-markdown-content summary {
+	color: var(--ink);
+}
+
+/* ——— Asides: 1px rule, newsprint fill, ink type ——— */
+
+.starlight-aside {
+	border-radius: 0;
+	border-inline-start-width: 1px;
+	color: var(--ink);
+	background-color: var(--newsprint-dark);
+}
+
+.starlight-aside--note,
+.starlight-aside--tip {
+	--sl-color-asides-text-accent: var(--cyan-deep);
+	--sl-color-asides-border: var(--cyan-deep);
+}
+
+.starlight-aside--caution {
+	--sl-color-asides-text-accent: var(--ink);
+	--sl-color-asides-border: var(--ink);
+}
+
+.starlight-aside--danger {
+	--sl-color-asides-text-accent: var(--ink);
+	--sl-color-asides-border: var(--kill);
+}
+
+.starlight-aside__title,
+.starlight-aside__content a {
+	color: var(--sl-color-asides-text-accent);
+}
+
+/* ——— Code frames: press-bar plate, not Night Owl neon ——— */
+
+.expressive-code {
+	--ec-brdRad: 0px;
+	--ec-brdWd: 1px;
+	--ec-brdCol: var(--ink);
+	--ec-frm-edBg: var(--ink);
+	--ec-frm-trmBg: var(--ink);
+	--ec-frm-edActTabBg: var(--ink);
+	--ec-frm-edActTabFg: var(--newsprint);
+	--ec-frm-edTabBarBg: var(--ink);
+	--ec-frm-edTabBarBrdBtmCol: var(--ink);
+	max-width: 100%;
+}
+
+.expressive-code .frame,
+.expressive-code pre {
+	border-radius: 0 !important;
+	box-shadow: none !important;
+	border-color: var(--ink) !important;
+	background: var(--ink) !important;
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+.expressive-code pre > code,
+.expressive-code .ec-line,
+.expressive-code .ec-line span {
+	color: var(--newsprint) !important;
+}
+
+.expressive-code .copy button {
+	border-radius: 0;
+	background: var(--ink);
+	color: var(--newsprint);
+	border: 1px solid var(--newsprint);
+}
+
+.expressive-code .copy button:hover {
+	background: var(--cyan-deep);
+	color: var(--newsprint);
+}
+
+@media (max-width: 49.999rem) {
+	#starlight__search {
+		--sl-search-cancel-space: 5.5rem;
+	}
+
+	site-search dialog {
+		width: 100%;
+		max-width: 100%;
+	}
+
+	site-search .dialog-frame {
+		padding: 0.75rem;
+	}
+
+	.sidebar-pane {
+		width: 100%;
+	}
+
+	.sidebar a,
+	.sidebar summary {
+		min-height: 2.75rem;
+		display: flex;
+		align-items: center;
+	}
+
+	.sidebar a:hover,
+	.sidebar a:focus-visible {
+		color: var(--ink);
+		background-color: transparent;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.sidebar .caret,
+	.sl-markdown-content summary::before,
+	mobile-starlight-toc .caret {
+		transition: none;
+	}
+}

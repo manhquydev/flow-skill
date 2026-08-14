@@ -1,0 +1,72 @@
+{
+  "title": "Choose the visual world",
+  "question": "The roll assigned Galley Proof. Keep it, take an alternate, or re-roll.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Galley Proof",
+      "kicker": "THE ROLL",
+      "lineage": "Letterpress galley proofs and publisher pass sheets",
+      "thesis": "The forme stays on the stone until both columns of the proof agree.",
+      "palette": ["#111111", "#1aa3c4", "#d63a2f", "#c9c6bb"],
+      "materials": ["metal type", "wet ink", "galley tray", "kill crayon"],
+      "viewport": "A full-bleed proof sheet: flow as the galley headline, two columns Mechanical and Semantic, the install line waiting to go to press.",
+      "risk": "Cream paper plus a timid serif collapses into the docs-methodology rut.",
+      "sketch": ".impeccable/sketches/assigned.webp"
+    },
+    {
+      "id": "challenger-terminal-yellow-wayfinding",
+      "label": "Terminal Yellow",
+      "lineage": "Airport concourse wayfinding bands",
+      "thesis": "Nine minutes to the gate: one yellow band, one next decision, then walk.",
+      "palette": ["#f5c400", "#111111", "#ffffff", "#1a1a1a"],
+      "materials": ["enamel sign panels", "pictogram squares", "overhead bands"],
+      "viewport": "A yellow overhead band owns the first viewport; gate-scale Install sits at the arrow; two inset bands read Mechanical and Semantic.",
+      "case": "Wins the ten-second next-gate job; two required bands can stand in for the layers. Does not beat the assigned on kill-as-valid product clarity.",
+      "risk": "Reads as an airline microsite if the install command is not the only next gate.",
+      "sketch": ".impeccable/sketches/challenger-terminal-yellow-wayfinding.webp",
+      "hero": "https://impeccable.style/worlds/cards/wayfinding-cartography-signage-terminal-yellow-wayfinding-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/wayfinding-cartography-signage-terminal-yellow-wayfinding.webp"
+    },
+    {
+      "id": "challenger-seven-segment",
+      "label": "Seven-Segment",
+      "lineage": "Bedside clocks, price totems, scoreboards",
+      "thesis": "Every glyph is the same eight-cell mask; unlit segments are designed too.",
+      "palette": ["#0b0b0b", "#e22b2b", "#3a1010", "#c8c4b8"],
+      "materials": ["LED segments", "matte near-black bezel", "ghost cells"],
+      "viewport": "Four red segment cells spell flow; a second row holds the install command; ghost cells mark the unset clock as the kill state.",
+      "case": "Fuses poorly because a clock and scoreboard sell time and score, not a killable two-layer gate.",
+      "risk": "Gadget chrome swallows the harness; the visitor remembers digits, not discipline.",
+      "sketch": ".impeccable/sketches/challenger-seven-segment.webp",
+      "hero": "https://impeccable.style/worlds/cards/signals-instruments-seven-segment-alarm-clock-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/signals-instruments-seven-segment-alarm-clock.webp"
+    },
+    {
+      "id": "challenger-rain-night-cityscape",
+      "label": "Rain-Night City",
+      "lineage": "Blue-hour skyline into rain-dark night",
+      "thesis": "Trains stitch amber across the river while rain doubles every sign.",
+      "palette": ["#0c1a33", "#1e4d8c", "#e8a020", "#c9d4e8"],
+      "materials": ["wet asphalt", "window grids", "amber transit", "river glass"],
+      "viewport": "A stacked night: skyline, street, reflection; flow as a civic sign; install as the one lit storefront.",
+      "case": "Fuses poorly because wet neon night is the AI-agent landing the brief forbids.",
+      "risk": "Even executed well, it reads as another coding-agent nocturne.",
+      "sketch": ".impeccable/sketches/challenger-rain-night-cityscape.webp",
+      "hero": "https://impeccable.style/worlds/cards/light-shadow-caustics-rain-night-cityscape-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/light-shadow-caustics-rain-night-cityscape.webp"
+    }
+  ],
+  "reroll": true,
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "A dark AI-coding-agent landing with a terminal hero, executed at full craft.",
+    "palette": ["#0a0a0c", "#22d3ee", "#f8fafc", "#111827"],
+    "materials": ["terminal glass", "neon edge", "star-count chrome"],
+    "viewport": "Centered wordmark, glowing terminal pane, install below the fold of a star row.",
+    "risk": "Looks like every neighboring agent product; flow’s kill switch disappears.",
+    "sketch": ".impeccable/sketches/canon.webp"
+  },
+  "steer": true
+}
