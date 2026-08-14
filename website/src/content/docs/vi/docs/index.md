@@ -40,12 +40,17 @@ Khô, đúng sự kiện, xếp để quét: bảng lệnh, file rơi vào đâu
 - [Tham chiếu lệnh](/vi/docs/reference/commands)
 - [CLI cài đặt](/vi/docs/reference/install-cli)
 - [Đường dẫn cài đặt](/vi/docs/reference/install-paths)
+- [Nhật ký thay đổi](/vi/docs/reference/changelog)
 - [Thuật ngữ](/vi/docs/reference/glossary)
 
 ## Bắt đầu ngắn nhất có thể
 
+Cặp hiện tại: skill product **v0.30.0**, npm installer **0.7.0** trên `@latest`. Xem
+[Phiên bản: npm installer vs skill product](/vi/docs/explanation/versions-npm-vs-skill).
+
 ```bash
 npx @manhquy/flow-skill@latest
+# expect: flow-skill v0.7.0 (ships skill v0.30.0)
 ```
 
 Restart agent, mở project, rồi nói bạn muốn build gì bằng tiếng thường. Chat là cửa mặc định — lệnh gõ như `/flow next` luôn chạy, nhưng không bắt buộc học verb để bắt đầu.

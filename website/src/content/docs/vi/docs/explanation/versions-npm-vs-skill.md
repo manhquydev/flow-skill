@@ -11,6 +11,9 @@ lang: vi
 | **Skill product** | `0.30.0` | Các cổng, `SKILL.md`, runner, references, templates — thứ phán build của bạn. |
 | **npm installer** | `0.7.0` | CLI `@manhquy/flow-skill` copy skill vào agent home. |
 
+`npx @manhquy/flow-skill@latest` hiện resolve về installer **0.7.0** trên dist-tag npm
+`latest`.
+
 Kiểm cả hai từ máy của bạn chứ không từ tài liệu nào:
 
 ```bash
