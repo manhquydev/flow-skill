@@ -8,5 +8,5 @@
 #   README.md installer pin 0.5.x vs README_VN.md 0.6.x; VN still says "34 bộ test";
 #   EN has Antigravity, monorepo-root, and Codex try-it sections VN lacks.
 #   npm-wrapper/README.md 0.5.1 / skill v0.28.1 vs README_VN.md 0.4.1 / skill v0.27.0.
-README.md README_VN.md 86c8b4ec96cc59e59f690117e55ddb8592c4230d 40d86059759110136c9c13b926cae3f315e3b45f
+README.md README_VN.md 202f34bc5da8e629d2bfb2a84ccbc5bbf30d90a1 5051e2375ef141980af7593f5d991adf5ba183a9
 npm-wrapper/README.md npm-wrapper/README_VN.md 9f3346a31835b8cec71397025ea2a562a107fbd9 7a7119908aa2d4c5dede9b946b2ea25117c3d381

@@ -12,9 +12,14 @@ bash skills/flow/runner/flow.sh eval --record --n 3
 ```
 
 Plan accounting is 11 fixtures × 3 + 1 probe = 33 + 1 billable calls (9 heading-mapped
-fixtures bill 27 + probe today). Writes `meta` plus `<fixture>/<vote>.txt` (one
-`GATE-EVAL-<nonce>: FLAG|PASS` line each). Never commit raw `claude --output-format json`
-envelopes (`session_id` / `cwd` must stay out).
+fixtures bill 27 + probe today). Writes `meta` only after a non-aborted batch, plus
+`<fixture>/<vote>.txt` (one `GATE-EVAL-<nonce>: FLAG|PASS` line each). Never commit raw
+`claude --output-format json` envelopes (`session_id` / `cwd` must stay out).
+
+**Never commit a `meta` without a complete vote tree.** CI keys skip-with-notice on `meta`
+existence; a breaker-abort or Ctrl-C leftover (or a `--record --fixture <id>` tree whose
+`n=` describes a full batch but only one fixture was written) flips that job from NOTICE
+to a hard failure. Record the full heading-mapped batch; CI reads `n` from `meta`.
 
 A `gate-rules.md` edit invalidates `gate_rules_sha` in `meta`. Refresh `--record` and the
 rules edit must land in **one commit**. No recorded batch exists yet — CI `eval-replay`
@@ -31,9 +36,9 @@ addendum lands → escalate to full structured lineage evidence.
 bash skills/flow/runner/flow.sh eval --replay --n 3
 ```
 
-Feeds recorded text through the unchanged parse → vote → scorecard path. Hard-fails
-if `gate_rules_sha` in `meta` does not match `_eval_gate_rules_sha` (staleness —
-re-record live per the identity ADR). Replay is **not** a fresh-judge and never
-counts toward the eval floor.
+Feeds recorded text through parse → vote → per-fixture match lines (no scorecard;
+replay writes no results rows). Hard-fails if `gate_rules_sha` in `meta` does not
+match `_eval_gate_rules_sha` (staleness — re-record live per the identity ADR).
+Replay is **not** a fresh-judge and never counts toward the eval floor.
 
 `--record|--replay` are artifact-only: not `--stage routing|converge`, not `--report`.

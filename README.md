@@ -216,7 +216,7 @@ All engine verbs (`bash …/runner/flow.sh <command>`):
 | `/flow constitution` | Check operator-authored per-project invariants in `flow/constitution.md` (structure + grep-markers; advisory, **not** a `next` gate) |
 | `/flow eval [--stage 01\|02\|card] [--fixture <id>] [--n 3]` | **Behavioral proof for the semantic gate**: does the LLM actually flag a hollow-but-mechanically-clean fixture? Opt-in, **billable**, clean zero-call skip if `claude` CLI absent (live only). See `references/gate-eval.md` (fresh-judge lower bound, not the work-mode self-challenge). |
 | `/flow eval --report` | Offline, zero calls: last complete batch's scorecard + drift vs the prior complete batch |
-| `/flow eval --replay` | Keyless: replay recorded transcripts through parse/vote/scorecard. Not a fresh-judge; never counts toward the eval floor. |
+| `/flow eval --replay` | Keyless: replay recorded transcripts through parse → vote → per-fixture match lines (no scorecard; replay writes no results rows). Not a fresh-judge; never counts toward the eval floor. |
 | `/flow promote <file>` | Copy a playbook into the cross-project KB (`~/.claude/flow/playbooks`) |
 | `/flow doctor` | Check the environment (bash/python/grep/git) across macOS/Linux/Windows |
 | `/flow usage [--global\|--prune]` | Roll up the JSONL usage log into build analytics: cycle-time, gate fail-rate, per-stage + per-card dwell, command breakdown (local-only) |

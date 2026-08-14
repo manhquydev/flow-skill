@@ -189,7 +189,11 @@ jobs:
             exit 0
           fi
           SB="$(mktemp -d)"
-          out="$(FLOW_PROJECT_ROOT="$SB" FLOW_LOG_DISABLE=1 bash skills/flow/runner/flow.sh eval --replay --n 3 2>&1)" || rc=$?
+          n="$(awk -F= '$1=="n"{gsub(/\r/,"",$2); print $2; exit}' skills/flow/eval/replay/meta)"
+          case "$n" in
+            ''|*[!0-9]*) echo "FAIL: replay meta missing a usable n=" >&2; exit 1 ;;
+          esac
+          out="$(FLOW_PROJECT_ROOT="$SB" FLOW_LOG_DISABLE=1 bash skills/flow/runner/flow.sh eval --replay --n "$n" 2>&1)" || rc=$?
           printf '%s\n' "$out"
           printf '%s\n' "$out" | grep -q 'SKIP:' && { echo "FAIL: replay inherited live SKIP" >&2; exit 1; }
           printf '%s\n' "$out" | grep -q 'replay:' || { echo "FAIL: no replay-ran sentinel" >&2; exit 1; }

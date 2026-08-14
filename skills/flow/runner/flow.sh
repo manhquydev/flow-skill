@@ -4327,9 +4327,6 @@ function cmd_eval {
     esac
     nonce="$(_eval_nonce)"
     batch_cliv="$(_eval_cli_version)"; batch_flowv="$(_flow_version)"; batch_grsha="$(_eval_gate_rules_sha)"
-    if [ "$record_mode" -eq 1 ]; then
-      _eval_replay_write_meta "$nonce" "$batch_grsha" "unknown" "$n"
-    fi
   fi
   echo "eval: batch $nonce (N=$n per fixture, timeout=${timeout}s)"
 

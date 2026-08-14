@@ -213,7 +213,7 @@ Engine dispatch (`bash …/runner/flow.sh <command>`):
 | `/flow constitution` | Kiểm các bất biến per-dự-án operator tự viết trong `flow/constitution.md` (cấu trúc + grep-marker; cố vấn, **không** phải gate của `next`) |
 | `/flow eval [--stage 01\|02\|card] [--fixture <id>] [--n 3]` | **Bằng chứng hành vi cho gate ngữ nghĩa**: LLM có thật sự phát hiện fixture rỗng-nhưng-pass-cơ-học không? Opt-in, **tính phí**, skip sạch 0 lệnh gọi nếu thiếu CLI `claude` (chỉ live). Xem `references/gate-eval.md` (ngưỡng dưới của fresh judge, không phải self-challenge ở work-mode). |
 | `/flow eval --report` | Offline, 0 lệnh gọi: scorecard batch hoàn chỉnh gần nhất + drift so với batch hoàn chỉnh trước đó |
-| `/flow eval --replay` | Keyless: phát lại transcript đã ghi qua parse/vote/scorecard. Không phải fresh-judge; không tính vào eval floor. |
+| `/flow eval --replay` | Keyless: phát lại transcript đã ghi qua parse → vote → dòng match từng fixture (không scorecard; replay không ghi results rows). Không phải fresh-judge; không tính vào eval floor. |
 | `/flow promote <file>` | Copy một playbook vào KB liên-dự-án (`~/.claude/flow/playbooks`) |
 | `/flow doctor` | Kiểm môi trường (bash/python/grep/git) trên macOS/Linux/Windows |
 | `/flow usage [--global\|--prune]` | Tổng hợp usage-log JSONL thành analytics build: cycle-time, tỷ lệ fail gate, dwell theo stage + theo card, phân bố lệnh (chỉ lưu cục bộ) |

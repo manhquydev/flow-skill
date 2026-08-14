@@ -97,7 +97,7 @@ and does.
 | live (default) | Billable `claude -p` | Fresh-judge catch-rate (eval floor) |
 | `--report` | Zero | Last complete **live** batch + advisory drift |
 | `--record` | Same as live | Writes stripped transcripts under `eval/replay/` |
-| `--replay` | Zero | Parse / vote / scorecard + gate-rules **hash** staleness |
+| `--replay` | Zero | Parse → vote → per-fixture match lines (no scorecard; no results rows) + gate-rules **hash** staleness |
 
 `--record|--replay` are artifact-modality only (not `--stage routing|converge`, not `--report`).
 
