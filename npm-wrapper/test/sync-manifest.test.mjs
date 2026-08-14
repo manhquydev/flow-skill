@@ -81,6 +81,25 @@ test('--compare fails on a 1-byte content drift', () => {
   }
 });
 
+test('--compare ignores eval/replay in the repo tree (shouldShip twin)', () => {
+  const extracted = mkdtempSync(join(tmpdir(), 'sync-cmp-r-'));
+  const repo = mkdtempSync(join(tmpdir(), 'sync-cmp-s-'));
+  writeTree(extracted, { 'SKILL.md': '# skill\n', 'runner/flow.sh': '#!/bin/bash\n' });
+  writeTree(repo, {
+    'SKILL.md': '# skill\n',
+    'runner/flow.sh': '#!/bin/bash\n',
+    'eval/replay/meta': 'nonce=x\n',
+  });
+  try {
+    const r = runCompare(extracted, repo);
+    assert.equal(r.status, 0, `compare failed: ${r.stderr}\n${r.stdout}`);
+    assert.match(r.stdout, /compare OK/);
+  } finally {
+    rmSync(extracted, { recursive: true, force: true });
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('--compare without two paths usage-exits 2 and does not copy', () => {
   const canary = resolve(pkgRoot, 'skills', 'flow', '.compare-canary-test');
   mkdirSync(resolve(pkgRoot, 'skills', 'flow'), { recursive: true });

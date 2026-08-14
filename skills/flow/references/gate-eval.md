@@ -78,10 +78,31 @@ fresh-judge eval is to reflect a realistic judge, not the cheapest one that pass
 `--report` (below) is the free, offline way to re-read a prior batch's numbers without spending
 anything.
 
-**macOS without `timeout`/`gtimeout`:** live `flow.sh eval` (not `--report`, not replay) refuses
+**macOS without `timeout`/`gtimeout`:** live `flow.sh eval` (not `--report`, not `--replay`) refuses
 by default. The watchdog fallback cannot bound a stuck `claude` call, so a hung judge is an
 unbounded-billing risk. Install GNU coreutils (`gtimeout`) or export `FLOW_EVAL_UNBOUNDED=1` to
-accept that risk for one run. `--report` is offline and never hits this guard.
+accept that risk for one run. `--report` and `--replay` never hit this guard. `--record` is live
+and does.
+
+## Modes
+
+| Mode | Calls | What it proves |
+|------|-------|----------------|
+| live (default) | Billable `claude -p` | Fresh-judge catch-rate (eval floor) |
+| `--report` | Zero | Last complete **live** batch + advisory drift |
+| `--record` | Same as live | Writes stripped transcripts under `eval/replay/` |
+| `--replay` | Zero | Parse / vote / scorecard + gate-rules **hash** staleness |
+
+`--record|--replay` are artifact-modality only (not `--stage routing|converge`, not `--report`).
+
+**Replay is not a fresh-judge.** Gate-rules text is embedded in the live prompt; recorded
+responses are frozen. Replay cannot test rules *effectiveness* — that stays live and billable.
+What it can do: hard-fail when `_eval_gate_rules_sha` ≠ the recorded hash (`fixtures stale —
+re-record live per ADR re-baseline rule`). Replay verdicts **never count toward the eval floor**.
+
+**Refresh protocol:** edit both sides of a rules change, run a live `--record` batch (9 × `--n 3`
+= 27 judge calls + 1 probe) on a host with real `timeout`/`gtimeout`, commit the stripped
+`eval/replay/` tree (verdict lines only — no `session_id` / `cwd` envelopes).
 
 ## Running it
 
@@ -91,6 +112,8 @@ flow.sh eval --stage card              # only the card-gate fixtures
 flow.sh eval --fixture fcdb --n 1       # one fixture, one run (cheap smoke check)
 flow.sh eval --timeout 180              # override the per-call timeout (default 120s)
 flow.sh eval --report                   # OFFLINE: last complete batch's scorecard + drift
+flow.sh eval --record --n 3             # LIVE: write stripped replay fixtures (billable)
+flow.sh eval --replay --n 3             # KEYLESS: replay recorded transcripts
 ```
 
 Exit code: `0` = every evaluated fixture majority-matched its expected verdict (or a clean

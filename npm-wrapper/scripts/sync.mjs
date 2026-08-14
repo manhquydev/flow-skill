@@ -28,6 +28,8 @@ function shouldShip(path) {
   if (s.includes('/__pycache__/') || s.endsWith('/__pycache__')) return false;
   if (s.endsWith('.pyc') || s.endsWith('.pyo')) return false;
   if (s.endsWith('/.DS_Store') || s.endsWith('/Thumbs.db')) return false;
+  // Replay fixtures are CI/dev artifacts, not skill content (Phase 7).
+  if (s.includes('/eval/replay/') || s.endsWith('/eval/replay')) return false;
   return true;
 }
 

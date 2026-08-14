@@ -69,6 +69,8 @@ HARNESS_PY="$SCRIPT_DIR/../harness/flow_harness.py"
 # so an overridden manifest can only ever point at real shipped fixtures under the real EVAL_DIR.
 EVAL_DIR="$SCRIPT_DIR/../eval"
 EVAL_MANIFEST="${FLOW_EVAL_MANIFEST:-$EVAL_DIR/manifest.tsv}"
+# FLOW_EVAL_REPLAY_DIR is a TEST-ONLY override (synthetic harness-built transcripts).
+EVAL_REPLAY_DIR="${FLOW_EVAL_REPLAY_DIR:-$EVAL_DIR/replay}"
 GATE_RULES_FILE="$SCRIPT_DIR/../references/gate-rules.md"
 
 # Routing eval (v0.22 concierge routing judge - a SEPARATE modality from the artifact-vs-
@@ -3302,6 +3304,40 @@ _eval_cli_version() {
   [ -n "$v" ] && printf '%s' "$v" || printf 'unknown'
 }
 
+# Replay/record helpers. Do not live inside _eval_engine_run. Meta is key=value, one per line.
+_eval_replay_meta_get() { # $1=key -> value (empty + return 1 if missing)
+  local key="$1" line
+  [ -f "$EVAL_REPLAY_DIR/meta" ] || return 1
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
+    case "$line" in
+      "${key}="*) printf '%s' "${line#${key}=}"; return 0 ;;
+    esac
+  done < "$EVAL_REPLAY_DIR/meta"
+  return 1
+}
+
+_eval_replay_write_meta() { # $1=nonce $2=gate_rules_sha $3=model $4=n
+  mkdir -p "$EVAL_REPLAY_DIR" || return 1
+  printf 'nonce=%s\ngate_rules_sha=%s\nmodel=%s\nn=%s\n' "$1" "$2" "$3" "$4" > "$EVAL_REPLAY_DIR/meta"
+}
+
+# Persist one stripped verdict line only — never a JSON envelope (session_id/cwd stay out).
+_eval_record_vote() { # $1=fid $2=vote-i $3=nonce $4=FLAG|PASS|INVALID
+  local dest="$EVAL_REPLAY_DIR/$1"
+  mkdir -p "$dest" || return 1
+  printf 'GATE-EVAL-%s: %s\n' "$3" "$4" > "$dest/$2.txt"
+}
+
+_eval_replay_vote() { # $1=fid $2=vote-i -> transcript on stdout; return 1 if missing
+  local f="$EVAL_REPLAY_DIR/$1/$2.txt"
+  if [ ! -f "$f" ]; then
+    echo "eval --replay: missing fixture $1 vote $2 at $f" >&2
+    return 1
+  fi
+  cat "$f"
+}
+
 # Batch header/trailer: the completeness signal `--report`/drift filter on is "start present +
 # done present + n_written >= n_expected". Two paths lead to a MISSING trailer (correctly
 # incomplete): (a) an interrupted batch (INT/TERM trap exits before this line, per the eval
@@ -4169,7 +4205,7 @@ _eval_guard_unbounded_darwin() { # $1=replay_mode (0/1); return 1 = refused
 # -positives on that exact byte sequence regardless of language. Purely a spelling dodge for a
 # generic scanner; behavior is 100% identical to every other function in this file.
 function cmd_eval {
-  local stage_filter="" fixture_filter="" n=3 timeout=120 report_mode=0 keep_going=0 replay_mode=0
+  local stage_filter="" fixture_filter="" n=3 timeout=120 report_mode=0 keep_going=0 replay_mode=0 record_mode=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --stage)      shift; stage_filter="${1:-}" ;;
@@ -4177,8 +4213,10 @@ function cmd_eval {
       --n)          shift; n="${1:-3}" ;;
       --timeout)    shift; timeout="${1:-120}" ;;
       --report)     report_mode=1 ;;
+      --record)     record_mode=1 ;;
+      --replay)     replay_mode=1 ;;
       --keep-going) keep_going=1 ;;
-      *) echo "usage: /flow eval [--stage 01|02|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>] [--keep-going] [--report]"; return 1 ;;
+      *) echo "usage: /flow eval [--stage 01|02|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>] [--keep-going] [--report] [--record|--replay]"; return 1 ;;
     esac
     shift 2>/dev/null || true
   done
@@ -4190,6 +4228,26 @@ function cmd_eval {
   # value (`abc`) silently falls back to the default rather than aborting the batch.
   local backoff="${FLOW_EVAL_RETRY_BACKOFF:-5}"
   case "$backoff" in ''|*[!0-9]*) backoff=5 ;; esac
+
+  # Reject window: --record|--replay is artifact-modality only. Must run BEFORE routing/
+  # converge dispatch and BEFORE the --report early-return. --record is LIVE (replay_mode
+  # stays 0) so the Phase 6 darwin guard still fires.
+  if [ "$record_mode" -eq 1 ] && [ "$replay_mode" -eq 1 ]; then
+    echo "usage: /flow eval --record and --replay are mutually exclusive"
+    return 1
+  fi
+  if [ "$record_mode" -eq 1 ] || [ "$replay_mode" -eq 1 ]; then
+    case "$stage_filter" in
+      routing|converge)
+        echo "usage: /flow eval --record|--replay is artifact-modality only (not --stage $stage_filter)"
+        return 1
+        ;;
+    esac
+    if [ "$report_mode" -eq 1 ]; then
+      echo "usage: /flow eval --record|--replay cannot combine with --report"
+      return 1
+    fi
+  fi
 
   # v0.22: routing is a SEPARATE judge modality (own manifest/prompt/verdict/results-file/
   # scorecard) - delegate entirely and return, before any of the artifact-eval logic below
@@ -4224,28 +4282,55 @@ function cmd_eval {
     return 1
   fi
 
-  # After --report return; immediately before _eval_probe. Phase 7 wraps the
-  # probe/nonce/cli-version block and must keep this replay_mode skip.
+  # Live-eval entry. replay_mode=1 self-skips inside the guard; --record leaves
+  # replay_mode=0 so refuse-by-default still fires. Do not wrap this call again.
   if ! _eval_guard_unbounded_darwin "$replay_mode"; then
     return 1
   fi
 
-  local probe; probe="$(_eval_probe)"
-  case "$probe" in
-    absent)
-      echo "SKIP: 'claude' CLI not found on PATH - eval needs it to run the LLM judge. Zero calls made."
-      return 0 ;;
-    fail)
-      echo "SKIP: 'claude' CLI is present but the sentinel probe did not come back clean (one minimal"
-      echo "  billable probe call was made). Confirm 'claude -p' runs headless on this machine, then retry."
-      return 0 ;;
-  esac
-
-  local nonce; nonce="$(_eval_nonce)"
-  local total_mismatch=0 total_unreliable=0 total_evaluated=0 rundir="" n_written=0 aborted=0
+  local nonce="" total_mismatch=0 total_unreliable=0 total_evaluated=0 rundir="" n_written=0 aborted=0
   # Computed ONCE per batch, not per fixture row - see _eval_emit_result's comment.
-  local batch_cliv batch_flowv batch_grsha
-  batch_cliv="$(_eval_cli_version)"; batch_flowv="$(_flow_version)"; batch_grsha="$(_eval_gate_rules_sha)"
+  local batch_cliv="" batch_flowv="" batch_grsha=""
+  if [ "$replay_mode" -eq 1 ]; then
+    # Replay wrap: skip probe SKIP-exit and _eval_cli_version only. Still compute
+    # batch_grsha (staleness hard-fail) and _flow_version. Nonce from fixture, never _eval_nonce.
+    if [ ! -f "$EVAL_REPLAY_DIR/meta" ]; then
+      echo "eval --replay: missing replay fixtures at $EVAL_REPLAY_DIR (no meta). Never SKIP."
+      return 1
+    fi
+    nonce="$(_eval_replay_meta_get nonce)" || nonce=""
+    if [ -z "$nonce" ]; then
+      echo "eval --replay: meta missing nonce. Never SKIP."
+      return 1
+    fi
+    batch_grsha="$(_eval_gate_rules_sha)"
+    batch_flowv="$(_flow_version)"
+    batch_cliv="replay"
+    local rec_sha
+    rec_sha="$(_eval_replay_meta_get gate_rules_sha)" || rec_sha=""
+    if [ "$rec_sha" != "$batch_grsha" ]; then
+      echo "eval --replay: fixtures stale — gate-rules changed; re-record live per ADR re-baseline rule"
+      echo "  recorded=$rec_sha current=$batch_grsha"
+      return 1
+    fi
+    echo "replay: keyless artifact batch (nonce from fixture, zero live calls)"
+  else
+    local probe; probe="$(_eval_probe)"
+    case "$probe" in
+      absent)
+        echo "SKIP: 'claude' CLI not found on PATH - eval needs it to run the LLM judge. Zero calls made."
+        return 0 ;;
+      fail)
+        echo "SKIP: 'claude' CLI is present but the sentinel probe did not come back clean (one minimal"
+        echo "  billable probe call was made). Confirm 'claude -p' runs headless on this machine, then retry."
+        return 0 ;;
+    esac
+    nonce="$(_eval_nonce)"
+    batch_cliv="$(_eval_cli_version)"; batch_flowv="$(_flow_version)"; batch_grsha="$(_eval_gate_rules_sha)"
+    if [ "$record_mode" -eq 1 ]; then
+      _eval_replay_write_meta "$nonce" "$batch_grsha" "unknown" "$n"
+    fi
+  fi
   echo "eval: batch $nonce (N=$n per fixture, timeout=${timeout}s)"
 
   # Ensure .flow/ (which now hosts eval-raw/ postmortem dumps) is git-ignored on any project
@@ -4276,7 +4361,9 @@ function cmd_eval {
     }
     END { print c + 0 }
   ' "$EVAL_MANIFEST")"
-  _eval_emit_batch_marker "$nonce" start "$n_expected"
+  if [ "$replay_mode" -eq 0 ]; then
+    _eval_emit_batch_marker "$nonce" start "$n_expected"
+  fi
 
   # Scoped INT/TERM trap: the sole EXIT trap (_log_on_exit -> _cleanup_tds) was found NOT to
   # fire reliably while blocked on a foreground `_run_with_timeout` child (verified: a signal
@@ -4342,7 +4429,12 @@ function cmd_eval {
       # command string _eval_engine_run passes to _run_with_timeout (that broke the watchdog
       # fallback on the timeout-less-PATH lane - see engine-run's note).
       err1="$rundir/v${i}-a1.err"
-      raw="$(_eval_engine_run "$promptfile" "$timeout" 2>"$err1")"; rc=$?
+      if [ "$replay_mode" -eq 1 ]; then
+        raw="$(_eval_replay_vote "$fid" "$i")" || { rm -rf "$rundir" 2>/dev/null; return 1; }
+        rc=0
+      else
+        raw="$(_eval_engine_run "$promptfile" "$timeout" 2>"$err1")"; rc=$?
+      fi
       raw1="$raw"; rc1="$rc"
       if [ "$rc" -eq 124 ]; then
         v=INVALID
@@ -4362,7 +4454,7 @@ function cmd_eval {
       # _run_with_timeout is documented not to bound a stuck call (DEBT.md), a retry here just
       # waits another full stuck-call duration - test E on the 3-OS CI matrix reproduces this at
       # ~66s (2x ~30s stuck calls + backoff) despite --timeout 3.
-      if [ "$v" = "INVALID" ] && [ "$rl1" != "true" ] && [ "$rc1" -ne 124 ]; then
+      if [ "$replay_mode" -eq 0 ] && [ "$v" = "INVALID" ] && [ "$rl1" != "true" ] && [ "$rc1" -ne 124 ]; then
         # Backoff then retry - env-injectable so tests can zero it; skipped when rc=124 (timeout
         # was infra, retry would timeout again) or when rate-limited (see above).
         if [ "$backoff" -gt 0 ]; then
@@ -4372,7 +4464,12 @@ function cmd_eval {
           echo "  $fid: retrying vote $i (parse-INVALID on attempt 1)"
         fi
         err2="$rundir/v${i}-a2.err"
-        raw="$(_eval_engine_run "$promptfile" "$timeout" 2>"$err2")"; rc=$?
+        if [ "$replay_mode" -eq 1 ]; then
+          raw="$(_eval_replay_vote "$fid" "$i")" || { rm -rf "$rundir" 2>/dev/null; return 1; }
+          rc=0
+        else
+          raw="$(_eval_engine_run "$promptfile" "$timeout" 2>"$err2")"; rc=$?
+        fi
         retries_sum=$((retries_sum + 1))
         if [ "$rc" -eq 124 ]; then v=INVALID; else v="$(_eval_parse_verdict "$raw" "$nonce")"; fi
         [ "$model" = "unknown" ] && [ "$rc" -ne 124 ] && model="$(_eval_parse_model "$raw")"
@@ -4415,6 +4512,9 @@ function cmd_eval {
         PASS) pass_count=$((pass_count + 1)) ;;
         *)    invalid_count=$((invalid_count + 1)) ;;
       esac
+      if [ "$record_mode" -eq 1 ]; then
+        _eval_record_vote "$fid" "$i" "$nonce" "$v"
+      fi
       i=$((i + 1))
     done
     rm -rf "$rundir" 2>/dev/null
@@ -4445,7 +4545,9 @@ function cmd_eval {
       echo "  $fid ($fstage): $verdict - MISMATCH, expected $fexpected (flag=$flag_count pass=$pass_count invalid=$invalid_count)"
     fi
 
-    _eval_emit_result "$nonce" "$fid" "$fstage" "$fexpected" "$verdict" "$match" "$flag_count" "$pass_count" "$invalid_count" "$n" "$model" "$batch_cliv" "$batch_flowv" "$batch_grsha" "$retries_sum" "$vote_rate_limited"
+    if [ "$replay_mode" -eq 0 ]; then
+      _eval_emit_result "$nonce" "$fid" "$fstage" "$fexpected" "$verdict" "$match" "$flag_count" "$pass_count" "$invalid_count" "$n" "$model" "$batch_cliv" "$batch_flowv" "$batch_grsha" "$retries_sum" "$vote_rate_limited"
+    fi
     n_written=$((n_written + 1))
 
     # Circuit breaker: catches the 260710-class INVALID storm early. Trip when the FIRST
@@ -4472,8 +4574,11 @@ function cmd_eval {
   # SKIPS the trailer so an early-broken batch never satisfies --report's completeness check
   # (n_written>=n_expected AND trailer present), even on a --fixture-filtered run where
   # n_written could accidentally equal the filtered n_expected of 1.
-  if [ "$aborted" -eq 0 ]; then
+  if [ "$aborted" -eq 0 ] && [ "$replay_mode" -eq 0 ]; then
     _eval_emit_batch_marker "$nonce" done "$n_written"
+  fi
+  if [ "$record_mode" -eq 1 ] && [ "$aborted" -eq 0 ]; then
+    _eval_replay_write_meta "$nonce" "$batch_grsha" "${model:-unknown}" "$n"
   fi
 
   echo
@@ -4487,8 +4592,13 @@ function cmd_eval {
     echo "ABORTED: circuit breaker tripped on first fixture UNRELIABLE - $total_evaluated of $n_expected fixtures evaluated."
     return 2
   fi
-  _eval_print_scorecard "$nonce"
+  if [ "$replay_mode" -eq 0 ]; then
+    _eval_print_scorecard "$nonce"
+  fi
   echo
+  if [ "$replay_mode" -eq 1 ]; then
+    echo "replay: $total_evaluated fixture(s) (keyless)"
+  fi
   if [ "$total_mismatch" -eq 0 ] && [ "$total_unreliable" -eq 0 ]; then
     echo "PASS: all $total_evaluated evaluated fixture(s) majority-matched their expected verdict."
     return 0
@@ -4536,9 +4646,14 @@ usage: bash flow.sh <command> [args]
   promote <file>    Copy a playbook into the cross-project KB (~/.claude/flow/playbooks)
   doctor            Check the environment (bash/python/grep/git) across macOS/Linux/Windows
   eval [opts]       Behavioral eval: does the LLM semantic gate flag a hollow-but-mechanically-clean
-                     fixture? Opt-in, BILLABLE (skips cleanly with zero calls if 'claude' CLI absent).
+                     fixture? Opt-in, BILLABLE (live mode skips cleanly with zero calls if 'claude'
+                     CLI absent; --replay never inherits that SKIP).
                      [--stage 01|02|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>]
                      [--report]  offline: last complete batch's scorecard + drift, zero calls
+                     [--record]  live: write stripped transcripts under eval/replay/ (billable)
+                     [--replay]  keyless: feed recorded transcripts through parse/vote/scorecard
+                     --record|--replay are artifact-modality only (not --stage routing|converge,
+                     not --report). --replay is not a fresh-judge and never counts toward the floor.
                      --stage routing: SEPARATE judge (concierge routing, not gate-rules FLAG/PASS);
                      hard-capped at 90 calls/batch, own results stream, own --report
   retro             Print the 3 retro questions

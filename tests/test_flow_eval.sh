@@ -25,7 +25,7 @@ newsb() {
     export FLOW_EVAL_UNBOUNDED=1
   fi
 }
-clean() { rm -rf "$SB" 2>/dev/null; unset FLOW_PROJECT_ROOT FLOW_EVAL_MANIFEST FLOW_EVAL_UNBOUNDED FLOW_EVAL_FORCE_DARWIN; }
+clean() { rm -rf "$SB" 2>/dev/null; unset FLOW_PROJECT_ROOT FLOW_EVAL_MANIFEST FLOW_EVAL_UNBOUNDED FLOW_EVAL_FORCE_DARWIN FLOW_EVAL_REPLAY_DIR; }
 
 # PATH dir with /usr/bin+/bin minus timeout/gtimeout (H / darwin-sim cases).
 make_notimeoutbin() {
@@ -721,6 +721,160 @@ if [ "$rc" -ne 0 ]; then echo "  ok   [wrong-nonce -> non-zero exit]"; pass=$((p
 has "$out" "UNRELIABLE" "wrong-nonce vote counted INVALID -> UNRELIABLE"
 no "$out" "MATCH" "wrong-nonce is never a MATCH"
 clean
+
+# ============================================================================================
+# Replay / record (Phase 7) — harness-built synthetic transcripts only. Never live envelopes.
+# ============================================================================================
+GATE_RULES="$HERE/../skills/flow/references/gate-rules.md"
+grsha="$(tr -d '\r' < "$GATE_RULES" | cksum | awk '{print $1}')"
+write_synth_replay() {
+  # $1=dir $2=nonce $3=sha $4=fid $5=FLAG|PASS $6=n
+  local d="$1" nonce="$2" sha="$3" fid="$4" verd="$5" nn="$6" i=1
+  mkdir -p "$d/$fid"
+  printf 'nonce=%s\ngate_rules_sha=%s\nmodel=synthetic-test\nn=%s\n' "$nonce" "$sha" "$nn" > "$d/meta"
+  while [ "$i" -le "$nn" ]; do
+    printf 'GATE-EVAL-%s: %s\n' "$nonce" "$verd" > "$d/$fid/$i.txt"
+    i=$((i + 1))
+  done
+}
+
+echo "RP-A) --replay --stage routing usage-exits (artifact-only)"
+newsb
+out="$(bash "$RUN" eval --replay --stage routing 2>&1)"; rc=$?
+ck 1 "$rc" "--replay --stage routing exits 1"
+has "$out" "artifact-modality only" "names artifact-only reject"
+no "$out" "SKIP" "reject is not a live SKIP"
+clean
+
+echo "RP-B) --record --report usage-exits"
+newsb
+out="$(bash "$RUN" eval --record --report 2>&1)"; rc=$?
+ck 1 "$rc" "--record --report exits 1"
+has "$out" "cannot combine with --report" "names --report reject"
+clean
+
+echo "RP-C) --replay with missing meta exits 1, never SKIP"
+newsb
+export FLOW_EVAL_REPLAY_DIR="$SB/empty-replay"
+mkdir -p "$FLOW_EVAL_REPLAY_DIR"
+out="$(bash "$RUN" eval --replay --fixture fcda --n 1 2>&1)"; rc=$?
+ck 1 "$rc" "missing meta exits 1"
+has "$out" "Never SKIP" "missing fixtures say never SKIP"
+no "$out" "SKIP:" "did not inherit live SKIP-exit-0"
+clean
+
+echo "RP-D) --replay + no claude + synthetic fixtures: exit 0 only if replay ran"
+newsb
+rdir="$SB/replay"
+write_synth_replay "$rdir" "TESTREPLAYNONCE" "$grsha" "fcda" "PASS" 1
+export FLOW_EVAL_REPLAY_DIR="$rdir"
+fakebin="$(mktemp -d)"
+for d in /usr/bin /bin; do
+  [ -d "$d" ] || continue
+  for f in "$d"/*; do
+    [ -e "$f" ] || continue
+    b="$(basename "$f")"
+    case "$b" in claude|claude.exe|claude.cmd) continue ;; esac
+    [ -e "$fakebin/$b" ] || ln -s "$f" "$fakebin/$b" 2>/dev/null || cp "$f" "$fakebin/$b" 2>/dev/null
+  done
+done
+if PATH="$fakebin" command -v claude >/dev/null 2>&1; then
+  echo "  skip [claude-absent-replay] (cannot hide claude on this platform)"
+else
+  out="$(PATH="$fakebin" bash "$RUN" eval --replay --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+  ck 0 "$rc" "keyless replay of sound fcda exits 0"
+  has "$out" "replay:" "replay-ran sentinel"
+  has "$out" "matches expected PASS" "parse/vote ran"
+  no "$out" "SKIP:" "did not inherit live SKIP"
+fi
+rm -rf "$fakebin"
+clean
+
+echo "RP-E) tampered recorded verdict -> mismatch exit 1"
+newsb
+rdir="$SB/replay"
+write_synth_replay "$rdir" "TESTREPLAYNONCE" "$grsha" "fcda" "FLAG" 1
+export FLOW_EVAL_REPLAY_DIR="$rdir"
+out="$(bash "$RUN" eval --replay --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+ck 1 "$rc" "tampered FLAG vs expected PASS exits 1"
+has "$out" "MISMATCH" "names the mismatch"
+has "$out" "replay:" "replay still ran"
+clean
+
+echo "RP-F) --replay missing vote file exits 1, not skip"
+newsb
+rdir="$SB/replay"
+write_synth_replay "$rdir" "TESTREPLAYNONCE" "$grsha" "fcda" "PASS" 1
+rm -f "$rdir/fcda/1.txt"
+export FLOW_EVAL_REPLAY_DIR="$rdir"
+out="$(bash "$RUN" eval --replay --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+ck 1 "$rc" "missing vote file exits 1"
+has "$out" "missing fixture" "names the missing vote"
+no "$out" "SKIP:" "not a live SKIP"
+clean
+
+echo "RP-G) stale gate_rules_sha hard-fails (not rules-effectiveness)"
+newsb
+rdir="$SB/replay"
+write_synth_replay "$rdir" "TESTREPLAYNONCE" "not-the-real-sha" "fcda" "PASS" 1
+export FLOW_EVAL_REPLAY_DIR="$rdir"
+out="$(bash "$RUN" eval --replay --fixture fcda --n 1 2>&1)"; rc=$?
+ck 1 "$rc" "stale hash exits 1"
+has "$out" "fixtures stale" "staleness message"
+has "$out" "re-record live" "points at live re-record"
+no "$out" "SKIP:" "staleness is not SKIP"
+clean
+
+echo "RP-H) --record (mock engine) writes stripped votes; --replay of those is green"
+newsb
+rdir="$SB/replay"
+export FLOW_EVAL_REPLAY_DIR="$rdir"
+mkmock '
+nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" | head -1)"
+marker="${nonce_line% FLAG}"
+printf "%s PASS\n" "$marker"
+'
+out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --record --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+ck 0 "$rc" "mock --record of fcda exits 0"
+[ -f "$rdir/meta" ] && ck 0 0 "record wrote meta" || ck 0 1 "record wrote meta"
+[ -f "$rdir/fcda/1.txt" ] && ck 0 0 "record wrote vote 1" || ck 0 1 "record wrote vote 1"
+if [ -f "$rdir/fcda/1.txt" ]; then
+  no "$(cat "$rdir/fcda/1.txt")" "session_id" "recorded vote has no session_id"
+  no "$(cat "$rdir/fcda/1.txt")" '"cwd"' "recorded vote has no cwd key"
+fi
+out="$(bash "$RUN" eval --replay --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+ck 0 "$rc" "replay of just-recorded mock transcripts exits 0"
+has "$out" "replay:" "replay-ran sentinel after record"
+clean
+
+echo "RP-I) --record on darwin-sim + no timeout refuses (live); --replay skips the guard"
+newsb
+unset FLOW_EVAL_UNBOUNDED
+rdir="$SB/replay"
+write_synth_replay "$rdir" "TESTREPLAYNONCE" "$grsha" "fcda" "PASS" 1
+export FLOW_EVAL_REPLAY_DIR="$rdir"
+notimeoutbin="$(make_notimeoutbin)"
+cp "$MOCKBIN/claude" "$notimeoutbin/claude" 2>/dev/null || true
+if PATH="$notimeoutbin" command -v timeout >/dev/null 2>&1 || PATH="$notimeoutbin" command -v gtimeout >/dev/null 2>&1; then
+  echo "  skip [timeout-still-resolves] (cannot hide timeout/gtimeout on this platform)"
+else
+  out="$(FLOW_EVAL_FORCE_DARWIN=1 PATH="$notimeoutbin" bash "$RUN" eval --record --fixture fcda --n 1 --timeout 30 2>&1)"; rc=$?
+  ck 1 "$rc" "--record is live: darwin-sim refuse-guard fires"
+  has "$out" "REFUSED" "--record named REFUSED"
+  has "$out" "FLOW_EVAL_UNBOUNDED=1" "--record named the opt-in"
+  out="$(FLOW_EVAL_FORCE_DARWIN=1 PATH="$notimeoutbin" bash "$RUN" eval --replay --fixture fcda --n 1 --timeout 30 2>&1)"; rc=$?
+  ck 0 "$rc" "--replay skips the darwin guard"
+  has "$out" "replay:" "replay ran under darwin-sim"
+  no "$out" "REFUSED" "--replay did not refuse"
+fi
+rm -rf "$notimeoutbin"
+clean
+
+echo "RP-J) live absent-SKIP still exit 0 when --replay is not set (B contract)"
+# Existing case B covers live SKIP. Assert both usage surfaces list the new flags
+# (grep -e so a leading-dash pattern is not taken as a grep option).
+if printf '%s' "$(cat "$RUN")" | grep -qe '--record'; then echo "  ok   [argparse/help lists --record]"; pass=$((pass+1)); else echo "  FAIL [argparse/help lists --record]"; fail=$((fail+1)); fi
+if printf '%s' "$(cat "$RUN")" | grep -qe '--replay'; then echo "  ok   [argparse/help lists --replay]"; pass=$((pass+1)); else echo "  FAIL [argparse/help lists --replay]"; fail=$((fail+1)); fi
 
 echo "CV-G) converge prompt slices the criteria, fences the source as data, uses the GAP/CONVERGED marker"
 newsb

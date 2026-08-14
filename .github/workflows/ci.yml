@@ -168,9 +168,37 @@ jobs:
         run: bash scripts/pack-rehearsal.sh
         shell: bash
 
-  # Phase 2 initial set + Phase 3 pack-rehearsal. Phase 7 appends the keyless replay job.
+  # Keyless artifact replay. Skips-with-notice until the operator records a live
+  # --record batch (27 judge + 1 probe). Never fabricate those transcripts.
+  eval-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Keyless eval --replay (or skip-with-notice)
+        run: |
+          set -eu
+          if command -v claude >/dev/null 2>&1; then
+            echo "FAIL: claude is on PATH; replay job must be keyless" >&2
+            exit 1
+          fi
+          if [ ! -f skills/flow/eval/replay/meta ]; then
+            echo "NOTICE: no operator-recorded replay fixtures (skills/flow/eval/replay/meta)."
+            echo "OPERATOR CHECKPOINT: run live 'flow.sh eval --record --n 3' (27+1 billable) on a host with timeout/gtimeout, commit the stripped tree, then this job asserts replay-ran."
+            echo "SKIP_REPLAY_JOB"
+            exit 0
+          fi
+          SB="$(mktemp -d)"
+          out="$(FLOW_PROJECT_ROOT="$SB" FLOW_LOG_DISABLE=1 bash skills/flow/runner/flow.sh eval --replay --n 3 2>&1)" || rc=$?
+          printf '%s\n' "$out"
+          printf '%s\n' "$out" | grep -q 'SKIP:' && { echo "FAIL: replay inherited live SKIP" >&2; exit 1; }
+          printf '%s\n' "$out" | grep -q 'replay:' || { echo "FAIL: no replay-ran sentinel" >&2; exit 1; }
+          exit "${rc:-0}"
+        shell: bash
+
+  # Phase 2 initial set + Phase 3 pack-rehearsal + Phase 7 keyless replay.
   all-checks-passed:
-    needs: [bash-suite, no-python-degradation, test, pack-rehearsal]
+    needs: [bash-suite, no-python-degradation, test, pack-rehearsal, eval-replay]
     if: always()
     runs-on: ubuntu-latest
     steps:
