@@ -13,8 +13,35 @@ ck()  { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo
 has() { if printf '%s' "$1" | grep -q "$2"; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] (missing: $2)"; fail=$((fail+1)); fi; }
 no()  { if printf '%s' "$1" | grep -q "$2"; then echo "  FAIL [$3] (unexpected: $2)"; fail=$((fail+1)); else echo "  ok   [$3]"; pass=$((pass+1)); fi; }
 
-newsb() { SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; export FLOW_LOG_DISABLE=1; }
-clean() { rm -rf "$SB" 2>/dev/null; unset FLOW_PROJECT_ROOT FLOW_EVAL_MANIFEST; }
+# Host-conditional opt-in: macos-ci has no timeout/gtimeout, so live artifact
+# mock cases would hit the Phase 6 refuse-guard. Set only when THIS host lacks
+# the binary — never a suite-wide export on Linux/Windows. The unguarded-refusal
+# case must unset FLOW_EVAL_UNBOUNDED after newsb.
+newsb() {
+  SB="$(mktemp -d)"
+  export FLOW_PROJECT_ROOT="$SB"
+  export FLOW_LOG_DISABLE=1
+  if ! command -v timeout >/dev/null 2>&1 && ! command -v gtimeout >/dev/null 2>&1; then
+    export FLOW_EVAL_UNBOUNDED=1
+  fi
+}
+clean() { rm -rf "$SB" 2>/dev/null; unset FLOW_PROJECT_ROOT FLOW_EVAL_MANIFEST FLOW_EVAL_UNBOUNDED FLOW_EVAL_FORCE_DARWIN; }
+
+# PATH dir with /usr/bin+/bin minus timeout/gtimeout (H / darwin-sim cases).
+make_notimeoutbin() {
+  local dest d f b
+  dest="$(mktemp -d)"
+  for d in /usr/bin /bin; do
+    [ -d "$d" ] || continue
+    for f in "$d"/*; do
+      [ -e "$f" ] || continue
+      b="$(basename "$f")"
+      case "$b" in timeout|timeout.exe|gtimeout|gtimeout.exe) continue ;; esac
+      [ -e "$dest/$b" ] || ln -s "$f" "$dest/$b" 2>/dev/null || cp "$f" "$dest/$b" 2>/dev/null
+    done
+  done
+  printf '%s' "$dest"
+}
 
 MOCKBIN="$(mktemp -d)"
 # $1 = the fixture-call verdict behavior ONLY - --version and the FLOWPONG probe are handled
@@ -113,6 +140,8 @@ clean
 # ---------- E) mock engine: timeout -> INVALID, bounded by --timeout not the fake sleep ----------
 echo "E) mock engine: fake sleep exceeding --timeout -> bounded return, UNRELIABLE (not a hang)"
 newsb
+# newsb sets FLOW_EVAL_UNBOUNDED=1 only when this host has no timeout/gtimeout
+# (macos-ci DEBT lane). Linux/Windows keep the real timeout binary on PATH.
 mkmock '
 sleep 30
 echo "should never print"
@@ -166,30 +195,84 @@ nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" |
 marker="${nonce_line% FLAG}"
 printf "%s PASS\n" "$marker"
 '
-notimeoutbin="$(mktemp -d)"
-for d in /usr/bin /bin; do
-  [ -d "$d" ] || continue
-  for f in "$d"/*; do
-    [ -e "$f" ] || continue
-    b="$(basename "$f")"
-    case "$b" in timeout|timeout.exe|gtimeout|gtimeout.exe) continue ;; esac
-    [ -e "$notimeoutbin/$b" ] || ln -s "$f" "$notimeoutbin/$b" 2>/dev/null || cp "$f" "$notimeoutbin/$b" 2>/dev/null
-  done
-done
+notimeoutbin="$(make_notimeoutbin)"
 cp "$MOCKBIN/claude" "$notimeoutbin/claude"
 if PATH="$notimeoutbin" command -v timeout >/dev/null 2>&1 || PATH="$notimeoutbin" command -v gtimeout >/dev/null 2>&1; then
   echo "  skip [timeout-still-resolves] (platform ships timeout/gtimeout outside /usr/bin,/bin; cannot hide it here)"
 else
   t0=$(date +%s 2>/dev/null || echo 0)
-  out="$(PATH="$notimeoutbin" bash "$RUN" eval --fixture fcda --n 1 --timeout 30 2>&1)"; rc=$?
+  # FLOW_EVAL_UNBOUNDED=1 only in H: keep the watchdog-fallback PASS contract.
+  out="$(FLOW_EVAL_UNBOUNDED=1 PATH="$notimeoutbin" bash "$RUN" eval --fixture fcda --n 1 --timeout 30 2>&1)"; rc=$?
   t1=$(date +%s 2>/dev/null || echo 0)
   elapsed=$((t1 - t0))
   ck 0 "$rc" "fast call on timeout-less PATH still matches expected PASS"
   no  "$out" "SKIP" "did not silently take the skip path"
+  no  "$out" "REFUSED" "opt-in did not take the refuse-guard"
   has "$out" "matches expected PASS" "genuinely ran the fixture (not just a fast SKIP)"
   # Threshold loosened 15->25 for Git Bash Windows subprocess overhead; the actual regression
   # this test guards is a full-timeout block (30s+), not sub-second timing.
   if [ "$elapsed" -lt 25 ]; then echo "  ok   [returned in ${elapsed}s, not blocked for the full 30s cap]"; pass=$((pass+1)); else echo "  FAIL [took ${elapsed}s - fallback watchdog is blocking the fast call]"; fail=$((fail+1)); fi
+fi
+rm -rf "$notimeoutbin"
+clean
+
+# ---------- H2) darwin-sim + no timeout binary: refuse (new guard, not a rewrite of H) ----------
+echo "H2) darwin-sim without timeout/gtimeout refuses live eval (names risk + FLOW_EVAL_UNBOUNDED=1)"
+newsb
+unset FLOW_EVAL_UNBOUNDED
+mkmock '
+nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" | head -1)"
+marker="${nonce_line% FLAG}"
+printf "%s PASS\n" "$marker"
+'
+notimeoutbin="$(make_notimeoutbin)"
+cp "$MOCKBIN/claude" "$notimeoutbin/claude"
+if PATH="$notimeoutbin" command -v timeout >/dev/null 2>&1 || PATH="$notimeoutbin" command -v gtimeout >/dev/null 2>&1; then
+  echo "  skip [timeout-still-resolves] (cannot hide timeout/gtimeout on this platform)"
+else
+  out="$(FLOW_EVAL_FORCE_DARWIN=1 PATH="$notimeoutbin" bash "$RUN" eval --fixture fcda --n 1 --timeout 30 2>&1)"; rc=$?
+  ck 1 "$rc" "unguarded darwin-sim + no timeout exits 1"
+  has "$out" "REFUSED" "prints REFUSED"
+  has "$out" "Unbounded-billing" "names the unbounded-billing risk"
+  has "$out" "FLOW_EVAL_UNBOUNDED=1" "names the explicit opt-in env"
+  no  "$out" "matches expected PASS" "did not proceed into the fixture loop"
+fi
+rm -rf "$notimeoutbin"
+clean
+
+# ---------- H3) darwin-sim + no timeout + FLOW_EVAL_UNBOUNDED=1: proceeds ----------
+echo "H3) darwin-sim without timeout + FLOW_EVAL_UNBOUNDED=1 proceeds"
+newsb
+mkmock '
+nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" | head -1)"
+marker="${nonce_line% FLAG}"
+printf "%s PASS\n" "$marker"
+'
+notimeoutbin="$(make_notimeoutbin)"
+cp "$MOCKBIN/claude" "$notimeoutbin/claude"
+if PATH="$notimeoutbin" command -v timeout >/dev/null 2>&1 || PATH="$notimeoutbin" command -v gtimeout >/dev/null 2>&1; then
+  echo "  skip [timeout-still-resolves] (cannot hide timeout/gtimeout on this platform)"
+else
+  out="$(FLOW_EVAL_FORCE_DARWIN=1 FLOW_EVAL_UNBOUNDED=1 PATH="$notimeoutbin" bash "$RUN" eval --fixture fcda --n 1 --timeout 30 2>&1)"; rc=$?
+  ck 0 "$rc" "opt-in darwin-sim proceeds to PASS"
+  no  "$out" "REFUSED" "opt-in did not refuse"
+  has "$out" "matches expected PASS" "genuinely ran the fixture"
+fi
+rm -rf "$notimeoutbin"
+clean
+
+# ---------- H4) --report skips the darwin guard ----------
+echo "H4) --report on darwin-sim + no timeout does not hit the refuse-guard"
+newsb
+unset FLOW_EVAL_UNBOUNDED
+notimeoutbin="$(make_notimeoutbin)"
+if PATH="$notimeoutbin" command -v timeout >/dev/null 2>&1 || PATH="$notimeoutbin" command -v gtimeout >/dev/null 2>&1; then
+  echo "  skip [timeout-still-resolves] (cannot hide timeout/gtimeout on this platform)"
+else
+  out="$(FLOW_EVAL_FORCE_DARWIN=1 PATH="$notimeoutbin" bash "$RUN" eval --report 2>&1)"; rc=$?
+  ck 1 "$rc" "--report with no batch still exits 1 (offline)"
+  no  "$out" "REFUSED" "--report did not hit the live-eval refuse-guard"
+  has "$out" "no complete batch" "--report ran its offline path"
 fi
 rm -rf "$notimeoutbin"
 clean

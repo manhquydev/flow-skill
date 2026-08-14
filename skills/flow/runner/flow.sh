@@ -4138,6 +4138,30 @@ function cmd_eval_converge { # same arg shape as cmd_eval, called only when --st
   return 1
 }
 
+# Live-eval entry guard (macOS DEBT). Refuse artifact eval on darwin when no real
+# timeout/gtimeout can bound a stuck claude call. Replay (Phase 7 sets replay_mode=1)
+# never hits this. --report returns before the call site. Do not move this into
+# _eval_engine_run or _run_with_timeout.
+_eval_guard_unbounded_darwin() { # $1=replay_mode (0/1); return 1 = refused
+  local replay_mode="${1:-0}"
+  [ "$replay_mode" -eq 0 ] || return 0
+  [ "${FLOW_EVAL_UNBOUNDED:-}" = "1" ] && return 0
+  local darwin=0
+  if [ "${FLOW_EVAL_FORCE_DARWIN:-}" = "1" ]; then
+    darwin=1
+  else
+    case "$(uname -s 2>/dev/null)" in Darwin) darwin=1 ;; esac
+  fi
+  [ "$darwin" -eq 1 ] || return 0
+  if command -v timeout >/dev/null 2>&1 || command -v gtimeout >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "REFUSED: live eval on macOS without timeout/gtimeout cannot bound a stuck claude call."
+  echo "  Unbounded-billing risk: a hung judge can run past --timeout (DEBT.md)."
+  echo "  Install GNU coreutils (gtimeout) or export FLOW_EVAL_UNBOUNDED=1 to accept that risk."
+  return 1
+}
+
 # NOTE: defined with the `function name { }` form (no parens) rather than this file's usual
 # `name() { }` style, solely so the literal 4-byte substring the shipped verb name is built
 # from never appears immediately followed by '(' in the source - a blind text-pattern security
@@ -4145,7 +4169,7 @@ function cmd_eval_converge { # same arg shape as cmd_eval, called only when --st
 # -positives on that exact byte sequence regardless of language. Purely a spelling dodge for a
 # generic scanner; behavior is 100% identical to every other function in this file.
 function cmd_eval {
-  local stage_filter="" fixture_filter="" n=3 timeout=120 report_mode=0 keep_going=0
+  local stage_filter="" fixture_filter="" n=3 timeout=120 report_mode=0 keep_going=0 replay_mode=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --stage)      shift; stage_filter="${1:-}" ;;
@@ -4197,6 +4221,12 @@ function cmd_eval {
 
   if [ ! -f "$EVAL_MANIFEST" ]; then
     echo "eval: manifest not found at $EVAL_MANIFEST (fixtures not installed)"
+    return 1
+  fi
+
+  # After --report return; immediately before _eval_probe. Phase 7 wraps the
+  # probe/nonce/cli-version block and must keep this replay_mode skip.
+  if ! _eval_guard_unbounded_darwin "$replay_mode"; then
     return 1
   fi
 

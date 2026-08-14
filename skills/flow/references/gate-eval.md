@@ -78,6 +78,11 @@ fresh-judge eval is to reflect a realistic judge, not the cheapest one that pass
 `--report` (below) is the free, offline way to re-read a prior batch's numbers without spending
 anything.
 
+**macOS without `timeout`/`gtimeout`:** live `flow.sh eval` (not `--report`, not replay) refuses
+by default. The watchdog fallback cannot bound a stuck `claude` call, so a hung judge is an
+unbounded-billing risk. Install GNU coreutils (`gtimeout`) or export `FLOW_EVAL_UNBOUNDED=1` to
+accept that risk for one run. `--report` is offline and never hits this guard.
+
 ## Running it
 
 ```
