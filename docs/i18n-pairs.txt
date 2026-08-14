@@ -7,6 +7,6 @@
 # Last full root sync: 48934b8 (2026-08-13). Observed pre-existing content drift at record:
 #   README.md installer pin 0.5.x vs README_VN.md 0.6.x; VN still says "34 bộ test";
 #   EN has Antigravity, monorepo-root, and Codex try-it sections VN lacks.
-#   npm-wrapper/README.md 0.5.1 / skill v0.28.1 vs README_VN.md 0.4.1 / skill v0.27.0.
+#   npm-wrapper pair now aligned at 0.7.0 / skill v0.30.0.
 README.md README_VN.md 7e5ce022352d7847be385818b71a7b99ee48423e 05d4908dd4e1f738e09f96c3292394c8324526ab
-npm-wrapper/README.md npm-wrapper/README_VN.md a36ba46f3844189dea79096b5e4225c75ea02434 7a7119908aa2d4c5dede9b946b2ea25117c3d381
+npm-wrapper/README.md npm-wrapper/README_VN.md 3450d09932388903bff8e496b8bd20acec2173e7 4a8ee3de1e2327e04445d7c420c8a2158ab7604e
