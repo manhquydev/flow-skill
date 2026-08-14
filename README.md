@@ -3,6 +3,7 @@
 *Tiếng Việt: [README_VN.md](README_VN.md).*
 
 [![npm](https://img.shields.io/npm/v/@manhquy/flow-skill?label=npm&color=cb3837)](https://www.npmjs.com/package/@manhquy/flow-skill)
+[![website](https://img.shields.io/badge/website-flowskill.io.vn-1aa3c4)](https://flowskill.io.vn)
 [![tests](https://img.shields.io/badge/tests-manifest.txt-brightgreen)](tests/manifest.txt)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions%20%C2%B7%203%20OS-blue)](.github/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -15,9 +16,23 @@ claudekit required. Optional multi-model review (Claude · Codex · Antigravity)
 | | |
 |---|---|
 | **Skill product** | **v0.29.0** |
-| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.5.x** (ships the skill above) |
+| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.6.x** (ships the skill above) |
+| **Website** | **[flowskill.io.vn](https://flowskill.io.vn)** |
 | **Tests / CI** | [`tests/manifest.txt`](tests/manifest.txt) · Ubuntu · macOS · Windows |
 | **License** | MIT |
+
+## Website
+
+Public site (Cloudflare Pages): **[https://flowskill.io.vn](https://flowskill.io.vn)**
+
+| Page | URL |
+|------|-----|
+| English landing | [flowskill.io.vn](https://flowskill.io.vn/) |
+| Tiếng Việt | [flowskill.io.vn/vi](https://flowskill.io.vn/vi/) |
+| Docs (EN) | [flowskill.io.vn/docs](https://flowskill.io.vn/docs/) |
+| Docs (VI) | [flowskill.io.vn/vi/docs](https://flowskill.io.vn/vi/docs/) |
+
+Do **not** treat `*.pages.dev` preview hostnames as the public site. Source lives in [`website/`](website/). Maintainer notes: [`website/README.md`](website/README.md).
 
 ---
 

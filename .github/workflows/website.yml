@@ -1,0 +1,146 @@
+name: Website (parity, build, DESIGN.md + files guards)
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+      - 'DESIGN.md'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+      - 'DESIGN.md'
+  workflow_dispatch: {}
+
+# No deploy job — Cloudflare Pages Git integration owns preview/production.
+# Do not add CLOUDFLARE_* secrets here; Preview env on this public repo stays secret-free.
+
+concurrency:
+  group: website-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  website:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: website/.node-version
+
+      - name: i18n parity
+        working-directory: website
+        run: bash scripts/check-i18n-parity.sh
+
+      - name: Install and build
+        working-directory: website
+        run: npm ci && npm run build
+
+      - name: Guard Starlight VI fallback
+        working-directory: website
+        run: |
+          set -euo pipefail
+          [[ -d dist/vi ]] || { echo "FAIL: dist/vi missing after build" >&2; exit 1; }
+          html_count="$(find dist/vi -name '*.html' | wc -l)"
+          [[ "$html_count" -gt 0 ]] || { echo "FAIL: no HTML under dist/vi" >&2; exit 1; }
+          # Starlight localizes the banner: EN in translations/en.json, VI in translations/vi.json.
+          if grep -R -F --include='*.html' -l \
+            -e "This content is not available in your language yet." \
+            -e "Nội dung này hiện chưa có sẵn bằng ngôn ngữ của bạn." \
+            dist/vi; then
+            echo "FAIL: Starlight language-fallback banner found in dist/vi HTML" >&2
+            exit 1
+          fi
+          echo "OK: no Starlight language-fallback banner in VI HTML ($html_count files)"
+
+      - name: Fetch origin/master for guards
+        working-directory: ${{ github.workspace }}
+        run: git fetch --no-tags origin +refs/heads/master:refs/remotes/origin/master
+
+      - name: Resolve guard base
+        id: guard
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          ZERO=0000000000000000000000000000000000000000
+          if [ "${{ github.event_name }}" = "push" ]; then
+            BEFORE="${{ github.event.before }}"
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "$ZERO" ]; then
+              echo "mode=skip" >> "$GITHUB_OUTPUT"
+              echo "base=" >> "$GITHUB_OUTPUT"
+              echo "SKIP: push has no previous SHA"
+              exit 0
+            fi
+            git cat-file -e "${BEFORE}^{commit}" 2>/dev/null || git fetch --no-tags origin "$BEFORE"
+            echo "mode=push-before" >> "$GITHUB_OUTPUT"
+            echo "base=$BEFORE" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=vs-master" >> "$GITHUB_OUTPUT"
+            echo "base=origin/master" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Guard root DESIGN.md (only if website/** also changed)
+        if: steps.guard.outputs.mode != 'skip'
+        working-directory: ${{ github.workspace }}
+        env:
+          GUARD_BASE: ${{ steps.guard.outputs.base }}
+          GUARD_MODE: ${{ steps.guard.outputs.mode }}
+        run: |
+          set -euo pipefail
+          if [ "$GUARD_MODE" = "push-before" ]; then
+            names="$(git diff --name-only "$GUARD_BASE" HEAD)"
+          else
+            names="$(git diff --name-only origin/master...HEAD)"
+          fi
+          if printf '%s\n' "$names" | grep -qE '^website/'; then
+            if [ "$GUARD_MODE" = "push-before" ]; then
+              if ! git diff --quiet "$GUARD_BASE" -- DESIGN.md; then
+                echo "FAIL: root DESIGN.md must remain unchanged when the change set also touches website/**" >&2
+                git diff "$GUARD_BASE" -- DESIGN.md >&2
+                exit 1
+              fi
+              echo "OK: DESIGN.md unchanged vs $GUARD_BASE"
+            else
+              # Three-dot: this PR must not touch DESIGN.md. Two-dot vs origin/master
+              # false-fails when master edits card UI law while the branch is behind.
+              if ! git diff --quiet origin/master...HEAD -- DESIGN.md; then
+                echo "FAIL: root DESIGN.md must remain unchanged when the change set also touches website/**" >&2
+                git diff origin/master...HEAD -- DESIGN.md >&2
+                exit 1
+              fi
+              echo "OK: DESIGN.md unchanged on this PR vs origin/master (three-dot)"
+            fi
+          else
+            echo "SKIP: website/** not in this change set; DESIGN.md law edits allowed"
+          fi
+
+      - name: Guard npm-wrapper files whitelist
+        if: steps.guard.outputs.mode != 'skip'
+        working-directory: ${{ github.workspace }}
+        env:
+          GUARD_BASE: ${{ steps.guard.outputs.base }}
+        run: |
+          set -euo pipefail
+          node -e "
+          const {execFileSync} = require('node:child_process');
+          const base = process.env.GUARD_BASE;
+          const a = JSON.stringify(require('./npm-wrapper/package.json').files);
+          const b = JSON.stringify(JSON.parse(execFileSync('git', ['show', base + ':npm-wrapper/package.json'], {encoding: 'utf8'})).files);
+          if (a !== b) {
+            console.error('FAIL: npm-wrapper/package.json files array drifted from ' + base);
+            console.error('HEAD', a);
+            console.error(base, b);
+            process.exit(1);
+          }
+          console.log('OK: files array matches ' + base);
+          "

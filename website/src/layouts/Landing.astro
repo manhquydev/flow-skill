@@ -1,0 +1,67 @@
+---
+import Colophon from '../components/Colophon.astro';
+import newsprint from '../assets/newsprint.png';
+import '../../node_modules/@fontsource/big-shoulders-display/700.css';
+import '../../node_modules/@fontsource/big-shoulders-display/800.css';
+import '../../node_modules/@fontsource/archivo/400.css';
+import '../../node_modules/@fontsource/archivo/600.css';
+import '../../node_modules/@fontsource/archivo/700.css';
+import '../../node_modules/@fontsource/azeret-mono/500.css';
+import '../styles/galley.css';
+import '../styles/landing.css';
+
+interface Props {
+	lang: 'en' | 'vi';
+	dir?: 'ltr';
+}
+
+const { lang } = Astro.props;
+const docsHome = lang === 'vi' ? '/vi/docs/' : '/docs/';
+---
+
+<!doctype html>
+<html lang={lang}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="color-scheme" content="light" />
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<slot name="head" />
+	</head>
+	<body style={`--grain: url(${newsprint.src})`}>
+		<!--
+THESIS: A proof sheet that will not go to press until both columns agree — not an AI-agent terminal hero, not a docs splash.
+OWN-WORLD: Cool newsprint #c9c6bb, dense black ink, process cyan registration, vermillion kill crayon; condensed gothic display, grotesque body, mono as the lockup line; 0-radius rules, no cards.
+STORY: Visitor reads the two galleys, sees kill is valid, copies npx @manhquy/flow-skill@latest, opens docs.
+FIRST VIEWPORT: Header docket; monumental flow + headline left; two galleys right; full-width lockup bar; pipeline slugs at the fold. Narrow: docket + hero + press bar in the first screen (display as a sheet slug, not a second 4.5rem wordmark); galleys may start on-screen; pipeline 3×2 may sit just below the fold.
+FORM: Galley Proof (letterpress pass sheet), grounded list #4, seed 8bb4fc2d. Composition: Comp A two-column proof.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+-->
+		<a class="skip-link" href="#content">{lang === 'vi' ? 'Tới nội dung' : 'Skip to content'}</a>
+		<svg class="marks" aria-hidden="true">
+			<defs>
+				<symbol id="reg" viewBox="0 0 16 16">
+					<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1" />
+					<line x1="8" y1="0" x2="8" y2="16" stroke="currentColor" stroke-width="1" />
+					<line x1="0" y1="8" x2="16" y2="8" stroke="currentColor" stroke-width="1" />
+				</symbol>
+				<symbol id="tick" viewBox="0 0 40 40">
+					<path d="M6 22 L16 32 L34 8" fill="none" stroke="currentColor" stroke-width="4" />
+				</symbol>
+			</defs>
+		</svg>
+		<header class="docket">
+			<a class="wordmark" href={lang === 'vi' ? '/vi/' : '/'} translate="no">flow</a>
+			<nav class="docket-nav" aria-label={lang === 'vi' ? 'Ngôn ngữ và tài liệu' : 'Language and docs'}>
+				<a href="/" aria-current={lang === 'en' ? 'page' : undefined}>EN</a>
+				<span aria-hidden="true">|</span>
+				<a href="/vi/" aria-current={lang === 'vi' ? 'page' : undefined}>VI</a>
+				<a class="docs-link" href={docsHome}>{lang === 'vi' ? 'Tài liệu' : 'Docs'}</a>
+			</nav>
+		</header>
+		<div id="content">
+			<slot />
+		</div>
+		<Colophon lang={lang} />
+	</body>
+</html>

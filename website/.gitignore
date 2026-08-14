@@ -1,0 +1,28 @@
+# build output
+dist/
+# generated types
+.astro/
+
+# dependencies
+node_modules/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+
+# environment variables
+.env
+.env.production
+
+# Impeccable working artifacts (keep design.json + surfaces)
+.impeccable/mocks/
+.impeccable/sketches/
+.impeccable/questions/
+.impeccable/live/
+.impeccable/critique/
+
+# macOS-specific files
+.DS_Store

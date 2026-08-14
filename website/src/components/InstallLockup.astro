@@ -1,0 +1,160 @@
+---
+interface Props {
+	command: string;
+	copyLabel: string;
+	copiedLabel: string;
+	selectLabel: string;
+	secondaryHref: string;
+	secondaryLabel: string;
+}
+
+const { command, copyLabel, copiedLabel, selectLabel, secondaryHref, secondaryLabel } =
+	Astro.props;
+---
+
+<div class="lockup" data-lockup>
+	<svg class="reg" aria-hidden="true"><use href="#reg"></use></svg>
+	<code class="cmd" translate="no" data-command>{command}</code>
+	<div class="lockup-tools">
+		<button class="copy-cmd" type="button" data-copy>{copyLabel}</button>
+		<span
+			class="copied"
+			role="status"
+			aria-live="polite"
+			data-status
+			data-done={copiedLabel}
+			data-fallback={selectLabel}></span>
+		<a class="folio" href={secondaryHref}>{secondaryLabel}</a>
+	</div>
+</div>
+
+<style>
+	.copy-cmd {
+		transition:
+			background-color 120ms ease-out,
+			border-color 120ms ease-out,
+			transform 120ms ease-out;
+	}
+
+	.lockup[data-pressing] .copy-cmd {
+		background: var(--cyan-deep);
+		border-color: var(--cyan);
+		transform: translateY(1px);
+	}
+
+	.reg {
+		transform-origin: 50% 50%;
+	}
+
+	.lockup[data-pressing] .reg {
+		animation: lockup-reg-tick 120ms ease-out;
+	}
+
+	@keyframes lockup-reg-tick {
+		from {
+			transform: rotate(0deg);
+		}
+		to {
+			transform: rotate(90deg);
+		}
+	}
+
+	.copied {
+		clip-path: inset(0 100% 0 0);
+		opacity: 0;
+		transition:
+			clip-path 220ms ease-out,
+			opacity 220ms ease-out;
+	}
+
+	.lockup[data-printed] .copied {
+		clip-path: inset(0 0 0 0);
+		opacity: 1;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.copy-cmd,
+		.reg,
+		.copied {
+			transition: none;
+			animation: none;
+		}
+
+		.lockup[data-pressing] .copy-cmd,
+		.lockup[data-pressing] .reg {
+			transform: none;
+		}
+
+		.copied {
+			clip-path: none;
+			opacity: 1;
+		}
+	}
+</style>
+
+<script>
+	function selectNode(node: HTMLElement) {
+		const selection = window.getSelection();
+		if (!selection) return;
+		const range = document.createRange();
+		range.selectNodeContents(node);
+		selection.removeAllRanges();
+		selection.addRange(range);
+	}
+
+	function pressMs(): number {
+		return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 120;
+	}
+
+	document.querySelectorAll<HTMLElement>('[data-lockup]').forEach((bar) => {
+		const button = bar.querySelector<HTMLButtonElement>('[data-copy]');
+		const code = bar.querySelector<HTMLElement>('[data-command]');
+		const status = bar.querySelector<HTMLElement>('[data-status]');
+		if (!button || !code || !status) return;
+
+		let clear = 0;
+		let stamp = 0;
+
+		button.addEventListener('click', async () => {
+			const run = ++stamp;
+			const dwell = pressMs();
+
+			bar.removeAttribute('data-printed');
+
+			const pressed = new Promise<void>((resolve) => {
+				if (dwell === 0) {
+					resolve();
+					return;
+				}
+				bar.removeAttribute('data-pressing');
+				void bar.offsetWidth;
+				bar.setAttribute('data-pressing', '');
+				window.setTimeout(() => {
+					if (run === stamp) bar.removeAttribute('data-pressing');
+					resolve();
+				}, dwell);
+			});
+
+			const command = code.textContent?.trim() ?? '';
+			try {
+				await navigator.clipboard.writeText(command);
+				status.textContent = status.dataset.done ?? '';
+			} catch {
+				selectNode(code);
+				status.textContent = status.dataset.fallback ?? '';
+			}
+
+			await pressed;
+			if (run !== stamp) return;
+
+			void bar.offsetWidth;
+			bar.setAttribute('data-printed', '');
+			window.clearTimeout(clear);
+			clear = window.setTimeout(() => {
+				if (run !== stamp) return;
+				status.textContent = '';
+				bar.removeAttribute('data-printed');
+			}, 3000);
+		});
+	});
+</script>
