@@ -9,6 +9,7 @@ Install the **flow** skill into coding agents with one command.
 | **Platforms** | macOS · Linux · Windows (same Node path) |
 | **Requirement** | Node.js **≥ 22.14** |
 | **Source** | [github.com/manhquydev/flow-skill](https://github.com/manhquydev/flow-skill) |
+| **Website** | [flowskill.io.vn](https://flowskill.io.vn) |
 
 flow is a gated build harness (`/flow`): idea → honest gates → real done-evidence. This package only **installs** that skill into agent skill homes.
 

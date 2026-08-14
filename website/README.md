@@ -66,4 +66,4 @@ Required GitHub status checks for the `website` job remain operator-owned (branc
 4. root `DESIGN.md` must match `origin/master` **only when the change set also touches `website/**`**
 5. `npm-wrapper/package.json` `files` array JSON-equal to `origin/master`
 
-Do **not** create this project with `wrangler pages project create` / Direct Upload — that type cannot later attach Git. Create it from the dashboard Git import above. Production URL stays pending in the root README until `website/` is on `master`; never paste a preview hostname there.
+Public URL in the root README is **[flowskill.io.vn](https://flowskill.io.vn)**. Never paste a preview `*.pages.dev` hostname there. The live project was created as Direct Upload (`flow-website`); do not recreate it. Git import later is optional and separate.
