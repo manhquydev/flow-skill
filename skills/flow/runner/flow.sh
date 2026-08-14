@@ -3323,14 +3323,21 @@ _eval_replay_write_meta() { # $1=nonce $2=gate_rules_sha $3=model $4=n
 }
 
 # Persist one stripped verdict line only — never a JSON envelope (session_id/cwd stay out).
+_eval_fid_safe() { # $1=fid -> filename-safe token (no path separators)
+  local s
+  s="$(printf '%s' "$1" | tr -c 'A-Za-z0-9' '-' | sed -E 's/-+/-/g; s/^-//; s/-$//')"
+  [ -n "$s" ] || s="_"
+  printf '%s' "$s"
+}
+
 _eval_record_vote() { # $1=fid $2=vote-i $3=nonce $4=FLAG|PASS|INVALID
-  local dest="$EVAL_REPLAY_DIR/$1"
+  local dest="$EVAL_REPLAY_DIR/$(_eval_fid_safe "$1")"
   mkdir -p "$dest" || return 1
   printf 'GATE-EVAL-%s: %s\n' "$3" "$4" > "$dest/$2.txt"
 }
 
 _eval_replay_vote() { # $1=fid $2=vote-i -> transcript on stdout; return 1 if missing
-  local f="$EVAL_REPLAY_DIR/$1/$2.txt"
+  local f="$EVAL_REPLAY_DIR/$(_eval_fid_safe "$1")/$2.txt"
   if [ ! -f "$f" ]; then
     echo "eval --replay: missing fixture $1 vote $2 at $f" >&2
     return 1
@@ -4407,6 +4414,11 @@ function cmd_eval {
 
     local promptfile="$rundir/prompt.txt"
     if ! _eval_build_prompt "$promptfile" "$fstage_short" "$artifact_path" "$nonce"; then
+      if [ "$replay_mode" -eq 1 ]; then
+        echo "  $fid: SKIP - no heading-mapped section (artifact-replay scope is 01|02|card)"
+        rm -rf "$rundir" 2>/dev/null
+        continue
+      fi
       echo "  $fid: FAIL - gate-rules.md section for stage '$fstage' extracted EMPTY (heading map or file drift) - aborted before any billable call"
       total_mismatch=$((total_mismatch + 1))
       rm -rf "$rundir" 2>/dev/null
@@ -4427,7 +4439,7 @@ function cmd_eval {
       # fallback on the timeout-less-PATH lane - see engine-run's note).
       err1="$rundir/v${i}-a1.err"
       if [ "$replay_mode" -eq 1 ]; then
-        raw="$(_eval_replay_vote "$fid" "$i")" || { rm -rf "$rundir" 2>/dev/null; return 1; }
+        raw="$(_eval_replay_vote "$fid" "$i")" || { rm -rf "$rundir" 2>/dev/null; trap - INT TERM; return 1; }
         rc=0
       else
         raw="$(_eval_engine_run "$promptfile" "$timeout" 2>"$err1")"; rc=$?
@@ -4462,7 +4474,7 @@ function cmd_eval {
         fi
         err2="$rundir/v${i}-a2.err"
         if [ "$replay_mode" -eq 1 ]; then
-          raw="$(_eval_replay_vote "$fid" "$i")" || { rm -rf "$rundir" 2>/dev/null; return 1; }
+          raw="$(_eval_replay_vote "$fid" "$i")" || { rm -rf "$rundir" 2>/dev/null; trap - INT TERM; return 1; }
           rc=0
         else
           raw="$(_eval_engine_run "$promptfile" "$timeout" 2>"$err2")"; rc=$?
