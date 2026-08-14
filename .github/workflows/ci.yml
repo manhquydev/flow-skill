@@ -146,9 +146,31 @@ jobs:
           node -e "const p=require('./pack.json');const s=p[0].unpackedSize;if(s>1048576){console.error('unpacked > 1MB: '+s);process.exit(1)}else{console.log('unpacked '+s+' bytes')}"
         shell: bash
 
-  # Phase 2 initial set. Phase 3 appends pack-rehearsal; Phase 7 appends the keyless replay job.
+  # Credentialless pack → tarball --compare → install → e2e on the INSTALLED runner.
+  # Ubuntu only (Windows budget). Local entry point: bash scripts/pack-rehearsal.sh
+  pack-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Same floor as npm-wrapper/package.json engines (>=22.14).
+          node-version: '22.14'
+      - name: Assert credentialless
+        run: |
+          if [ -n "${NPM_TOKEN:-}" ]; then
+            echo "FAIL: NPM_TOKEN is set; pack-rehearsal is credentialless" >&2
+            exit 1
+          fi
+        shell: bash
+      - name: Pack, compare, install, drive
+        run: bash scripts/pack-rehearsal.sh
+        shell: bash
+
+  # Phase 2 initial set + Phase 3 pack-rehearsal. Phase 7 appends the keyless replay job.
   all-checks-passed:
-    needs: [bash-suite, no-python-degradation, test]
+    needs: [bash-suite, no-python-degradation, test, pack-rehearsal]
     if: always()
     runs-on: ubuntu-latest
     steps:
