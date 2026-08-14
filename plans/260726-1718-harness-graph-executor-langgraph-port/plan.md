@@ -6,7 +6,7 @@ priority: P1
 effort: "10-14d"
 tags: [harness, graph-executor, langgraph-port, breaking-change]
 created: 2026-07-26
-blockedBy: [260811-1542-attested-execution]
+blockedBy: [260811-1542-attested-execution, 260814-0948-flow-upgrade-wave1]
 blocks: []
 ---
 
