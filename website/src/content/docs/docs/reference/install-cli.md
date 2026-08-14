@@ -16,10 +16,10 @@ Requires [Node.js](https://nodejs.org/) **22.14 or newer**. Always include `@lat
 
 ```bash
 npx @manhquy/flow-skill@latest --help
-# flow-skill v0.6.0 (ships skill v0.29.0)
+# flow-skill v0.7.0 (ships skill v0.30.0)
 ```
 
-`0.6.0` is this installer CLI. `0.29.0` is the skill product it copies onto disk. See
+`0.7.0` is this installer CLI. `0.30.0` is the skill product it copies onto disk. See
 [Versions: npm installer vs skill product](/docs/explanation/versions-npm-vs-skill).
 
 ## Full flag reference

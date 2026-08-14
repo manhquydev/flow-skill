@@ -57,17 +57,17 @@ npx @manhquy/flow-skill@latest --help
 The installer prints its own version and the skill version it ships:
 
 ```
-flow-skill v0.6.0 (ships skill v0.29.0)
+flow-skill v0.7.0 (ships skill v0.30.0)
 ```
 
 Then read the skill version from disk:
 
 ```bash
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
-# version: "0.29.0"
+# version: "0.30.0"
 ```
 
-`0.6.0` is the npm installer CLI. `0.29.0` is the skill product — the thing that actually
+`0.7.0` is the npm installer CLI. `0.30.0` is the skill product — the thing that actually
 gates your build. They move independently. If that seems odd, read
 [Versions: npm installer vs skill product](/docs/explanation/versions-npm-vs-skill).
 

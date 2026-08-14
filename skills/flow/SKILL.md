@@ -8,7 +8,7 @@ keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deplo
 license: MIT
 metadata:
   author: flow-skill
-  version: "0.29.0"
+  version: "0.30.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); durable-layer ancestry and improve-ritual spirit from repository-harness (protocol v1 EOL — flow-owned fork); agent patterns from claudekit-engineer, BMAD-METHOD. v0.22 concierge from BMAD bmad-help; forge-idea from bmad-forge-idea (MIT, BMad Code LLC)."
 ---
 

@@ -8,17 +8,17 @@ lang: vi
 
 | Cái gì | Hiện tại | Nó version cái gì |
 |---|---|---|
-| **Skill product** | `0.29.0` | Các cổng, `SKILL.md`, runner, references, templates — thứ phán build của bạn. |
-| **npm installer** | `0.6.0` | CLI `@manhquy/flow-skill` copy skill vào agent home. |
+| **Skill product** | `0.30.0` | Các cổng, `SKILL.md`, runner, references, templates — thứ phán build của bạn. |
+| **npm installer** | `0.7.0` | CLI `@manhquy/flow-skill` copy skill vào agent home. |
 
 Kiểm cả hai từ máy của bạn chứ không từ tài liệu nào:
 
 ```bash
 npx @manhquy/flow-skill@latest --help
-# flow-skill v0.6.0 (ships skill v0.29.0)
+# flow-skill v0.7.0 (ships skill v0.30.0)
 
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
-# version: "0.29.0"
+# version: "0.30.0"
 ```
 
 ## Vì sao hai số
@@ -44,11 +44,11 @@ Gộp hai số nghĩa là hoặc bump installer mỗi lần đổi cổng, hoặ
 Mode fail là pin nhầm số:
 
 ```bash
-# SAI — 0.29.0 là skill product, không phải version package npm đã publish
-npx @manhquy/flow-skill@0.29.0
+# SAI — 0.30.0 là skill product, không phải version package npm đã publish
+npx @manhquy/flow-skill@0.30.0
 
 # Đúng — pin installer nếu cần bản cố định
-npx @manhquy/flow-skill@0.6.0
+npx @manhquy/flow-skill@0.7.0
 
 # Tốt hơn cho hầu hết mọi người
 npx @manhquy/flow-skill@latest

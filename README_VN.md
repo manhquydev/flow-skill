@@ -15,8 +15,8 @@ CLI cài-chạy, library API, hoặc skill chạy thật). Chat là cửa mặc 
 
 | | |
 |---|---|
-| **Skill product** | **v0.29.0** |
-| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.6.x** (ship skill ở trên) |
+| **Skill product** | **v0.30.0** |
+| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.7.x** (ship skill ở trên) |
 | **Website** | **[flowskill.io.vn](https://flowskill.io.vn)** |
 | **Test / CI** | [`tests/manifest.txt`](tests/manifest.txt) · Ubuntu · macOS · Windows |
 | **License** | MIT |
@@ -83,7 +83,7 @@ npx @manhquy/flow-skill@latest --yes --all --dry-run --json
 
 # Xác nhận phiên bản installer + skill trong tarball
 npx @manhquy/flow-skill@latest --help
-# expect: flow-skill v0.6.x (ships skill v0.29.x)
+# expect: flow-skill v0.7.x (ships skill v0.30.x)
 ```
 
 ### Kiểm tra sau cài
@@ -92,7 +92,7 @@ npx @manhquy/flow-skill@latest --help
 npx @manhquy/flow-skill@latest --help
 
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
-# expect: version: "0.29.0"  (hoặc skill product hiện tại)
+# expect: version: "0.30.0"  (hoặc skill product hiện tại)
 
 bash ~/.claude/skills/flow/runner/flow.sh doctor
 # expect: READY
@@ -104,11 +104,11 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 |-----|--------|
 | **`@latest`** mỗi lần muốn bản mới | Bare `npx @manhquy/flow-skill` (cache npx) |
 | **Chạy** CLI để skill vào agent home | Chỉ `npm i` — không copy skill |
-| Pin installer `@0.6.0` nếu cần cố định | Pin npm `@0.29.0` (đó là version **skill**, không phải package) |
-| `@latest` / `@0.6.x` | `@rc` (đã retire / cũ) |
+| Pin installer `@0.7.0` nếu cần cố định | Pin npm `@0.30.0` (đó là version **skill**, không phải package) |
+| `@latest` / `@0.7.x` | `@rc` (đã retire / cũ) |
 
 **Hai số version (cố ý):** package npm = installer CLI; skill product = `SKILL.md` metadata.
-`--help` in cả hai: `flow-skill v0.6.0 (ships skill v0.29.0)`.
+`--help` in cả hai: `flow-skill v0.7.0 (ships skill v0.30.0)`.
 
 Chi tiết flag: [npm-wrapper/README_VN.md](./npm-wrapper/README_VN.md).
 

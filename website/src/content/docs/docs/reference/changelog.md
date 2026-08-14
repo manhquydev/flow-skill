@@ -3,12 +3,19 @@ title: "Changelog"
 description: "Curated user-facing release notes for the flow skill, with a pointer to the full changelog."
 ---
 
-Current: **skill product `0.29.0`**, shipped by **npm installer `0.6.0`**. Those two numbers
+Current: **skill product `0.30.0`**, shipped by **npm installer `0.7.0`**. Those two numbers
 version different things — see
 [Versions: npm installer vs skill product](/docs/explanation/versions-npm-vs-skill).
 
 These are the changes most likely to affect how you use `flow`. The complete, unabridged
 history lives in the repository.
+
+## 0.30.0 — discipline-layer identity + CI/eval hardening
+
+- **Identity ADR.** Flow owns gates and receipts, never the runtime.
+- **`/flow eval --record` / `--replay`.** Keyless artifact-eval replay. Not a fresh-judge; never counts toward the eval floor.
+- **Named-artifact evidence.** Done-evidence items must name the artifact or command that produced them.
+- **CI.** Manifest-driven suites, required `all-checks-passed` job, credentialless pack-rehearsal.
 
 ## 0.29.0 — spec-kit imports and converge
 

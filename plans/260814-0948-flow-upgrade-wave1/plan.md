@@ -1,7 +1,7 @@
 ---
 title: "flow upgrade wave1"
 description: "Harden flow-skill per settled identity: discipline layer, flow never holds the process token. Identity ADR + A1/A2/A4/A5 disciplines + bounded macOS DEBT + A3 keyless eval replay + B1-S evidence addendum."
-status: pending
+status: completed
 priority: P1
 effort: "6-9d"
 tags: [identity-adr, ci-hardening, eval-replay, evidence, docs-discipline]
