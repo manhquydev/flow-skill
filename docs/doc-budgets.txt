@@ -2,7 +2,7 @@
 # Enforced by scripts/check-doc-budgets.sh (preflight + tests/test_doc_budgets.sh).
 # Advisory during a /flow run. Ratchet down later; wave 1 stops growth.
 AGENTS.md 1200
-README.md 3880
+README.md 900
 skills/flow/SKILL.md 3950
 skills/flow/references/gate-rules.md 2890
 skills/flow/references/attestations.md 1580
