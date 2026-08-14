@@ -3,7 +3,7 @@
 *English: [README.md](README.md).*
 
 [![npm](https://img.shields.io/npm/v/@manhquy/flow-skill?label=npm&color=cb3837)](https://www.npmjs.com/package/@manhquy/flow-skill)
-[![tests](https://img.shields.io/badge/tests-58%20suites-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-manifest.txt-brightgreen)](tests/manifest.txt)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions%20%C2%B7%203%20OS-blue)](.github/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -16,7 +16,7 @@ CLI cài-chạy, library API, hoặc skill chạy thật). Chat là cửa mặc 
 |---|---|
 | **Skill product** | **v0.29.0** |
 | **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.6.x** (ship skill ở trên) |
-| **Test / CI** | 58 suite · Ubuntu · macOS · Windows |
+| **Test / CI** | [`tests/manifest.txt`](tests/manifest.txt) · Ubuntu · macOS · Windows |
 | **License** | MIT |
 
 ---

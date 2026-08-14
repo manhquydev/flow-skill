@@ -60,3 +60,4 @@ test_flow_attestation_harden.sh
 test_release_coherence.sh
 test_harness_cli_optional_smoke.sh
 test_manifest_runner.sh
+test_doc_budgets.sh
