@@ -4,6 +4,8 @@
 three cooperating layers plus on-disk artifacts, so a fast deterministic engine handles the
 cheatable mechanics while the model handles judgment, and durable records survive sessions.
 
+Identity (gates and receipts, never the runtime): [`adr/0001-discipline-layer-identity.md`](adr/0001-discipline-layer-identity.md).
+
 ## Layers
 
 ```
