@@ -90,8 +90,14 @@ git grep -nE "from ['\"]node:child_process['\"]|require\(['\"]node:child_process
 # must be empty
 # secret grep (bin/src/skills/docs listed in older checklist) — must be empty
 
-# 4. Tarball audit
+# 4. Tarball audit (size only — this line stays the dry-run size audit)
 npm pack --dry-run --ignore-scripts --json | node -e "const p=JSON.parse(require('fs').readFileSync(0,'utf8'));const s=p[0].unpackedSize;console.log('unpacked',s);if(s>1048576)process.exit(1)"
+# Per-PR CI (ubuntu): bash scripts/pack-rehearsal.sh
+#   npm pack → extract package/skills/flow → sync.mjs --compare vs repo skills/flow
+#   → npm i --ignore-scripts --prefix <tmp> ./manhquy-flow-skill-*.tgz
+#   → flow-skill --yes --project --dir "$DEST"
+#   → bash tests/e2e-installed-drive.sh "$DEST/.claude/skills/flow/runner/flow.sh"
+# Do not replace the size audit above with the rehearsal; they are different gates.
 
 # 5. Optional local link smoke (no @version on the command)
 npm link
@@ -100,9 +106,12 @@ npm unlink -g @manhquy/flow-skill
 ```
 
 - [ ] `npm-wrapper/CHANGELOG.md` has a section for this version.
-- [ ] Root `README.md` / `README_VN.md` status table npm line updated.
+- [ ] Root `README.md` / `README_VN.md` status table npm line updated on both sides, then
+      `bash scripts/check-i18n-pairs.sh` (green). After a committed consistent pair:
+      `bash scripts/check-i18n-pairs.sh record <en_path>` and commit `docs/i18n-pairs.txt`.
 - [ ] Skill product version coherent if skill content changed (`docs/release-process.md`).
 - [ ] `bin/cli.mjs` still `100755` in git (`git ls-files -s bin/cli.mjs`).
+- [ ] Per-PR `pack-rehearsal` job is green (pack → `--compare` → install → e2e). The dry-run size audit above is a different gate.
 
 ## Publish (CI only — never laptop `npm publish` for production)
 

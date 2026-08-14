@@ -134,11 +134,11 @@ EOF
 fi
 rm -rf "$SB"
 
-echo "E) run_all.sh registers this suite (self-guard)"
-if grep -q 'test_flow_slice_quality.sh' "$HERE/run_all.sh" 2>/dev/null; then
-  echo "  ok   [run_all.sh lists test_flow_slice_quality.sh]"; pass=$((pass+1))
+echo "E) manifest.txt registers this suite (self-guard)"
+if grep -q 'test_flow_slice_quality.sh' "$HERE/manifest.txt" 2>/dev/null; then
+  echo "  ok   [manifest.txt lists test_flow_slice_quality.sh]"; pass=$((pass+1))
 else
-  echo "  FAIL [run_all.sh lists test_flow_slice_quality.sh]"; fail=$((fail+1))
+  echo "  FAIL [manifest.txt lists test_flow_slice_quality.sh]"; fail=$((fail+1))
 fi
 
 echo

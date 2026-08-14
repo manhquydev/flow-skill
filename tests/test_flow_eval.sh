@@ -13,8 +13,35 @@ ck()  { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo
 has() { if printf '%s' "$1" | grep -q "$2"; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] (missing: $2)"; fail=$((fail+1)); fi; }
 no()  { if printf '%s' "$1" | grep -q "$2"; then echo "  FAIL [$3] (unexpected: $2)"; fail=$((fail+1)); else echo "  ok   [$3]"; pass=$((pass+1)); fi; }
 
-newsb() { SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; export FLOW_LOG_DISABLE=1; }
-clean() { rm -rf "$SB" 2>/dev/null; unset FLOW_PROJECT_ROOT FLOW_EVAL_MANIFEST; }
+# Host-conditional opt-in: macos-ci has no timeout/gtimeout, so live artifact
+# mock cases would hit the Phase 6 refuse-guard. Set only when THIS host lacks
+# the binary — never a suite-wide export on Linux/Windows. The unguarded-refusal
+# case must unset FLOW_EVAL_UNBOUNDED after newsb.
+newsb() {
+  SB="$(mktemp -d)"
+  export FLOW_PROJECT_ROOT="$SB"
+  export FLOW_LOG_DISABLE=1
+  if ! command -v timeout >/dev/null 2>&1 && ! command -v gtimeout >/dev/null 2>&1; then
+    export FLOW_EVAL_UNBOUNDED=1
+  fi
+}
+clean() { rm -rf "$SB" 2>/dev/null; unset FLOW_PROJECT_ROOT FLOW_EVAL_MANIFEST FLOW_EVAL_UNBOUNDED FLOW_EVAL_FORCE_DARWIN FLOW_EVAL_REPLAY_DIR; }
+
+# PATH dir with /usr/bin+/bin minus timeout/gtimeout (H / darwin-sim cases).
+make_notimeoutbin() {
+  local dest d f b
+  dest="$(mktemp -d)"
+  for d in /usr/bin /bin; do
+    [ -d "$d" ] || continue
+    for f in "$d"/*; do
+      [ -e "$f" ] || continue
+      b="$(basename "$f")"
+      case "$b" in timeout|timeout.exe|gtimeout|gtimeout.exe) continue ;; esac
+      [ -e "$dest/$b" ] || ln -s "$f" "$dest/$b" 2>/dev/null || cp "$f" "$dest/$b" 2>/dev/null
+    done
+  done
+  printf '%s' "$dest"
+}
 
 MOCKBIN="$(mktemp -d)"
 # $1 = the fixture-call verdict behavior ONLY - --version and the FLOWPONG probe are handled
@@ -45,7 +72,8 @@ for pair in "f01a:flow/01-research.md" "f01b:flow/01-research.md" "f02a:flow/02-
   ck 0 "$rc" "$fid mechanically passes scan_gate"
 done
 # fcda multi-signal PASS; fcdb process-only FAIL; fcdc decoy multi-signal PASS (LLM FLAG corpus)
-for fid in fcda fcdc; do
+# fcdd B1-S artifact-less prose (mech PASS, semantic FLAG); fcde same story with artifact refs (PASS)
+for fid in fcda fcdc fcdd fcde; do
   CB="$(mktemp -d)"
   cp -r "$EVAL_DIR/fixtures/$fid/." "$CB/"
   out="$(FLOW_PROJECT_ROOT="$CB" FLOW_LOG_DISABLE=1 bash "$RUN" check C-001 2>&1)"; rc=$?
@@ -53,6 +81,11 @@ for fid in fcda fcdc; do
   no "$out" "note: using flow root" "$fid check has no ancestor-adoption note"
   rm -rf "$CB"
 done
+# B1-S pin: fcdd names no artifact/command and must still pass check (semantic-only catch)
+fcdd_ev="$(awk '/^## Evidence/{f=1; next} f && /^## /{exit} f' "$EVAL_DIR/fixtures/fcdd/cards/C-001.md")"
+no "$fcdd_ev" "https://" "fcdd Evidence names no URL"
+no "$fcdd_ev" "curl" "fcdd Evidence names no curl"
+no "$fcdd_ev" '\$[[:space:]]' "fcdd Evidence names no \$ command prompt"
 CB="$(mktemp -d)"
 cp -r "$EVAL_DIR/fixtures/fcdb/." "$CB/"
 out="$(FLOW_PROJECT_ROOT="$CB" FLOW_LOG_DISABLE=1 bash "$RUN" check C-001 2>&1)"; rc=$?
@@ -113,6 +146,8 @@ clean
 # ---------- E) mock engine: timeout -> INVALID, bounded by --timeout not the fake sleep ----------
 echo "E) mock engine: fake sleep exceeding --timeout -> bounded return, UNRELIABLE (not a hang)"
 newsb
+# newsb sets FLOW_EVAL_UNBOUNDED=1 only when this host has no timeout/gtimeout
+# (macos-ci DEBT lane). Linux/Windows keep the real timeout binary on PATH.
 mkmock '
 sleep 30
 echo "should never print"
@@ -166,30 +201,84 @@ nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" |
 marker="${nonce_line% FLAG}"
 printf "%s PASS\n" "$marker"
 '
-notimeoutbin="$(mktemp -d)"
-for d in /usr/bin /bin; do
-  [ -d "$d" ] || continue
-  for f in "$d"/*; do
-    [ -e "$f" ] || continue
-    b="$(basename "$f")"
-    case "$b" in timeout|timeout.exe|gtimeout|gtimeout.exe) continue ;; esac
-    [ -e "$notimeoutbin/$b" ] || ln -s "$f" "$notimeoutbin/$b" 2>/dev/null || cp "$f" "$notimeoutbin/$b" 2>/dev/null
-  done
-done
+notimeoutbin="$(make_notimeoutbin)"
 cp "$MOCKBIN/claude" "$notimeoutbin/claude"
 if PATH="$notimeoutbin" command -v timeout >/dev/null 2>&1 || PATH="$notimeoutbin" command -v gtimeout >/dev/null 2>&1; then
   echo "  skip [timeout-still-resolves] (platform ships timeout/gtimeout outside /usr/bin,/bin; cannot hide it here)"
 else
   t0=$(date +%s 2>/dev/null || echo 0)
-  out="$(PATH="$notimeoutbin" bash "$RUN" eval --fixture fcda --n 1 --timeout 30 2>&1)"; rc=$?
+  # FLOW_EVAL_UNBOUNDED=1 only in H: keep the watchdog-fallback PASS contract.
+  out="$(FLOW_EVAL_UNBOUNDED=1 PATH="$notimeoutbin" bash "$RUN" eval --fixture fcda --n 1 --timeout 30 2>&1)"; rc=$?
   t1=$(date +%s 2>/dev/null || echo 0)
   elapsed=$((t1 - t0))
   ck 0 "$rc" "fast call on timeout-less PATH still matches expected PASS"
   no  "$out" "SKIP" "did not silently take the skip path"
+  no  "$out" "REFUSED" "opt-in did not take the refuse-guard"
   has "$out" "matches expected PASS" "genuinely ran the fixture (not just a fast SKIP)"
   # Threshold loosened 15->25 for Git Bash Windows subprocess overhead; the actual regression
   # this test guards is a full-timeout block (30s+), not sub-second timing.
   if [ "$elapsed" -lt 25 ]; then echo "  ok   [returned in ${elapsed}s, not blocked for the full 30s cap]"; pass=$((pass+1)); else echo "  FAIL [took ${elapsed}s - fallback watchdog is blocking the fast call]"; fail=$((fail+1)); fi
+fi
+rm -rf "$notimeoutbin"
+clean
+
+# ---------- H2) darwin-sim + no timeout binary: refuse (new guard, not a rewrite of H) ----------
+echo "H2) darwin-sim without timeout/gtimeout refuses live eval (names risk + FLOW_EVAL_UNBOUNDED=1)"
+newsb
+unset FLOW_EVAL_UNBOUNDED
+mkmock '
+nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" | head -1)"
+marker="${nonce_line% FLAG}"
+printf "%s PASS\n" "$marker"
+'
+notimeoutbin="$(make_notimeoutbin)"
+cp "$MOCKBIN/claude" "$notimeoutbin/claude"
+if PATH="$notimeoutbin" command -v timeout >/dev/null 2>&1 || PATH="$notimeoutbin" command -v gtimeout >/dev/null 2>&1; then
+  echo "  skip [timeout-still-resolves] (cannot hide timeout/gtimeout on this platform)"
+else
+  out="$(FLOW_EVAL_FORCE_DARWIN=1 PATH="$notimeoutbin" bash "$RUN" eval --fixture fcda --n 1 --timeout 30 2>&1)"; rc=$?
+  ck 1 "$rc" "unguarded darwin-sim + no timeout exits 1"
+  has "$out" "REFUSED" "prints REFUSED"
+  has "$out" "Unbounded-billing" "names the unbounded-billing risk"
+  has "$out" "FLOW_EVAL_UNBOUNDED=1" "names the explicit opt-in env"
+  no  "$out" "matches expected PASS" "did not proceed into the fixture loop"
+fi
+rm -rf "$notimeoutbin"
+clean
+
+# ---------- H3) darwin-sim + no timeout + FLOW_EVAL_UNBOUNDED=1: proceeds ----------
+echo "H3) darwin-sim without timeout + FLOW_EVAL_UNBOUNDED=1 proceeds"
+newsb
+mkmock '
+nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" | head -1)"
+marker="${nonce_line% FLAG}"
+printf "%s PASS\n" "$marker"
+'
+notimeoutbin="$(make_notimeoutbin)"
+cp "$MOCKBIN/claude" "$notimeoutbin/claude"
+if PATH="$notimeoutbin" command -v timeout >/dev/null 2>&1 || PATH="$notimeoutbin" command -v gtimeout >/dev/null 2>&1; then
+  echo "  skip [timeout-still-resolves] (cannot hide timeout/gtimeout on this platform)"
+else
+  out="$(FLOW_EVAL_FORCE_DARWIN=1 FLOW_EVAL_UNBOUNDED=1 PATH="$notimeoutbin" bash "$RUN" eval --fixture fcda --n 1 --timeout 30 2>&1)"; rc=$?
+  ck 0 "$rc" "opt-in darwin-sim proceeds to PASS"
+  no  "$out" "REFUSED" "opt-in did not refuse"
+  has "$out" "matches expected PASS" "genuinely ran the fixture"
+fi
+rm -rf "$notimeoutbin"
+clean
+
+# ---------- H4) --report skips the darwin guard ----------
+echo "H4) --report on darwin-sim + no timeout does not hit the refuse-guard"
+newsb
+unset FLOW_EVAL_UNBOUNDED
+notimeoutbin="$(make_notimeoutbin)"
+if PATH="$notimeoutbin" command -v timeout >/dev/null 2>&1 || PATH="$notimeoutbin" command -v gtimeout >/dev/null 2>&1; then
+  echo "  skip [timeout-still-resolves] (cannot hide timeout/gtimeout on this platform)"
+else
+  out="$(FLOW_EVAL_FORCE_DARWIN=1 PATH="$notimeoutbin" bash "$RUN" eval --report 2>&1)"; rc=$?
+  ck 1 "$rc" "--report with no batch still exits 1 (offline)"
+  no  "$out" "REFUSED" "--report did not hit the live-eval refuse-guard"
+  has "$out" "no complete batch" "--report ran its offline path"
 fi
 rm -rf "$notimeoutbin"
 clean
@@ -237,15 +326,15 @@ marker="${nonce_line% FLAG}"
 printf "%s PASS\n" "$marker"
 '
 batch_out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --n 3 --timeout 20 2>&1)"
-# this mock always returns PASS regardless of fixture, so the 3 FLAG-expected fixtures
-# correctly mismatch - assert all 6 were genuinely evaluated (not silently skipped), not that
-# they all matched.
-has "$batch_out" "of 7 evaluated" "the full 7-fixture batch actually completed (not a silent skip)"
+# this mock always returns PASS regardless of fixture, so FLAG-expected fixtures
+# correctly mismatch - assert all heading-mapped fixtures were genuinely evaluated
+# (not silently skipped), not that they all matched.
+has "$batch_out" "of 9 evaluated" "the full 9-fixture batch actually completed (not a silent skip)"
 after_count=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -type d 2>/dev/null | wc -l)
 # Allow +/-1 ambient noise from other processes on the system - the real regression this test
 # guards is "N rundirs leak per batch", which would show +6 or more, not +/-1.
 delta=$((after_count - before_count)); [ "$delta" -lt 0 ] && delta=$((-delta))
-if [ "$delta" -le 1 ]; then echo "  ok   [TMPDIR delta=$delta after a full 7-fixture batch (no rundir residue - allowing +/-1 ambient noise)]"; pass=$((pass+1)); else echo "  FAIL [TMPDIR delta=$delta after a full 7-fixture batch - rundir cleanup regression]"; fail=$((fail+1)); fi
+if [ "$delta" -le 1 ]; then echo "  ok   [TMPDIR delta=$delta after a full 9-fixture batch (no rundir residue - allowing +/-1 ambient noise)]"; pass=$((pass+1)); else echo "  FAIL [TMPDIR delta=$delta after a full 9-fixture batch - rundir cleanup regression]"; fail=$((fail+1)); fi
 clean
 
 # ---------- L) results/report cases ----------
@@ -326,14 +415,14 @@ unset FLOW_EVAL_RETRY_BACKOFF
 clean
 
 # ---------- P) v0.21: --keep-going overrides the first-fixture breaker ----------
-echo "P) v0.21 --keep-going: all-invalid mock runs the full 7-fixture batch instead of aborting"
+echo "P) v0.21 --keep-going: all-invalid mock runs the full 9-fixture batch instead of aborting"
 newsb
 export FLOW_EVAL_RETRY_BACKOFF=0
 mkmock '
 echo "nothing parseable"
 '
 out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --n 1 --timeout 20 --keep-going 2>&1)"; rc=$?
-has "$out" "of 7 evaluated" "--keep-going ran the full 7-fixture batch"
+has "$out" "of 9 evaluated" "--keep-going ran the full 9-fixture batch"
 no  "$out" "ABORT after first fixture" "--keep-going suppresses the breaker abort line"
 ck 1 "$rc" "--keep-going full batch UNRELIABLE -> exit 1 (FAIL path), not 2 (abort path)"
 unset FLOW_EVAL_RETRY_BACKOFF
@@ -638,6 +727,160 @@ if [ "$rc" -ne 0 ]; then echo "  ok   [wrong-nonce -> non-zero exit]"; pass=$((p
 has "$out" "UNRELIABLE" "wrong-nonce vote counted INVALID -> UNRELIABLE"
 no "$out" "MATCH" "wrong-nonce is never a MATCH"
 clean
+
+# ============================================================================================
+# Replay / record (Phase 7) — harness-built synthetic transcripts only. Never live envelopes.
+# ============================================================================================
+GATE_RULES="$HERE/../skills/flow/references/gate-rules.md"
+grsha="$(tr -d '\r' < "$GATE_RULES" | cksum | awk '{print $1}')"
+write_synth_replay() {
+  # $1=dir $2=nonce $3=sha $4=fid $5=FLAG|PASS $6=n
+  local d="$1" nonce="$2" sha="$3" fid="$4" verd="$5" nn="$6" i=1
+  mkdir -p "$d/$fid"
+  printf 'nonce=%s\ngate_rules_sha=%s\nmodel=synthetic-test\nn=%s\n' "$nonce" "$sha" "$nn" > "$d/meta"
+  while [ "$i" -le "$nn" ]; do
+    printf 'GATE-EVAL-%s: %s\n' "$nonce" "$verd" > "$d/$fid/$i.txt"
+    i=$((i + 1))
+  done
+}
+
+echo "RP-A) --replay --stage routing usage-exits (artifact-only)"
+newsb
+out="$(bash "$RUN" eval --replay --stage routing 2>&1)"; rc=$?
+ck 1 "$rc" "--replay --stage routing exits 1"
+has "$out" "artifact-modality only" "names artifact-only reject"
+no "$out" "SKIP" "reject is not a live SKIP"
+clean
+
+echo "RP-B) --record --report usage-exits"
+newsb
+out="$(bash "$RUN" eval --record --report 2>&1)"; rc=$?
+ck 1 "$rc" "--record --report exits 1"
+has "$out" "cannot combine with --report" "names --report reject"
+clean
+
+echo "RP-C) --replay with missing meta exits 1, never SKIP"
+newsb
+export FLOW_EVAL_REPLAY_DIR="$SB/empty-replay"
+mkdir -p "$FLOW_EVAL_REPLAY_DIR"
+out="$(bash "$RUN" eval --replay --fixture fcda --n 1 2>&1)"; rc=$?
+ck 1 "$rc" "missing meta exits 1"
+has "$out" "Never SKIP" "missing fixtures say never SKIP"
+no "$out" "SKIP:" "did not inherit live SKIP-exit-0"
+clean
+
+echo "RP-D) --replay + no claude + synthetic fixtures: exit 0 only if replay ran"
+newsb
+rdir="$SB/replay"
+write_synth_replay "$rdir" "TESTREPLAYNONCE" "$grsha" "fcda" "PASS" 1
+export FLOW_EVAL_REPLAY_DIR="$rdir"
+fakebin="$(mktemp -d)"
+for d in /usr/bin /bin; do
+  [ -d "$d" ] || continue
+  for f in "$d"/*; do
+    [ -e "$f" ] || continue
+    b="$(basename "$f")"
+    case "$b" in claude|claude.exe|claude.cmd) continue ;; esac
+    [ -e "$fakebin/$b" ] || ln -s "$f" "$fakebin/$b" 2>/dev/null || cp "$f" "$fakebin/$b" 2>/dev/null
+  done
+done
+if PATH="$fakebin" command -v claude >/dev/null 2>&1; then
+  echo "  skip [claude-absent-replay] (cannot hide claude on this platform)"
+else
+  out="$(PATH="$fakebin" bash "$RUN" eval --replay --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+  ck 0 "$rc" "keyless replay of sound fcda exits 0"
+  has "$out" "replay:" "replay-ran sentinel"
+  has "$out" "matches expected PASS" "parse/vote ran"
+  no "$out" "SKIP:" "did not inherit live SKIP"
+fi
+rm -rf "$fakebin"
+clean
+
+echo "RP-E) tampered recorded verdict -> mismatch exit 1"
+newsb
+rdir="$SB/replay"
+write_synth_replay "$rdir" "TESTREPLAYNONCE" "$grsha" "fcda" "FLAG" 1
+export FLOW_EVAL_REPLAY_DIR="$rdir"
+out="$(bash "$RUN" eval --replay --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+ck 1 "$rc" "tampered FLAG vs expected PASS exits 1"
+has "$out" "MISMATCH" "names the mismatch"
+has "$out" "replay:" "replay still ran"
+clean
+
+echo "RP-F) --replay missing vote file exits 1, not skip"
+newsb
+rdir="$SB/replay"
+write_synth_replay "$rdir" "TESTREPLAYNONCE" "$grsha" "fcda" "PASS" 1
+rm -f "$rdir/fcda/1.txt"
+export FLOW_EVAL_REPLAY_DIR="$rdir"
+out="$(bash "$RUN" eval --replay --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+ck 1 "$rc" "missing vote file exits 1"
+has "$out" "missing fixture" "names the missing vote"
+no "$out" "SKIP:" "not a live SKIP"
+clean
+
+echo "RP-G) stale gate_rules_sha hard-fails (not rules-effectiveness)"
+newsb
+rdir="$SB/replay"
+write_synth_replay "$rdir" "TESTREPLAYNONCE" "not-the-real-sha" "fcda" "PASS" 1
+export FLOW_EVAL_REPLAY_DIR="$rdir"
+out="$(bash "$RUN" eval --replay --fixture fcda --n 1 2>&1)"; rc=$?
+ck 1 "$rc" "stale hash exits 1"
+has "$out" "fixtures stale" "staleness message"
+has "$out" "re-record live" "points at live re-record"
+no "$out" "SKIP:" "staleness is not SKIP"
+clean
+
+echo "RP-H) --record (mock engine) writes stripped votes; --replay of those is green"
+newsb
+rdir="$SB/replay"
+export FLOW_EVAL_REPLAY_DIR="$rdir"
+mkmock '
+nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" | head -1)"
+marker="${nonce_line% FLAG}"
+printf "%s PASS\n" "$marker"
+'
+out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --record --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+ck 0 "$rc" "mock --record of fcda exits 0"
+[ -f "$rdir/meta" ] && ck 0 0 "record wrote meta" || ck 0 1 "record wrote meta"
+[ -f "$rdir/fcda/1.txt" ] && ck 0 0 "record wrote vote 1" || ck 0 1 "record wrote vote 1"
+if [ -f "$rdir/fcda/1.txt" ]; then
+  no "$(cat "$rdir/fcda/1.txt")" "session_id" "recorded vote has no session_id"
+  no "$(cat "$rdir/fcda/1.txt")" '"cwd"' "recorded vote has no cwd key"
+fi
+out="$(bash "$RUN" eval --replay --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+ck 0 "$rc" "replay of just-recorded mock transcripts exits 0"
+has "$out" "replay:" "replay-ran sentinel after record"
+clean
+
+echo "RP-I) --record on darwin-sim + no timeout refuses (live); --replay skips the guard"
+newsb
+unset FLOW_EVAL_UNBOUNDED
+rdir="$SB/replay"
+write_synth_replay "$rdir" "TESTREPLAYNONCE" "$grsha" "fcda" "PASS" 1
+export FLOW_EVAL_REPLAY_DIR="$rdir"
+notimeoutbin="$(make_notimeoutbin)"
+cp "$MOCKBIN/claude" "$notimeoutbin/claude" 2>/dev/null || true
+if PATH="$notimeoutbin" command -v timeout >/dev/null 2>&1 || PATH="$notimeoutbin" command -v gtimeout >/dev/null 2>&1; then
+  echo "  skip [timeout-still-resolves] (cannot hide timeout/gtimeout on this platform)"
+else
+  out="$(FLOW_EVAL_FORCE_DARWIN=1 PATH="$notimeoutbin" bash "$RUN" eval --record --fixture fcda --n 1 --timeout 30 2>&1)"; rc=$?
+  ck 1 "$rc" "--record is live: darwin-sim refuse-guard fires"
+  has "$out" "REFUSED" "--record named REFUSED"
+  has "$out" "FLOW_EVAL_UNBOUNDED=1" "--record named the opt-in"
+  out="$(FLOW_EVAL_FORCE_DARWIN=1 PATH="$notimeoutbin" bash "$RUN" eval --replay --fixture fcda --n 1 --timeout 30 2>&1)"; rc=$?
+  ck 0 "$rc" "--replay skips the darwin guard"
+  has "$out" "replay:" "replay ran under darwin-sim"
+  no "$out" "REFUSED" "--replay did not refuse"
+fi
+rm -rf "$notimeoutbin"
+clean
+
+echo "RP-J) live absent-SKIP still exit 0 when --replay is not set (B contract)"
+# Existing case B covers live SKIP. Assert both usage surfaces list the new flags
+# (grep -e so a leading-dash pattern is not taken as a grep option).
+if printf '%s' "$(cat "$RUN")" | grep -qe '--record'; then echo "  ok   [argparse/help lists --record]"; pass=$((pass+1)); else echo "  FAIL [argparse/help lists --record]"; fail=$((fail+1)); fi
+if printf '%s' "$(cat "$RUN")" | grep -qe '--replay'; then echo "  ok   [argparse/help lists --replay]"; pass=$((pass+1)); else echo "  FAIL [argparse/help lists --replay]"; fail=$((fail+1)); fi
 
 echo "CV-G) converge prompt slices the criteria, fences the source as data, uses the GAP/CONVERGED marker"
 newsb

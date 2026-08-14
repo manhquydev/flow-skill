@@ -1,9 +1,18 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **skill v0.28.1** (2026-08-11), **npm-wrapper v0.5.1** (`npx @manhquy/flow-skill@latest` after publish).
+Updated as the skill evolves. Current: **skill v0.30.0** (2026-08-14), **npm-wrapper v0.7.0** (`npx @manhquy/flow-skill@latest` after publish).
 
-Release process for future bumps: [`docs/release-process.md`](release-process.md).
+Release process for future bumps: [`docs/release-process.md`](release-process.md). Release notes: [`CHANGELOG.md`](../CHANGELOG.md).
+
+## npm-wrapper v0.7.0 + skill v0.30.0 — discipline-layer identity + CI/eval hardening (2026-08-14)
+
+Current pairing. Notes live in [`CHANGELOG.md`](../CHANGELOG.md) (0.30.0). Identity: [`docs/adr/0001-discipline-layer-identity.md`](adr/0001-discipline-layer-identity.md).
+
+| Axis | Value | Notes |
+|---|---|---|
+| **npm package** | 0.7.0 | ships skill v0.30.0; install `npx @manhquy/flow-skill@latest` |
+| **Skill product in tarball** | 0.30.0 | SKILL.md / plugin / portable-manifest |
 
 ## npm-wrapper v0.5.1 + skill v0.28.1 — attested execution / trust control plane (2026-08-11)
 

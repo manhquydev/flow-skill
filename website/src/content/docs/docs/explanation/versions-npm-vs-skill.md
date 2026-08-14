@@ -7,17 +7,17 @@ description: "flow has two version numbers on purpose. One versions the installe
 
 | What | Current | What it versions |
 |---|---|---|
-| **Skill product** | `0.29.0` | The gates, `SKILL.md`, the runner, references, and templates — the thing that judges your build. |
-| **npm installer** | `0.6.0` | The `@manhquy/flow-skill` CLI that copies the skill into your agent homes. |
+| **Skill product** | `0.30.0` | The gates, `SKILL.md`, the runner, references, and templates — the thing that judges your build. |
+| **npm installer** | `0.7.0` | The `@manhquy/flow-skill` CLI that copies the skill into your agent homes. |
 
 Check both from your own machine rather than from any document:
 
 ```bash
 npx @manhquy/flow-skill@latest --help
-# flow-skill v0.6.0 (ships skill v0.29.0)
+# flow-skill v0.7.0 (ships skill v0.30.0)
 
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
-# version: "0.29.0"
+# version: "0.30.0"
 ```
 
 ## Why two numbers
@@ -50,11 +50,11 @@ gate versions to the installer's release cadence. Both are worse than explaining
 The failure mode is pinning the wrong number:
 
 ```bash
-# WRONG — 0.29.0 is the skill product, not a published npm package version
-npx @manhquy/flow-skill@0.29.0
+# WRONG — 0.30.0 is the skill product, not a published npm package version
+npx @manhquy/flow-skill@0.30.0
 
 # Right — pin the installer if you need a fixed release
-npx @manhquy/flow-skill@0.6.0
+npx @manhquy/flow-skill@0.7.0
 
 # Better for almost everyone
 npx @manhquy/flow-skill@latest

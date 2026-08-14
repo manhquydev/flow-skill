@@ -4,7 +4,7 @@
 
 [![npm](https://img.shields.io/npm/v/@manhquy/flow-skill?label=npm&color=cb3837)](https://www.npmjs.com/package/@manhquy/flow-skill)
 [![website](https://img.shields.io/badge/website-flowskill.io.vn-1aa3c4)](https://flowskill.io.vn)
-[![tests](https://img.shields.io/badge/tests-58%20suites-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-manifest.txt-brightgreen)](tests/manifest.txt)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions%20%C2%B7%203%20OS-blue)](.github/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -15,10 +15,10 @@ claudekit required. Optional multi-model review (Claude · Codex · Antigravity)
 
 | | |
 |---|---|
-| **Skill product** | **v0.29.0** |
-| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.6.x** (ships the skill above) |
+| **Skill product** | **v0.30.0** |
+| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.7.x** (ships the skill above) |
 | **Website** | **[flowskill.io.vn](https://flowskill.io.vn)** |
-| **Tests / CI** | 58 suites · Ubuntu · macOS · Windows |
+| **Tests / CI** | [`tests/manifest.txt`](tests/manifest.txt) · Ubuntu · macOS · Windows |
 | **License** | MIT |
 
 ## Website
@@ -83,7 +83,7 @@ npx @manhquy/flow-skill@latest --yes --all --dry-run --json
 
 # Confirm what you will get (installer + bundled skill versions)
 npx @manhquy/flow-skill@latest --help
-# expect: flow-skill v0.6.x (ships skill v0.29.x)
+# expect: flow-skill v0.7.x (ships skill v0.30.x)
 ```
 
 ### Verify install
@@ -94,7 +94,7 @@ npx @manhquy/flow-skill@latest --help
 
 # Skill product version on disk (Claude global path example)
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
-# expect: version: "0.29.0"  (or current skill product)
+# expect: version: "0.30.0"  (or current skill product)
 
 # Environment / runner
 bash ~/.claude/skills/flow/runner/flow.sh doctor
@@ -107,10 +107,10 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 |----|--------|
 | Use **`@latest`** every time you want the newest skill | Bare `npx @manhquy/flow-skill` (npx cache may re-run an old copy) |
 | **Run** the CLI so files land under agent homes | `npm i @manhquy/flow-skill` alone — that only adds the package; it does **not** install the skill |
-| Pin installer as `@0.6.0` if you need a fixed release | Pin `@0.29.0` on npm — that is the **skill** version, not the npm package name |
+| Pin installer as `@0.7.0` if you need a fixed release | Pin `@0.30.0` on npm — that is the **skill** version, not the npm package name |
 | Use `@latest` / `@0.5.x` | Use `@rc` — retired / stale channel |
 
-**Two version numbers (intentional):** npm package = installer CLI; skill product = `SKILL.md` `metadata.version`. `--help` prints both: `flow-skill v0.6.0 (ships skill v0.29.0)`.
+**Two version numbers (intentional):** npm package = installer CLI; skill product = `SKILL.md` `metadata.version`. `--help` prints both: `flow-skill v0.7.0 (ships skill v0.30.0)`.
 
 Full flag reference: [npm-wrapper/README.md](./npm-wrapper/README.md).
 
@@ -229,8 +229,9 @@ All engine verbs (`bash …/runner/flow.sh <command>`):
 | `/flow coherence` | Version drift across declared version fields (doc-vs-code coherence) |
 | `/flow consistency` | Cross-artifact coverage: every PRD `FRn` claimed by a card (`implements:`) + served by a contract interface; numeric metric; placeholder sweep (advisory) |
 | `/flow constitution` | Check operator-authored per-project invariants in `flow/constitution.md` (structure + grep-markers; advisory, **not** a `next` gate) |
-| `/flow eval [--stage 01\|02\|card] [--fixture <id>] [--n 3]` | **Behavioral proof for the semantic gate**: does the LLM actually flag a hollow-but-mechanically-clean fixture? Opt-in, **billable**, clean zero-call skip if `claude` CLI absent. See `references/gate-eval.md` (fresh-judge lower bound, not the work-mode self-challenge). |
+| `/flow eval [--stage 01\|02\|card] [--fixture <id>] [--n 3]` | **Behavioral proof for the semantic gate**: does the LLM actually flag a hollow-but-mechanically-clean fixture? Opt-in, **billable**, clean zero-call skip if `claude` CLI absent (live only). See `references/gate-eval.md` (fresh-judge lower bound, not the work-mode self-challenge). |
 | `/flow eval --report` | Offline, zero calls: last complete batch's scorecard + drift vs the prior complete batch |
+| `/flow eval --replay` | Keyless: replay recorded transcripts through parse → vote → per-fixture match lines (no scorecard; replay writes no results rows). Not a fresh-judge; never counts toward the eval floor. |
 | `/flow promote <file>` | Copy a playbook into the cross-project KB (`~/.claude/flow/playbooks`) |
 | `/flow doctor` | Check the environment (bash/python/grep/git) across macOS/Linux/Windows |
 | `/flow usage [--global\|--prune]` | Roll up the JSONL usage log into build analytics: cycle-time, gate fail-rate, per-stage + per-card dwell, command breakdown (local-only) |
@@ -429,7 +430,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 58 suites (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is `bash tests/run_all.sh` (registry: `tests/manifest.txt`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -446,5 +447,5 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 58 suites; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # suites from tests/manifest.txt; needs bash (+ python for harness/propose)
 ```

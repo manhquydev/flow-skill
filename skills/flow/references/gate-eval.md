@@ -25,14 +25,18 @@ rule text is enforceable by *a* judge," not "this build's self-review caught eve
 
 ## Fixtures and thresholds
 
-Seven shipped fixtures (`skills/flow/eval/fixtures/`, manifest `skills/flow/eval/manifest.tsv`):
+Eleven shipped fixtures (`skills/flow/eval/fixtures/`, manifest `skills/flow/eval/manifest.tsv`):
 sound/hollow pairs for Stage 01 (Research — fabricated quotes, vague "users"), Stage 02 (Scope —
-grade laundering, a real C quietly graded B), and the card gate:
+grade laundering, a real C quietly graded B), Stage 05 (listed; heading map does not yet judge
+them), and the card gate:
 - **fcda** — sound multi-signal Evidence (mechanical PASS, semantic PASS)
 - **fcdb** — process-only hollow (mechanical **FAIL** after hollow-done floor; still listed for
   historical FLAG text / offline inspection)
 - **fcdc** — hollow-with-decoy multi-signal (mechanical PASS, semantic **FLAG** — the residual
   attack class the mechanical floor does not claim to close)
+- **fcdd** — B1-S artifact-less Evidence prose (mechanical PASS, semantic **FLAG** — names no
+  path/URL/command; the semantic-only catch for `ground-truth-gates.md` rule 8)
+- **fcde** — B1-S same story with concrete artifact refs (mechanical PASS, semantic PASS)
 
 Fixture content maps 1:1 to the failure modes already documented in `gate-rules.md`, not an
 invented taxonomy. The v1 input set is **manifest-listed shipped fixtures only** — `eval` never
@@ -61,8 +65,10 @@ separately from a real mismatch — never silently counted as a gate pass or fai
 `eval` is **opt-in and billable** — it makes real `claude -p` API calls. Zero cost when the
 `claude` CLI isn't on `PATH` (clean skip, exit 0). When present, exactly one minimal probe call
 is made to confirm the CLI runs headless before any real judging starts; a probe failure means
-one billable call was made, then a clean skip. A full default batch is 7 fixtures × N=3 = 21
-judge calls + the 1 probe = 22 calls.
+one billable call was made, then a clean skip. The artifact manifest is 11 rows; a full
+default batch judges the 9 heading-mapped fixtures (01 / 02 / card) × N=3 = 27 judge calls
++ the 1 probe = 28 calls. The two Stage 05 rows fail closed before a call. Plan accounting
+for a complete re-record is 11 × 3 = 33 + probe.
 
 **Measured real cost** (this machine, 2026-07-10, default/unforced model, no `--bare` available
 under an OAuth/subscription session — see the build's spike notes): roughly **$0.30–0.37 per
@@ -78,6 +84,39 @@ fresh-judge eval is to reflect a realistic judge, not the cheapest one that pass
 `--report` (below) is the free, offline way to re-read a prior batch's numbers without spending
 anything.
 
+**macOS without `timeout`/`gtimeout`:** live `flow.sh eval` (not `--report`, not `--replay`) refuses
+by default. The watchdog fallback cannot bound a stuck `claude` call, so a hung judge is an
+unbounded-billing risk. Install GNU coreutils (`gtimeout`) or export `FLOW_EVAL_UNBOUNDED=1` to
+accept that risk for one run. `--report` and `--replay` never hit this guard. `--record` is live
+and does.
+
+## Modes
+
+| Mode | Calls | What it proves |
+|------|-------|----------------|
+| live (default) | Billable `claude -p` | Fresh-judge catch-rate (eval floor) |
+| `--report` | Zero | Last complete **live** batch + advisory drift |
+| `--record` | Same as live | Writes stripped transcripts under `eval/replay/` |
+| `--replay` | Zero | Parse → vote → per-fixture match lines (no scorecard; no results rows) + gate-rules **hash** staleness |
+
+`--record|--replay` are artifact-modality only (not `--stage routing|converge`, not `--report`).
+
+**Replay is not a fresh-judge.** Gate-rules text is embedded in the live prompt; recorded
+responses are frozen. Replay cannot test rules *effectiveness* — that stays live and billable.
+What it can do: hard-fail when `_eval_gate_rules_sha` ≠ the recorded hash (`fixtures stale —
+re-record live per ADR re-baseline rule`). Replay verdicts **never count toward the eval floor**.
+
+**Refresh protocol:** edit both sides of a rules change, run a live `--record` batch (11 × `--n 3`
+= 33 judge calls + 1 probe; 9 heading-mapped fixtures bill 27 + probe today) on a host with
+real `timeout`/`gtimeout`, commit the stripped `eval/replay/` tree (verdict lines only — no
+`session_id` / `cwd` envelopes) **in the same change** as the `gate-rules.md` edit. No
+operator-recorded batch exists yet — the `eval-replay` CI job skip-with-notice until then;
+the recorded-sha staleness check is unchanged.
+
+**B1 escalation:** if hollow-done decoys that name no artifact/command recur in dogfood or
+live eval after the B1-S addendum lands, escalate to full structured lineage evidence. Replay
+verdicts never count toward that trigger.
+
 ## Running it
 
 ```
@@ -86,6 +125,8 @@ flow.sh eval --stage card              # only the card-gate fixtures
 flow.sh eval --fixture fcdb --n 1       # one fixture, one run (cheap smoke check)
 flow.sh eval --timeout 180              # override the per-call timeout (default 120s)
 flow.sh eval --report                   # OFFLINE: last complete batch's scorecard + drift
+flow.sh eval --record --n 3             # LIVE: write stripped replay fixtures (billable)
+flow.sh eval --replay --n 3             # KEYLESS: replay recorded transcripts
 ```
 
 Exit code: `0` = every evaluated fixture majority-matched its expected verdict (or a clean
@@ -146,9 +187,10 @@ yet (the same "measure, don't assume" discipline that gated this build in the fi
   platform: a signal arriving while the runner is blocked on a foreground judge call was not
   observed to preempt that call promptly. Cleanup between fixtures/calls fires reliably; a
   normal (uninterrupted) run always cleans up its temp files immediately.
-- **Small fixture corpus (seven)**: enough to prove the mechanism and give a real number, not
-  enough for statistical confidence across every stage/failure-mode combination. Widening the
-  corpus is a natural v1.x follow-up, not a v1 blocker.
+- **Small fixture corpus (eleven manifest rows, nine heading-mapped)**: enough to prove the
+  mechanism and give a real number, not enough for statistical confidence across every
+  stage/failure-mode combination. Widening the corpus is a natural v1.x follow-up, not a
+  v1 blocker.
 
 ## Failure modes and postmortem (v0.21)
 
@@ -174,8 +216,8 @@ window; the mechanism was never confirmed at the time (rate-limit vs hook conten
 4. **Circuit breaker.** The FIRST evaluated fixture coming back UNRELIABLE (`invalid_count*3 > n`)
    aborts the batch with a distinct nonzero exit code (2) and NO `done` trailer written — the
    junk batch is invisible to `--report`/drift, so it cannot poison the baseline. `--keep-going`
-   forces the full batch; document worst case (≤ N_fixtures × n × 2 + 1 probe ≈ 37 calls at
-   default 7 × 3).
+   forces the full batch; document worst case (≤ N_fixtures × n × 2 + 1 probe ≈ 55 calls at
+   default 9 heading-mapped × 3).
 
 ### Rate-limit visibility (advisory, best-effort)
 

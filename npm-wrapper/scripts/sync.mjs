@@ -1,11 +1,16 @@
 // Dev-only: copy skill content from ../flow/flow-skill/skills/flow into ./skills/flow.
 // Ships in dev repo only — excluded from published tarball via `files` allowlist in package.json.
+//
+// `--compare <extracted> <repo>` is an argv short-circuit BEFORE any copy. It walks both
+// trees with the same shouldShip predicate used by the copy filter (Phase 7 will extend
+// that one function — do not fork the exclusion list in bash).
 import {
   cpSync,
   existsSync,
   lstatSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -15,6 +20,95 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const pkgRoot = resolve(__dirname, '..');
+
+// Shared copy / completeness / --compare predicate. Keep the copy `filter` a call
+// to this function — they are twins. Phase 7 adds eval/replay/ here, not in bash.
+function shouldShip(path) {
+  const s = path.replace(/\\/g, '/');
+  if (s.includes('/__pycache__/') || s.endsWith('/__pycache__')) return false;
+  if (s.endsWith('.pyc') || s.endsWith('.pyo')) return false;
+  if (s.endsWith('/.DS_Store') || s.endsWith('/Thumbs.db')) return false;
+  // Replay fixtures are CI/dev artifacts, not skill content (Phase 7).
+  if (s.includes('/eval/replay/') || s.endsWith('/eval/replay')) return false;
+  return true;
+}
+
+function listFiles(root, acc = [], base = root) {
+  for (const entry of readdirSync(root)) {
+    const p = join(root, entry);
+    if (!shouldShip(p)) continue;
+    if (statSync(p).isDirectory()) listFiles(p, acc, base);
+    else acc.push(relative(base, p).replace(/\\/g, '/'));
+  }
+  return acc;
+}
+
+function compareTrees(extracted, repo) {
+  if (!existsSync(extracted)) {
+    console.error(`FAIL: extracted tree missing: ${extracted}`);
+    return 1;
+  }
+  if (!existsSync(repo)) {
+    console.error(`FAIL: repo tree missing: ${repo}`);
+    return 1;
+  }
+  if (!existsSync(join(extracted, 'SKILL.md'))) {
+    console.error(`FAIL: extracted SKILL.md not found at ${extracted}`);
+    return 1;
+  }
+  if (!existsSync(join(repo, 'SKILL.md'))) {
+    console.error(`FAIL: repo SKILL.md not found at ${repo}`);
+    return 1;
+  }
+
+  const extractedFiles = listFiles(extracted).sort();
+  const repoFiles = listFiles(repo).sort();
+  if (extractedFiles.length === 0) {
+    console.error(`FAIL: extracted tree has zero shouldShip files: ${extracted}`);
+    return 1;
+  }
+
+  const extractedSet = new Set(extractedFiles);
+  const repoSet = new Set(repoFiles);
+  let rc = 0;
+  for (const f of repoFiles) {
+    if (!extractedSet.has(f)) {
+      console.error(`FAIL: missing in tarball: ${f}`);
+      rc = 1;
+    }
+  }
+  for (const f of extractedFiles) {
+    if (!repoSet.has(f)) {
+      console.error(`FAIL: extra in tarball: ${f}`);
+      rc = 1;
+    }
+  }
+  for (const f of repoFiles) {
+    if (!extractedSet.has(f)) continue;
+    const a = readFileSync(join(extracted, f));
+    const b = readFileSync(join(repo, f));
+    if (Buffer.compare(a, b) !== 0) {
+      console.error(`FAIL: content drift: ${f}`);
+      rc = 1;
+    }
+  }
+  if (rc === 0) {
+    console.log(`compare OK: ${extractedFiles.length} shouldShip files match`);
+  }
+  return rc;
+}
+
+// Argv branch MUST run before rmSync/cpSync. shouldShip is not exported; do not
+// add a sibling importer. `node sync.mjs --compare <extracted> <repo>`
+const argv = process.argv.slice(2);
+if (argv[0] === '--compare') {
+  if (!argv[1] || !argv[2] || argv[3]) {
+    console.error('usage: sync.mjs --compare <extracted-package/skills/flow> <repo-skills/flow>');
+    process.exit(2);
+  }
+  process.exit(compareTrees(resolve(argv[1]), resolve(argv[2])));
+}
+
 // Monorepo layout — the skill source-of-truth lives one level up in the same repo.
 // The FLOW_SKILL_SRC env override is still honored for out-of-tree dev checkouts and CI matrix.
 const src =
@@ -54,35 +148,11 @@ cpSync(src, dst, {
   // Skip Python bytecode (regenerated at runtime; different .pyc for .310/.311/.314 = wasteful
   // and confusing) and any editor / OS junk. This is the source of truth because `files:` in
   // package.json takes precedence over .npmignore — filter here instead.
-  filter: (source) => {
-    const s = source.replace(/\\/g, '/');
-    if (s.includes('/__pycache__/') || s.endsWith('/__pycache__')) return false;
-    if (s.endsWith('.pyc') || s.endsWith('.pyo')) return false;
-    if (s.endsWith('/.DS_Store') || s.endsWith('/Thumbs.db')) return false;
-    return true;
-  },
+  filter: (source) => shouldShip(source),
 });
 
 // R19 completeness check — file list parity. Filter to match the copy predicate above so a
 // pyc-heavy source tree doesn't fail the check against a pyc-stripped destination.
-function shouldShip(path) {
-  const s = path.replace(/\\/g, '/');
-  if (s.includes('/__pycache__/') || s.endsWith('/__pycache__')) return false;
-  if (s.endsWith('.pyc') || s.endsWith('.pyo')) return false;
-  if (s.endsWith('/.DS_Store') || s.endsWith('/Thumbs.db')) return false;
-  return true;
-}
-
-function listFiles(root, acc = [], base = root) {
-  for (const entry of readdirSync(root)) {
-    const p = join(root, entry);
-    if (!shouldShip(p)) continue;
-    if (statSync(p).isDirectory()) listFiles(p, acc, base);
-    else acc.push(relative(base, p).replace(/\\/g, '/'));
-  }
-  return acc;
-}
-
 const srcFiles = listFiles(src).sort();
 const dstFiles = listFiles(dst).sort();
 if (

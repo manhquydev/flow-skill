@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.30.0 — 2026-08-14 — discipline-layer identity + CI/eval hardening
+
+Identity ADR: flow owns gates and receipts, never the runtime. npm installer → **0.7.0**.
+
+### Added
+- **Identity ADR** (`docs/adr/0001-discipline-layer-identity.md`): process-token invariant, five flip-tripwires, proportional eval floor, replay-never-counts, fixture-pair-per-new-gate-rule, monetization cap.
+- **`flow.sh eval --record` / `--replay`**: keyless artifact-eval replay through parse→vote→per-fixture match (no scorecard). Stale `gate-rules` hash hard-fails. Replay verdicts never count toward the eval floor. `_eval_engine_run` / `_run_with_timeout` bodies unchanged.
+- **B1-S named-artifact evidence**: every done-evidence item must name its artifact or producing command (semantic card gate + `fcdd`/`fcde` fixture pair). Mechanical scoring unchanged.
+- **CI `all-checks-passed`**: single required aggregation job (`needs` + `if: always()`). `tests/run_all.sh` reads `tests/manifest.txt`. `paths` filters removed so docs-only PRs still report.
+- **Credentialless pack-rehearsal**: every-PR ubuntu job packs the npm wrapper, byte-compares tarball `skills/flow/` vs repo, installs into a temp DEST, drives `e2e-installed-drive.sh`.
+- **Root `AGENTS.md`** (symlinked `CLAUDE.md`) + word-budget verify; EN/VI README blob-hash pairing (`docs/i18n-pairs.txt`).
+- **macOS live-eval refuse-by-default** when no real `timeout`/`gtimeout` is on PATH; opt-in `FLOW_EVAL_UNBOUNDED=1`. Replay never hits the guard.
+
+### Changed
+- README test badge points at `tests/manifest.txt` instead of a hardcoded suite count.
+
 ## 0.29.0 — 2026-08-13 — spec-kit imports + converge (flow-back closer)
 
 Mined from GitHub spec-kit, redesigned to flow's DNA (mechanical half via the existing

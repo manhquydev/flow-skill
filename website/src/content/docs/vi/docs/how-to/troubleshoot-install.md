@@ -47,17 +47,17 @@ Kiểm cái bạn thật sự có, từ máy chứ không từ tài liệu:
 
 ```bash
 npx @manhquy/flow-skill@latest --help
-# flow-skill v0.6.0 (ships skill v0.29.0)
+# flow-skill v0.7.0 (ships skill v0.30.0)
 
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
-# version: "0.29.0"
+# version: "0.30.0"
 ```
 
 Nếu skill trên đĩa đứng sau cái `--help` báo, bước copy không tới home đó — chạy lại installer và chọn agent tường minh.
 
 Hai lỗi pin gây hầu hết bản cũ:
 
-- Pin `@0.29.0` trên npm. Đó là version **skill product**, không phải version package npm đã publish. Pin installer, ví dụ `@0.6.0`, hoặc dùng `@latest`.
+- Pin `@0.30.0` trên npm. Đó là version **skill product**, không phải version package npm đã publish. Pin installer, ví dụ `@0.7.0`, hoặc dùng `@latest`.
 - Dùng tag `@rc`. Đã retire và cũ.
 
 ## Windows: PowerShell resolve nhầm bash

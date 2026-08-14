@@ -144,8 +144,8 @@ roline="$(grep -n '_log_is_readonly' "$RUN" | head -1)"
 ro="$(sed -n '/_log_is_readonly()/,/esac/p' "$RUN")"
 no "$ro" "|converge|" "converge absent from the read-only case list"
 
-echo "K) run_all.sh registers this suite"
-has "$(cat "$HERE/run_all.sh" 2>/dev/null)" "test_flow_converge.sh" "run_all.sh lists test_flow_converge.sh"
+echo "K) manifest.txt registers this suite"
+has "$(cat "$HERE/manifest.txt" 2>/dev/null)" "test_flow_converge.sh" "manifest.txt lists test_flow_converge.sh"
 
 echo
 echo "RESULT: $pass passed, $fail failed"

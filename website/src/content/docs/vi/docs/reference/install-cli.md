@@ -16,10 +16,10 @@ Cần [Node.js](https://nodejs.org/) **22.14 trở lên**. Luôn ghi `@latest` �
 
 ```bash
 npx @manhquy/flow-skill@latest --help
-# flow-skill v0.6.0 (ships skill v0.29.0)
+# flow-skill v0.7.0 (ships skill v0.30.0)
 ```
 
-`0.6.0` là installer CLI này. `0.29.0` là skill product nó copy lên đĩa. Xem [Phiên bản: npm installer vs skill product](/vi/docs/explanation/versions-npm-vs-skill).
+`0.7.0` là installer CLI này. `0.30.0` là skill product nó copy lên đĩa. Xem [Phiên bản: npm installer vs skill product](/vi/docs/explanation/versions-npm-vs-skill).
 
 ## Biến thể thường dùng
 
@@ -40,7 +40,7 @@ Bảng flag chuẩn — chạy không tương tác, chọn target, cài theo pro
 
 **[npm-wrapper/README_VN.md](https://github.com/manhquydev/flow-skill/blob/master/npm-wrapper/README_VN.md)**
 
-File đó là nguồn sự thật cho nghĩa flag. Không nhân bản ở đây, nên không lệch hạn sử dụng ở đây. Bỏ qua bảng version trong file đó — dùng số live `0.6.0` / `0.29.0` ở trên.
+File đó là nguồn sự thật cho nghĩa flag. Không nhân bản ở đây, nên không lệch hạn sử dụng ở đây. Bỏ qua bảng version trong file đó — dùng số live `0.7.0` / `0.30.0` ở trên.
 
 ## Package
 

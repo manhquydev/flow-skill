@@ -59,8 +59,8 @@ sk="$(cat "$SKILLMD" 2>/dev/null)"
 has "$sk" "forge-idea.md" "SKILL.md points to forge-idea.md"
 has "$sk" "BMAD-METHOD" "SKILL.md attribution still names BMAD-METHOD"
 
-echo "G) run_all.sh registers this suite (self-guard, red-team F7)"
-has "$(cat "$HERE/run_all.sh" 2>/dev/null)" "test_flow_forge_idea.sh" "run_all.sh lists test_flow_forge_idea.sh"
+echo "G) manifest.txt registers this suite (self-guard, red-team F7)"
+has "$(cat "$HERE/manifest.txt" 2>/dev/null)" "test_flow_forge_idea.sh" "manifest.txt lists test_flow_forge_idea.sh"
 
 echo
 echo "RESULT: $pass passed, $fail failed"

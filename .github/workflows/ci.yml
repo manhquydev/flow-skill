@@ -3,22 +3,8 @@ name: CI (npm-wrapper cross-OS tests)
 on:
   push:
     branches: [master]
-    paths:
-      - 'npm-wrapper/**'
-      - 'skills/flow/**'
-      - '.github/workflows/ci.yml'
-      - '.github/workflows/publish-npm-wrapper.yml'
-      - '.github/pull_request_template.md'
-      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches: [master]
-    paths:
-      - 'npm-wrapper/**'
-      - 'skills/flow/**'
-      - '.github/workflows/ci.yml'
-      - '.github/workflows/publish-npm-wrapper.yml'
-      - '.github/pull_request_template.md'
-      - '.github/ISSUE_TEMPLATE/**'
   workflow_dispatch: {}
 
 # Cancel superseded runs on the same ref to save minutes.
@@ -159,3 +145,68 @@ jobs:
           npm pack --dry-run --ignore-scripts --json > pack.json
           node -e "const p=require('./pack.json');const s=p[0].unpackedSize;if(s>1048576){console.error('unpacked > 1MB: '+s);process.exit(1)}else{console.log('unpacked '+s+' bytes')}"
         shell: bash
+
+  # Credentialless pack → tarball --compare → install → e2e on the INSTALLED runner.
+  # Ubuntu only (Windows budget). Local entry point: bash scripts/pack-rehearsal.sh
+  pack-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Same floor as npm-wrapper/package.json engines (>=22.14).
+          node-version: '22.14'
+      - name: Assert credentialless
+        run: |
+          if [ -n "${NPM_TOKEN:-}" ]; then
+            echo "FAIL: NPM_TOKEN is set; pack-rehearsal is credentialless" >&2
+            exit 1
+          fi
+        shell: bash
+      - name: Pack, compare, install, drive
+        run: bash scripts/pack-rehearsal.sh
+        shell: bash
+
+  # Keyless artifact replay. Skips-with-notice until the operator records a live
+  # --record batch (27 judge + 1 probe). Never fabricate those transcripts.
+  eval-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Keyless eval --replay (or skip-with-notice)
+        run: |
+          set -eu
+          if command -v claude >/dev/null 2>&1; then
+            echo "FAIL: claude is on PATH; replay job must be keyless" >&2
+            exit 1
+          fi
+          if [ ! -f skills/flow/eval/replay/meta ]; then
+            echo "NOTICE: no operator-recorded replay fixtures (skills/flow/eval/replay/meta)."
+            echo "OPERATOR CHECKPOINT: run live 'flow.sh eval --record --n 3' (27+1 billable) on a host with timeout/gtimeout, commit the stripped tree, then this job asserts replay-ran."
+            echo "SKIP_REPLAY_JOB"
+            exit 0
+          fi
+          SB="$(mktemp -d)"
+          n="$(awk -F= '$1=="n"{gsub(/\r/,"",$2); print $2; exit}' skills/flow/eval/replay/meta)"
+          case "$n" in
+            ''|*[!0-9]*) echo "FAIL: replay meta missing a usable n=" >&2; exit 1 ;;
+          esac
+          out="$(FLOW_PROJECT_ROOT="$SB" FLOW_LOG_DISABLE=1 bash skills/flow/runner/flow.sh eval --replay --n "$n" 2>&1)" || rc=$?
+          printf '%s\n' "$out"
+          printf '%s\n' "$out" | grep -q 'SKIP:' && { echo "FAIL: replay inherited live SKIP" >&2; exit 1; }
+          printf '%s\n' "$out" | grep -q 'replay:' || { echo "FAIL: no replay-ran sentinel" >&2; exit 1; }
+          exit "${rc:-0}"
+        shell: bash
+
+  # Phase 2 initial set + Phase 3 pack-rehearsal + Phase 7 keyless replay.
+  all-checks-passed:
+    needs: [bash-suite, no-python-degradation, test, pack-rehearsal, eval-replay]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: verdict
+        run: |
+          results='${{ join(needs.*.result, ' ') }}'
+          for r in $results; do [ "$r" = "success" ] || { echo "non-success: $results"; exit 1; }; done

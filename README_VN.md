@@ -4,7 +4,7 @@
 
 [![npm](https://img.shields.io/npm/v/@manhquy/flow-skill?label=npm&color=cb3837)](https://www.npmjs.com/package/@manhquy/flow-skill)
 [![website](https://img.shields.io/badge/website-flowskill.io.vn-1aa3c4)](https://flowskill.io.vn)
-[![tests](https://img.shields.io/badge/tests-58%20suites-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-manifest.txt-brightgreen)](tests/manifest.txt)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions%20%C2%B7%203%20OS-blue)](.github/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -15,10 +15,10 @@ CLI cài-chạy, library API, hoặc skill chạy thật). Chat là cửa mặc 
 
 | | |
 |---|---|
-| **Skill product** | **v0.29.0** |
-| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.6.x** (ship skill ở trên) |
+| **Skill product** | **v0.30.0** |
+| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.7.x** (ship skill ở trên) |
 | **Website** | **[flowskill.io.vn](https://flowskill.io.vn)** |
-| **Test / CI** | 58 suite · Ubuntu · macOS · Windows |
+| **Test / CI** | [`tests/manifest.txt`](tests/manifest.txt) · Ubuntu · macOS · Windows |
 | **License** | MIT |
 
 ## Website
@@ -83,7 +83,7 @@ npx @manhquy/flow-skill@latest --yes --all --dry-run --json
 
 # Xác nhận phiên bản installer + skill trong tarball
 npx @manhquy/flow-skill@latest --help
-# expect: flow-skill v0.6.x (ships skill v0.29.x)
+# expect: flow-skill v0.7.x (ships skill v0.30.x)
 ```
 
 ### Kiểm tra sau cài
@@ -92,7 +92,7 @@ npx @manhquy/flow-skill@latest --help
 npx @manhquy/flow-skill@latest --help
 
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
-# expect: version: "0.29.0"  (hoặc skill product hiện tại)
+# expect: version: "0.30.0"  (hoặc skill product hiện tại)
 
 bash ~/.claude/skills/flow/runner/flow.sh doctor
 # expect: READY
@@ -104,11 +104,11 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 |-----|--------|
 | **`@latest`** mỗi lần muốn bản mới | Bare `npx @manhquy/flow-skill` (cache npx) |
 | **Chạy** CLI để skill vào agent home | Chỉ `npm i` — không copy skill |
-| Pin installer `@0.6.0` nếu cần cố định | Pin npm `@0.29.0` (đó là version **skill**, không phải package) |
-| `@latest` / `@0.6.x` | `@rc` (đã retire / cũ) |
+| Pin installer `@0.7.0` nếu cần cố định | Pin npm `@0.30.0` (đó là version **skill**, không phải package) |
+| `@latest` / `@0.7.x` | `@rc` (đã retire / cũ) |
 
 **Hai số version (cố ý):** package npm = installer CLI; skill product = `SKILL.md` metadata.
-`--help` in cả hai: `flow-skill v0.6.0 (ships skill v0.29.0)`.
+`--help` in cả hai: `flow-skill v0.7.0 (ships skill v0.30.0)`.
 
 Chi tiết flag: [npm-wrapper/README_VN.md](./npm-wrapper/README_VN.md).
 
@@ -226,8 +226,9 @@ Engine dispatch (`bash …/runner/flow.sh <command>`):
 | `/flow coherence` | Lệch version giữa các trường version khai báo (doc-vs-code) |
 | `/flow consistency` | Phủ liên-artifact: mỗi `FRn` trong PRD phải được một card `implements:` và một interface trong contract phục vụ; success metric có số; quét placeholder (cố vấn) |
 | `/flow constitution` | Kiểm các bất biến per-dự-án operator tự viết trong `flow/constitution.md` (cấu trúc + grep-marker; cố vấn, **không** phải gate của `next`) |
-| `/flow eval [--stage 01\|02\|card] [--fixture <id>] [--n 3]` | **Bằng chứng hành vi cho gate ngữ nghĩa**: LLM có thật sự phát hiện fixture rỗng-nhưng-pass-cơ-học không? Opt-in, **tính phí**, skip sạch 0 lệnh gọi nếu thiếu CLI `claude`. Xem `references/gate-eval.md` (ngưỡng dưới của fresh judge, không phải self-challenge ở work-mode). |
+| `/flow eval [--stage 01\|02\|card] [--fixture <id>] [--n 3]` | **Bằng chứng hành vi cho gate ngữ nghĩa**: LLM có thật sự phát hiện fixture rỗng-nhưng-pass-cơ-học không? Opt-in, **tính phí**, skip sạch 0 lệnh gọi nếu thiếu CLI `claude` (chỉ live). Xem `references/gate-eval.md` (ngưỡng dưới của fresh judge, không phải self-challenge ở work-mode). |
 | `/flow eval --report` | Offline, 0 lệnh gọi: scorecard batch hoàn chỉnh gần nhất + drift so với batch hoàn chỉnh trước đó |
+| `/flow eval --replay` | Keyless: phát lại transcript đã ghi qua parse → vote → dòng match từng fixture (không scorecard; replay không ghi results rows). Không phải fresh-judge; không tính vào eval floor. |
 | `/flow promote <file>` | Copy một playbook vào KB liên-dự-án (`~/.claude/flow/playbooks`) |
 | `/flow doctor` | Kiểm môi trường (bash/python/grep/git) trên macOS/Linux/Windows |
 | `/flow usage [--global\|--prune]` | Tổng hợp usage-log JSONL thành analytics build: cycle-time, tỷ lệ fail gate, dwell theo stage + theo card, phân bố lệnh (chỉ lưu cục bộ) |

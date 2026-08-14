@@ -4,9 +4,16 @@ description: "Ghi chú phát hành hướng operator đã chọn lọc cho skill
 lang: vi
 ---
 
-Hiện tại: **skill product `0.29.0`**, được ship bởi **npm installer `0.6.0`**. Hai số đó version thứ khác nhau — xem [Phiên bản: npm installer vs skill product](/vi/docs/explanation/versions-npm-vs-skill).
+Hiện tại: **skill product `0.30.0`**, được ship bởi **npm installer `0.7.0`**. Hai số đó version thứ khác nhau — xem [Phiên bản: npm installer vs skill product](/vi/docs/explanation/versions-npm-vs-skill).
 
 Đây là thay đổi có khả năng ảnh hưởng cách bạn dùng `flow` nhất. Lịch sử đầy đủ, không rút gọn, sống trong kho.
+
+## 0.30.0 — identity lớp kỷ luật + harden CI/eval
+
+- **Identity ADR.** Flow sở hữu cổng và biên nhận, không bao giờ sở hữu runtime.
+- **`/flow eval --record` / `--replay`.** Replay artifact-eval không cần key. Không phải fresh-judge; không tính vào eval floor.
+- **Evidence nêu artifact.** Mỗi mục done-evidence phải nêu artifact hoặc lệnh tạo ra nó.
+- **CI.** Suite theo manifest, job `all-checks-passed` bắt buộc, pack-rehearsal không credential.
 
 ## 0.29.0 — import spec-kit và converge
 

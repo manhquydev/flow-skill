@@ -50,17 +50,17 @@ npx @manhquy/flow-skill@latest --help
 Installer in version của chính nó và skill version nó ship:
 
 ```
-flow-skill v0.6.0 (ships skill v0.29.0)
+flow-skill v0.7.0 (ships skill v0.30.0)
 ```
 
 Rồi đọc skill version từ đĩa:
 
 ```bash
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
-# version: "0.29.0"
+# version: "0.30.0"
 ```
 
-`0.6.0` là npm installer CLI. `0.29.0` là skill product — thứ thực sự gác cổng build của bạn. Chúng đi độc lập. Nếu thấy lạ, đọc [Phiên bản: npm installer vs skill product](/vi/docs/explanation/versions-npm-vs-skill).
+`0.7.0` là npm installer CLI. `0.30.0` là skill product — thứ thực sự gác cổng build của bạn. Chúng đi độc lập. Nếu thấy lạ, đọc [Phiên bản: npm installer vs skill product](/vi/docs/explanation/versions-npm-vs-skill).
 
 ## Bước 4 — kiểm môi trường
 

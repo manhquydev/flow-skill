@@ -4,6 +4,8 @@
 three cooperating layers plus on-disk artifacts, so a fast deterministic engine handles the
 cheatable mechanics while the model handles judgment, and durable records survive sessions.
 
+Identity (gates and receipts, never the runtime): [`adr/0001-discipline-layer-identity.md`](adr/0001-discipline-layer-identity.md).
+
 ## Layers
 
 ```
@@ -90,7 +92,7 @@ On-disk artifacts (in the project being built):
 | `skills/flow/references/` | 24 semantic playbooks (gates, agents, loop, design, auto, v0.22 concierge/native-rituals/forge-idea, v0.29 clarify/converge/artifact-lifecycle) |
 | `skills/flow/eval/` | behavioral-eval fixtures: artifact-vs-gate + v0.22 routing judge (`fixtures/routing/`) + v0.29 converge repo-state gap judge (`fixtures/converge/`) |
 | `skills/flow/playbooks/` | paid-for stack knowledge (read before, harvest after) |
-| `tests/` | 58 suites across runner / harness / scenarios / loop / eval (v0.21: raw-on-INVALID + circuit breaker + prune + envelope-strip; v0.22: routing judge) / resume / status-legibility / concierge / native-rituals / forge-idea / harness trust-align (v0.24: lineage-contract + strict + trust-complete + docs-contract) / graph executor (v0.25: schema + executor + crash-resume + lint + auto-run + parallel-cards + planning-parity). GitHub Actions `bash-suite` job (ubuntu+macos+windows) is the source of truth. |
+| `tests/` | Suites listed in `tests/manifest.txt` (runner / harness / scenarios / loop / eval / resume / status-legibility / concierge / native-rituals / forge-idea / harness trust-align / graph executor / doc budgets). GitHub Actions `bash-suite` job (ubuntu+macos+windows) is the source of truth. |
 | `install.sh` / `install.ps1` | install to ~/.claude or a project |
 
 ## Distribution channels

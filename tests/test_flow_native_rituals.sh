@@ -74,8 +74,8 @@ ck "0" "$bad_cols" "every catalog row still has exactly 6 tab-separated columns"
 n_enriched=$(tail -n +2 "$CATALOG" 2>/dev/null | awk -F'\t' '$5!="-"{c++} END{print c+0}')
 if [ "${n_enriched:-0}" -ge 5 ]; then echo "  ok   [>=5 ritual-seam rows carry a non-empty enrich-if-present ($n_enriched)]"; pass=$((pass+1)); else echo "  FAIL [>=5 ritual-seam rows carry enrich-if-present, got ${n_enriched:-0}]"; fail=$((fail+1)); fi
 
-echo "H) run_all.sh registers this suite (self-guard, red-team F7)"
-has "$(cat "$HERE/run_all.sh" 2>/dev/null)" "test_flow_native_rituals.sh" "run_all.sh lists test_flow_native_rituals.sh"
+echo "H) manifest.txt registers this suite (self-guard, red-team F7)"
+has "$(cat "$HERE/manifest.txt" 2>/dev/null)" "test_flow_native_rituals.sh" "manifest.txt lists test_flow_native_rituals.sh"
 
 echo
 echo "RESULT: $pass passed, $fail failed"

@@ -52,10 +52,10 @@ Check what you actually have, from the machine rather than from any document:
 
 ```bash
 npx @manhquy/flow-skill@latest --help
-# flow-skill v0.6.0 (ships skill v0.29.0)
+# flow-skill v0.7.0 (ships skill v0.30.0)
 
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
-# version: "0.29.0"
+# version: "0.30.0"
 ```
 
 If the installed skill version is behind the one `--help` reports, the copy step did not
@@ -63,8 +63,8 @@ reach that home — re-run the installer and select the agent explicitly.
 
 Two pinning mistakes cause most stale installs:
 
-- Pinning `@0.29.0` on npm. That is the **skill product** version, not a published npm
-  package version. Pin the installer, for example `@0.6.0`, or use `@latest`.
+- Pinning `@0.30.0` on npm. That is the **skill product** version, not a published npm
+  package version. Pin the installer, for example `@0.7.0`, or use `@latest`.
 - Using the `@rc` tag. It is retired and stale.
 
 ## Windows: PowerShell resolves the wrong bash
