@@ -3,9 +3,10 @@ title: "Changelog"
 description: "Curated user-facing release notes for the flow skill, with a pointer to the full changelog."
 ---
 
-Current: **skill product `0.30.0`**, shipped by **npm installer `0.7.0`**. Those two numbers
-version different things — see
+Current: **skill product `0.30.0`**, shipped by **npm installer `0.7.0`** on dist-tag
+`latest`. Those two numbers version different things — see
 [Versions: npm installer vs skill product](/docs/explanation/versions-npm-vs-skill).
+GitHub Release: [`v0.30.0`](https://github.com/manhquydev/flow-skill/releases/tag/v0.30.0).
 
 These are the changes most likely to affect how you use `flow`. The complete, unabridged
 history lives in the repository.

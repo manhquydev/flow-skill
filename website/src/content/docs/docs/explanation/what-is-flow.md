@@ -9,8 +9,10 @@ skill that reaches its own done-definition — through gates that must be honest
 before you advance.
 
 It is a skill you install into a coding agent, not a service you sign up for and not a
-framework your code depends on. It is standalone: no AgentKit and no claudekit are required,
-though optional multi-model review unlocks when those engines are present.
+framework your code depends on. **Flow owns the gates and the receipts, never the runtime.**
+It is standalone: no AgentKit and no claudekit are required, though optional multi-model
+review unlocks when those engines are present. Current pairing: skill **v0.30.0**, npm
+installer **0.7.0**.
 
 ## The problem it exists for
 
