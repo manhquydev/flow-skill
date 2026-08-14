@@ -19,6 +19,8 @@ claudekit required. Optional multi-model review (Claude · Codex · Antigravity)
 | **Tests / CI** | 48 suites · Ubuntu · macOS · Windows |
 | **License** | MIT |
 
+**Website:** [flowskill.io.vn](https://flowskill.io.vn) (Cloudflare Pages). Preview `*.pages.dev` hostnames are not the public site.
+
 ---
 
 ## Install (recommended)

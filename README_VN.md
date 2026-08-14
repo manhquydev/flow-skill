@@ -19,6 +19,8 @@ CLI cài-chạy, library API, hoặc skill chạy thật). Chat là cửa mặc 
 | **Test / CI** | 48 suite · Ubuntu · macOS · Windows |
 | **License** | MIT |
 
+**Website:** [flowskill.io.vn](https://flowskill.io.vn) (Cloudflare Pages). Không dùng hostname preview `*.pages.dev` làm site công khai.
+
 ---
 
 ## Cài đặt (khuyến nghị)
