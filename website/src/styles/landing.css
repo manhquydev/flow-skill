@@ -1,0 +1,985 @@
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+:root {
+	/* Ink-strength cyan for anything a reader must read on paper; --cyan stays for marks. */
+	--cyan-deep: #0a4e5e;
+	--ink-soft: color-mix(in srgb, var(--ink) 78%, var(--newsprint));
+	--docket-h: 4rem;
+	--gutter: 1.75rem;
+	--gutter-narrow: 1.1rem;
+	/* Kill crayon: a drawn stroke with a lift in the middle, not a text-decoration. */
+	--crayon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 15' preserveAspectRatio='none'%3E%3Cpath d='M2 5.2 C30 4.2 60 6 96 4.8 L96 10.3 C60 11.5 30 9.7 2 10.7 Z' fill='black'/%3E%3Cpath d='M104 4.8 C140 3.8 190 5.8 238 4.6 L238 10.1 C190 11.3 140 9.3 104 10.3 Z' fill='black' opacity='0.93'/%3E%3C/svg%3E");
+	--reg-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='none' stroke='black' stroke-width='1'/%3E%3Cline x1='8' y1='0' x2='8' y2='16' stroke='black' stroke-width='1'/%3E%3Cline x1='0' y1='8' x2='16' y2='8' stroke='black' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+html {
+	background: var(--newsprint);
+	overflow-x: clip;
+}
+
+body {
+	margin: 0;
+	min-height: 100dvh;
+	color: var(--ink);
+	font-family: var(--font-body);
+	font-size: 1.05rem;
+	line-height: 1.5;
+	background-color: var(--newsprint);
+	background-image: var(--grain);
+	background-size: 256px 256px;
+}
+
+code {
+	font-family: var(--font-mono);
+	font-size: 0.92em;
+}
+
+.skip-link {
+	position: absolute;
+	inset: 0.55rem auto auto 0.55rem;
+	z-index: 2;
+	padding: 0.55rem 0.85rem;
+	background: var(--ink);
+	color: var(--newsprint);
+	font-weight: 700;
+	text-decoration: none;
+	transform: translateY(-120%);
+}
+
+.skip-link:focus {
+	transform: none;
+}
+
+.marks {
+	position: absolute;
+	width: 0;
+	height: 0;
+}
+
+.docket {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1.5rem;
+	min-height: var(--docket-h);
+	padding: 0 var(--gutter);
+	border-bottom: var(--rule);
+}
+
+.wordmark {
+	font-family: var(--font-display);
+	font-weight: 800;
+	font-size: 1.65rem;
+	letter-spacing: -0.03em;
+	color: var(--ink);
+	text-decoration: none;
+}
+
+.wordmark:hover {
+	box-shadow: inset 0 -1px 0 var(--ink);
+}
+
+.docket-nav {
+	display: flex;
+	align-items: center;
+	gap: 0.55rem;
+	font-size: 0.92rem;
+	font-weight: 600;
+}
+
+.docket-nav a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 2.75rem;
+	padding: 0 0.15rem;
+	color: var(--ink);
+	text-decoration: none;
+}
+
+.docket-nav a:hover {
+	box-shadow: inset 0 -1px 0 var(--ink);
+}
+
+.docket-nav a[aria-current='page'] {
+	box-shadow: inset 0 -2px 0 var(--cyan-deep);
+}
+
+.docs-link {
+	margin-left: 0.75rem;
+}
+
+.sheet {
+	display: grid;
+	grid-template-columns: minmax(0, 1.35fr) minmax(16rem, 0.9fr);
+	grid-template-rows: minmax(0, 1fr) auto auto;
+	grid-template-areas:
+		'hero galleys'
+		'lockup lockup'
+		'pipeline pipeline';
+	min-height: calc(100dvh - var(--docket-h));
+}
+
+.hero {
+	grid-area: hero;
+	display: flex;
+	flex-direction: column;
+	padding: 2.25rem var(--gutter) 1.75rem var(--gutter);
+	border-right: var(--rule);
+	position: relative;
+}
+
+/* Hang the hero mark on the docket × column-rule intersection, not on the wordmark. */
+.hero::before {
+	content: '';
+	position: absolute;
+	top: -8px;
+	right: -8px;
+	width: 16px;
+	height: 16px;
+	background: currentColor;
+	color: var(--cyan);
+	-webkit-mask: var(--reg-mark) center / contain no-repeat;
+	mask: var(--reg-mark) center / contain no-repeat;
+}
+
+.display {
+	margin: 0;
+	font-family: var(--font-display);
+	font-weight: 800;
+	font-size: clamp(4.5rem, 12vw, 6rem);
+	line-height: 0.85;
+	letter-spacing: -0.035em;
+}
+
+.headline {
+	margin: 0.85rem 0 1.5rem;
+	font-family: var(--font-display);
+	font-weight: 700;
+	font-size: clamp(1.7rem, 3.4vw, 2.6rem);
+	line-height: 1.05;
+	letter-spacing: -0.03em;
+	text-wrap: balance;
+	max-width: 18ch;
+}
+
+html[lang='vi'] .headline {
+	line-height: 1.15;
+}
+
+.lede {
+	margin: 0;
+	max-width: 46ch;
+	text-wrap: pretty;
+}
+
+/* Verdict sits with the copy cluster. Slack in the hero row collects at the column foot. */
+.verdict {
+	margin: 1.75rem 0 0;
+	padding-top: 1.15rem;
+	border-top: var(--rule);
+	font-family: var(--font-display);
+	font-weight: 700;
+	font-size: clamp(1.5rem, 2.9vw, 2.3rem);
+	line-height: 1.02;
+	letter-spacing: -0.015em;
+	max-width: 22ch;
+	text-wrap: balance;
+}
+
+.galleys {
+	grid-area: galleys;
+	display: grid;
+	grid-template-rows: 1fr 1fr;
+	position: relative;
+}
+
+.galley {
+	padding: 1.35rem 1.5rem 1.25rem;
+	position: relative;
+}
+
+.galley + .galley {
+	border-top: var(--rule);
+}
+
+/* Register the two plates to each other on the split × column rule. */
+.galley + .galley::after {
+	content: '';
+	position: absolute;
+	top: -6px;
+	left: -7px;
+	width: 12px;
+	height: 12px;
+	color: var(--cyan);
+	background: currentColor;
+	-webkit-mask: var(--reg-mark) center / contain no-repeat;
+	mask: var(--reg-mark) center / contain no-repeat;
+}
+
+.galley h2 {
+	margin: 0 0 0.85rem;
+	padding-right: 2.75rem;
+	font-family: var(--font-display);
+	font-weight: 800;
+	font-size: 1.85rem;
+	line-height: 1.1;
+	letter-spacing: -0.03em;
+}
+
+.galley p {
+	margin: 0;
+	max-width: 38ch;
+}
+
+.proofs {
+	list-style: none;
+	margin: 1.1rem 0 0;
+	padding: 0;
+	max-width: 38ch;
+	font-size: 0.95rem;
+}
+
+.proofs li {
+	padding: 0.55rem 0;
+	border-top: var(--guide);
+}
+
+.pass-mark {
+	position: absolute;
+	top: 1.35rem;
+	right: 1.2rem;
+	width: 2.4rem;
+	height: 2.4rem;
+	color: var(--ink);
+}
+
+.kill-line {
+	position: relative;
+	display: inline-block;
+	margin-top: 0.65rem;
+}
+
+.kill-line::after {
+	content: '';
+	position: absolute;
+	left: -0.15em;
+	right: -0.25em;
+	top: 40%;
+	height: 0.62em;
+	background: var(--kill);
+	transform: rotate(-2deg);
+	-webkit-mask: var(--crayon) left center / 100% 100% no-repeat;
+	mask: var(--crayon) left center / 100% 100% no-repeat;
+	animation: strike-through 760ms cubic-bezier(0.16, 1, 0.3, 1) 420ms backwards;
+}
+
+/* The one authored moment: the crayon is drawn across the line, left to right. */
+@keyframes strike-through {
+	from {
+		-webkit-mask-size: 0% 100%;
+		mask-size: 0% 100%;
+	}
+}
+
+@supports (animation-timeline: view()) {
+	.kill-line::after {
+		animation-delay: 0s;
+		animation-timeline: view();
+		animation-range: entry 0% entry 70%;
+	}
+}
+
+.lockup {
+	grid-area: lockup;
+	display: flex;
+	align-items: stretch;
+	gap: 0.85rem;
+	padding-left: var(--gutter);
+	background: var(--ink);
+	color: var(--newsprint);
+	min-height: 3.4rem;
+}
+
+.lockup-tools {
+	display: contents;
+}
+
+.reg {
+	width: 14px;
+	height: 14px;
+	flex: none;
+	align-self: center;
+	color: var(--cyan);
+}
+
+.cmd {
+	flex: 0 1 auto;
+	min-width: 0;
+	align-self: center;
+	font-size: clamp(0.82rem, 1.6vw, 1rem);
+	letter-spacing: 0.01em;
+	white-space: nowrap;
+	user-select: all;
+	-webkit-user-select: all;
+}
+
+.copy-cmd {
+	flex: none;
+	align-self: stretch;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 2.75rem;
+	min-width: 2.75rem;
+	font: inherit;
+	font-weight: 700;
+	font-size: 0.9rem;
+	color: inherit;
+	background: transparent;
+	border: 1px solid color-mix(in srgb, var(--newsprint) 45%, transparent);
+	border-block: 0;
+	padding: 0 0.85rem;
+	cursor: pointer;
+	touch-action: manipulation;
+	transition: background-color 140ms ease-out, border-color 140ms ease-out;
+}
+
+.copied {
+	flex: 1 1 auto;
+	min-width: 0;
+	align-self: center;
+	font-size: 0.85rem;
+	color: var(--cyan);
+}
+
+.folio {
+	display: flex;
+	align-items: center;
+	flex: none;
+	align-self: stretch;
+	padding: 0 1.4rem;
+	border-left: 1px solid color-mix(in srgb, var(--newsprint) 35%, transparent);
+	color: inherit;
+	text-decoration: none;
+	font-weight: 700;
+	touch-action: manipulation;
+	transition: background-color 140ms ease-out;
+}
+
+@media (hover: hover) {
+	.copy-cmd:hover {
+		background: var(--cyan-deep);
+		border-color: var(--cyan);
+		color: var(--newsprint);
+	}
+
+	.folio:hover {
+		background: var(--cyan-deep);
+		color: var(--newsprint);
+	}
+
+	.copy-cmd:active,
+	.folio:active {
+		background: color-mix(in srgb, var(--cyan-deep) 82%, var(--ink));
+	}
+}
+
+.pipeline {
+	grid-area: pipeline;
+	display: grid;
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+	border-top: var(--rule);
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.pipe {
+	padding: 0.7rem 0.85rem 0.8rem;
+	font-size: 0.82rem;
+	font-weight: 600;
+	border-right: var(--guide);
+	position: relative;
+}
+
+.pipe:last-child {
+	border-right: 0;
+}
+
+/* The last slug has no rule to register against, and its mark would push the sheet wider. */
+.pipe:last-child::before {
+	display: none;
+}
+
+.pipe::before {
+	content: '';
+	position: absolute;
+	top: -6px;
+	right: -7px;
+	width: 12px;
+	height: 12px;
+	color: var(--cyan);
+	background: currentColor;
+	-webkit-mask: var(--reg-mark) center / contain no-repeat;
+	mask: var(--reg-mark) center / contain no-repeat;
+}
+
+/* Sheet two: the marked-up proof below the fold */
+
+.band {
+	border-top: var(--rule);
+	padding: 2.75rem var(--gutter) 2.5rem;
+}
+
+.band-title {
+	margin: 0 0 1.25rem;
+	font-family: var(--font-display);
+	font-weight: 800;
+	font-size: clamp(1.55rem, 3vw, 2.15rem);
+	line-height: 1.05;
+	letter-spacing: -0.03em;
+}
+
+.band-lede,
+.band-foot {
+	margin: 0;
+	max-width: 68ch;
+}
+
+.run-list {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	list-style: none;
+	margin: 1.75rem 0 1.75rem;
+	padding: 0;
+	border-top: var(--rule);
+	border-bottom: var(--rule);
+}
+
+.run-list li {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	padding: 0.85rem 1.25rem 0.95rem 0;
+	border-bottom: var(--guide);
+}
+
+.run-list li:nth-last-child(-n + 3) {
+	border-bottom: 0;
+}
+
+.run-stage {
+	font-family: var(--font-display);
+	font-weight: 700;
+	font-size: 1.4rem;
+	line-height: 1;
+	letter-spacing: -0.02em;
+}
+
+.run-file {
+	font-size: 0.82rem;
+	color: var(--ink-soft);
+}
+
+.stand {
+	display: grid;
+	grid-template-columns: minmax(0, 1.6fr) minmax(14rem, 0.8fr);
+	gap: 2.5rem;
+	align-items: end;
+}
+
+.stand-title {
+	margin: 0 0 1rem;
+	font-family: var(--font-display);
+	font-weight: 800;
+	font-size: clamp(2rem, 5vw, 3.4rem);
+	line-height: 0.98;
+	letter-spacing: -0.035em;
+	text-wrap: balance;
+	max-width: 17ch;
+}
+
+.stand-copy p {
+	margin: 0;
+	max-width: 56ch;
+}
+
+.stand-actions {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 1rem;
+}
+
+.action {
+	color: var(--ink);
+	font-weight: 600;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.28em;
+}
+
+.action:hover {
+	text-decoration-thickness: 3px;
+}
+
+.action.primary {
+	display: inline-flex;
+	align-items: center;
+	min-height: 2.75rem;
+	padding: 0.9rem 1.5rem;
+	background: var(--ink);
+	color: var(--newsprint);
+	font-weight: 700;
+	text-decoration: none;
+	touch-action: manipulation;
+	transition: background-color 140ms ease-out;
+}
+
+@media (hover: hover) {
+	.action.primary:hover {
+		background: var(--cyan-deep);
+	}
+}
+
+.colophon {
+	display: grid;
+	grid-template-columns: minmax(0, 1.35fr) minmax(16rem, 0.9fr);
+	grid-template-areas:
+		'imprint nav'
+		'imprint locale';
+	align-items: start;
+	column-gap: 0;
+	row-gap: 0.85rem;
+	padding: 0;
+	border-top: var(--rule);
+	font-size: 0.9rem;
+}
+
+.imprint {
+	grid-area: imprint;
+	padding: 1.35rem var(--gutter) 2.25rem;
+	border-right: var(--rule);
+}
+
+.imprint-line {
+	margin: 0;
+	font-weight: 600;
+}
+
+.edition {
+	margin: 0.3rem 0 0;
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+	color: var(--ink-soft);
+}
+
+.colophon-nav,
+.colophon-locale {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem 1.35rem;
+	font-weight: 600;
+	padding-right: var(--gutter);
+}
+
+.colophon-nav {
+	grid-area: nav;
+	padding-top: 1.35rem;
+	padding-left: 1.5rem;
+}
+
+.colophon-locale {
+	grid-area: locale;
+	padding-bottom: 2.25rem;
+	padding-left: 1.5rem;
+}
+
+.colophon a {
+	color: var(--ink);
+	text-decoration: none;
+	box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--ink) 40%, transparent);
+}
+
+.colophon a:hover {
+	box-shadow: inset 0 -2px 0 var(--ink);
+}
+
+.colophon a[aria-current='page'] {
+	box-shadow: inset 0 -2px 0 var(--cyan-deep);
+}
+
+:focus-visible {
+	outline: 2px solid var(--ink);
+	outline-offset: 3px;
+}
+
+.lockup :focus-visible {
+	outline-color: var(--cyan);
+	outline-offset: -3px;
+}
+
+@media (max-width: 900px) {
+	.stand {
+		grid-template-columns: 1fr;
+		align-items: start;
+	}
+	.stand-actions {
+		flex-direction: row;
+		flex-wrap: wrap;
+		align-items: center;
+	}
+	.run-list li:nth-last-child(-n + 3) {
+		border-bottom: var(--guide);
+	}
+	.run-list li:nth-last-child(-n + 2) {
+		border-bottom: 0;
+	}
+}
+
+@media (max-width: 720px) {
+	.docket {
+		padding: 0 var(--gutter-narrow);
+	}
+	.sheet {
+		grid-template-columns: 1fr;
+		grid-template-rows: auto;
+		grid-template-areas:
+			'hero'
+			'lockup'
+			'galleys'
+			'pipeline';
+		min-height: 0;
+		overflow-x: clip;
+	}
+	.hero {
+		border-right: 0;
+		border-bottom: var(--rule);
+		padding: 1rem var(--gutter-narrow) 0.85rem;
+	}
+	.hero::before {
+		right: auto;
+		left: 0.55rem;
+		top: -8px;
+	}
+	/* Docket already carries the wordmark. On a phone the sheet slug must not eat the fold. */
+	.display {
+		font-size: clamp(2.5rem, 11vw, 3.15rem);
+	}
+	.headline {
+		max-width: none;
+		margin: 0.35rem 0 0.55rem;
+		font-size: clamp(1.45rem, 5.4vw, 1.7rem);
+	}
+	.lede {
+		font-size: 1rem;
+		line-height: 1.4;
+	}
+	.verdict {
+		margin-top: 0.75rem;
+		padding-top: 0.55rem;
+		font-size: clamp(1.25rem, 4.6vw, 1.5rem);
+	}
+	@media (max-height: 860px) {
+		.hero {
+			padding-top: 0.85rem;
+			padding-bottom: 0.75rem;
+		}
+		.headline {
+			margin: 0.25rem 0 0.45rem;
+		}
+		.verdict {
+			margin-top: 0.65rem;
+			padding-top: 0.45rem;
+		}
+	}
+	.galleys {
+		grid-template-rows: auto auto;
+	}
+	.galley {
+		padding: 0.75rem var(--gutter-narrow) 0.65rem;
+	}
+	.galley h2 {
+		margin-bottom: 0.45rem;
+		font-size: 1.4rem;
+	}
+	.proofs {
+		margin-top: 0.45rem;
+	}
+	.proofs li {
+		padding: 0.3rem 0;
+	}
+	.galley + .galley::after {
+		left: 0.55rem;
+	}
+	.pass-mark {
+		right: var(--gutter-narrow);
+		top: 0.85rem;
+		width: 2.1rem;
+		height: 2.1rem;
+	}
+	.lockup {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-areas:
+			'cmd'
+			'tools';
+		align-items: stretch;
+		gap: 0;
+		padding: 0.45rem var(--gutter-narrow) 0;
+		min-height: 0;
+		overflow-x: clip;
+		container-type: inline-size;
+	}
+	.lockup-tools {
+		display: flex;
+		align-items: stretch;
+		grid-area: tools;
+		border-top: 1px solid color-mix(in srgb, var(--newsprint) 35%, transparent);
+		min-height: 2.75rem;
+	}
+	.reg {
+		display: none;
+	}
+	.cmd {
+		grid-area: cmd;
+		padding: 0.25rem 0 0.45rem;
+		flex: none;
+		width: max-content;
+		max-width: 100%;
+		font-size: clamp(0.68rem, 3.36vw, 0.88rem);
+		letter-spacing: 0;
+		white-space: nowrap;
+	}
+	.copy-cmd,
+	.folio {
+		min-height: 2.75rem;
+		min-width: 2.75rem;
+	}
+	.copy-cmd {
+		border: 0;
+		border-right: 1px solid color-mix(in srgb, var(--newsprint) 35%, transparent);
+	}
+	.copied {
+		flex: 1 1 auto;
+		padding: 0 0.55rem;
+	}
+	.folio {
+		margin-left: 0;
+		padding: 0 0.85rem;
+		border-left: 0;
+		border-right: 0;
+		white-space: nowrap;
+	}
+	.pipeline {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		overflow-x: clip;
+	}
+	.pipe {
+		min-width: 0;
+		padding: 0.55rem 0.65rem 0.6rem;
+	}
+	.pipe:nth-child(3) {
+		border-right: 0;
+	}
+	.pipe:nth-child(3)::before,
+	.pipe:nth-child(6)::before {
+		display: none;
+	}
+	.pipe:nth-child(n + 4) {
+		border-top: var(--guide);
+	}
+	.band {
+		padding: 2rem var(--gutter-narrow) 1.75rem;
+	}
+	.run-list {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.run-list li {
+		padding-right: 0.75rem;
+	}
+	.run-file {
+		overflow-wrap: anywhere;
+	}
+	.stand-title {
+		max-width: none;
+	}
+	.colophon {
+		grid-template-columns: 1fr;
+		grid-template-areas:
+			'imprint'
+			'nav'
+			'locale';
+	}
+	.imprint {
+		border-right: 0;
+		padding: 1.35rem var(--gutter-narrow) 0.85rem;
+	}
+	.colophon-nav,
+	.colophon-locale {
+		padding-left: var(--gutter-narrow);
+		padding-right: var(--gutter-narrow);
+	}
+	.colophon-nav {
+		padding-top: 0.55rem;
+	}
+	.colophon-locale {
+		padding-bottom: 2rem;
+	}
+	.colophon a {
+		display: inline-flex;
+		align-items: center;
+		min-height: 2.75rem;
+	}
+}
+
+/*
+ * Press motion. Default computed style is fully inked; every entrance uses
+ * animation-fill-mode: backwards so a missed frame still reads. Transform /
+ * opacity / mask / stroke-dashoffset only — no layout props, no transition: all.
+ * Ink takes as one sequence; plates register; the tick draws; slugs stamp.
+ */
+.display,
+.headline,
+.lede,
+.verdict {
+	animation: ink-take 400ms ease-out backwards;
+}
+
+.headline {
+	animation-delay: 80ms;
+}
+
+.lede {
+	animation-delay: 160ms;
+}
+
+.verdict {
+	animation-delay: 240ms;
+}
+
+.hero::before {
+	animation: mark-tick 280ms ease-out 120ms backwards;
+}
+
+.galley {
+	animation: plate-settle 520ms cubic-bezier(0.16, 1, 0.3, 1) 180ms backwards;
+}
+
+.galley + .galley {
+	animation-name: plate-meet;
+	animation-delay: 260ms;
+}
+
+.galley + .galley::after {
+	animation: mark-tick 280ms ease-out 200ms backwards;
+}
+
+.pass-mark {
+	stroke-dasharray: 52;
+	stroke-dashoffset: 0;
+	animation: tick-draw 440ms cubic-bezier(0.16, 1, 0.3, 1) 780ms backwards;
+}
+
+.pipe {
+	animation: stamp-in 260ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.pipe:nth-child(1) {
+	animation-delay: 380ms;
+}
+
+.pipe:nth-child(2) {
+	animation-delay: 420ms;
+}
+
+.pipe:nth-child(3) {
+	animation-delay: 460ms;
+}
+
+.pipe:nth-child(4) {
+	animation-delay: 500ms;
+}
+
+.pipe:nth-child(5) {
+	animation-delay: 540ms;
+}
+
+.pipe:nth-child(6) {
+	animation-delay: 580ms;
+}
+
+/* Six-gate docket below the fold: one impression as the band enters, not a rise. */
+@supports (animation-timeline: view()) {
+	.run-list li {
+		animation: stamp-in 360ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+		animation-timeline: view();
+		animation-range: entry 0% entry 36%;
+	}
+}
+
+@keyframes ink-take {
+	from {
+		opacity: 0.7;
+		transform: translateY(3px);
+	}
+}
+
+@keyframes plate-settle {
+	from {
+		opacity: 0.62;
+		transform: translateY(-5px);
+	}
+}
+
+@keyframes plate-meet {
+	from {
+		opacity: 0.62;
+		transform: translateY(5px);
+	}
+}
+
+@keyframes mark-tick {
+	from {
+		opacity: 0.25;
+		transform: scale(0.72);
+	}
+}
+
+@keyframes tick-draw {
+	from {
+		stroke-dashoffset: 52;
+	}
+}
+
+@keyframes stamp-in {
+	from {
+		opacity: 0.4;
+		transform: translateY(-3px);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.kill-line::after,
+	.display,
+	.headline,
+	.lede,
+	.verdict,
+	.hero::before,
+	.galley,
+	.galley + .galley,
+	.galley + .galley::after,
+	.pass-mark,
+	.pipe,
+	.run-list li {
+		animation: none;
+	}
+	.copy-cmd,
+	.folio,
+	.action.primary {
+		transition: none;
+	}
+}

@@ -1,0 +1,29 @@
+---
+const locale = Astro.locals.starlightRoute.locale;
+const href = locale === 'vi' ? '/vi/docs/' : '/docs/';
+const { siteTitle } = Astro.locals.starlightRoute;
+---
+
+<a href={href} class="site-title sl-flex">
+	<span translate="no">{siteTitle}</span>
+</a>
+
+<style>
+	@layer starlight.core {
+		.site-title {
+			align-items: center;
+			font-size: var(--sl-text-h4);
+			font-weight: 800;
+			color: var(--sl-color-text);
+			text-decoration: none;
+			white-space: nowrap;
+			min-width: 0;
+		}
+		.site-title:hover {
+			box-shadow: inset 0 -1px 0 var(--sl-color-text);
+		}
+		span {
+			overflow: hidden;
+		}
+	}
+</style>

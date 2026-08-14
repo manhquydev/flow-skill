@@ -3,6 +3,7 @@
 *English: [README.md](README.md).*
 
 [![npm](https://img.shields.io/npm/v/@manhquy/flow-skill?label=npm&color=cb3837)](https://www.npmjs.com/package/@manhquy/flow-skill)
+[![website](https://img.shields.io/badge/website-flowskill.io.vn-1aa3c4)](https://flowskill.io.vn)
 [![tests](https://img.shields.io/badge/tests-58%20suites-brightgreen)](tests/)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions%20%C2%B7%203%20OS-blue)](.github/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -16,8 +17,22 @@ CLI cài-chạy, library API, hoặc skill chạy thật). Chat là cửa mặc 
 |---|---|
 | **Skill product** | **v0.29.0** |
 | **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.6.x** (ship skill ở trên) |
+| **Website** | **[flowskill.io.vn](https://flowskill.io.vn)** |
 | **Test / CI** | 58 suite · Ubuntu · macOS · Windows |
 | **License** | MIT |
+
+## Website
+
+Site công khai (Cloudflare Pages): **[https://flowskill.io.vn](https://flowskill.io.vn)**
+
+| Trang | URL |
+|------|-----|
+| Tiếng Việt | [flowskill.io.vn/vi](https://flowskill.io.vn/vi/) |
+| English | [flowskill.io.vn](https://flowskill.io.vn/) |
+| Tài liệu (VI) | [flowskill.io.vn/vi/docs](https://flowskill.io.vn/vi/docs/) |
+| Docs (EN) | [flowskill.io.vn/docs](https://flowskill.io.vn/docs/) |
+
+Không dùng hostname preview `*.pages.dev` làm site công khai. Mã nguồn nằm trong [`website/`](website/). Ghi chú vận hành: [`website/README.md`](website/README.md).
 
 ---
 

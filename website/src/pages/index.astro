@@ -1,0 +1,113 @@
+---
+import Landing from '../layouts/Landing.astro';
+import InstallLockup from '../components/InstallLockup.astro';
+
+const command = 'npx @manhquy/flow-skill@latest';
+const tutorial = '/docs/tutorials/install-and-first-run/';
+const stages = [
+	{ name: 'Idea', file: 'flow/00-idea.md' },
+	{ name: 'Research', file: 'flow/01-research.md' },
+	{ name: 'Scope', file: 'flow/02-scope.md' },
+	{ name: 'PRD', file: 'flow/03-prd.md' },
+	{ name: 'ADR', file: 'flow/04-adr.md' },
+	{ name: 'Contract', file: 'flow/05-contract.md' },
+];
+const mechanical = [
+	'Unchecked boxes on a gate.',
+	'A leftover [FILL] still in the file.',
+	'An evidence block with nothing in it.',
+];
+const semantic = [
+	'Research that was never done.',
+	'Scope quietly lowered so the gate would pass.',
+	'“Tests pass” offered instead of a live URL, a running CLI, or a real skill run.',
+];
+---
+
+<Landing lang="en">
+	<title slot="head">flow — the gate opens only when both agree</title>
+	<meta
+		slot="head"
+		name="description"
+		content="A gated harness around a coding agent — not an agent itself. flow.sh exits 0 or 1; the skill judges whether the work is hollow. Killing a weak idea at a gate is valid. npx @manhquy/flow-skill@latest"
+	/>
+	<main>
+		<section class="sheet" aria-label="Two-layer harness">
+			<div class="hero">
+				<p class="display" translate="no">flow</p>
+				<h1 class="headline">The gate opens only when both agree.</h1>
+				<p class="lede">
+					A gated harness around the coding agent you already use. The agent still writes;
+					flow decides whether the work may advance. Killing a weak idea at a gate is a
+					valid outcome.
+				</p>
+				<p class="verdict">The runner and the skill both have to say yes.</p>
+			</div>
+			<div class="galleys">
+				<article class="galley" aria-labelledby="mechanical-title">
+					<h2 id="mechanical-title">The runner</h2>
+					<svg class="pass-mark" role="img" aria-label="PASS"><use href="#tick"></use></svg>
+					<p>The runner (<code translate="no">flow.sh</code>) exits 0 or 1. That number is the gate.</p>
+					<ul class="proofs">{mechanical.map((item) => <li>{item}</li>)}</ul>
+				</article>
+				<article class="galley" aria-labelledby="semantic-title">
+					<h2 id="semantic-title">The skill</h2>
+					<p>
+						The skill judges whether the work is hollow.
+						<span class="kill-line">A weak idea is killed at the gate.</span>
+					</p>
+					<ul class="proofs">{semantic.map((item) => <li>{item}</li>)}</ul>
+				</article>
+			</div>
+			<InstallLockup
+				command={command}
+				copyLabel="Copy"
+				copiedLabel="Copied"
+				selectLabel="Selected — press Ctrl+C"
+				secondaryHref={tutorial}
+				secondaryLabel="Install and first run"
+			/>
+			<ol class="pipeline" aria-label="Idea through Contract">
+				{stages.map((stage) => <li class="pipe">{stage.name}</li>)}
+			</ol>
+		</section>
+
+		<section class="band run" aria-labelledby="run-title">
+			<h2 class="band-title" id="run-title">Six gates before you build</h2>
+			<p class="band-lede">
+				Each stage writes a real file in your repo. <code translate="no">/flow next</code> will
+				not unlock the next one until the runner and the skill both agree.
+			</p>
+			<ol class="run-list">
+				{
+					stages.map((stage) => (
+						<li>
+							<span class="run-stage">{stage.name}</span>
+							<code class="run-file" translate="no">
+								{stage.file}
+							</code>
+						</li>
+					))
+				}
+			</ol>
+			<p class="band-foot">
+				Then <code translate="no">/flow card</code>. Done means proof in the world: a deployed
+				URL, a CLI that installs and runs, a public API, or a real skill run.
+			</p>
+		</section>
+
+		<section class="band stand" aria-labelledby="stand-title">
+			<div class="stand-copy">
+				<h2 class="stand-title" id="stand-title">Not an AI coding agent. A harness around one.</h2>
+				<p>
+					flow does not write your code. The agent still writes; the harness decides whether
+					that work may advance.
+				</p>
+			</div>
+			<div class="stand-actions">
+				<a class="action primary" href={tutorial}>Install and first run</a>
+				<a class="action" href="/docs/">Read the docs</a>
+			</div>
+		</section>
+	</main>
+</Landing>

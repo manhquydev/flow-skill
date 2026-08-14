@@ -1,0 +1,83 @@
+---
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+interface Props {
+	lang: 'en' | 'vi';
+}
+
+const { lang } = Astro.props;
+
+/**
+ * Read at build time from the repository so the printed edition can never drift.
+ * The site builds from `website/`, but a checkout without the skill tree is a valid
+ * state (the edition line is then omitted rather than guessed).
+ */
+function repoText(relative: string): string | null {
+	for (const base of ['..', '.']) {
+		try {
+			return readFileSync(resolve(process.cwd(), base, relative), 'utf8');
+		} catch {
+			continue;
+		}
+	}
+	return null;
+}
+
+function skillVersion(): string | null {
+	const source = repoText('skills/flow/SKILL.md');
+	return source?.match(/^\s{2}version:\s*"([^"]+)"/m)?.[1] ?? null;
+}
+
+function installerVersion(): string | null {
+	const source = repoText('npm-wrapper/package.json');
+	if (!source) return null;
+	try {
+		const parsed: unknown = JSON.parse(source);
+		const version = (parsed as { version?: unknown }).version;
+		return typeof version === 'string' ? version : null;
+	} catch {
+		return null;
+	}
+}
+
+const skill = skillVersion();
+const installer = installerVersion();
+
+const copy = {
+	en: {
+		imprint: 'flow — a gated build harness for coding agents.',
+		edition: `skill ${skill} · npm installer ${installer}`,
+		links: 'Project links',
+		docs: 'Docs',
+		locale: 'Language',
+	},
+	vi: {
+		imprint: 'flow — cổng cho agent viết code.',
+		edition: `skill ${skill} · npm installer ${installer}`,
+		links: 'Link dự án',
+		docs: 'Tài liệu',
+		locale: 'Ngôn ngữ',
+	},
+}[lang];
+
+const docsHome = lang === 'vi' ? '/vi/docs/' : '/docs/';
+---
+
+<footer class="colophon">
+	<div class="imprint">
+		<p class="imprint-line">{copy.imprint}</p>
+		{skill && installer && <p class="edition">{copy.edition}</p>}
+	</div>
+	<nav class="colophon-nav" aria-label={copy.links}>
+		<a href="https://github.com/manhquydev/flow-skill">GitHub</a>
+		<a href="https://www.npmjs.com/package/@manhquy/flow-skill" translate="no"
+			>@manhquy/flow-skill</a
+		>
+		<a href={docsHome}>{copy.docs}</a>
+	</nav>
+	<nav class="colophon-locale" aria-label={copy.locale}>
+		<a href="/" lang="en" aria-current={lang === 'en' ? 'page' : undefined}>English</a>
+		<a href="/vi/" lang="vi" aria-current={lang === 'vi' ? 'page' : undefined}>Tiếng Việt</a>
+	</nav>
+</footer>
