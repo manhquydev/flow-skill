@@ -96,8 +96,8 @@ check_route "check-card-done" "check"
 check_route "retro-ask" "retro"
 check_route "usage-metrics-ask" "usage"
 
-echo "J) run_all.sh registers this suite (self-guard, red-team F7)"
-has "$(cat "$HERE/run_all.sh" 2>/dev/null)" "test_flow_concierge.sh" "run_all.sh lists test_flow_concierge.sh"
+echo "J) manifest.txt registers this suite (self-guard, red-team F7)"
+has "$(cat "$HERE/manifest.txt" 2>/dev/null)" "test_flow_concierge.sh" "manifest.txt lists test_flow_concierge.sh"
 
 echo
 echo "RESULT: $pass passed, $fail failed"

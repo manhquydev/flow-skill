@@ -3,22 +3,8 @@ name: CI (npm-wrapper cross-OS tests)
 on:
   push:
     branches: [master]
-    paths:
-      - 'npm-wrapper/**'
-      - 'skills/flow/**'
-      - '.github/workflows/ci.yml'
-      - '.github/workflows/publish-npm-wrapper.yml'
-      - '.github/pull_request_template.md'
-      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches: [master]
-    paths:
-      - 'npm-wrapper/**'
-      - 'skills/flow/**'
-      - '.github/workflows/ci.yml'
-      - '.github/workflows/publish-npm-wrapper.yml'
-      - '.github/pull_request_template.md'
-      - '.github/ISSUE_TEMPLATE/**'
   workflow_dispatch: {}
 
 # Cancel superseded runs on the same ref to save minutes.
@@ -159,3 +145,14 @@ jobs:
           npm pack --dry-run --ignore-scripts --json > pack.json
           node -e "const p=require('./pack.json');const s=p[0].unpackedSize;if(s>1048576){console.error('unpacked > 1MB: '+s);process.exit(1)}else{console.log('unpacked '+s+' bytes')}"
         shell: bash
+
+  # Phase 2 initial set. Phase 3 appends pack-rehearsal; Phase 7 appends the keyless replay job.
+  all-checks-passed:
+    needs: [bash-suite, no-python-degradation, test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: verdict
+        run: |
+          results='${{ join(needs.*.result, ' ') }}'
+          for r in $results; do [ "$r" = "success" ] || { echo "non-success: $results"; exit 1; }; done

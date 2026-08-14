@@ -30,14 +30,26 @@ fi
 grep -qE "v${skill_v}|${skill_v}" README.md && ok "README mentions skill $skill_v" || fail "README missing skill $skill_v"
 grep -q "$npm_v" npm-wrapper/package.json && ok "npm package.json $npm_v" || fail "npm package.json missing version"
 
-# Every suite named by run_all.sh must exist on disk
-suite_line="$(grep -E 'for suite in ' tests/run_all.sh | head -1)"
-for suite in $suite_line; do
-  case "$suite" in
-    *.sh) [ -f "tests/$suite" ] || fail "run_all suite missing: $suite" ;;
-  esac
-done
-ok "run_all suite files checked"
+# Every suite named in tests/manifest.txt must exist on disk.
+# Empty extract is a fail (do not ok a no-op after the runner left the hardcoded loop).
+n=0
+if [ ! -f tests/manifest.txt ]; then
+  fail "missing tests/manifest.txt"
+else
+  while IFS= read -r suite || [ -n "$suite" ]; do
+    suite="${suite%$'\r'}"
+    case "$suite" in
+      ''|\#*) continue ;;
+    esac
+    n=$((n + 1))
+    [ -f "tests/$suite" ] || fail "manifest suite missing: $suite"
+  done < tests/manifest.txt
+fi
+if [ "$n" -eq 0 ]; then
+  fail "empty suite registry (tests/manifest.txt)"
+else
+  ok "manifest suite files checked ($n)"
+fi
 
 if grep -q "dist_tag=next\|default: 'next'\|options: \[next, latest\]" .github/workflows/publish-npm-wrapper.yml 2>/dev/null; then
   ok "publish workflow uses next prerelease policy"

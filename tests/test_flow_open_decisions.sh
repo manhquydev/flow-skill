@@ -168,8 +168,8 @@ has "$out" "no ## Open decisions" "heading absent -> 'no ## Open decisions'"
 no "$out" "leftover gate box" "missing heading does not dump Gate boxes"
 rm -rf "$SB"
 
-echo "E) run_all.sh registers this suite (self-guard)"
-has "$(cat "$HERE/run_all.sh" 2>/dev/null)" "test_flow_open_decisions.sh" "run_all.sh lists test_flow_open_decisions.sh"
+echo "E) manifest.txt registers this suite (self-guard)"
+has "$(cat "$HERE/manifest.txt" 2>/dev/null)" "test_flow_open_decisions.sh" "manifest.txt lists test_flow_open_decisions.sh"
 
 echo
 echo "RESULT: $pass passed, $fail failed"
