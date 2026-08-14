@@ -2,6 +2,29 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.7.0] — 2026-08-14 — ships skill v0.30.0 (discipline-layer identity + CI/eval hardening)
+
+Skill-content release. Ships skill product **v0.30.0**: identity ADR (gates and
+receipts, never the runtime), keyless `eval --record`/`--replay`, pack-rehearsal,
+`all-checks-passed`, macOS live-eval refuse-guard, B1-S `fcdd`/`fcde` (see root
+`CHANGELOG.md` `## 0.30.0`). Installer CLI contract unchanged. Publishes to
+dist-tag **`latest`**.
+
+### Changed
+- Bundled skill tree re-synced from monorepo `skills/flow/`.
+- Install: **`npx @manhquy/flow-skill@latest`**.
+
+## [0.6.0] — 2026-08-13 — ships skill v0.29.0 (spec-kit imports + converge)
+
+Skill-content release. Ships skill product **v0.29.0**: `/flow clarify`, card
+independent-test field, `/flow converge`, converge eval modality (see root
+`CHANGELOG.md` `## 0.29.0`). Installer CLI contract unchanged. Publishes to
+dist-tag **`latest`**.
+
+### Changed
+- Bundled skill tree re-synced from monorepo `skills/flow/`.
+- Install: **`npx @manhquy/flow-skill@latest`**.
+
 ## [0.5.0] — 2026-08-11 — ships skill v0.28.0 (attested execution)
 
 Installer minor: bundles skill **v0.28.0** (risk + attestation receipts + auto trust plane).

@@ -5,10 +5,11 @@ Cài skill **flow** vào coding agent bằng một lệnh.
 | | |
 |---|---|
 | **Package** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) (installer CLI) |
-| **GA hiện tại** | **0.4.1** — ships skill product **v0.27.0** |
+| **GA hiện tại** | **0.7.0** — ships skill product **v0.30.0** |
 | **Nền tảng** | macOS · Linux · Windows (cùng code path Node) |
 | **Yêu cầu** | Node.js **≥ 22.14** |
 | **Source** | [github.com/manhquydev/flow-skill](https://github.com/manhquydev/flow-skill) |
+| **Website** | [flowskill.io.vn](https://flowskill.io.vn) |
 
 flow là harness build có cổng (`/flow`): ý tưởng → cổng trung thực → bằng chứng done thật. Package này chỉ **cài** skill đó vào skill home của agent.
 
@@ -34,7 +35,7 @@ npx @manhquy/flow-skill@latest
 
 ```bash
 npx @manhquy/flow-skill@latest --help
-# expect: flow-skill v0.4.x (ships skill v0.27.x)
+# expect: flow-skill v0.7.x (ships skill v0.30.x)
 ```
 
 ### Lệnh hay dùng
@@ -89,8 +90,8 @@ npx @manhquy/flow-skill@latest --yes --all --dry-run --json
 |-----|--------|
 | `npx @manhquy/flow-skill@latest` | Bare `npx @manhquy/flow-skill` (cache npx có thể cũ) |
 | **Chạy** CLI để copy skill | Chỉ `npm i` (chỉ thêm package; không cài skill vào agent home) |
-| Pin installer `@0.4.1` nếu cần cố định | Pin npm `@0.27.0` (version **skill** ≠ version package) |
-| Ưu tiên `@latest` / `@0.4.x` | `@rc` (đã retire / tụt hậu) |
+| Pin installer `@0.7.0` nếu cần cố định | Pin npm `@0.30.0` (version **skill** ≠ version package) |
+| Ưu tiên `@latest` / `@0.7.x` | `@rc` (đã retire / tụt hậu) |
 
 **Hai trục version:** `package.json` = installer CLI; `SKILL.md` metadata = skill product. Cả hai hiện trong `--help` và event JSONL `plan` (`version` + `skillVersion`).
 
@@ -137,7 +138,7 @@ rm -rf <project>/.claude/skills/flow
 |------------|------------|
 | Agent không có `/flow` sau `npm i` | Chạy `npx @manhquy/flow-skill@latest` (phải **execute** installer) |
 | Skill cũ sau khi “cài lại” | Luôn dùng `@latest`; tránh bare package name |
-| `No matching version found` với `@0.27.0` | Đó là version **skill**. Dùng `@latest` hoặc `@0.4.x` |
+| `No matching version found` với `@0.30.0` | Đó là version **skill**. Dùng `@latest` hoặc `@0.7.x` |
 | Node quá cũ | Cài Node ≥ 22.14 (`nvm install 22`, v.v.) |
 | Windows `EBUSY` / `EPERM` | Đóng agent đang giữ file trong skill dir; chạy lại |
 | Stale install lock | Xóa `<parent>/.flow-skill.installing.lock` nếu reclaim thất bại |
@@ -147,7 +148,7 @@ rm -rf <project>/.claude/skills/flow
 ## JSONL (`--json`)
 
 ```jsonl
-{"event":"plan","version":"0.4.1","skillVersion":"0.27.0","dryRun":false,"scope":"global","targets":["claude"]}
+{"event":"plan","version":"0.7.0","skillVersion":"0.30.0","dryRun":false,"scope":"global","targets":["claude"]}
 {"event":"install:start","target":"claude","dests":["~/.claude/skills/flow"]}
 {"event":"install:done","target":"claude","dests":["~/.claude/skills/flow"],"result":"success","error":null,"warnings":[]}
 {"event":"summary","success":true,"total":1,"attempted":1,"installed":1,"failed":0,"skipped":0,"aborted":false}
