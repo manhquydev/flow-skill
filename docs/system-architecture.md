@@ -65,12 +65,19 @@ On-disk artifacts (in the project being built):
    read-only session-story brief (last session, in-flight + dwell, gate state, one `NEXT ->`
    line) composed entirely from existing state (events log, `.inflight` registry, gate scan).
 1. `/flow next` walks stages 00->05; each gate = mechanical (flow.sh) + semantic (gate-rules.md).
-2. After stage 05 passes, `/flow card` creates cards; each card is one scoped build session.
+   Unresolved product decisions live as `- [ ]` bullets under `## Open decisions` (Scope/PRD/
+   Contract) — the same box scanner blocks `next`; `/flow clarify` lists them and
+   `references/clarify.md` is the bounded write-back ritual (advisory, never a `next` gate).
+2. After stage 05 passes, `/flow card` creates cards; each card names an `## Independent test`
+   (user-visible slice proof) and is one scoped build session.
 3. Cards build to the contract (the seam), are reviewed adversarially, verified on the LIVE
    URL (done = world-state, not "tests pass"), then marked done. `/flow auto` runs this loop
    autonomously with Tier-A/B/C and hard stops. `/flow status` (called far more than any other
    verb in practice) surfaces the same `NEXT ->` decision ladder as `resume` at any point.
-4. Every transition writes durable records; deliberate skips open a `DEBT.md` line.
+4. **Flow-back reconciliation:** `/flow converge` (v0.29) assesses present code vs the plan and
+   **appends** remainder cards transactionally (never edits an existing card) for any declared
+   `FRn`/interface/MUST the tree still owes — the "hollow-complete" gap per-card gates miss.
+5. Every transition writes durable records; deliberate skips open a `DEBT.md` line.
 
 ## Components
 | Path | Responsibility |
@@ -80,10 +87,10 @@ On-disk artifacts (in the project being built):
 | `skills/flow/harness/` | durable layer (Python CLI + sqlite + Rust toggle) |
 | `skills/flow/_templates/` | the 7 gated artifacts (verbatim buildflow) |
 | `skills/flow/law/` | CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md |
-| `skills/flow/references/` | 21 semantic playbooks (gates, agents, loop, design, auto, v0.22 concierge/native-rituals/forge-idea) |
-| `skills/flow/eval/` | behavioral-eval fixtures: artifact-vs-gate + v0.22 routing judge (`fixtures/routing/`) |
+| `skills/flow/references/` | 24 semantic playbooks (gates, agents, loop, design, auto, v0.22 concierge/native-rituals/forge-idea, v0.29 clarify/converge/artifact-lifecycle) |
+| `skills/flow/eval/` | behavioral-eval fixtures: artifact-vs-gate + v0.22 routing judge (`fixtures/routing/`) + v0.29 converge repo-state gap judge (`fixtures/converge/`) |
 | `skills/flow/playbooks/` | paid-for stack knowledge (read before, harvest after) |
-| `tests/` | 46 suites across runner / harness / scenarios / loop / eval (v0.21: raw-on-INVALID + circuit breaker + prune + envelope-strip; v0.22: routing judge) / resume / status-legibility / concierge / native-rituals / forge-idea / harness trust-align (v0.24: lineage-contract + strict + trust-complete + docs-contract) / graph executor (v0.25: schema + executor + crash-resume + lint + auto-run + parallel-cards + planning-parity). GitHub Actions `bash-suite` job (ubuntu+macos+windows) is the source of truth. |
+| `tests/` | 58 suites across runner / harness / scenarios / loop / eval (v0.21: raw-on-INVALID + circuit breaker + prune + envelope-strip; v0.22: routing judge) / resume / status-legibility / concierge / native-rituals / forge-idea / harness trust-align (v0.24: lineage-contract + strict + trust-complete + docs-contract) / graph executor (v0.25: schema + executor + crash-resume + lint + auto-run + parallel-cards + planning-parity). GitHub Actions `bash-suite` job (ubuntu+macos+windows) is the source of truth. |
 | `install.sh` / `install.ps1` | install to ~/.claude or a project |
 
 ## Distribution channels
@@ -116,9 +123,14 @@ escalation). Decision matrix in `references/claudekit-skills.md`.
 Chat is the default entry: `references/concierge.md` routes any natural-language ask through
 `flow.sh status` (mechanical ground truth) → `references/flow-catalog.tsv` (intent-class ×
 state → action, TSV) → one proposed action, per a default-deny May-run/Must-ask
-classification covering all 27 dispatcher verbs. Typed verbs bypass the concierge entirely.
+classification covering all 29 dispatcher verbs (v0.29 added `clarify` → May-run, `converge` →
+Must-ask). Typed verbs bypass the concierge entirely.
 A sixth ritual, `references/forge-idea.md` (adapted from BMAD-METHOD's `bmad-forge-idea`,
 MIT), offers persona-driven idea pressure-testing at Idea/Scope, opt-in, never a gate
 condition. The routing judge (`flow.sh eval --stage routing`) is a separate eval modality
 from the artifact-vs-gate-rules judge — own manifest, prompt, verdict vocabulary
-(MATCH/MISS/INVALID), results stream, and 90-call/batch cost ceiling.
+(MATCH/MISS/INVALID), results stream, and 90-call/batch cost ceiling. **v0.29 adds a THIRD
+modality**, the converge judge (`flow.sh eval --stage converge`): it feeds a whole repo-state
+(flow docs + card claims + allow-listed source) and asks `GAP|CONVERGED` — does the present
+code still owe a declared promise? Same self-contained shape (own manifest/results/cost cap),
+its own verdict vocabulary (GAP/CONVERGED/INVALID), proving the `/flow converge` gap-detection.

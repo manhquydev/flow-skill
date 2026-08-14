@@ -3,7 +3,7 @@
 *Tiếng Việt: [README_VN.md](README_VN.md).*
 
 [![npm](https://img.shields.io/npm/v/@manhquy/flow-skill?label=npm&color=cb3837)](https://www.npmjs.com/package/@manhquy/flow-skill)
-[![tests](https://img.shields.io/badge/tests-48%20suites-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-58%20suites-brightgreen)](tests/)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions%20%C2%B7%203%20OS-blue)](.github/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -16,7 +16,7 @@ claudekit required. Optional multi-model review (Claude · Codex · Antigravity)
 |---|---|
 | **Skill product** | **v0.29.0** |
 | **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.5.x** (ships the skill above) |
-| **Tests / CI** | 48 suites · Ubuntu · macOS · Windows |
+| **Tests / CI** | 58 suites · Ubuntu · macOS · Windows |
 | **License** | MIT |
 
 **Website:** [flowskill.io.vn](https://flowskill.io.vn) (Cloudflare Pages). Preview `*.pages.dev` hostnames are not the public site.
@@ -70,7 +70,7 @@ npx @manhquy/flow-skill@latest --yes --all --dry-run --json
 
 # Confirm what you will get (installer + bundled skill versions)
 npx @manhquy/flow-skill@latest --help
-# expect: flow-skill v0.5.x (ships skill v0.28.x)
+# expect: flow-skill v0.6.x (ships skill v0.29.x)
 ```
 
 ### Verify install
@@ -416,7 +416,7 @@ $ /flow design page.html                   # static UI check before a frontend c
 ```
 
 > Verified: a full happy/edge e2e (22 checks) runs green against a fresh per-project install on
-> Windows/Git Bash; the dev suite is 48 suites (`bash tests/run_all.sh`).
+> Windows/Git Bash; the dev suite is 58 suites (`bash tests/run_all.sh`).
 
 ## Project types
 `/flow project-type <web|cli|library|skill>` adapts the Contract seam, the card sequence, and
@@ -433,5 +433,5 @@ that survives sessions.
 
 ## Run the tests
 ```bash
-bash tests/run_all.sh    # 48 suites; needs bash (+ python for the harness/propose suites)
+bash tests/run_all.sh    # 58 suites; needs bash (+ python for the harness/propose suites)
 ```
