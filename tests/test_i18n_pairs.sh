@@ -34,6 +34,10 @@ setup_repo() {
   git -C "$tmp" init -q
   git -C "$tmp" config user.email t@t
   git -C "$tmp" config user.name t
+  # Windows Git defaults to autocrlf=true; pin LF so HEAD:path and the
+  # dirty-CRLF proof in F are not rewritten by checkout filters.
+  git -C "$tmp" config core.autocrlf false
+  git -C "$tmp" config core.eol lf
   git -C "$tmp" add README.md README_VN.md
   git -C "$tmp" commit -q -m init
   en_b="$(git -C "$tmp" rev-parse HEAD:README.md)"
@@ -97,14 +101,9 @@ rm -rf "$tmp"
 echo "F) dirty working-tree CRLF rewrite still verifies against HEAD:path"
 setup_repo
 # Rewrite listed .md to CRLF without committing. HEAD:path stays LF.
-crlf_tmp="$(mktemp)"
-while IFS= read -r line || [ -n "$line" ]; do
-  printf '%s\r\n' "$line"
-done < "$tmp/README.md" > "$crlf_tmp"
-cat "$crlf_tmp" > "$tmp/README.md"
-rm -f "$crlf_tmp"
-# Prove the working tree is dirty-CRLF and would fool hash-object.
-if grep -q $'\r' "$tmp/README.md"; then
+# Use python (binary) — Git-Bash grep/read treat CR as a line ending on Windows.
+python3 -c 'import sys; p=sys.argv[1]; d=open(p,"rb").read().replace(b"\r\n",b"\n").replace(b"\n",b"\r\n"); open(p,"wb").write(d)' "$tmp/README.md"
+if python3 -c "import sys; sys.exit(0 if b'\\r' in open(sys.argv[1],'rb').read() else 1)" "$tmp/README.md"; then
   ck 0 0 "working tree now has CR"
 else
   ck 0 1 "working tree now has CR"
