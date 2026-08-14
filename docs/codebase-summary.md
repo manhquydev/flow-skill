@@ -39,7 +39,7 @@ flow-skill/
 └── README.md
 ```
 
-**Release / versioning:** skill product (`0.27.x`) ≠ npm package (`0.4.x`, GA on `latest`).  
+**Release / versioning:** skill product (`0.30.x`) ≠ npm package (`0.7.x`, GA on `latest`).  
 See [`docs/release-process.md`](release-process.md).
 
 ## Commands (`/flow ...`)
