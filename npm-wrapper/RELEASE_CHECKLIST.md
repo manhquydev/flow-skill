@@ -106,7 +106,9 @@ npm unlink -g @manhquy/flow-skill
 ```
 
 - [ ] `npm-wrapper/CHANGELOG.md` has a section for this version.
-- [ ] Root `README.md` / `README_VN.md` status table npm line updated.
+- [ ] Root `README.md` / `README_VN.md` status table npm line updated on both sides, then
+      `bash scripts/check-i18n-pairs.sh` (green). After a committed consistent pair:
+      `bash scripts/check-i18n-pairs.sh record <en_path>` and commit `docs/i18n-pairs.txt`.
 - [ ] Skill product version coherent if skill content changed (`docs/release-process.md`).
 - [ ] `bin/cli.mjs` still `100755` in git (`git ls-files -s bin/cli.mjs`).
 - [ ] Per-PR `pack-rehearsal` job is green (pack → `--compare` → install → e2e). The dry-run size audit above is a different gate.

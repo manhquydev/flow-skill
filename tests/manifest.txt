@@ -61,3 +61,4 @@ test_release_coherence.sh
 test_harness_cli_optional_smoke.sh
 test_manifest_runner.sh
 test_doc_budgets.sh
+test_i18n_pairs.sh

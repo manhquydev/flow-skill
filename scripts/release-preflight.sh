@@ -26,6 +26,14 @@ else
   fail "doc word-budget breach"
 fi
 
+echo
+echo "--- i18n pairs ---"
+if bash "$ROOT/scripts/check-i18n-pairs.sh"; then
+  ok "EN/VI committed-blob pairs"
+else
+  fail "EN/VI pair drift (committed HEAD:path vs docs/i18n-pairs.txt)"
+fi
+
 # Resolve node (Git Bash on Windows often lacks node on PATH; try common locations).
 NODE=""
 if command -v node >/dev/null 2>&1; then

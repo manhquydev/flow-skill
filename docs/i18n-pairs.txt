@@ -1,0 +1,12 @@
+# EN/VI committed-blob pairs. Format: en_path vi_path en_blob vi_blob
+# Hashes are `git rev-parse HEAD:<path>` at last record — never a dirty-tree hash-object.
+# Refresh after both sides of a pair are committed consistent:
+#   bash scripts/check-i18n-pairs.sh record <en_path>
+#
+# Wave-1 initial record = HEAD blobs (A5 is a drift detector, not a translation rewrite).
+# Last full root sync: 48934b8 (2026-08-13). Observed pre-existing content drift at record:
+#   README.md installer pin 0.5.x vs README_VN.md 0.6.x; VN still says "34 bộ test";
+#   EN has Antigravity, monorepo-root, and Codex try-it sections VN lacks.
+#   npm-wrapper/README.md 0.5.1 / skill v0.28.1 vs README_VN.md 0.4.1 / skill v0.27.0.
+README.md README_VN.md 4241b165e772cd4a3a908c8436c658cdf48a0fcc ff6a00d4545481f3ff4edbbf472721b46542820c
+npm-wrapper/README.md npm-wrapper/README_VN.md 9f3346a31835b8cec71397025ea2a562a107fbd9 7a7119908aa2d4c5dede9b946b2ea25117c3d381
