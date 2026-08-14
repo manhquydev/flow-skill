@@ -11,9 +11,19 @@ On a host with real `timeout`/`gtimeout` (or `FLOW_EVAL_UNBOUNDED=1` for that ru
 bash skills/flow/runner/flow.sh eval --record --n 3
 ```
 
-That is 9 fixtures × 3 + 1 probe = 27 + 1 billable calls. Writes `meta` plus
-`<fixture>/<vote>.txt` (one `GATE-EVAL-<nonce>: FLAG|PASS` line each). Never commit
-raw `claude --output-format json` envelopes (`session_id` / `cwd` must stay out).
+Plan accounting is 11 fixtures × 3 + 1 probe = 33 + 1 billable calls (9 heading-mapped
+fixtures bill 27 + probe today). Writes `meta` plus `<fixture>/<vote>.txt` (one
+`GATE-EVAL-<nonce>: FLAG|PASS` line each). Never commit raw `claude --output-format json`
+envelopes (`session_id` / `cwd` must stay out).
+
+A `gate-rules.md` edit invalidates `gate_rules_sha` in `meta`. Refresh `--record` and the
+rules edit must land in **one commit**. No recorded batch exists yet — CI `eval-replay`
+skip-with-notice until the operator records. Do not invent transcripts.
+
+**B1-S live measurement (operator checkpoint, billable):** `eval --n 3` on `fcdd`/`fcde`
+(fresh-judge only; replay is not the measurement), then a full `--record` as above.
+**B1 escalation:** recurring hollow-done decoys that name no artifact/command after this
+addendum lands → escalate to full structured lineage evidence.
 
 ## Replay (keyless)
 

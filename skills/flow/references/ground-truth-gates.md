@@ -40,6 +40,13 @@ and used only to add color, never to pass a gate.
 7. **Hand-edit `status: done` is not trusted for deps** until Evidence **and** Verify boxes
    pass the same floor (`ready` re-validates Evidence + unchecked Verify + `[FILL]`; graph
    executor mirrors).
+8. **Every done-evidence item names its artifact or command.** Each `## Evidence` item must
+   name the path/URL of the artifact or the command that produced it. Plausible prose that
+   names neither is hollow even when the mechanical multi-signal floor passes — the card
+   gate's semantic challenge catches it (`gate-rules.md` → Card gate). Old prose-only
+   evidence still passes `flow.sh check` (the floor is unchanged). **Escalate to full
+   structured lineage evidence (B1)** only if hollow-done decoys of this class recur in
+   dogfood or live eval after this addendum lands.
 
 ## Bug-fix cards: prove the test was tied to the bug
 When a card's job is fixing a bug/regression (not new behavior), a passing test is not yet
