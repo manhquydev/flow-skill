@@ -10,6 +10,9 @@ description: "flow has two version numbers on purpose. One versions the installe
 | **Skill product** | `0.30.0` | The gates, `SKILL.md`, the runner, references, and templates — the thing that judges your build. |
 | **npm installer** | `0.7.0` | The `@manhquy/flow-skill` CLI that copies the skill into your agent homes. |
 
+`npx @manhquy/flow-skill@latest` currently resolves to installer **0.7.0** on the npm
+`latest` dist-tag.
+
 Check both from your own machine rather than from any document:
 
 ```bash

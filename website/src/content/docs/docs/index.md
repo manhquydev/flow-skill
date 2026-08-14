@@ -55,12 +55,17 @@ machinery; they do not teach and they do not argue.
 - [Command reference](/docs/reference/commands)
 - [Install CLI](/docs/reference/install-cli)
 - [Install paths](/docs/reference/install-paths)
+- [Changelog](/docs/reference/changelog)
 - [Glossary](/docs/reference/glossary)
 
 ## The shortest possible start
 
+Current pairing: skill product **v0.30.0**, npm installer **0.7.0** on `@latest`. See
+[Versions: npm installer vs skill product](/docs/explanation/versions-npm-vs-skill).
+
 ```bash
 npx @manhquy/flow-skill@latest
+# expect: flow-skill v0.7.0 (ships skill v0.30.0)
 ```
 
 Restart your agent, open a project, and say what you want to build in plain language. Chat

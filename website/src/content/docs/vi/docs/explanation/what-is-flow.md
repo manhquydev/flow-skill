@@ -6,7 +6,7 @@ lang: vi
 
 `flow` là **harness build có cổng**. Nó đưa sản phẩm từ ý tưởng tới bằng chứng done thật — URL đã deploy, CLI cài rồi chạy, library API import được, hoặc skill đạt done-definition của chính nó — qua các cổng phải thỏa trung thực trước khi tiến.
 
-Nó là skill bạn cài vào coding agent, không phải dịch vụ đăng ký và không phải framework code phụ thuộc. **Độc lập**: không bắt buộc AgentKit hay claudekit, dù review đa model tùy chọn mở khi các engine đó có mặt.
+Nó là skill bạn cài vào coding agent, không phải dịch vụ đăng ký và không phải framework code phụ thuộc. **Flow sở hữu cổng và biên nhận, không bao giờ sở hữu runtime.** **Độc lập**: không bắt buộc AgentKit hay claudekit, dù review đa model tùy chọn mở khi các engine đó có mặt. Cặp hiện tại: skill **v0.30.0**, npm installer **0.7.0**.
 
 ## Vấn đề nó tồn tại vì
 

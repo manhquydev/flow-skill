@@ -37,9 +37,10 @@ const semantic = [
 				<p class="display" translate="no">flow</p>
 				<h1 class="headline">Cổng chỉ mở khi cả hai cùng đồng ý.</h1>
 				<p class="lede">
-					Agent vẫn viết code, còn cổng mở hay đóng thì flow quyết. Bị chặn ở cổng thì dừng luôn,
-					chứ không phải fail.
+					Agent vẫn viết code, còn cổng mở hay đóng thì flow quyết. Flow sở hữu cổng và biên
+					nhận, không bao giờ sở hữu runtime. Bị chặn ở cổng thì dừng luôn, chứ không phải fail.
 				</p>
+				<p class="current" translate="no">skill v0.30.0 · npm 0.7.0</p>
 				<p class="verdict">Phải cả flow.sh lẫn skill thì cổng mới mở.</p>
 			</div>
 			<div class="galleys">
@@ -101,7 +102,11 @@ const semantic = [
 		<section class="band stand" aria-labelledby="stand-title">
 			<div class="stand-copy">
 				<h2 class="stand-title" id="stand-title">flow gác cổng, chứ không viết code.</h2>
-				<p>Agent vẫn viết. Được đi tiếp hay phải dừng thì cổng quyết.</p>
+				<p>
+					Agent vẫn viết. Được đi tiếp hay phải dừng thì cổng quyết. Cặp hiện tại: skill
+					v0.30.0, cài bằng <code translate="no">npx @manhquy/flow-skill@latest</code> (npm
+					0.7.0).
+				</p>
 			</div>
 			<div class="stand-actions">
 				<a class="action primary" href={tutorial}>Cài và chạy lần đầu</a>

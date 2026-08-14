@@ -176,6 +176,14 @@ html[lang='vi'] .headline {
 	text-wrap: pretty;
 }
 
+.current {
+	margin: 0.85rem 0 0;
+	color: var(--cyan-deep);
+	font-family: var(--font-mono);
+	font-size: 0.82rem;
+	letter-spacing: 0.02em;
+}
+
 /* Verdict sits with the copy cluster. Slack in the hero row collects at the column foot. */
 .verdict {
 	margin: 1.75rem 0 0;
@@ -845,6 +853,7 @@ html[lang='vi'] .headline {
 .display,
 .headline,
 .lede,
+.current,
 .verdict {
 	animation: ink-take 400ms ease-out backwards;
 }
@@ -855,6 +864,10 @@ html[lang='vi'] .headline {
 
 .lede {
 	animation-delay: 160ms;
+}
+
+.current {
+	animation-delay: 200ms;
 }
 
 .verdict {
@@ -967,6 +980,7 @@ html[lang='vi'] .headline {
 	.display,
 	.headline,
 	.lede,
+	.current,
 	.verdict,
 	.hero::before,
 	.galley,
