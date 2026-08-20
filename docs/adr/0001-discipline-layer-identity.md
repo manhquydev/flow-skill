@@ -125,3 +125,4 @@ Deferred (not rejected; reopen only on the stated trigger):
 - Attestation substrate stays git-blob-only; hybrid reopens only on B1 escalation **and**
   tripwire-4 adopter demand
 - i18n: EN+VI blob-hash record only; glossary at a third language
+- Own orchestration runtime (`flow-orch`) — a SEPARATE product for extensibility; reopen only on a named flip-tripwire **and** capacity (tripwire 5). flow-skill stays the discipline layer that talks to it the same way it talks to any host

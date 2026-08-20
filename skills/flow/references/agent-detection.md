@@ -74,6 +74,7 @@ Manager / real `agy` terminal, paste the ReviewResult back); an empty Gemini res
 - **Same gate regardless of path.** The buildflow gate (`flow.sh` + `gate-rules.md`) is the
   contract. An agent fills an artifact; the gate still judges it. A missing agent never
   lowers a gate — it only changes who drafts.
+- **No named mux required.** Absence of any multiplexer never fails a gate. Parallel occupancy is host-owned — `host-agnostic-parallel.md`.
 - **Context isolation (orchestration-protocol).** Give each subagent ONLY: the task, the
   specific files to read/modify, acceptance criteria, and relevant law/contract excerpts.
   Never the full session history. One card = one scoped brief.

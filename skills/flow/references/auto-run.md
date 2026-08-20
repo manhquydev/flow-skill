@@ -101,6 +101,7 @@ and log the durable metric (`flow.sh harness intervention add`) per `codex-integ
 parallel, each in its own worktree/session. Merge back in card-number order, one at a time,
 running the merged app once between merges. A merge conflict means the overlap check was
 gamed — stop and re-plan. Cards needing the deployed app (contract-tests, e2e) are serial.
+Placement and wait stay with the host; see `host-agnostic-parallel.md`.
 
 **Human-driven `/flow workspace` coexists with this auto loop.** `auto` provisions a worktree per
 card internally (`git worktree add ../<project>-C-NNN -b card/C-NNN`); `/flow workspace add card/C-NNN`
