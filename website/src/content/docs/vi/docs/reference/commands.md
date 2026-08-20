@@ -63,17 +63,22 @@ Trên Windows PowerShell, gọi `<skill-dir>\runner\flow.cmd <command>` chứ kh
 | `/flow project-type [web\|cli\|library\|skill]` | Xem hoặc đặt loại dự án, chọn luật bằng chứng done và seam contract. Mặc định `web`. |
 | `/flow debt add\|list` | Ghi hoặc liệt kê skip cổng có chủ đích trong `DEBT.md`. Mục nhóm bảo mật chỉ operator. |
 
-## Drift và audit
+## Kiểm drift {#drift-checks}
 
-Cả bốn chỉ cảnh báo: gắn cờ, không tự sửa.
+`/flow contract`, `/flow tokens`, `/flow coherence`, và `/flow consistency` mỗi cái gắn cờ một trục drift và không bao giờ tự sửa. Cùng nhau chúng tạo lattice: version, URL, design token, và artifact còn truy vết tới nhau không.
 
-| Lệnh | Kiểm gì |
-|---|---|
-| `/flow contract` | Lệch base-URL client versus prefix path server (web). |
-| `/flow tokens` | Token khai báo trong `DESIGN.md` versus CSS thực dùng: chưa dùng, lệch giá trị, orphan. |
-| `/flow coherence` | Lệch version giữa các trường version khai báo. |
-| `/flow consistency` | Phủ liên-artifact: mỗi `FRn` trong PRD được một card claim và một interface contract phục vụ, success metric có số, không còn placeholder. |
-| `/flow design <file>` | Kiểm `DESIGN.md` cơ học trên file UI. |
+| Lệnh | Trục | Nó báo gì |
+|---|---|---|
+| `/flow coherence` | version | Lệch version giữa các trường version khai báo, lát cắt doc-versus-code rẻ |
+| `/flow contract` | URL | Lệch base-URL client versus prefix path server, lớp double-`/api` và mixed-prefix mà tool diff schema bỏ sót (web) |
+| `/flow tokens` | design | Token khai báo trong `DESIGN.md` đối với CSS thực dùng: token chưa dùng, lệch giá trị, biến orphan |
+| `/flow consistency` | truy vết | Mỗi `FRn` trong PRD được một card claim và một interface contract phục vụ, success metric có số, không còn placeholder |
+
+Chạy `consistency` và `coherence` sau cổng contract và trước khi cắt card. Chạy `contract` và `tokens` lúc build các bề mặt chúng mô tả.
+
+`/flow design <file>` là kiểm cơ học liên quan trên một file UI chứ không phải quét cả dự án.
+
+Mô tả và thời điểm: [`README_VN.md`](https://github.com/manhquydev/flow-skill/blob/master/README_VN.md)
 
 ## Lớp bền vững và tri thức
 
@@ -84,6 +89,25 @@ Cả bốn chỉ cảnh báo: gắn cờ, không tự sửa.
 | `/flow usage [--global\|--prune]` | Tổng hợp usage-log JSONL cục bộ thành analytics build: cycle time, tỷ lệ fail cổng, dwell theo stage và theo card, phân bố lệnh. Chỉ lưu cục bộ. |
 | `/flow retro` | In ba câu hỏi retro. Operator viết dòng, không bao giờ agent. |
 
+## Lệnh phụ harness {#harness-subcommands}
+
+`/flow harness <args>` là passthrough xuống lớp bền vững, CLI Python và SQLite do flow sở hữu, lưu thứ sống sót giữa các session.
+
+| Subcommand | Mục đích |
+|---|---|
+| `intake` | Ghi yêu cầu vào với type, tóm tắt, và cờ; cờ rủi ro như auth tự nâng lane |
+| `story` | Theo dõi một đơn vị work và bằng chứng của nó. Hoàn tất bằng `story complete --proof-source …` |
+| `trace` | Bản ghi được chấm tier viết khi check card pass |
+| `decision` | Ghi một quyết định rồi đóng vòng sau với kết quả thực tế |
+| `backlog` | Backlog cải tiến mà `propose` ghi vào |
+| `query` | Đọc bản ghi lại |
+| `audit` | Chấm entropy và drift trong bản ghi tích lũy |
+| `propose` | Đào friction và can thiệp lặp thành mục backlog; xác định, bắn khi từ hai lần trở lên |
+
+Hầu hết những cái này engine viết hộ bạn: tiến một stage seed một intake, lần check pass ghi một trace, nên bề mặt thủ công chủ yếu là đọc. Lớp này tùy chọn: thiếu `python3` thì cổng vẫn chạy và chỉ store này tắt.
+
+Schema, flag, và bảng quyền hạn live: [`skills/flow/harness/README.md`](https://github.com/manhquydev/flow-skill/blob/master/skills/flow/harness/README.md)
+
 ## Evaluation
 
 | Lệnh | Làm gì |
@@ -93,7 +117,7 @@ Cả bốn chỉ cảnh báo: gắn cờ, không tự sửa.
 
 ## Xem thêm
 
-- [CLI cài đặt](/vi/docs/reference/install-cli)
-- [Lệnh drift](/vi/docs/reference/drift-commands)
-- [Lệnh phụ harness](/vi/docs/reference/harness-subcommands)
+- [Cờ CLI cài đặt](/vi/docs/how-to/troubleshoot-install#install-cli-flags)
+- [Kiểm drift](#drift-checks)
+- [Lệnh phụ harness](#harness-subcommands)
 - Nguồn đầy đủ: [`skills/flow/SKILL.md`](https://github.com/manhquydev/flow-skill/blob/master/skills/flow/SKILL.md)

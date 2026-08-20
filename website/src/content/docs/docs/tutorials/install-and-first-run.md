@@ -1,13 +1,13 @@
 ---
 title: "Install and first run"
-description: "Install the flow skill with npx, verify both version numbers, and watch a gate fail honestly for the first time."
+description: "Install, restart, say what you want to build (or type /flow), and get a status, a next action, or a gate result."
 ---
 
-By the end of this tutorial the `flow` skill is installed into your agent's skill home, you
-have confirmed which versions you got, and you have seen a gate refuse to advance — which is
-the behaviour the whole harness exists for.
+By the end of this tutorial the `flow` skill is on disk in an agent home, the agent has been
+restarted, and the harness has answered with a **status, a next action, or a gate result**.
 
-Time: about ten minutes.
+Time: one command, one restart, then one mechanical check. The optional deep path (versions
+and a gate-refuse transcript) is about ten minutes. That is not the success line.
 
 ## Before you start
 
@@ -46,32 +46,7 @@ restart, the agent does not know the skill exists.
 | Cursor / Agents home | reload the tool, open the flow skill |
 | Antigravity | restart the IDE or `agy`, then `/flow` |
 
-## Step 3 — confirm what you installed
-
-There are two version numbers on purpose, and confirming both now saves confusion later.
-
-```bash
-npx @manhquy/flow-skill@latest --help
-```
-
-The installer prints its own version and the skill version it ships:
-
-```
-flow-skill v0.7.0 (ships skill v0.30.0)
-```
-
-Then read the skill version from disk:
-
-```bash
-grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
-# version: "0.30.0"
-```
-
-`0.7.0` is the npm installer CLI. `0.30.0` is the skill product — the thing that actually
-gates your build. They move independently. If that seems odd, read
-[Versions: npm installer vs skill product](/docs/explanation/versions-npm-vs-skill).
-
-## Step 4 — check the environment
+## Step 3 — check the environment
 
 ```bash
 bash ~/.claude/skills/flow/runner/flow.sh doctor
@@ -80,13 +55,72 @@ bash ~/.claude/skills/flow/runner/flow.sh doctor
 You want `READY`. `doctor` checks bash, python, grep, and git across macOS, Linux, and
 Windows. A missing `python3` reports the durable layer as disabled — that is a degraded
 mode, not a failure. Anything else, go to
-[Troubleshoot an install](/docs/how-to/troubleshoot-install).
+[If install breaks](/docs/how-to/troubleshoot-install).
 
 On Windows PowerShell, call `runner\flow.cmd` instead of `bash`. A bare `bash` in PowerShell
 usually resolves to WSL, which cannot read `C:/...` paths and makes a working install look
 broken.
 
-## Step 5 — see a gate fail
+Confirming installer vs skill version numbers is optional depth. See
+[Two version numbers](/docs/how-to/troubleshoot-install/#two-version-numbers).
+
+<details>
+<summary>Print both version numbers</summary>
+
+```bash
+npx @manhquy/flow-skill@latest --help
+```
+
+The installer prints its own version and the skill version it ships. Then read the skill
+version from disk:
+
+```bash
+grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
+```
+
+Those two numbers move independently. Do not copy digits from this page.
+
+</details>
+
+## Step 4 — say what you want to build
+
+You never have to learn the verbs. In a fresh agent session, in a project directory, type:
+
+> "I want to build an inventory app for my shop."
+
+Or type `/flow` (Codex: `$flow`).
+
+The concierge runs the status command first to get mechanical ground truth, asks one plain
+consent question about who should draft the artifacts, and proposes exactly one next action.
+Typed `/flow` verbs always win over chat routing.
+
+Routing is reliable on Claude. On Codex or Antigravity, treat chat routing as best-effort and
+type the verb. The full caveat is on
+[Everyday loop](/docs/how-to/use-chat-concierge).
+
+Success is any of: a status, a next action, or a gate result. “The concierge said yes” is
+not the trophy by itself.
+
+## What you have now
+
+- The skill installed in at least one agent home.
+- The agent restarted so it can see the skill.
+- One harness answer: status, next action, or a gate result.
+
+## Next
+
+Walk a real project through every planning gate in
+[Walk a full project](/docs/tutorials/first-greenfield-project), or read
+[The two-layer harness](/docs/explanation/what-is-flow/#two-layer-harness) to understand
+what judged the file.
+
+## Watch a gate refuse {#watch-a-gate-refuse}
+
+This is optional depth. It is the deterministic demo that the mechanical layer is alive.
+Kill at a gate is also valid.
+
+<details id="watch-a-gate-refuse">
+<summary>Transcript of an empty Idea file</summary>
 
 Make an empty directory and open your agent there. Then ask for the first stage:
 
@@ -110,25 +144,4 @@ This is the install working. The mechanical layer read the file, found unchecked
 unfilled placeholders, and exited non-zero with line numbers. It did not fill them in for
 you, and it will not.
 
-## Step 6 — ask in plain language instead
-
-You never have to learn the verbs. In a fresh agent session, type:
-
-> "I want to build an inventory app for my shop."
-
-The concierge runs the status command first to get mechanical ground truth, asks one plain
-consent question about who should draft the artifacts, and proposes exactly one next action.
-Typed `/flow` verbs always win over chat routing, so power users lose nothing.
-
-## What you have now
-
-- The skill installed in at least one agent home.
-- Both version numbers confirmed from the machine, not from a README.
-- One gate failure read end to end, with line numbers.
-
-## Next
-
-Walk a real project through every planning gate in
-[Your first greenfield project](/docs/tutorials/first-greenfield-project), or read
-[The two-layer harness](/docs/explanation/two-layer-harness) to understand what just judged
-your file.
+</details>

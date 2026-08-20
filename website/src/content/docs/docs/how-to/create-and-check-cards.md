@@ -107,6 +107,9 @@ What counts depends on the project type:
 Process artefacts — an approved PR, a green CI badge, release notes — are not evidence. The
 mechanical floor rejects process-only prose, so a card cannot be marked done on paperwork.
 
+For the full rule of what counts, see
+[Done means world-state](/docs/explanation/what-is-flow/#done-means-world-state).
+
 ## Flip it to done
 
 ```
@@ -124,8 +127,73 @@ Or let the CLI own the flip:
 fails, so it can never produce a hollow done. Hand-editing `status: done` and running
 `check` remains equally valid.
 
+## Converge the plan back to the code {#converge}
+
+Real builds drift: code gets written that the plan never asked for, and planned
+work quietly never lands. `/flow converge` is the closer for that gap. It is
+not a `next` gate. Opt-in.
+
+Assess present code against the plan (PRD `FRn`, contract interfaces,
+constitution `INV-n`). Write a `flow-converge/v1` payload describing the gaps,
+then run:
+
+```
+/flow converge
+```
+
+Or `flow.sh converge --file <path>`.
+
+Three rules bind the verb:
+
+1. **Append-only.** Never edit, renumber, or delete an existing `cards/C-*.md`.
+   Never touch application code. Remainder cards are emitted; a later session
+   builds them.
+2. **All-or-none.** The runner is transactional: every remainder card is
+   written, or none is. No partial append.
+3. **`CONVERGED` means write nothing.** Zero findings (or no payload) prints
+   `CONVERGED` and leaves `cards/` untouched.
+
+Work that exists in the code but was never requested becomes a **review card**
+(`implements: none`), never a deletion. Deciding to remove something is an
+operator's call.
+
+Gap types the payload accepts: `missing`, `partial`, `contradicts`,
+`unrequested`. Anything else is rejected and nothing is written.
+
+Write findings to `.flow/converge-pending.md` first (run-state, gitignored, so
+a `CONVERGED` run never dirties `cards/`). Present the findings table before
+any card is written. Format:
+
+```
+schema: flow-converge/v1
+findings: 2
+
+---
+gap-type: missing
+severity: HIGH
+implements: FR2
+source-ref: 03-prd.md:FR2
+title: implement the mark-task-done endpoint
+deps: C-002
+allowed: src/app.py
+---
+gap-type: unrequested
+severity: LOW
+implements: none
+source-ref: src/app.py:debug_dump
+title: the debug_dump surface no feature asked for
+deps:
+allowed: src/app.py
+```
+
+Appended cards ship with `[FILL]` Verify and Evidence — they are not built yet.
+Cut them, fill them, and `check` them like any other card.
+
+Gap taxonomy and the full payload schema stay in
+[`skills/flow/references/converge.md`](https://github.com/manhquydev/flow-skill/blob/master/skills/flow/references/converge.md).
+
 ## See also
 
-- [Done means world-state evidence](/docs/explanation/done-evidence)
-- [Skip a gate with debt](/docs/how-to/skip-gate-with-debt)
-- [Run an auto build](/docs/how-to/run-auto-build)
+- [Done means world-state evidence](/docs/explanation/what-is-flow/#done-means-world-state)
+- [Skip a gate with debt](/docs/explanation/auto-tiers-and-security-halts/#skip-a-gate-with-debt)
+- [Run an auto build](/docs/explanation/auto-tiers-and-security-halts/#run-an-auto-build)

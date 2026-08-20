@@ -204,21 +204,44 @@ something a machine will read back: a command, a file path, a version. Mono as a
 ## Layout
 
 The page is one continuous sheet, not a stack of sections. The first viewport is a CSS grid of
-named areas — a 1.35fr copy column beside a 0.9fr galley column, then a full-width press bar,
-then the stage slugs — held to `calc(100dvh - 4rem)` so the docket, both columns, the install
-command, and the pipeline all land above the fold on a 900px-tall window.
+named areas, still held to `calc(100dvh - 4rem)` on a 900px-tall window, still using classes
+`.sheet .hero .galleys .lockup .pipeline` (no new components).
+
+Desktop (≥720px) named areas, top to bottom:
+
+  'hero     hero'
+  'lockup   lockup'
+  'galleys  galleys'    /* two galley articles still sit 1fr 1fr
+                           *inside* .galleys; the galley *column* is no longer
+                           beside the H1 */
+  'pipeline pipeline'
+
+Order on the sheet: wordmark + job H1 + lede → full-bleed press bar (npx) →
+two outcome galleys → six stage slugs.
+
+Must land above the fold on 900px: docket, H1, press bar, and the three
+outcome claims (galley heads + first sentence each). Pipeline slugs **may**
+drop below the fold if the outcome galleys need the space. That is the
+reopen: previously the contract required both columns + command + pipeline
+together. Now the contract requires command + outcomes; pipeline is best-effort.
+
+Under 720px the grid is already `hero → lockup → galleys → pipeline`
+(`landing.css` ~657–661). Desktop now matches that order. Do not add a
+second mobile-only composition.
+
+Forbidden in this reopen: new components, class renames except as required
+by the grid-template-areas change, token edits, a second vermillion mark,
+shadows, radius, moving the press bar into a pill/button.
 
 Below the fold the sheet continues as full-bleed bands separated by 1px rules. Each band takes
 `2.75rem` of padding above its heading and `2.5rem` below its last line: more space above a
 heading than below it, so headings bind to the text they introduce. Horizontal gutters are
 `1.75rem` on desktop and `1.1rem` under 720px.
 
-Responsive behavior is a recomposition, not a shrink. Under 720px the grid areas reorder to
-`hero → press bar → galleys → pipeline`, which puts the install command inside the first screen
-on a 390×844 device instead of below two columns of explanation. The six-slug pipeline goes from
-six columns to three, the stage list from three columns to two. Under 560px the press bar wraps:
-the command and its copy control hold the first row, the status line reserves a line so nothing
-jumps, and the secondary link takes a full row above the fold of the bar.
+The six-slug pipeline goes from six columns to three under 720px, the stage list from three
+columns to two. Under 560px the press bar wraps: the command and its copy control hold the
+first row, the status line reserves a line so nothing jumps, and the secondary link takes a
+full row above the fold of the bar.
 
 ## Elevation & Depth
 
@@ -278,7 +301,7 @@ never a pill, never a centered button.
 
 A ruled editorial column: a display-weight head, one sentence of body, then a list of proof
 lines separated by cyan hairlines. No border-radius, no background fill, no card. Two of them
-stack against a 1px rule to form the right column of the sheet.
+sit as a horizontal 1fr/1fr pair under the press bar (stacked under 720px).
 
 ### Pipeline slugs
 

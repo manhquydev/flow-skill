@@ -12,55 +12,36 @@ const stages = [
 	{ name: 'ADR', file: 'flow/04-adr.md' },
 	{ name: 'Contract', file: 'flow/05-contract.md' },
 ];
-const mechanical = [
-	'Còn ô cổng chưa tick.',
-	'[FILL] còn trong file.',
-	'Khối evidence để trống.',
+const afterInstall = [
+	'Skill nằm trong agent home.',
+	'Gõ /flow (Codex: $flow).',
+	'doctor in READY.',
+	'/flow next trên thư mục trống thì cổng chặn.',
 ];
-const semantic = [
-	'Research chưa làm thật.',
-	'Hạ scope để lọt cổng.',
+const willNotPass = [
+	'File trống.',
+	'[FILL] còn trong file.',
 	'“tests pass” thế cho bằng chứng done.',
 ];
 ---
 
 <Landing lang="vi">
-	<title slot="head">flow: cổng chỉ mở khi cả hai cùng đồng ý</title>
+	<title slot="head">flow: cổng chặn việc rỗng</title>
 	<meta
 		slot="head"
 		name="description"
-		content="Agent vẫn viết code, còn cổng mở hay đóng thì flow quyết. Phải cả flow.sh lẫn skill thì cổng mới mở. Bị chặn ở cổng thì dừng luôn, chứ không phải fail."
+		content="Agent vẫn viết code, còn cổng mở hay đóng thì flow quyết. Phải cả flow.sh lẫn skill thì cổng mới mở. Bị chặn ở cổng thì dừng luôn, chứ không phải fail. npx @manhquy/flow-skill@latest"
 	/>
 	<main>
-		<section class="sheet" aria-label="flow.sh và skill">
+		<section class="sheet" aria-label="Cài rồi cổng">
 			<div class="hero">
 				<p class="display" translate="no">flow</p>
-				<h1 class="headline">Cổng chỉ mở khi cả hai cùng đồng ý.</h1>
+				<h1 class="headline">Việc rỗng thì cổng không mở.</h1>
 				<p class="lede">
 					Agent vẫn viết code, còn cổng mở hay đóng thì flow quyết. Flow sở hữu cổng và biên
 					nhận, không bao giờ sở hữu runtime. Bị chặn ở cổng thì dừng luôn, chứ không phải fail.
 				</p>
-				<p class="current" translate="no">skill v0.30.0 · npm 0.7.0</p>
-				<p class="verdict">Phải cả flow.sh lẫn skill thì cổng mới mở.</p>
-			</div>
-			<div class="galleys">
-				<article class="galley" aria-labelledby="mechanical-title">
-					<h2 id="mechanical-title" translate="no">flow.sh</h2>
-					<svg class="pass-mark" aria-hidden="true"><use href="#tick"></use></svg>
-					<p>
-						<code translate="no">flow.sh</code> chỉ trả 0 hoặc 1. Cảm tính hay “chắc là được” thì
-						cổng này không mở.
-					</p>
-					<ul class="proofs">{mechanical.map((item) => <li>{item}</li>)}</ul>
-				</article>
-				<article class="galley" aria-labelledby="semantic-title">
-					<h2 id="semantic-title">Skill</h2>
-					<p>
-						Skill bắt việc rỗng, cái <code translate="no">flow.sh</code> không bắt được.
-						<span class="kill-line">Ý tưởng yếu thì bỏ ngay tại cổng.</span>
-					</p>
-					<ul class="proofs">{semantic.map((item) => <li>{item}</li>)}</ul>
-				</article>
+				<p class="verdict">Cổng chỉ mở khi cả hai cùng đồng ý.</p>
 			</div>
 			<InstallLockup
 				command={command}
@@ -70,6 +51,28 @@ const semantic = [
 				secondaryHref={tutorial}
 				secondaryLabel="Cách cài"
 			/>
+			<div class="galleys">
+				<article class="galley" aria-labelledby="after-install-title">
+					<h2 id="after-install-title">Sau khi cài</h2>
+					<svg class="pass-mark" aria-hidden="true"><use href="#tick"></use></svg>
+					<p>
+						Skill nằm trong agent home. Gõ <code translate="no">/flow</code> (Codex:
+						<code translate="no">$flow</code>). <code translate="no">doctor</code> in
+						<code translate="no">READY</code>. <code translate="no">/flow next</code> trên
+						thư mục trống thì cổng chặn. <code translate="no">flow.sh</code> vẫn là lớp 0/1.
+					</p>
+					<ul class="proofs">{afterInstall.map((item) => <li>{item}</li>)}</ul>
+				</article>
+				<article class="galley" aria-labelledby="will-not-pass-title">
+					<h2 id="will-not-pass-title">Cổng không cho qua</h2>
+					<p>
+						File trống, <code translate="no">[FILL]</code> còn sót, hoặc “tests pass” thế cho
+						bằng chứng done.
+						<span class="kill-line">Ý tưởng yếu thì dừng ngay tại cổng.</span>
+					</p>
+					<ul class="proofs">{willNotPass.map((item) => <li>{item}</li>)}</ul>
+				</article>
+			</div>
 			<ol class="pipeline" aria-label="Sáu cổng trước khi build">
 				{stages.map((stage) => <li class="pipe">{stage.name}</li>)}
 			</ol>
@@ -79,7 +82,8 @@ const semantic = [
 			<h2 class="band-title" id="run-title">Sáu cổng rồi mới tới card build đầu</h2>
 			<p class="band-lede">
 				Mỗi cổng để lại một file thật trong repo. File hiện tại chưa qua cả hai bên thì
-				<code translate="no">/flow next</code> không mở cổng sau.
+				<code translate="no">/flow next</code> không mở cổng sau. Những file đó có sau khi đi
+				cổng, không phải sau <code translate="no">npx</code>.
 			</p>
 			<ol class="run-list">
 				{
@@ -103,9 +107,7 @@ const semantic = [
 			<div class="stand-copy">
 				<h2 class="stand-title" id="stand-title">flow gác cổng, chứ không viết code.</h2>
 				<p>
-					Agent vẫn viết. Được đi tiếp hay phải dừng thì cổng quyết. Cặp hiện tại: skill
-					v0.30.0, cài bằng <code translate="no">npx @manhquy/flow-skill@latest</code> (npm
-					0.7.0).
+					Agent vẫn viết. Được đi tiếp hay phải dừng thì cổng quyết.
 				</p>
 			</div>
 			<div class="stand-actions">
