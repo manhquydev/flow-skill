@@ -24,6 +24,7 @@ test_flow_slice_quality.sh
 test_flow_converge.sh
 test_flow_antigravity_integration.sh
 test_flow_claudekit_integration.sh
+test_flow_host_agnostic_parallel.sh
 test_flow_card_lifecycle.sh
 test_flow_done_evidence.sh
 test_flow_auto_done_path.sh

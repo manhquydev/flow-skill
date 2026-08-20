@@ -190,6 +190,8 @@ law/contract excerpts (no session history); each returns DONE/DONE_WITH_CONCERNS
 NEEDS_CONTEXT. After a delegation: run the gate, apply the semantic challenge, write the
 durable hook (`flow.sh harness ...`), announce which path ran.
 
+Parallel cards ride the current host (in-process Task, extra terminals, or an already-inside mux); flow requires no named multiplexer — `references/host-agnostic-parallel.md`.
+
 Mode `work` (`references/mode-work.md`): interview once → draft 00-05 → one scope pause →
 deliver the card set as one summary. Gates bind the same as `teach`.
 
