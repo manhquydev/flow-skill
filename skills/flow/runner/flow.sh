@@ -3207,6 +3207,25 @@ _eval_engine_run() { # $1=promptfile $2=timeout-seconds -> stdout=raw json; retu
 # command string above. Empirical: adding a `2> '$errfile'` inside the timed cmd breaks the
 # watchdog-fallback path in `_run_with_timeout` on the timeout-less-PATH lane (macOS DEBT lane).
 # Outer-scope redirection is exactly the same capture at zero cost to the timeout contract.
+# Opt-in isolated cwd for live eval (Approach D). Unset = today's cwd (byte-identical
+# call path). Set but not a directory = fail loud. Isolation is cd+env around existing
+# probe/engine calls — never argv, never a second engine. CLAUDE_CODE_SAFE_MODE=1 is
+# exported ONLY in the isolated subshell (official Claude env; keeps OAuth; blast radius
+# is the judge child). Do not invent a flow alias; do not set HOME or CLAUDE_CONFIG_DIR.
+_eval_isolated_guard() {
+  [ -z "${FLOW_EVAL_ISOLATED_CWD:-}" ] && return 0
+  [ -d "$FLOW_EVAL_ISOLATED_CWD" ] && return 0
+  echo "FAIL: FLOW_EVAL_ISOLATED_CWD is set but is not a directory: $FLOW_EVAL_ISOLATED_CWD"
+  return 1
+}
+_eval_isolated_run() {
+  if [ -n "${FLOW_EVAL_ISOLATED_CWD:-}" ]; then
+    ( cd "$FLOW_EVAL_ISOLATED_CWD" && export CLAUDE_CODE_SAFE_MODE=1 && "$@" )
+  else
+    "$@"
+  fi
+}
+
 
 # Build the judge prompt for one fixture. Returns 1 (writes nothing usable) if the gate-rules.md
 # section extraction came back empty.
@@ -3788,7 +3807,9 @@ function cmd_eval_routing { # same arg shape as cmd_eval, called only when --sta
     return 1
   fi
 
-  local probe; probe="$(_eval_probe)"
+  _eval_isolated_guard || return 1
+
+  local probe; probe="$(_eval_isolated_run _eval_probe)"
   case "$probe" in
     absent)
       echo "SKIP: 'claude' CLI not found on PATH - routing eval needs it to run the LLM judge. Zero calls made."
@@ -3863,7 +3884,7 @@ function cmd_eval_routing { # same arg shape as cmd_eval, called only when --sta
     local hit_count=0 miss_count=0 invalid_count=0 i=1 model="unknown" retries_sum=0 vote_rate_limited=false vote_timed_out=false
     while [ "$i" -le "$n" ]; do
       local raw rc v raw1="" rc1=0
-      raw="$(_eval_engine_run "$promptfile" "$timeout" 2>/dev/null)"; rc=$?
+      raw="$(_eval_isolated_run _eval_engine_run "$promptfile" "$timeout" 2>/dev/null)"; rc=$?
       raw1="$raw"; rc1="$rc"
       if [ "$rc" -eq 124 ]; then
         v=INVALID
@@ -3879,7 +3900,7 @@ function cmd_eval_routing { # same arg shape as cmd_eval, called only when --sta
           echo "  $fid: retrying vote $i after ${backoff}s (parse-INVALID on attempt 1)"
           sleep "$backoff" 2>/dev/null || true
         fi
-        raw="$(_eval_engine_run "$promptfile" "$timeout" 2>/dev/null)"; rc=$?
+        raw="$(_eval_isolated_run _eval_engine_run "$promptfile" "$timeout" 2>/dev/null)"; rc=$?
         retries_sum=$((retries_sum + 1))
         if [ "$rc" -eq 124 ]; then v=INVALID; vote_timed_out=true; else v="$(_eval_routing_parse_action "$raw" "$nonce")"; fi
         [ "$model" = "unknown" ] && [ "$rc" -ne 124 ] && model="$(_eval_parse_model "$raw")"
@@ -4098,7 +4119,9 @@ function cmd_eval_converge { # same arg shape as cmd_eval, called only when --st
     return 1
   fi
 
-  local probe; probe="$(_eval_probe)"
+  _eval_isolated_guard || return 1
+
+  local probe; probe="$(_eval_isolated_run _eval_probe)"
   case "$probe" in
     absent) echo "SKIP: 'claude' CLI not found on PATH - converge eval needs it to run the LLM judge. Zero calls made."; return 0 ;;
     fail)   echo "SKIP: 'claude' CLI present but the sentinel probe did not come back clean (one minimal probe call was made). Retry once 'claude -p' runs headless."; return 0 ;;
@@ -4153,12 +4176,12 @@ function cmd_eval_converge { # same arg shape as cmd_eval, called only when --st
     local hit_count=0 miss_count=0 invalid_count=0 i=1 model="unknown" retries_sum=0 vote_rate_limited=false vote_timed_out=false
     while [ "$i" -le "$n" ]; do
       local raw rc v raw1="" rc1=0
-      raw="$(_eval_engine_run "$promptfile" "$timeout" 2>/dev/null)"; rc=$?; raw1="$raw"; rc1="$rc"
+      raw="$(_eval_isolated_run _eval_engine_run "$promptfile" "$timeout" 2>/dev/null)"; rc=$?; raw1="$raw"; rc1="$rc"
       if [ "$rc" -eq 124 ]; then v=INVALID; vote_timed_out=true; else v="$(_eval_converge_parse_verdict "$raw" "$nonce")"; [ "$model" = "unknown" ] && model="$(_eval_parse_model "$raw")"; fi
       local rl1; rl1="$(_eval_parse_rate_limited "$raw1")"; [ "$rl1" = "true" ] && vote_rate_limited=true
       if [ "$v" = "INVALID" ] && [ "$rl1" != "true" ] && [ "$rc1" -ne 124 ]; then
         if [ "$backoff" -gt 0 ]; then echo "  $fid: retrying vote $i after ${backoff}s (parse-INVALID on attempt 1)"; sleep "$backoff" 2>/dev/null || true; fi
-        raw="$(_eval_engine_run "$promptfile" "$timeout" 2>/dev/null)"; rc=$?; retries_sum=$((retries_sum + 1))
+        raw="$(_eval_isolated_run _eval_engine_run "$promptfile" "$timeout" 2>/dev/null)"; rc=$?; retries_sum=$((retries_sum + 1))
         if [ "$rc" -eq 124 ]; then v=INVALID; vote_timed_out=true; else v="$(_eval_converge_parse_verdict "$raw" "$nonce")"; fi
         [ "$model" = "unknown" ] && [ "$rc" -ne 124 ] && model="$(_eval_parse_model "$raw")"
         local rl2; rl2="$(_eval_parse_rate_limited "$raw")"; [ "$rl2" = "true" ] && vote_rate_limited=true
@@ -4351,7 +4374,8 @@ function cmd_eval {
     fi
     echo "replay: keyless artifact batch (nonce from fixture, zero live calls)"
   else
-    local probe; probe="$(_eval_probe)"
+    _eval_isolated_guard || return 1
+    local probe; probe="$(_eval_isolated_run _eval_probe)"
     case "$probe" in
       absent)
         echo "SKIP: 'claude' CLI not found on PATH - eval needs it to run the LLM judge. Zero calls made."
@@ -4494,7 +4518,7 @@ function cmd_eval {
         raw="$(_eval_replay_vote "$fid" "$i")" || { rm -rf "$rundir" 2>/dev/null; trap - INT TERM; return 1; }
         rc=0
       else
-        raw="$(_eval_engine_run "$promptfile" "$timeout" 2>"$err1")"; rc=$?
+        raw="$(_eval_isolated_run _eval_engine_run "$promptfile" "$timeout" 2>"$err1")"; rc=$?
       fi
       raw1="$raw"; rc1="$rc"
       if [ "$rc" -eq 124 ]; then
@@ -4530,7 +4554,7 @@ function cmd_eval {
           raw="$(_eval_replay_vote "$fid" "$i")" || { rm -rf "$rundir" 2>/dev/null; trap - INT TERM; return 1; }
           rc=0
         else
-          raw="$(_eval_engine_run "$promptfile" "$timeout" 2>"$err2")"; rc=$?
+          raw="$(_eval_isolated_run _eval_engine_run "$promptfile" "$timeout" 2>"$err2")"; rc=$?
         fi
         retries_sum=$((retries_sum + 1))
         if [ "$rc" -eq 124 ]; then v=INVALID; vote_timed_out=true; else v="$(_eval_parse_verdict "$raw" "$nonce")"; fi

@@ -25,7 +25,7 @@ newsb() {
     export FLOW_EVAL_UNBOUNDED=1
   fi
 }
-clean() { rm -rf "$SB" 2>/dev/null; unset FLOW_PROJECT_ROOT FLOW_EVAL_MANIFEST FLOW_EVAL_UNBOUNDED FLOW_EVAL_FORCE_DARWIN FLOW_EVAL_REPLAY_DIR; }
+clean() { rm -rf "$SB" 2>/dev/null; unset FLOW_PROJECT_ROOT FLOW_EVAL_MANIFEST FLOW_EVAL_UNBOUNDED FLOW_EVAL_FORCE_DARWIN FLOW_EVAL_REPLAY_DIR FLOW_EVAL_ISOLATED_CWD; }
 
 # PATH dir with /usr/bin+/bin minus timeout/gtimeout (H / darwin-sim cases).
 make_notimeoutbin() {
@@ -923,6 +923,38 @@ ck "$rec_psha" "$rebuild_sha" "recorded prompt_sha equals rebuilt assembler hash
 out="$(bash "$RUN" eval --replay --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
 ck 0 "$rc" "replay of recorded prompt_sha-matching tree exits 0"
 clean
+
+echo "ISO-D) FLOW_EVAL_ISOLATED_CWD: existing dir still parses nonce; missing dir fails loud"
+newsb
+iso="$(mktemp -d)"
+export FLOW_EVAL_ISOLATED_CWD="$iso"
+mkmock '
+printf "%s" "$PWD" > "$FLOW_PROJECT_ROOT/.iso-cwd"
+nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" | head -1)"
+marker="${nonce_line% FLAG}"
+printf "%s PASS\n" "$marker"
+'
+out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+ck 0 "$rc" "isolated cwd still matches expected PASS (absolute promptfile survived cd)"
+has "$out" "matches expected PASS" "nonce parsed after isolated cwd wrap"
+no  "$out" "SKIP" "did not silently take the skip path"
+resline="$(grep '"fixture":"fcda"' "$SB/.flow/eval-results.jsonl" 2>/dev/null | tail -1)"
+has "$resline" '"fixture":"fcda"' "result row still emitted under isolated cwd"
+ck "$(cat "$SB/.iso-cwd" 2>/dev/null)" "$iso" "engine cwd is the isolated dir"
+rm -rf "$iso"
+unset FLOW_EVAL_ISOLATED_CWD
+clean
+
+newsb
+export FLOW_EVAL_ISOLATED_CWD=/nonexistent
+out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ]; then echo "  ok   [missing isolated cwd fails non-zero]"; pass=$((pass+1)); else echo "  FAIL [missing isolated cwd should fail loud, got rc=$rc]"; fail=$((fail+1)); fi
+has "$out" "FLOW_EVAL_ISOLATED_CWD" "fail-loud names the env"
+has "$out" "not a directory" "fail-loud says not a directory"
+no  "$out" "SKIP:" "missing dir is not a live SKIP"
+unset FLOW_EVAL_ISOLATED_CWD
+clean
+
 
 echo "CV-G) converge prompt slices the criteria, fences the source as data, uses the GAP/CONVERGED marker"
 newsb

@@ -45,4 +45,7 @@ assembler output must match (CRLF-normalized cksum, same recipe as
 required). Hard-fail is mismatch, not absence. Never commit prompt bodies —
 hash-only. Replay is **not** a fresh-judge and never counts toward the eval floor.
 
+Live isolation (cwd + `CLAUDE_CODE_SAFE_MODE`, not engine argv) lives in
+`skills/flow/references/gate-eval.md` **Cost**. Replay never uses it.
+
 `--record|--replay` are artifact-only: not `--stage routing|converge`, not `--report`.

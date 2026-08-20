@@ -90,6 +90,55 @@ unbounded-billing risk. Install GNU coreutils (`gtimeout`) or export `FLOW_EVAL_
 accept that risk for one run. `--report` and `--replay` never hit this guard. `--record` is live
 and does.
 
+### Cheap isolated live eval (host recipe)
+
+Live cost is dominated by **host** context (project `CLAUDE.md`/`AGENTS.md` walk + user
+plugins/skills/MCP), not the inlined judge prompt. Isolation is cwd + env around the
+existing one-shot — never extra engine argv, never `--bare`, never `--model`.
+
+`FLOW_EVAL_ISOLATED_CWD` unset → today's cwd (byte-identical). Set to an existing directory
+→ probe and engine run in `( cd "$FLOW_EVAL_ISOLATED_CWD" && export CLAUDE_CODE_SAFE_MODE=1 &&
+… )`. Set but not a directory → fail loud. `CLAUDE_CODE_SAFE_MODE=1` is exported only in
+that subshell (official Claude env; keeps OAuth). Do **not** empty `HOME` or point
+`CLAUDE_CONFIG_DIR` at the scratch dir (Linux credentials live there).
+
+```bash
+# Auth must be live (`claude auth login` if `claude auth status` says not logged in).
+ISOLATED="$(mktemp -d /tmp/flow-eval-XXXXXX)"   # NOT an ancestor of the flow-skill tree
+export FLOW_EVAL_ISOLATED_CWD="$ISOLATED"
+export CLAUDE_CODE_SAFE_MODE=1                  # official CLI env; flow does not invent an alias
+export FLOW_PROJECT_ROOT="/path/to/real/project"  # results stay in $ROOT/.flow/
+bash /path/to/skills/flow/runner/flow.sh eval --n 1 --fixture fcda
+```
+
+The first isolated batch is a **new baseline**, not comparable to the 2026-07-10
+loaded-context floor ($0.30–0.37/call, ~50–60K cache-creation). A judge-model change is a
+full re-baseline. Do not mix isolated and loaded-context batches in tripwire-2. Update the
+measured dollars in this Cost section **after** the operator checkpoint publishes isolated
+`total_cost_usd` + `cache_creation_input_tokens`. Replay still never counts.
+
+Cost measurement against one captured `--output-format json` document (do not commit the
+envelope — `session_id`/`cwd` leak):
+
+```bash
+printf '%s' "$raw" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+if isinstance(d,list):
+    d=next(x for x in d if isinstance(x,dict) and x.get("type")=="result")
+u=d.get("usage") or {}
+print("usd", d.get("total_cost_usd"))
+print("in", u.get("input_tokens"), "out", u.get("output_tokens"))
+print("cache_create", u.get("cache_creation_input_tokens") or u.get("cache_creation"))
+print("cache_read", u.get("cache_read_input_tokens"))
+print("model", d.get("model"))
+'
+```
+
+Success signal: `cache_creation_input_tokens` collapses from ~50–60K toward the inlined
+judge prompt size; `total_cost_usd` drops well below $0.30.
+
+
 ## Modes
 
 | Mode | Calls | What it proves |
