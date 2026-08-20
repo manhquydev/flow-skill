@@ -11,7 +11,7 @@ fail() { echo "parity: $*" >&2; exit 1; }
 
 [[ -f "$SLUGS" ]] || fail "missing slugs.txt"
 mapfile -t WANT < <(grep -v '^[[:space:]]*$' "$SLUGS")
-[[ ${#WANT[@]} -eq 46 ]] || fail "slugs.txt must have exactly 46 non-empty lines (got ${#WANT[@]})"
+[[ ${#WANT[@]} -eq 13 ]] || fail "slugs.txt must have exactly 13 non-empty lines (got ${#WANT[@]})"
 
 en_files=()
 vi_files=()

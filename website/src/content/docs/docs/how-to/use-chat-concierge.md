@@ -58,17 +58,22 @@ cannot be known before it runs. Auto-running it would let the concierge quietly 
 hollow-but-mechanically-clean stage past you, which is the exact failure the gates exist to
 prevent.
 
-## The one consent question
+## Teach and work {#teach-and-work}
 
 If you are new and your ask requires the agent to draft artifacts for you — "build me X" —
 the concierge asks a single plain question before touching your mode:
 
 > "Want me to draft the steps and you review each one?"
 
-Answer yes and it switches you to `work` mode, where the agent interviews you once, drafts
-stages 00 to 05, and pauses for the scope sign-off. Answer no and you stay in `teach` mode,
-where you author and the agent only gate-keeps. The gates bind identically either way. You
-can change your mind later with `/flow mode teach` or `/flow mode work`.
+Answer yes and it switches you to `work` mode: the agent interviews you once, drafts stages
+00 to 05 itself, pauses only for the scope sign-off, and delivers the card set as one
+summary. Answer no and you stay in `teach` mode, the default: you write every planning
+artifact and the agent only gate-keeps, catching hollow or fabricated content. It is
+forbidden from checking a box or drafting on your behalf.
+
+The gates and done-rules are identical either way. `work` changes authorship, never the bar.
+The choice is stored in a `MODE` file. You can change your mind later with `/flow mode teach`
+or `/flow mode work`.
 
 ## Bypassing the concierge
 
@@ -86,6 +91,17 @@ routing — power users lose nothing by the chat default.
 
 Zero flow verbs typed. The consent question was the only ceremony.
 
+## Why chat is the front door {#why-chat-first}
+
+A harness with twenty-something verbs has a cliff at the start. The person who most needs
+gating discipline — someone building their first real product — is exactly the person least
+likely to read a command table first. Every verb they must learn before getting value is a
+place to give up.
+
+A chat front door is only worth having if it does not become a second, softer source of
+truth. That is why the loop above starts with a command, not an interpretation, and why
+permission is default-deny.
+
 ## A caveat worth knowing
 
 Routing parses human-readable status prose, not a machine token contract. It is reliable on
@@ -95,6 +111,5 @@ engine.
 
 ## See also
 
-- [Concierge and chat-first](/docs/explanation/concierge-and-chat-first)
-- [Switch teach and work mode](/docs/how-to/switch-teach-work-mode)
+- [Walk a full project](/docs/tutorials/first-greenfield-project)
 - [Command reference](/docs/reference/commands)

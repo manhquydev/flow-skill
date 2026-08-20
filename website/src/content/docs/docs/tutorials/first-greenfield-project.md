@@ -169,5 +169,5 @@ PASS: C-001 is valid (status: done).
 - [Create and check cards](/docs/how-to/create-and-check-cards) for the day-to-day loop.
 - [The stage pipeline](/docs/explanation/stage-pipeline) for what each stage is defending
   against.
-- [Done means world-state evidence](/docs/explanation/done-evidence) for why step 8 is
+- [Done means world-state evidence](/docs/explanation/what-is-flow/#done-means-world-state) for why step 8 is
   strict.

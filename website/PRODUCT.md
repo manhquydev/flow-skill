@@ -18,7 +18,7 @@ Secondary (docs, Read mode): the same person after install, looking up a command
 
 ## Product Purpose
 
-Flow is a **gated build harness for coding agents**. It walks an idea to real done-evidence (deployed URL, CLI that runs, library API, or a real skill run) through honest gates. Success for this site: the visitor installs via `npx @manhquy/flow-skill@latest` and opens the docs start tutorial.
+Flow is a **gated build harness for coding agents**. It walks an idea to real done-evidence (deployed URL, CLI that runs, library API, or a real skill run) through honest gates. Success for this site: the visitor installs via `npx @manhquy/flow-skill@latest` and opens **`/docs/`** (skim) or the first-run tutorial (depth). Either is success; do not force the 10-minute path.
 
 ## Positioning
 
@@ -34,7 +34,7 @@ This marketing site is **separate** from the skill. Repo-root `DESIGN.md` is flo
 
 ## Capabilities and Constraints
 
-- Public: Persuade landing (`/`, `/vi/`) + Diátaxis docs (`/docs`, `/vi/docs`). EN root, VI prefixed.
+- Public: Persuade landing (`/`, `/vi/`) + start-and-use docs (`/docs`, `/vi/docs`). EN root, VI prefixed.
 - Install truth: `npx @manhquy/flow-skill@latest`. Versions: read live from `skills/flow/SKILL.md` and `npm-wrapper/package.json` at build time — never freeze digits in this file.
 - EN and VI are equal in content; URL symmetry is not required.
 - Must not change `skills/flow/runner/flow.sh` or overwrite repo-root `DESIGN.md`.
@@ -51,7 +51,26 @@ Undecided: custom domain (later). Production Pages URL after merge to `master`.
 
 ## Evidence on Hand
 
-Allowed on the landing (operator lock): install command, two-layer mechanism, stage pipeline. **No metrics, star counts, testimonials, or “used by N.”**
+Allowed on the landing (operator lock, reopened 2026-08-20 for P3 A):
+
+1. Install command (`npx @manhquy/flow-skill@latest`) as the signature press bar.
+2. Outcome / capability bullets (max three), worded as what the harness *does*,
+   not as possessions the visitor already has after npx:
+   - Honest refuse: `/flow next` will not unlock the next stage if the file is
+     empty, fabricated, or scope-laundered. Killing the idea at a gate is valid.
+   - Written plan *in the operator’s repo* when they walk the gates (`flow/*.md`,
+     then `cards/`). Do not claim these files exist after install.
+   - Done means world-state (live URL, CLI that runs, importable API, or a skill
+     that actually ran) — not “tests pass.”
+3. Two-layer mechanism (runner 0/1 + skill). May sit in the galleys as *proof
+   lines under the outcomes*, or below the fold. Must not be the H1.
+4. Stage pipeline slugs (Idea → Contract). May sit under the press bar.
+5. Identity closer: not an agent; a harness around one. Must remain on the page.
+   Below the fold is allowed. Deleting it is not.
+
+Still forbidden: metrics, star counts, testimonials, “used by N,” “10x,”
+“stop switch on the agent,” interposition / daemon / owned-loop language,
+frozen version digits in this file.
 
 Real sources to rewrite (not dump): `README.md`, `README_VN.md`, `skills/flow/SKILL.md`. GitHub: `https://github.com/manhquydev/flow-skill`. npm: `@manhquy/flow-skill`.
 

@@ -12,52 +12,36 @@ const stages = [
 	{ name: 'ADR', file: 'flow/04-adr.md' },
 	{ name: 'Contract', file: 'flow/05-contract.md' },
 ];
-const mechanical = [
-	'Unchecked boxes on a gate.',
-	'A leftover [FILL] still in the file.',
-	'An evidence block with nothing in it.',
+const afterInstall = [
+	'Skill files land in the agent home.',
+	'Type /flow (Codex: $flow).',
+	'doctor can print READY.',
+	'/flow next on an empty idea file refuses with line numbers.',
 ];
-const semantic = [
-	'Research that was never done.',
-	'Scope quietly lowered so the gate would pass.',
-	'“Tests pass” offered instead of a live URL, a running CLI, or a real skill run.',
+const willNotPass = [
+	'An empty file.',
+	'A leftover [FILL] still in the file.',
+	'“Tests pass” offered as done.',
 ];
 ---
 
 <Landing lang="en">
-	<title slot="head">flow — the gate opens only when both agree</title>
+	<title slot="head">flow — hollow work does not advance</title>
 	<meta
 		slot="head"
 		name="description"
-		content="A gated harness around a coding agent — not an agent itself. flow.sh exits 0 or 1; the skill judges whether the work is hollow. Killing a weak idea at a gate is valid. npx @manhquy/flow-skill@latest"
+		content="A gated harness around the coding agent you already use. npx @manhquy/flow-skill@latest. Killing a weak idea at a gate is valid. Not an agent."
 	/>
 	<main>
-		<section class="sheet" aria-label="Two-layer harness">
+		<section class="sheet" aria-label="Install and outcomes">
 			<div class="hero">
 				<p class="display" translate="no">flow</p>
-				<h1 class="headline">The gate opens only when both agree.</h1>
+				<h1 class="headline">Hollow work does not advance.</h1>
 				<p class="lede">
 					A gated harness around the coding agent you already use. Flow owns the gates and
 					the receipts, never the runtime. Killing a weak idea at a gate is a valid outcome.
 				</p>
-				<p class="current" translate="no">skill v0.30.0 · npm 0.7.0</p>
-				<p class="verdict">The runner and the skill both have to say yes.</p>
-			</div>
-			<div class="galleys">
-				<article class="galley" aria-labelledby="mechanical-title">
-					<h2 id="mechanical-title">The runner</h2>
-					<svg class="pass-mark" role="img" aria-label="PASS"><use href="#tick"></use></svg>
-					<p>The runner (<code translate="no">flow.sh</code>) exits 0 or 1. That number is the gate.</p>
-					<ul class="proofs">{mechanical.map((item) => <li>{item}</li>)}</ul>
-				</article>
-				<article class="galley" aria-labelledby="semantic-title">
-					<h2 id="semantic-title">The skill</h2>
-					<p>
-						The skill judges whether the work is hollow.
-						<span class="kill-line">A weak idea is killed at the gate.</span>
-					</p>
-					<ul class="proofs">{semantic.map((item) => <li>{item}</li>)}</ul>
-				</article>
+				<p class="verdict">The gate opens only when both agree.</p>
 			</div>
 			<InstallLockup
 				command={command}
@@ -67,6 +51,28 @@ const semantic = [
 				secondaryHref={tutorial}
 				secondaryLabel="Install and first run"
 			/>
+			<div class="galleys">
+				<article class="galley" aria-labelledby="after-install-title">
+					<h2 id="after-install-title">After install</h2>
+					<svg class="pass-mark" role="img" aria-label="PASS"><use href="#tick"></use></svg>
+					<p>
+						The skill is on disk. <code translate="no">/flow</code> or
+						<code translate="no">$flow</code> exists.
+						<code translate="no">doctor</code> can print <code translate="no">READY</code>.
+						<code translate="no">/flow next</code> on an empty idea file refuses with line
+						numbers.
+					</p>
+					<ul class="proofs">{afterInstall.map((item) => <li>{item}</li>)}</ul>
+				</article>
+				<article class="galley" aria-labelledby="will-not-pass-title">
+					<h2 id="will-not-pass-title">What will not pass</h2>
+					<p>
+						Empty, leftover <code translate="no">[FILL]</code>, or “tests pass” offered as done.
+						<span class="kill-line">A weak idea is killed at the gate.</span>
+					</p>
+					<ul class="proofs">{willNotPass.map((item) => <li>{item}</li>)}</ul>
+				</article>
+			</div>
 			<ol class="pipeline" aria-label="Idea through Contract">
 				{stages.map((stage) => <li class="pipe">{stage.name}</li>)}
 			</ol>
@@ -76,7 +82,8 @@ const semantic = [
 			<h2 class="band-title" id="run-title">Six gates before you build</h2>
 			<p class="band-lede">
 				Each stage writes a real file in your repo. <code translate="no">/flow next</code> will
-				not unlock the next one until the runner and the skill both agree.
+				not unlock the next one until the runner and the skill both agree. Those files exist
+				after you walk the gates, not after install.
 			</p>
 			<ol class="run-list">
 				{
@@ -101,8 +108,7 @@ const semantic = [
 				<h2 class="stand-title" id="stand-title">Not an AI coding agent. A harness around one.</h2>
 				<p>
 					flow does not write your code. The agent still writes; the harness decides whether
-					that work may advance. Current pairing: skill v0.30.0, shipped by
-					<code translate="no">npx @manhquy/flow-skill@latest</code> (npm 0.7.0).
+					that work may advance.
 				</p>
 			</div>
 			<div class="stand-actions">

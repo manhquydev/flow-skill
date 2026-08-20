@@ -114,11 +114,12 @@ code {
 
 .sheet {
 	display: grid;
-	grid-template-columns: minmax(0, 1.35fr) minmax(16rem, 0.9fr);
-	grid-template-rows: minmax(0, 1fr) auto auto;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	grid-template-rows: auto auto minmax(0, 1fr) auto;
 	grid-template-areas:
-		'hero galleys'
+		'hero hero'
 		'lockup lockup'
+		'galleys galleys'
 		'pipeline pipeline';
 	min-height: calc(100dvh - var(--docket-h));
 }
@@ -128,7 +129,8 @@ code {
 	display: flex;
 	flex-direction: column;
 	padding: 2.25rem var(--gutter) 1.75rem var(--gutter);
-	border-right: var(--rule);
+	border-right: 0;
+	border-bottom: var(--rule);
 	position: relative;
 }
 
@@ -201,7 +203,7 @@ html[lang='vi'] .headline {
 .galleys {
 	grid-area: galleys;
 	display: grid;
-	grid-template-rows: 1fr 1fr;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 	position: relative;
 }
 
@@ -211,7 +213,7 @@ html[lang='vi'] .headline {
 }
 
 .galley + .galley {
-	border-top: var(--rule);
+	border-left: var(--rule);
 }
 
 /* Register the two plates to each other on the split × column rule. */
@@ -219,7 +221,7 @@ html[lang='vi'] .headline {
 	content: '';
 	position: absolute;
 	top: -6px;
-	left: -7px;
+	left: -6px;
 	width: 12px;
 	height: 12px;
 	color: var(--cyan);
@@ -705,6 +707,7 @@ html[lang='vi'] .headline {
 		}
 	}
 	.galleys {
+		grid-template-columns: 1fr;
 		grid-template-rows: auto auto;
 	}
 	.galley {
@@ -719,6 +722,10 @@ html[lang='vi'] .headline {
 	}
 	.proofs li {
 		padding: 0.3rem 0;
+	}
+	.galley + .galley {
+		border-left: 0;
+		border-top: var(--rule);
 	}
 	.galley + .galley::after {
 		left: 0.55rem;

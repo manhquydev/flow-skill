@@ -127,4 +127,4 @@ PASS: C-001 is valid (status: done).
 
 - [Tạo và kiểm card](/vi/docs/how-to/create-and-check-cards) cho vòng hằng ngày.
 - [Pipeline các stage](/vi/docs/explanation/stage-pipeline) cho mỗi stage đang chống tự lừa gì.
-- [Done nghĩa là bằng chứng thế giới thật](/vi/docs/explanation/done-evidence) cho vì sao bước 8 khắt khe.
+- [Done nghĩa là bằng chứng thế giới thật](/vi/docs/explanation/what-is-flow/#done-means-world-state) cho vì sao bước 8 khắt khe.

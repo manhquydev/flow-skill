@@ -4,9 +4,7 @@ description: "Ghi chú phát hành hướng operator đã chọn lọc cho skill
 lang: vi
 ---
 
-Hiện tại: **skill product `0.30.0`**, được ship bởi **npm installer `0.7.0`** trên dist-tag
-`latest`. Hai số đó version thứ khác nhau — xem [Phiên bản: npm installer vs skill product](/vi/docs/explanation/versions-npm-vs-skill).
-GitHub Release: [`v0.30.0`](https://github.com/manhquydev/flow-skill/releases/tag/v0.30.0).
+Skill product và npm installer version thứ khác nhau. `--help` in cả hai số. Xem [Hai số phiên bản](/vi/docs/how-to/troubleshoot-install/#two-version-numbers).
 
 Đây là thay đổi có khả năng ảnh hưởng cách bạn dùng `flow` nhất. Lịch sử đầy đủ, không rút gọn, sống trong kho.
 

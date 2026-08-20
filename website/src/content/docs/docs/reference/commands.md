@@ -62,17 +62,22 @@ On Windows PowerShell, call `<skill-dir>\runner\flow.cmd <command>` rather than 
 | `/flow project-type [web\|cli\|library\|skill]` | Show or set the project type, which selects the done-evidence rule and the contract seam. Default `web`. |
 | `/flow debt add\|list` | Record or list deliberate gate-skips in `DEBT.md`. Security-class entries are operator-only. |
 
-## Drift and audit checks
+## Drift checks {#drift-checks}
 
-All four are advisory: they flag, they never auto-fix.
+`/flow contract`, `/flow tokens`, `/flow coherence`, and `/flow consistency` each flag one axis of drift and never auto-fix. Together they form a lattice: versions, URLs, design tokens, and whether the artifacts still trace to each other.
 
-| Command | What it checks |
-|---|---|
-| `/flow contract` | Client base-URL versus served-path prefix drift (web). |
-| `/flow tokens` | `DESIGN.md` declared tokens versus the CSS actually used: unused, value mismatch, orphan. |
-| `/flow coherence` | Version drift across declared version fields. |
-| `/flow consistency` | Cross-artifact coverage: every PRD `FRn` claimed by a card and served by a contract interface, a numeric success metric, no leftover placeholders. |
-| `/flow design <file>` | Mechanical `DESIGN.md` check on a UI file. |
+| Command | Axis | What it reports |
+|---|---|---|
+| `/flow coherence` | versions | Version drift across declared version fields — the cheap document-versus-code slice |
+| `/flow contract` | URLs | Client base-URL versus served-path prefix drift, the double-`/api` and mixed-prefix class that schema diffing tools miss (web) |
+| `/flow tokens` | design | `DESIGN.md` declared tokens against the CSS actually used: unused tokens, value mismatches, orphan variables |
+| `/flow consistency` | traceability | Every PRD `FRn` claimed by a card and served by a contract interface, a numeric success metric, no leftover placeholders |
+
+Run `consistency` and `coherence` after the contract gate and before cutting cards. Run `contract` and `tokens` while building the surfaces they describe.
+
+`/flow design <file>` is a related mechanical check on a single UI file rather than a project-wide sweep.
+
+Descriptions and timing: [`README.md`](https://github.com/manhquydev/flow-skill/blob/master/README.md)
 
 ## Durable layer and knowledge
 
@@ -83,6 +88,25 @@ All four are advisory: they flag, they never auto-fix.
 | `/flow usage [--global\|--prune]` | Roll the local JSONL usage log into build analytics: cycle time, gate fail-rate, per-stage and per-card dwell, command breakdown. Local only. |
 | `/flow retro` | Print the three retro questions. The operator writes the line, never the agent. |
 
+## Harness subcommands {#harness-subcommands}
+
+`/flow harness <args>` is a passthrough to the durable layer, a flow-owned Python and SQLite CLI that stores what survives between sessions.
+
+| Subcommand | Purpose |
+|---|---|
+| `intake` | Record an incoming request with a type, summary, and flags; risk flags such as auth auto-escalate the lane |
+| `story` | Track a unit of work and its proof. Complete it with `story complete --proof-source …` |
+| `trace` | Tier-scored record written when a card check passes |
+| `decision` | Record a decision and later close the loop with its actual outcome |
+| `backlog` | The improvement backlog that `propose` writes into |
+| `query` | Read records back |
+| `audit` | Score entropy and drift in the accumulated records |
+| `propose` | Mine repeated friction and interventions into backlog items; deterministic, fires at two or more occurrences |
+
+Most of these are written for you by the engine — advancing a stage seeds an intake, a passing check records a trace — so the manual surface is mostly reading. The layer is optional: without `python3` the gates still run and only this store disables.
+
+Schema, flags, and the live authority table: [`skills/flow/harness/README.md`](https://github.com/manhquydev/flow-skill/blob/master/skills/flow/harness/README.md)
+
 ## Evaluation
 
 | Command | What it does |
@@ -92,7 +116,7 @@ All four are advisory: they flag, they never auto-fix.
 
 ## See also
 
-- [Install CLI](/docs/reference/install-cli)
-- [Drift commands](/docs/reference/drift-commands)
-- [Harness subcommands](/docs/reference/harness-subcommands)
+- [Install CLI flags](/docs/how-to/troubleshoot-install#install-cli-flags)
+- [Drift checks](#drift-checks)
+- [Harness subcommands](#harness-subcommands)
 - Full source: [`skills/flow/SKILL.md`](https://github.com/manhquydev/flow-skill/blob/master/skills/flow/SKILL.md)

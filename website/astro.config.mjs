@@ -1,10 +1,16 @@
 // @ts-check
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+
+const redirects = JSON.parse(
+	readFileSync(new URL('./redirects.json', import.meta.url), 'utf8'),
+);
 
 // https://astro.build/config
 export default defineConfig({
 	site: 'https://flowskill.io.vn',
+	redirects,
 	integrations: [
 		starlight({
 			title: 'flow',
@@ -22,24 +28,34 @@ export default defineConfig({
 			],
 			sidebar: [
 				{
-					label: 'Tutorials',
-					translations: { vi: 'Hướng dẫn' },
-					items: [{ autogenerate: { directory: 'docs/tutorials' } }],
+					label: 'Start',
+					translations: { vi: 'Bắt đầu' },
+					items: [
+						{ label: 'Install and run', translations: { vi: 'Cài và chạy' }, slug: 'docs' },
+					],
 				},
 				{
-					label: 'How-to',
-					translations: { vi: 'Cách làm' },
-					items: [{ autogenerate: { directory: 'docs/how-to' } }],
+					label: 'Use',
+					translations: { vi: 'Dùng' },
+					items: [
+						{ label: 'Everyday loop', translations: { vi: 'Vòng hằng ngày' }, slug: 'docs/how-to/use-chat-concierge' },
+						{ label: 'Walk a full project', translations: { vi: 'Đi một dự án đủ' }, slug: 'docs/tutorials/first-greenfield-project' },
+						{ label: 'Planning gates', translations: { vi: 'Cổng planning' }, slug: 'docs/explanation/stage-pipeline' },
+						{ label: 'Cards and done-evidence', translations: { vi: 'Card và bằng chứng done' }, slug: 'docs/how-to/create-and-check-cards' },
+						{ label: 'Existing repo', translations: { vi: 'Repo có sẵn' }, slug: 'docs/how-to/resume-mid-project' },
+						{ label: 'If install breaks', translations: { vi: 'Cài hỏng thì sao' }, slug: 'docs/how-to/troubleshoot-install' },
+					],
 				},
 				{
-					label: 'Explanation',
-					translations: { vi: 'Giải thích' },
-					items: [{ autogenerate: { directory: 'docs/explanation' } }],
-				},
-				{
-					label: 'Reference',
-					translations: { vi: 'Tham chiếu' },
-					items: [{ autogenerate: { directory: 'docs/reference' } }],
+					label: 'More',
+					translations: { vi: 'Thêm' },
+					items: [
+						{ label: 'How flow thinks', translations: { vi: 'flow nghĩ thế nào' }, slug: 'docs/explanation/what-is-flow' },
+						{ label: 'When work must halt', translations: { vi: 'Khi việc phải dừng' }, slug: 'docs/explanation/auto-tiers-and-security-halts' },
+						{ label: 'Commands', translations: { vi: 'Lệnh' }, slug: 'docs/reference/commands' },
+						{ label: 'Glossary', translations: { vi: 'Thuật ngữ' }, slug: 'docs/reference/glossary' },
+						{ label: 'Changelog', translations: { vi: 'Nhật ký thay đổi' }, slug: 'docs/reference/changelog' },
+					],
 				},
 			],
 			customCss: [

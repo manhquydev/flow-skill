@@ -93,6 +93,8 @@ Cái gì được tính phụ thuộc loại dự án:
 
 Artifact quy trình — PR đã duyệt, badge CI xanh, release notes — không phải bằng chứng. Sàn cơ học từ chối prose chỉ-quy-trình, nên card không thể done bằng giấy tờ.
 
+Luật đầy đủ nằm ở [Done nghĩa là bằng chứng thế giới thật](/vi/docs/explanation/what-is-flow/#done-means-world-state).
+
 ## Flip sang done
 
 ```
@@ -108,8 +110,58 @@ Hoặc để CLI sở hữu lần flip:
 
 `card done` áp cùng luật done với `check` và **revert** nếu cổng fail, nên không bao giờ đẻ ra done rỗng. Sửa tay `status: done` rồi chạy `check` vẫn hợp lệ như nhau.
 
+## Converge kế hoạch với code {#converge}
+
+Build thật lệch: code được viết mà plan không hỏi, và work đã plan không hạ cánh. `/flow converge` đóng gap đó. Verb này opt-in, nằm ngoài chuỗi cổng `next`.
+
+Đánh giá code đang có đối với plan (PRD `FRn`, interface trong contract, `INV-n` constitution). Viết payload `flow-converge/v1` mô tả gap, rồi chạy:
+
+```
+/flow converge
+```
+
+Hoặc `flow.sh converge --file <path>`.
+
+Ba luật ràng verb:
+
+1. **Chỉ append.** Không sửa, không đánh số lại, không xóa `cards/C-*.md` đã có. Không đụng application code. Remainder card được emit; session sau mới build.
+2. **Tất cả hoặc không.** Runner transactional: mọi remainder card được viết, hoặc không cái nào. Không append dở.
+3. **`CONVERGED` nghĩa là không ghi gì.** Zero findings (hoặc không payload) thì in `CONVERGED` và để `cards/` nguyên.
+
+Work tồn tại trong code nhưng chưa từng được yêu cầu thành **card review** (`implements: none`), không thành lệnh xóa. Quyết định gỡ cái gì thuộc operator.
+
+Gap type payload nhận: `missing`, `partial`, `contradicts`, `unrequested`. Cái khác thì bị từ chối và không ghi gì.
+
+Viết findings vào `.flow/converge-pending.md` trước (run-state, gitignored, nên lần `CONVERGED` không làm bẩn `cards/`). Đưa bảng findings ra trước khi ghi card. Format:
+
+```
+schema: flow-converge/v1
+findings: 2
+
+---
+gap-type: missing
+severity: HIGH
+implements: FR2
+source-ref: 03-prd.md:FR2
+title: implement the mark-task-done endpoint
+deps: C-002
+allowed: src/app.py
+---
+gap-type: unrequested
+severity: LOW
+implements: none
+source-ref: src/app.py:debug_dump
+title: the debug_dump surface no feature asked for
+deps:
+allowed: src/app.py
+```
+
+Card được append mang `[FILL]` Verify và Evidence vì chưa build. Cắt, điền, rồi `check` như card khác.
+
+Phân loại gap và schema payload đầy đủ nằm ở [`skills/flow/references/converge.md`](https://github.com/manhquydev/flow-skill/blob/master/skills/flow/references/converge.md).
+
 ## Xem thêm
 
-- [Done nghĩa là bằng chứng thế giới thật](/vi/docs/explanation/done-evidence)
-- [Bỏ cổng bằng nợ](/vi/docs/how-to/skip-gate-with-debt)
-- [Chạy auto-build](/vi/docs/how-to/run-auto-build)
+- [Done nghĩa là bằng chứng thế giới thật](/vi/docs/explanation/what-is-flow/#done-means-world-state)
+- [Bỏ cổng bằng nợ](/vi/docs/explanation/auto-tiers-and-security-halts/#skip-a-gate-with-debt)
+- [Chạy auto-build](/vi/docs/explanation/auto-tiers-and-security-halts/#run-an-auto-build)
