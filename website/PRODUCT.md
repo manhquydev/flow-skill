@@ -18,7 +18,7 @@ Secondary (docs, Read mode): the same person after install, looking up a command
 
 ## Product Purpose
 
-Flow is a **gated build harness for coding agents**. It walks an idea to real done-evidence (deployed URL, CLI that runs, library API, or a real skill run) through honest gates. Success for this site: the visitor installs via `npx @manhquy/flow-skill@latest` and opens **`/docs/`** (skim) or the first-run tutorial (depth). Either is success; do not force the 10-minute path.
+Flow is a **gated build harness for coding agents**. It walks an idea to real done-evidence (deployed URL, CLI that runs, library API, or a real skill run) through honest gates. Success for this site: the visitor installs via `npx @manhquy/flow-skill@next` (current skill on dist-tag `next`; `@latest` after promotion) and opens **`/docs/`** (skim) or the first-run tutorial (depth). Either is success; do not force the 10-minute path.
 
 ## Positioning
 
@@ -35,7 +35,7 @@ This marketing site is **separate** from the skill. Repo-root `DESIGN.md` is flo
 ## Capabilities and Constraints
 
 - Public: Persuade landing (`/`, `/vi/`) + start-and-use docs (`/docs`, `/vi/docs`). EN root, VI prefixed.
-- Install truth: `npx @manhquy/flow-skill@latest`. Versions: read live from `skills/flow/SKILL.md` and `npm-wrapper/package.json` at build time — never freeze digits in this file.
+- Install truth: `npx @manhquy/flow-skill@next` while the current skill is on dist-tag `next`; `@latest` after that tag is promoted. Versions: read live from `skills/flow/SKILL.md` and `npm-wrapper/package.json` at build time — never freeze digits in this file.
 - EN and VI are equal in content; URL symmetry is not required.
 - Must not change `skills/flow/runner/flow.sh` or overwrite repo-root `DESIGN.md`.
 

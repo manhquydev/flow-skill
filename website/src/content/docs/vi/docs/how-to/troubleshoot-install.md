@@ -8,8 +8,8 @@ lang: vi
 
 | Hiện tượng | Cách xử lý |
 |---|---|
-| Không có `/flow` sau `npm i` | Chạy `npx @manhquy/flow-skill@latest`. Phải **execute** CLI; chỉ cài package không copy gì vào skill home. |
-| Skill cũ sau “cài lại” | Luôn dùng `@latest`. Tên package trần có thể lấy từ cache npx. |
+| Không có `/flow` sau `npm i` | Chạy `npx @manhquy/flow-skill@next`. Phải **execute** CLI; chỉ cài package không copy gì vào skill home. |
+| Skill cũ sau “cài lại” | Dùng `@next` cho skill v0.31.0 (`@latest` vẫn ship 0.30.0 cho đến khi được promote). Tên package trần có thể lấy từ cache npx. |
 | Claude hoặc Codex không list skill | Restart agent **một lần** sau cài lần đầu. |
 | `flow.sh: No such file` trên PowerShell | Gọi `…/runner/flow.cmd`, không gọi `bash`. |
 | `durable layer DISABLED` | Cài `python3`, hoặc bỏ qua: cổng cơ học vẫn chạy. |
@@ -56,10 +56,10 @@ Nếu skill trên đĩa đứng sau cái `--help` báo, bước copy không tớ
 
 Hai lỗi pin gây hầu hết bản cũ:
 
-- Pin version **skill product** trên npm. Số đó không phải version package npm đã publish. Pin version installer CLI, hoặc dùng `@latest`.
+- Pin version **skill product** trên npm. Số đó không phải version package npm đã publish. Pin version installer CLI, hoặc dùng `@next` cho skill hiện tại.
 - Dùng tag `@rc`. Đã retire và cũ.
 
-Nếu npm báo `No matching version found`, bạn đã pin số skill product. Dùng `@latest` hoặc pin installer. Hai số và vì sao chúng khác nhau nằm ở [Hai số version](#two-version-numbers).
+Nếu npm báo `No matching version found`, bạn đã pin số skill product. Dùng `@next` hoặc pin installer. Hai số và vì sao chúng khác nhau nằm ở [Hai số version](#two-version-numbers).
 
 ## Windows: PowerShell resolve nhầm bash
 
@@ -83,7 +83,7 @@ Thu thập ba thứ trước khi hỏi: output `doctor` đầy đủ, hai số v
 
 ## Đường cài đặt khác {#alternative-install}
 
-Installer npm, `npx @manhquy/flow-skill@latest`, là đường khuyến nghị cho mọi người. Các đường khác tồn tại cho contributor và máy air-gapped.
+Installer npm, `npx @manhquy/flow-skill@next`, là đường khuyến nghị cho skill v0.31.0. Các đường khác tồn tại cho contributor và máy air-gapped.
 
 Từ git checkout:
 
@@ -104,20 +104,22 @@ Lệnh và ghi chú nền tảng:
 ## Flag CLI cài đặt {#install-cli-flags}
 
 ```bash
-npx @manhquy/flow-skill@latest
+npx @manhquy/flow-skill@next
 ```
 
-Cần [Node.js](https://nodejs.org/) **22.14 trở lên**. Luôn ghi `@latest`. Lệnh trần `npx @manhquy/flow-skill` có thể lấy từ cache npx và chạy bản cũ.
+Cần [Node.js](https://nodejs.org/) **22.14 trở lên**. Dùng `@next` cho skill hiện tại;
+`@latest` vẫn ship 0.30.0 cho đến khi được promote. Lệnh trần `npx @manhquy/flow-skill` có
+thể lấy từ cache npx và chạy bản cũ.
 
 Sao nguyên; đừng paraphrase nghĩa flag. `--project` chỉ áp cho `claude`.
 
 ```bash
-npx @manhquy/flow-skill@latest --yes
-npx @manhquy/flow-skill@latest --yes --target claude
-npx @manhquy/flow-skill@latest --yes -t claude -t codex
-npx @manhquy/flow-skill@latest --yes --all
-npx @manhquy/flow-skill@latest --yes --project --dir .
-npx @manhquy/flow-skill@latest --yes --all --dry-run --json
+npx @manhquy/flow-skill@next --yes
+npx @manhquy/flow-skill@next --yes --target claude
+npx @manhquy/flow-skill@next --yes -t claude -t codex
+npx @manhquy/flow-skill@next --yes --all
+npx @manhquy/flow-skill@next --yes --project --dir .
+npx @manhquy/flow-skill@next --yes --all --dry-run --json
 ```
 
 | Flag | Ý nghĩa |
@@ -135,10 +137,10 @@ npx @manhquy/flow-skill@latest --yes --all --dry-run --json
 
 | Nên | Không |
 |---|---|
-| `npx @manhquy/flow-skill@latest` | Bare `npx @manhquy/flow-skill` (cache npx có thể cũ) |
+| `npx @manhquy/flow-skill@next` | Bare `npx @manhquy/flow-skill` (cache npx có thể cũ) |
 | **Chạy** CLI để copy skill | Chỉ `npm i` (chỉ thêm package; không cài skill vào agent home) |
 | Pin version installer nếu cần bản cố định | Pin version skill product trên npm |
-| Ưu tiên `@latest` | `@rc` (đã retire / tụt hậu) |
+| Ưu tiên `@next` cho skill hiện tại | `@rc` (đã retire / tụt hậu) |
 
 Package: [`@manhquy/flow-skill` trên npm](https://www.npmjs.com/package/@manhquy/flow-skill).
 Nghĩa flag được giữ cùng installer:
@@ -235,8 +237,8 @@ Không có `FLOW_SESSION_ID` thì runner không chứng minh được session c�
 | **npm installer** | CLI `@manhquy/flow-skill` copy skill vào agent home. Nằm trên package npm. |
 
 ```bash
-npx @manhquy/flow-skill@latest --help
-# version installer CLI, rồi skill product nó ship
+npx @manhquy/flow-skill@next --help
+# flow-skill v0.7.1-next.0 (ships skill v0.31.0)
 
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
 ```
@@ -261,15 +263,15 @@ Gộp hai số nghĩa là hoặc bump installer mỗi lần đổi cổng, hoặ
 
 ### Sai lầm chuyện này gây ra, và cách tránh
 
-Mode fail là pin nhầm số. Version skill product không phải version package npm đã publish. Pin installer CLI nếu cần bản cố định. Tốt hơn cho hầu hết mọi người: `@latest`.
+Mode fail là pin nhầm số. Version skill product không phải version package npm đã publish. Pin installer CLI nếu cần bản cố định. Hiện tại skill mới nhất nằm trên `@next`.
 
 ```bash
 # Sai: pin version skill product (không phải version package npm)
-# Đúng: pin version installer CLI, hoặc dùng @latest
-npx @manhquy/flow-skill@latest
+# Đúng: pin version installer CLI, hoặc dùng @next cho skill hiện tại
+npx @manhquy/flow-skill@next
 ```
 
-Luôn dùng `@latest` khi muốn skill mới nhất. Lệnh trần `npx @manhquy/flow-skill` có thể lấy từ cache npx và âm thầm chạy bản cũ. Tag `@rc` đã retire; đừng dùng.
+Hiện skill mới nhất nằm trên `@next` (`0.7.1-next.0` ship skill `0.31.0`). `@latest` vẫn ship installer `0.7.0` / skill `0.30.0` cho đến khi được promote. Lệnh trần `npx @manhquy/flow-skill` có thể lấy từ cache npx và âm thầm chạy bản cũ. Tag `@rc` đã retire; đừng dùng.
 
 Nếu npm báo `No matching version found`, gần như chắc bạn đã pin số skill product. `--help` in cả hai số; pin số installer.
 
