@@ -39,6 +39,13 @@ bash skills/flow/runner/flow.sh eval --replay --n 3
 Feeds recorded text through parse → vote → per-fixture match lines (no scorecard;
 replay writes no results rows). Hard-fails if `gate_rules_sha` in `meta` does not
 match `_eval_gate_rules_sha` (staleness — re-record live per the identity ADR).
-Replay is **not** a fresh-judge and never counts toward the eval floor.
+If `meta` contains any `prompt_sha.<fid>` keys, each evaluated fixture's rebuilt
+assembler output must match (CRLF-normalized cksum, same recipe as
+`gate_rules_sha`). Zero such keys → skip (pre-receipt trees; no live `--record`
+required). Hard-fail is mismatch, not absence. Never commit prompt bodies —
+hash-only. Replay is **not** a fresh-judge and never counts toward the eval floor.
+
+Live isolation (cwd + `CLAUDE_CODE_SAFE_MODE`, not engine argv) lives in
+`skills/flow/references/gate-eval.md` **Cost**. Replay never uses it.
 
 `--record|--replay` are artifact-only: not `--stage routing|converge`, not `--report`.
