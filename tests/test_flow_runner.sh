@@ -113,6 +113,38 @@ else
 fi
 rm -rf "$SB" "$MY_TMPDIR"
 
+echo "H) doctor prints timeout: full|partial|absent (informational; never scores eval)"
+out="$(bash "$RUN" doctor 2>&1)"
+if printf '%s' "$out" | grep -qE 'timeout:[[:space:]]*(full|partial|absent)'; then
+  echo "  ok   [doctor prints timeout: full|partial|absent]"; pass=$((pass+1))
+else
+  echo "  FAIL [doctor missing timeout: full|partial|absent line]"; fail=$((fail+1))
+fi
+if command -v timeout >/dev/null 2>&1 || command -v gtimeout >/dev/null 2>&1; then
+  has "$out" "timeout:   full" "timeout/gtimeout present -> full"
+fi
+# PATH-shadow: hide timeout/gtimeout. Do not use FLOW_EVAL_FORCE_DARWIN (eval-only).
+notimeoutbin="$(mktemp -d)"
+for d in /usr/bin /bin; do
+  [ -d "$d" ] || continue
+  for f in "$d"/*; do
+    [ -e "$f" ] || continue
+    b="$(basename "$f")"
+    case "$b" in timeout|timeout.exe|gtimeout|gtimeout.exe) continue ;; esac
+    [ -e "$notimeoutbin/$b" ] || ln -s "$f" "$notimeoutbin/$b" 2>/dev/null || cp "$f" "$notimeoutbin/$b" 2>/dev/null
+  done
+done
+if PATH="$notimeoutbin" command -v timeout >/dev/null 2>&1 || PATH="$notimeoutbin" command -v gtimeout >/dev/null 2>&1; then
+  echo "  skip [timeout-still-resolves] (cannot hide timeout/gtimeout on this platform)"
+else
+  out2="$(PATH="$notimeoutbin" bash "$RUN" doctor 2>&1)"
+  case "$(uname -s 2>/dev/null)" in
+    Darwin) has "$out2" "timeout:   absent" "Darwin without timeout/gtimeout -> absent (live eval still REFUSED)" ;;
+    *)      has "$out2" "timeout:   partial" "non-Darwin without timeout/gtimeout -> partial" ;;
+  esac
+fi
+rm -rf "$notimeoutbin"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

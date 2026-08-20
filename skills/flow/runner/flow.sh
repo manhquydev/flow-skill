@@ -2302,6 +2302,14 @@ cmd_doctor() {
   command -v cargo >/dev/null 2>&1 && echo "  cargo:     ok (optional Rust harness power-path)" || true
   [ -d "$TEMPLATE_DIR" ] && echo "  templates: ok" || { echo "  templates: MISSING ($TEMPLATE_DIR)"; ok=0; }
   [ -f "$HARNESS_PY" ] && echo "  harness:   present ($HARNESS_PY)" || echo "  harness:   absent (durable layer off)"
+  if command -v timeout >/dev/null 2>&1 || command -v gtimeout >/dev/null 2>&1; then
+    echo "  timeout:   full (timeout|gtimeout present)"
+  else
+    case "$(uname -s 2>/dev/null)" in
+      Darwin) echo "  timeout:   absent (no timeout/gtimeout; live eval REFUSED)" ;;
+      *)      echo "  timeout:   partial (watchdog fallback; live eval not GNU-bounded)" ;;
+    esac
+  fi
   echo
   if [ "$ok" -eq 1 ]; then
     echo "READY. Gate engine works$([ -n "$py" ] && echo '; durable layer on.' || echo '; durable layer off (no python).')"
@@ -3291,6 +3299,13 @@ _eval_gate_rules_sha() {
   tr -d '\r' < "$GATE_RULES_FILE" | cksum | awk '{print $1}'
 }
 
+# CRLF-normalized assembler-output hash (same recipe as _eval_gate_rules_sha). Covers
+# prompt-file bytes only — not host CLAUDE.md. $1=prompt file.
+_eval_prompt_sha() {
+  [ -f "$1" ] || { printf 'unknown'; return; }
+  tr -d '\r' < "$1" | cksum | awk '{print $1}'
+}
+
 # `claude --version` is the CLI version (e.g. "2.1.201 (Claude Code)"), NOT a model id - kept
 # as its own axis distinct from `_eval_parse_model` (red-team finding #4: 3 reviewers
 # independently confirmed conflating the two is wrong). `< /dev/null`: this and every other
@@ -3317,9 +3332,10 @@ _eval_replay_meta_get() { # $1=key -> value (empty + return 1 if missing)
   return 1
 }
 
-_eval_replay_write_meta() { # $1=nonce $2=gate_rules_sha $3=model $4=n
+_eval_replay_write_meta() { # $1=nonce $2=gate_rules_sha $3=model $4=n [$5=prompt_sha.<fid>= lines]
   mkdir -p "$EVAL_REPLAY_DIR" || return 1
-  printf 'nonce=%s\ngate_rules_sha=%s\nmodel=%s\nn=%s\n' "$1" "$2" "$3" "$4" > "$EVAL_REPLAY_DIR/meta"
+  printf 'nonce=%s\ngate_rules_sha=%s\nmodel=%s\nn=%s\n' "$1" "$2" "$3" "$4" > "$EVAL_REPLAY_DIR/meta" || return 1
+  [ -n "${5:-}" ] && printf '%s' "$5" >> "$EVAL_REPLAY_DIR/meta"
 }
 
 # Persist one stripped verdict line only — never a JSON envelope (session_id/cwd stay out).
@@ -3366,17 +3382,18 @@ _eval_emit_batch_marker() { # $1=run_id $2=start|done $3=n_expected-or-n_written
 # cli_version/flow_version/gate_rules_sha are passed in (computed ONCE per batch by the caller,
 # not per fixture row) - they never change mid-batch, and recomputing per-row was both wasteful
 # (an extra subprocess per fixture) and the original vector for the stdin-consumption bug above.
-_eval_emit_result() { # $1..$14 as before + $15=retries $16=rate_limited (true|false)
+_eval_emit_result() { # $1..$14 as before + $15=retries $16=rate_limited $17=prompt_sha $18=timed_out
   local run_id="$1" fid="$2" stage="$3" expected="$4" verdict="$5" match="$6" flag="$7" pass="$8" invalid="$9" n="${10}" model="${11}" cliv="${12}" flowv="${13}" grsha="${14}"
-  local retries="${15:-0}" ratel="${16:-false}"
+  local retries="${15:-0}" ratel="${16:-false}" psha="${17:-}" timedout="${18:-false}"
   case "$retries" in ''|*[!0-9]*) retries=0 ;; esac
   case "$ratel"   in true|false) : ;; *) ratel=false ;; esac
+  case "$timedout" in true|false) : ;; *) timedout=false ;; esac
   mkdir -p "$LOG_DIR" 2>/dev/null || true
-  printf '{"ts":"%s","epoch_s":%s,"run_id":"%s","fixture":"%s","stage":"%s","expected":"%s","verdict":"%s","match":"%s","votes":{"flag":%s,"pass":%s,"invalid":%s},"n":%s,"cli_version":"%s","model":"%s","flow_version":"%s","gate_rules_sha":"%s","retries":%s,"rate_limited":%s}\n' \
+  printf '{"ts":"%s","epoch_s":%s,"run_id":"%s","fixture":"%s","stage":"%s","expected":"%s","verdict":"%s","match":"%s","votes":{"flag":%s,"pass":%s,"invalid":%s},"n":%s,"cli_version":"%s","model":"%s","flow_version":"%s","gate_rules_sha":"%s","retries":%s,"rate_limited":%s,"prompt_sha":"%s","timed_out":%s}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" "$(_now)" "$(_json_str "$run_id")" "$(_json_str "$fid")" \
     "$(_json_str "$stage")" "$(_json_str "$expected")" "$(_json_str "$verdict")" "$(_json_str "$match")" \
     "$flag" "$pass" "$invalid" "$n" "$(_json_str "$cliv")" "$(_json_str "$model")" \
-    "$(_json_str "$flowv")" "$(_json_str "$grsha")" "$retries" "$ratel" >> "$EVAL_RESULTS_FILE" 2>/dev/null || true
+    "$(_json_str "$flowv")" "$(_json_str "$grsha")" "$retries" "$ratel" "$(_json_str "$psha")" "$timedout" >> "$EVAL_RESULTS_FILE" 2>/dev/null || true
 }
 
 # Strip the noisy `system`/`init` envelope from a raw --output-format json line before persisting
@@ -3660,17 +3677,18 @@ _eval_routing_parse_action() {
   [ -n "$action" ] && printf '%s' "$action" || echo INVALID
 }
 
-_eval_routing_emit_result() { # $1=run_id $2=fid $3=expected $4=verdict $5=match $6..$9=votes-hit/miss/invalid/n $10=model $11=cliv $12=flowv $13=rulessha $14=retries $15=rate_limited
+_eval_routing_emit_result() { # $1=run_id $2=fid $3=expected $4=verdict $5=match $6..$9=votes $10=model $11=cliv $12=flowv $13=rulessha $14=retries $15=rate_limited $16=prompt_sha $17=timed_out
   local run_id="$1" fid="$2" expected="$3" verdict="$4" match="$5" hit="$6" miss="$7" invalid="$8" n="$9"
-  local model="${10}" cliv="${11}" flowv="${12}" rulessha="${13}" retries="${14:-0}" ratel="${15:-false}"
+  local model="${10}" cliv="${11}" flowv="${12}" rulessha="${13}" retries="${14:-0}" ratel="${15:-false}" psha="${16:-}" timedout="${17:-false}"
   case "$retries" in ''|*[!0-9]*) retries=0 ;; esac
   case "$ratel"   in true|false) : ;; *) ratel=false ;; esac
+  case "$timedout" in true|false) : ;; *) timedout=false ;; esac
   mkdir -p "$LOG_DIR" 2>/dev/null || true
-  printf '{"ts":"%s","epoch_s":%s,"run_id":"%s","fixture":"%s","expected":"%s","verdict":"%s","match":"%s","votes":{"hit":%s,"miss":%s,"invalid":%s},"n":%s,"cli_version":"%s","model":"%s","flow_version":"%s","rules_sha":"%s","retries":%s,"rate_limited":%s}\n' \
+  printf '{"ts":"%s","epoch_s":%s,"run_id":"%s","fixture":"%s","expected":"%s","verdict":"%s","match":"%s","votes":{"hit":%s,"miss":%s,"invalid":%s},"n":%s,"cli_version":"%s","model":"%s","flow_version":"%s","rules_sha":"%s","retries":%s,"rate_limited":%s,"prompt_sha":"%s","timed_out":%s}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" "$(_now)" "$(_json_str "$run_id")" "$(_json_str "$fid")" \
     "$(_json_str "$expected")" "$(_json_str "$verdict")" "$(_json_str "$match")" \
     "$hit" "$miss" "$invalid" "$n" "$(_json_str "$cliv")" "$(_json_str "$model")" \
-    "$(_json_str "$flowv")" "$(_json_str "$rulessha")" "$retries" "$ratel" >> "$EVAL_ROUTING_RESULTS_FILE" 2>/dev/null || true
+    "$(_json_str "$flowv")" "$(_json_str "$rulessha")" "$retries" "$ratel" "$(_json_str "$psha")" "$timedout" >> "$EVAL_ROUTING_RESULTS_FILE" 2>/dev/null || true
 }
 
 _eval_routing_complete_run_ids() {
@@ -3838,14 +3856,18 @@ function cmd_eval_routing { # same arg shape as cmd_eval, called only when --sta
       continue
     fi
 
+    local psha
+    psha="$(_eval_prompt_sha "$promptfile")"
+
     total_evaluated=$((total_evaluated + 1))
-    local hit_count=0 miss_count=0 invalid_count=0 i=1 model="unknown" retries_sum=0 vote_rate_limited=false
+    local hit_count=0 miss_count=0 invalid_count=0 i=1 model="unknown" retries_sum=0 vote_rate_limited=false vote_timed_out=false
     while [ "$i" -le "$n" ]; do
       local raw rc v raw1="" rc1=0
       raw="$(_eval_engine_run "$promptfile" "$timeout" 2>/dev/null)"; rc=$?
       raw1="$raw"; rc1="$rc"
       if [ "$rc" -eq 124 ]; then
         v=INVALID
+        vote_timed_out=true
       else
         v="$(_eval_routing_parse_action "$raw" "$nonce")"
         [ "$model" = "unknown" ] && model="$(_eval_parse_model "$raw")"
@@ -3859,7 +3881,7 @@ function cmd_eval_routing { # same arg shape as cmd_eval, called only when --sta
         fi
         raw="$(_eval_engine_run "$promptfile" "$timeout" 2>/dev/null)"; rc=$?
         retries_sum=$((retries_sum + 1))
-        if [ "$rc" -eq 124 ]; then v=INVALID; else v="$(_eval_routing_parse_action "$raw" "$nonce")"; fi
+        if [ "$rc" -eq 124 ]; then v=INVALID; vote_timed_out=true; else v="$(_eval_routing_parse_action "$raw" "$nonce")"; fi
         [ "$model" = "unknown" ] && [ "$rc" -ne 124 ] && model="$(_eval_parse_model "$raw")"
         local rl2; rl2="$(_eval_parse_rate_limited "$raw")"
         [ "$rl2" = "true" ] && vote_rate_limited=true
@@ -3897,7 +3919,7 @@ function cmd_eval_routing { # same arg shape as cmd_eval, called only when --sta
       echo "  $fid: MISS - expected '$fexpected' (hit=$hit_count miss=$miss_count invalid=$invalid_count)"
     fi
 
-    _eval_routing_emit_result "$nonce" "$fid" "$fexpected" "$verdict" "$match" "$hit_count" "$miss_count" "$invalid_count" "$n" "$model" "$batch_cliv" "$batch_flowv" "$batch_rulessha" "$retries_sum" "$vote_rate_limited"
+    _eval_routing_emit_result "$nonce" "$fid" "$fexpected" "$verdict" "$match" "$hit_count" "$miss_count" "$invalid_count" "$n" "$model" "$batch_cliv" "$batch_flowv" "$batch_rulessha" "$retries_sum" "$vote_rate_limited" "$psha" "$vote_timed_out"
     n_written=$((n_written + 1))
 
     if [ "$total_evaluated" -eq 1 ] && [ "$verdict" = "UNRELIABLE" ] && [ "$keep_going" -eq 0 ]; then
@@ -4005,15 +4027,16 @@ _eval_converge_parse_verdict() { # $1=raw $2=nonce -> GAP|CONVERGED|INVALID
 
 _eval_converge_emit_result() { # same field shape as _eval_routing_emit_result
   local run_id="$1" fid="$2" expected="$3" verdict="$4" match="$5" hit="$6" miss="$7" invalid="$8" n="$9"
-  local model="${10}" cliv="${11}" flowv="${12}" rulessha="${13}" retries="${14:-0}" ratel="${15:-false}"
+  local model="${10}" cliv="${11}" flowv="${12}" rulessha="${13}" retries="${14:-0}" ratel="${15:-false}" psha="${16:-}" timedout="${17:-false}"
   case "$retries" in ''|*[!0-9]*) retries=0 ;; esac
   case "$ratel"   in true|false) : ;; *) ratel=false ;; esac
+  case "$timedout" in true|false) : ;; *) timedout=false ;; esac
   mkdir -p "$LOG_DIR" 2>/dev/null || true
-  printf '{"ts":"%s","epoch_s":%s,"run_id":"%s","fixture":"%s","expected":"%s","verdict":"%s","match":"%s","votes":{"hit":%s,"miss":%s,"invalid":%s},"n":%s,"cli_version":"%s","model":"%s","flow_version":"%s","rules_sha":"%s","retries":%s,"rate_limited":%s}\n' \
+  printf '{"ts":"%s","epoch_s":%s,"run_id":"%s","fixture":"%s","expected":"%s","verdict":"%s","match":"%s","votes":{"hit":%s,"miss":%s,"invalid":%s},"n":%s,"cli_version":"%s","model":"%s","flow_version":"%s","rules_sha":"%s","retries":%s,"rate_limited":%s,"prompt_sha":"%s","timed_out":%s}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" "$(_now)" "$(_json_str "$run_id")" "$(_json_str "$fid")" \
     "$(_json_str "$expected")" "$(_json_str "$verdict")" "$(_json_str "$match")" \
     "$hit" "$miss" "$invalid" "$n" "$(_json_str "$cliv")" "$(_json_str "$model")" \
-    "$(_json_str "$flowv")" "$(_json_str "$rulessha")" "$retries" "$ratel" >> "$EVAL_CONVERGE_RESULTS_FILE" 2>/dev/null || true
+    "$(_json_str "$flowv")" "$(_json_str "$rulessha")" "$retries" "$ratel" "$(_json_str "$psha")" "$timedout" >> "$EVAL_CONVERGE_RESULTS_FILE" 2>/dev/null || true
 }
 
 _eval_converge_emit_batch_marker() { # $1=run_id $2=start|done $3=n
@@ -4123,17 +4146,20 @@ function cmd_eval_converge { # same arg shape as cmd_eval, called only when --st
       echo "  $fid: FAIL - could not build converge prompt (converge.md/repo-dir/challenge missing)"; total_miss=$((total_miss + 1)); rm -rf "$rundir" 2>/dev/null; continue
     fi
 
+    local psha
+    psha="$(_eval_prompt_sha "$promptfile")"
+
     total_evaluated=$((total_evaluated + 1))
-    local hit_count=0 miss_count=0 invalid_count=0 i=1 model="unknown" retries_sum=0 vote_rate_limited=false
+    local hit_count=0 miss_count=0 invalid_count=0 i=1 model="unknown" retries_sum=0 vote_rate_limited=false vote_timed_out=false
     while [ "$i" -le "$n" ]; do
       local raw rc v raw1="" rc1=0
       raw="$(_eval_engine_run "$promptfile" "$timeout" 2>/dev/null)"; rc=$?; raw1="$raw"; rc1="$rc"
-      if [ "$rc" -eq 124 ]; then v=INVALID; else v="$(_eval_converge_parse_verdict "$raw" "$nonce")"; [ "$model" = "unknown" ] && model="$(_eval_parse_model "$raw")"; fi
+      if [ "$rc" -eq 124 ]; then v=INVALID; vote_timed_out=true; else v="$(_eval_converge_parse_verdict "$raw" "$nonce")"; [ "$model" = "unknown" ] && model="$(_eval_parse_model "$raw")"; fi
       local rl1; rl1="$(_eval_parse_rate_limited "$raw1")"; [ "$rl1" = "true" ] && vote_rate_limited=true
       if [ "$v" = "INVALID" ] && [ "$rl1" != "true" ] && [ "$rc1" -ne 124 ]; then
         if [ "$backoff" -gt 0 ]; then echo "  $fid: retrying vote $i after ${backoff}s (parse-INVALID on attempt 1)"; sleep "$backoff" 2>/dev/null || true; fi
         raw="$(_eval_engine_run "$promptfile" "$timeout" 2>/dev/null)"; rc=$?; retries_sum=$((retries_sum + 1))
-        if [ "$rc" -eq 124 ]; then v=INVALID; else v="$(_eval_converge_parse_verdict "$raw" "$nonce")"; fi
+        if [ "$rc" -eq 124 ]; then v=INVALID; vote_timed_out=true; else v="$(_eval_converge_parse_verdict "$raw" "$nonce")"; fi
         [ "$model" = "unknown" ] && [ "$rc" -ne 124 ] && model="$(_eval_parse_model "$raw")"
         local rl2; rl2="$(_eval_parse_rate_limited "$raw")"; [ "$rl2" = "true" ] && vote_rate_limited=true
       fi
@@ -4158,7 +4184,7 @@ function cmd_eval_converge { # same arg shape as cmd_eval, called only when --st
       total_miss=$((total_miss + 1)); echo "  $fid: MISS - expected '$fexpected' (hit=$hit_count miss=$miss_count invalid=$invalid_count)"
     fi
 
-    _eval_converge_emit_result "$nonce" "$fid" "$fexpected" "$verdict" "$match" "$hit_count" "$miss_count" "$invalid_count" "$n" "$model" "$batch_cliv" "$batch_flowv" "$batch_rulessha" "$retries_sum" "$vote_rate_limited"
+    _eval_converge_emit_result "$nonce" "$fid" "$fexpected" "$verdict" "$match" "$hit_count" "$miss_count" "$invalid_count" "$n" "$model" "$batch_cliv" "$batch_flowv" "$batch_rulessha" "$retries_sum" "$vote_rate_limited" "$psha" "$vote_timed_out"
     n_written=$((n_written + 1))
 
     if [ "$total_evaluated" -eq 1 ] && [ "$verdict" = "UNRELIABLE" ] && [ "$keep_going" -eq 0 ]; then
@@ -4297,7 +4323,7 @@ function cmd_eval {
 
   local nonce="" total_mismatch=0 total_unreliable=0 total_evaluated=0 rundir="" n_written=0 aborted=0
   # Computed ONCE per batch, not per fixture row - see _eval_emit_result's comment.
-  local batch_cliv="" batch_flowv="" batch_grsha=""
+  local batch_cliv="" batch_flowv="" batch_grsha="" prompt_sha_acc="" prompt_sha_enforced=0
   if [ "$replay_mode" -eq 1 ]; then
     # Replay wrap: skip probe SKIP-exit and _eval_cli_version only. Still compute
     # batch_grsha (staleness hard-fail) and _flow_version. Nonce from fixture, never _eval_nonce.
@@ -4319,6 +4345,9 @@ function cmd_eval {
       echo "eval --replay: fixtures stale — gate-rules changed; re-record live per ADR re-baseline rule"
       echo "  recorded=$rec_sha current=$batch_grsha"
       return 1
+    fi
+    if grep -q '^prompt_sha\.' "$EVAL_REPLAY_DIR/meta" 2>/dev/null; then
+      prompt_sha_enforced=1
     fi
     echo "replay: keyless artifact batch (nonce from fixture, zero live calls)"
   else
@@ -4425,13 +4454,36 @@ function cmd_eval {
       continue
     fi
 
+    local psha
+    psha="$(_eval_prompt_sha "$promptfile")"
+    if [ "$replay_mode" -eq 1 ] && [ "$prompt_sha_enforced" -eq 1 ]; then
+      local rec_psha
+      rec_psha="$(_eval_replay_meta_get "prompt_sha.$fid")" || rec_psha=""
+      if [ -z "$rec_psha" ] || [ "$rec_psha" != "$psha" ]; then
+        echo "eval --replay: fixtures stale — prompt assembly changed; re-record live per ADR re-baseline rule"
+        echo "  recorded=$rec_psha current=$psha fixture=$fid"
+        rm -rf "$rundir" 2>/dev/null
+        trap - INT TERM
+        return 1
+      fi
+    fi
+    if [ "$record_mode" -eq 1 ]; then
+      prompt_sha_acc="${prompt_sha_acc}prompt_sha.${fid}=${psha}"$'\n'
+    fi
+
     total_evaluated=$((total_evaluated + 1))
-    local flag_count=0 pass_count=0 invalid_count=0 i=1 model="unknown" retries_sum=0 vote_rate_limited=false
+    local flag_count=0 pass_count=0 invalid_count=0 i=1 model="unknown" retries_sum=0 vote_rate_limited=false vote_timed_out=false
     # Filename-safe fixture id for raw-capture paths - manifest fid is only tr -d '\r'-cleaned
     # (the v1 trust-boundary is READ-side only, but we are now WRITING keyed by it), so a
     # hand-edited or FLOW_EVAL_MANIFEST-overridden manifest cannot traverse out of eval-raw/.
     local fid_safe; fid_safe="$(printf '%s' "$fid" | tr -c 'A-Za-z0-9' '-' | sed -E 's/-+/-/g; s/^-//; s/-$//')"
     [ -z "$fid_safe" ] && fid_safe="_"
+    if [ "$replay_mode" -eq 0 ]; then
+      local rawdir_prompt="$LOG_DIR/eval-raw/$nonce"
+      if mkdir -p "$rawdir_prompt" 2>/dev/null; then
+        cp "$promptfile" "$rawdir_prompt/${fid_safe}.prompt" 2>/dev/null || true
+      fi
+    fi
     while [ "$i" -le "$n" ]; do
       local raw rc v raw1="" rc1=0 err1="" err2=""
       # Attempt 1 - stderr captured at the OUTER redirection so it never enters the sh -c
@@ -4447,6 +4499,7 @@ function cmd_eval {
       raw1="$raw"; rc1="$rc"
       if [ "$rc" -eq 124 ]; then
         v=INVALID
+        vote_timed_out=true
       else
         v="$(_eval_parse_verdict "$raw" "$nonce")"
         [ "$model" = "unknown" ] && model="$(_eval_parse_model "$raw")"
@@ -4480,7 +4533,7 @@ function cmd_eval {
           raw="$(_eval_engine_run "$promptfile" "$timeout" 2>"$err2")"; rc=$?
         fi
         retries_sum=$((retries_sum + 1))
-        if [ "$rc" -eq 124 ]; then v=INVALID; else v="$(_eval_parse_verdict "$raw" "$nonce")"; fi
+        if [ "$rc" -eq 124 ]; then v=INVALID; vote_timed_out=true; else v="$(_eval_parse_verdict "$raw" "$nonce")"; fi
         [ "$model" = "unknown" ] && [ "$rc" -ne 124 ] && model="$(_eval_parse_model "$raw")"
         local rl2; rl2="$(_eval_parse_rate_limited "$raw")"
         [ "$rl2" = "true" ] && vote_rate_limited=true
@@ -4555,7 +4608,7 @@ function cmd_eval {
     fi
 
     if [ "$replay_mode" -eq 0 ]; then
-      _eval_emit_result "$nonce" "$fid" "$fstage" "$fexpected" "$verdict" "$match" "$flag_count" "$pass_count" "$invalid_count" "$n" "$model" "$batch_cliv" "$batch_flowv" "$batch_grsha" "$retries_sum" "$vote_rate_limited"
+      _eval_emit_result "$nonce" "$fid" "$fstage" "$fexpected" "$verdict" "$match" "$flag_count" "$pass_count" "$invalid_count" "$n" "$model" "$batch_cliv" "$batch_flowv" "$batch_grsha" "$retries_sum" "$vote_rate_limited" "$psha" "$vote_timed_out"
     fi
     n_written=$((n_written + 1))
 
@@ -4587,7 +4640,7 @@ function cmd_eval {
     _eval_emit_batch_marker "$nonce" done "$n_written"
   fi
   if [ "$record_mode" -eq 1 ] && [ "$aborted" -eq 0 ]; then
-    _eval_replay_write_meta "$nonce" "$batch_grsha" "${model:-unknown}" "$n"
+    _eval_replay_write_meta "$nonce" "$batch_grsha" "${model:-unknown}" "$n" "$prompt_sha_acc"
   fi
 
   echo

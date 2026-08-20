@@ -164,6 +164,11 @@ has "$out" "UNRELIABLE" "timeout classified as UNRELIABLE, not silently PASS/FLA
 # assertion's real regression signal is 60s+ (doubled stuck call from a retry-into-timeout bug
 # like the one v0.21.0 shipped and its follow-up 82a67c0 fixed), NOT 25s vs 35s noise.
 if [ "$elapsed" -lt 45 ]; then echo "  ok   [returned in ${elapsed}s, well under the fake 30s sleep]"; pass=$((pass+1)); else echo "  FAIL [took ${elapsed}s - _run_with_timeout did not bound the call OR the retry-on-timeout regression is back]"; fail=$((fail+1)); fi
+resline="$(grep '"fixture":"fcda"' "$SB/.flow/eval-results.jsonl" 2>/dev/null | tail -1)"
+has "$resline" '"timed_out":' "timeout mock emits timed_out field"
+if command -v timeout >/dev/null 2>&1 || command -v gtimeout >/dev/null 2>&1; then
+  has "$resline" '"timed_out":true' "timeout mock records timed_out:true when rc==124"
+fi
 clean
 
 # ---------- F) mock engine: majority math (2 FLAG + 1 PASS among N=3 -> FLAG) ----------
@@ -353,8 +358,11 @@ has "$resline" '"cli_version"' "result line carries cli_version"
 has "$resline" '"model"' "result line carries model"
 has "$resline" '"gate_rules_sha"' "result line carries gate_rules_sha"
 has "$resline" '"match":"match"' "result line records match=match for the correct verdict"
+has "$resline" '"prompt_sha"' "result line carries prompt_sha"
+has "$resline" '"timed_out":false' "healthy mock records timed_out:false"
 maxlen=$(awk '{ print length($0) }' "$SB/.flow/eval-results.jsonl" 2>/dev/null | sort -rn | head -1)
 if [ -n "$maxlen" ] && [ "$maxlen" -lt 4096 ]; then echo "  ok   [max line length ${maxlen}B < 4096B PIPE_BUF invariant]"; pass=$((pass+1)); else echo "  FAIL [max line length ${maxlen:-?}B - PIPE_BUF invariant at risk]"; fail=$((fail+1)); fi
+if ls "$SB/.flow/eval-raw/"*/*.prompt >/dev/null 2>&1; then echo "  ok   [live mock wrote gitignored prompt copy under eval-raw]"; pass=$((pass+1)); else echo "  FAIL [live mock did not write eval-raw/*.prompt]"; fail=$((fail+1)); fi
 # Inject a torn batch (start marker, no done trailer) and confirm --report ignores it.
 printf '{"ts":"t","epoch_s":1,"run_id":"torn-batch","batch":"start","n":5}\n' >> "$SB/.flow/eval-results.jsonl"
 printf '{"ts":"t","epoch_s":2,"run_id":"torn-batch","fixture":"f01a","stage":"01-research","expected":"PASS","verdict":"PASS","match":"match","votes":{"flag":0,"pass":1,"invalid":0},"n":1,"cli_version":"x","model":"y","flow_version":"z","gate_rules_sha":"w"}\n' >> "$SB/.flow/eval-results.jsonl"
@@ -881,6 +889,40 @@ echo "RP-J) live absent-SKIP still exit 0 when --replay is not set (B contract)"
 # (grep -e so a leading-dash pattern is not taken as a grep option).
 if printf '%s' "$(cat "$RUN")" | grep -qe '--record'; then echo "  ok   [argparse/help lists --record]"; pass=$((pass+1)); else echo "  FAIL [argparse/help lists --record]"; fail=$((fail+1)); fi
 if printf '%s' "$(cat "$RUN")" | grep -qe '--replay'; then echo "  ok   [argparse/help lists --replay]"; pass=$((pass+1)); else echo "  FAIL [argparse/help lists --replay]"; fail=$((fail+1)); fi
+
+echo "RP-K) --replay hard-fails when prompt_sha.fid is present and wrong"
+newsb
+rdir="$SB/replay"
+write_synth_replay "$rdir" "TESTREPLAYNONCE" "$grsha" "fcda" "PASS" 1
+printf 'prompt_sha.fcda=not-the-real-hash\n' >> "$rdir/meta"
+export FLOW_EVAL_REPLAY_DIR="$rdir"
+out="$(bash "$RUN" eval --replay --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+ck 1 "$rc" "wrong prompt_sha exits 1"
+has "$out" "prompt assembly" "staleness message names prompt assembly"
+has "$out" "re-record live" "points at live re-record"
+no "$out" "SKIP:" "prompt_sha mismatch is not SKIP"
+clean
+
+echo "RP-L) --record writes prompt_sha.fcda matching rebuilt prompt; --replay exits 0"
+newsb
+rdir="$SB/replay"
+export FLOW_EVAL_REPLAY_DIR="$rdir"
+mkmock '
+nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" | head -1)"
+marker="${nonce_line% FLAG}"
+printf "%s PASS\n" "$marker"
+'
+out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --record --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+ck 0 "$rc" "mock --record of fcda exits 0"
+has "$(cat "$rdir/meta" 2>/dev/null)" "prompt_sha.fcda=" "record wrote prompt_sha.fcda"
+rec_psha="$(awk -F= '$1=="prompt_sha.fcda"{print $2}' "$rdir/meta" | tr -d '\r')"
+nonce_rec="$(awk -F= '$1=="nonce"{print $2}' "$rdir/meta" | tr -d '\r')"
+pfile="$SB/rebuilt-prompt.txt"
+rebuild_sha="$(FLOW_LIB_ONLY=1 bash -c '. "$0"; _eval_build_prompt "$1" card "$2" "$3" || exit 1; _eval_prompt_sha "$1"' "$RUN" "$pfile" "$EVAL_DIR/fixtures/fcda/cards/C-001.md" "$nonce_rec")"
+ck "$rec_psha" "$rebuild_sha" "recorded prompt_sha equals rebuilt assembler hash"
+out="$(bash "$RUN" eval --replay --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
+ck 0 "$rc" "replay of recorded prompt_sha-matching tree exits 0"
+clean
 
 echo "CV-G) converge prompt slices the criteria, fences the source as data, uses the GAP/CONVERGED marker"
 newsb
