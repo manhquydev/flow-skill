@@ -1,13 +1,23 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **skill v0.30.0** (2026-08-14), **npm-wrapper v0.7.0** (`npx @manhquy/flow-skill@latest` after publish).
+Updated as the skill evolves. Current: **skill v0.31.0** (2026-08-20), **npm-wrapper v0.7.1-next.0** (`npx @manhquy/flow-skill@next` after publish).
 
 Release process for future bumps: [`docs/release-process.md`](release-process.md). Release notes: [`CHANGELOG.md`](../CHANGELOG.md).
 
+## npm-wrapper v0.7.1-next.0 + skill v0.31.0 — eval receipts + host-agnostic parallel + value-first docs (2026-08-20)
+
+Current pairing (prerelease). Notes live in [`CHANGELOG.md`](../CHANGELOG.md) (0.31.0). Dist-tag **`next`**; `latest` remains 0.7.0 / skill v0.30.0 until promote.
+
+| Axis | Value | Notes |
+|---|---|---|
+| **npm package** | 0.7.1-next.0 | ships skill v0.31.0; install `npx @manhquy/flow-skill@next` |
+| **Skill product in tarball** | 0.31.0 | SKILL.md / plugin / portable-manifest |
+| **Prerelease dist-tag** | `next` | publish pending env approval |
+
 ## npm-wrapper v0.7.0 + skill v0.30.0 — discipline-layer identity + CI/eval hardening (2026-08-14)
 
-Current pairing. Notes live in [`CHANGELOG.md`](../CHANGELOG.md) (0.30.0). Identity: [`docs/adr/0001-discipline-layer-identity.md`](adr/0001-discipline-layer-identity.md).
+Prior pairing. Notes live in [`CHANGELOG.md`](../CHANGELOG.md) (0.30.0). Identity: [`docs/adr/0001-discipline-layer-identity.md`](adr/0001-discipline-layer-identity.md).
 
 | Axis | Value | Notes |
 |---|---|---|

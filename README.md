@@ -19,8 +19,8 @@ required.
 
 | | |
 |---|---|
-| **Skill product** | **v0.30.0** |
-| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.7.x** (ships the skill above) |
+| **Skill product** | **v0.31.0** |
+| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.7.x** (`@latest` 0.7.0; `@next` prerelease 0.7.1-next.0 ships the skill above) |
 | **Website** | **[flowskill.io.vn](https://flowskill.io.vn)** |
 | **Tests / CI** | [`tests/manifest.txt`](tests/manifest.txt) · Ubuntu · macOS · Windows |
 | **License** | MIT |
@@ -41,12 +41,12 @@ npx @manhquy/flow-skill@latest
 ```
 
 Always use `@latest`. Do not `npm i` the package alone — that does not copy
-the skill. Do not pin `@0.30.0` on npm — that is the skill version, not the
+the skill. Do not pin `@0.31.0` on npm — that is the skill version, not the
 installer.
 
 Two version numbers (intentional): npm package = installer CLI; skill product
 = `SKILL.md` `metadata.version`. `--help` prints both:
-`flow-skill v0.7.0 (ships skill v0.30.0)`.
+`flow-skill v0.7.1-next.0 (ships skill v0.31.0)`.
 
 Walkthrough: [Install and first run](https://flowskill.io.vn/docs/tutorials/install-and-first-run/).
 Flags: [npm-wrapper/README.md](./npm-wrapper/README.md).

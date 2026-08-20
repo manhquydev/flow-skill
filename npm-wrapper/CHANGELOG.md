@@ -2,6 +2,16 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.7.1-next.0] — 2026-08-20 — ships skill v0.31.0 (eval receipts + host-agnostic parallel + value-first docs)
+
+Skill-content release. Re-ships skill product **v0.31.0** (see root
+`CHANGELOG.md` `## 0.31.0`). Installer CLI contract unchanged. Publishes to
+dist-tag **`next`**.
+
+### Changed
+- Bundled skill tree re-synced from monorepo `skills/flow/`.
+- Install (prerelease): **`npx @manhquy/flow-skill@next`**.
+
 ## [0.7.0] — 2026-08-14 — ships skill v0.30.0 (discipline-layer identity + CI/eval hardening)
 
 Skill-content release. Ships skill product **v0.30.0**: identity ADR (gates and
