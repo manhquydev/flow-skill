@@ -1,6 +1,6 @@
 # Host-agnostic parallel occupancy
 
-Flow requires **no named multiplexer or host**. Parallel cards are a ready-gate +
+Flow requires **no named multiplexer**. Parallel cards are a ready-gate +
 worktrees + host-owned placement + world-state fan-in. Absence of Herdr, tmux,
 in-process `Task`, or any other host **never fails a gate** and never changes
 `flow.sh` exit.
@@ -48,7 +48,7 @@ the card worktree after the host's wait returns.
 
 `flow.sh` must not exec host control CLIs (`herdr agent start`, `herdr agent wait`, `herdr agent prompt`, `herdr server stop`, `tmux send-keys`, and equivalents).
 Forbidden by name: `mux-up`, `mux-run-wave`, `mux-proxy`. No screen output as
-evidence. No hook install into `~/.claude` or `~/.omp`. No long-lived socket subscribe (`events.subscribe`). Print-enter, never spawn.
+evidence. No hook install into `~/.claude` or `~/.omp`. No long-lived socket subscribe (`events.subscribe`). `flow.sh` never spawns agents; placement is print-enter or the host's own Task/mux.
 
 Own-runtime / own-PTY / own-wait is a successor ADR plus a separate product,
 not a card in this skill.

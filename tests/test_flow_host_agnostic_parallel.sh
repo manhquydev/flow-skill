@@ -16,6 +16,7 @@ ADR="$ROOT/docs/adr/0001-discipline-layer-identity.md"
 pass=0; fail=0
 hasE() { if grep -qiE "$2" "$1" 2>/dev/null; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] (missing /$2/ in $(basename "$1"))"; fail=$((fail+1)); fi; }
 has()  { if grep -qi  "$2" "$1" 2>/dev/null; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] (missing '$2' in $(basename "$1"))"; fail=$((fail+1)); fi; }
+hasC() { if grep -q   "$2" "$1" 2>/dev/null; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] (missing '$2' (case-sensitive) in $(basename "$1"))"; fail=$((fail+1)); fi; }
 lacks(){ if grep -qiE "$2" "$1" 2>/dev/null; then echo "  FAIL [$3] (anti-pattern /$2/ present in $(basename "$1"))"; fail=$((fail+1)); else echo "  ok   [$3]"; pass=$((pass+1)); fi; }
 file() { if [ -f "$1" ]; then echo "  ok   [$2]"; pass=$((pass+1)); else echo "  FAIL [$2] (no file $1)"; fail=$((fail+1)); fi; }
 
@@ -25,8 +26,8 @@ file "$SEAM" "host-agnostic-parallel.md exists (the one home)"
 lacks "$REF/host-herdr.md" "." "home is NOT host-herdr.md"
 lacks "$REF/host-multiplexer.md" "." "home is NOT host-multiplexer.md"
 
-# Independence: no named mux/host; absence never fails a gate.
-hasE "$SEAM" "no named multiplexer or host" "independence: no named multiplexer or host"
+# Independence: no named multiplexer; absence never fails a gate.
+hasE "$SEAM" "no named multiplexer" "independence: no named multiplexer"
 hasE "$SEAM" "never fails a gate" "independence: absence never fails a gate"
 hasE "$SEAM" "examples, never as a dependency" "independence: Herdr/tmux are examples, never a dependency"
 
@@ -35,7 +36,7 @@ hasE "$SEAM" "in-process subagents" "ladder 0: in-process subagents"
 hasE "$SEAM" "cwd .= .the card.s worktree|cwd = the card" "ladder 0: cwd = card worktree"
 has  "$SEAM" "print-enter" "ladder 1: print-enter paste-block"
 has  "$SEAM" "HERDR_ENV=1" "ladder 2: inside-mux env HERDR_ENV=1"
-has  "$SEAM" "TMUX" "ladder 2: inside-mux env TMUX"
+hasC "$SEAM" "TMUX" "ladder 2: inside-mux env TMUX"
 hasE "$SEAM" "does not wrap or detect" "ladder 2: flow does not wrap or detect the mux"
 hasE "$SEAM" "serial.{0,20}one card|serial: one card" "ladder 3: serial, one card"
 
@@ -77,7 +78,7 @@ has  "$REF/agent-detection.md" "host-agnostic-parallel.md" "agent-detection.md p
 # Parked own-runtime: Deferred list of ADR-0001, not a card in this skill.
 has  "$ADR" "flow-orch" "ADR Deferred: flow-orch named"
 hasE "$ADR" "SEPARATE product" "ADR Deferred: SEPARATE product"
-hasE "$ADR" "tripwire 5" "ADR Deferred: reopen only with tripwire 5"
+hasE "$ADR" "flow-orch.{0,200}tripwire 5" "ADR Deferred: flow-orch line carries tripwire 5"
 
 echo
 echo "RESULT: $pass passed, $fail failed"
