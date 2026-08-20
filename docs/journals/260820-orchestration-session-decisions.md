@@ -56,3 +56,10 @@ ADR process-token direction + two non-binding assertions (fixed in #12).
 - flow-deck has no remote — create one (e.g. via the new-repo flow) if it should be pushed.
 - Phase 1 D floor batch remains available cheaply (`FLOW_EVAL_ISOLATED_CWD`) once a paid
   Claude Code plan / auth is present; the first isolated batch is a NEW baseline.
+
+## Release
+
+Skill product **0.31.0** + npm installer **0.7.1-next.0** (dist-tag `next`).
+Version mirrors bumped on `release/skill-0.31.0`; publish pending GitHub-environment
+`npm-publish` approval. No git tag / npm publish in this session.
+

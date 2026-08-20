@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.31.0 — 2026-08-20 — eval receipts, host-agnostic parallel, value-first docs
+
+Eval receipt+linter+doctor+isolated-eval, host-agnostic parallel law, value-first
+docs A-E, macOS grep hotfix. npm installer → **0.7.1-next.0** (dist-tag `next`).
+
+### Added
+- **Eval hardening** ([#11](https://github.com/manhquydev/flow-skill/pull/11)): hash-only `prompt_sha` judge-input receipt (skip-if-absent, mismatch hard-fail, no committed prompt bodies); CI fixture-impossibility linter that protects `fcdd`/`fcdc` as mechanical-PASS; doctor `timeout: full|partial|absent` + `timed_out` JSONL at the caller; `FLOW_EVAL_ISOLATED_CWD` + `CLAUDE_CODE_SAFE_MODE=1` isolated cheap live-eval. Eval STOP held (`_eval_engine_run`/`_run_with_timeout` byte-identical).
+- **Host-agnostic parallel law** ([#12](https://github.com/manhquydev/flow-skill/pull/12)): `references/host-agnostic-parallel.md` + pointers + doc-contract test. Parks a future own-runtime `flow-orch` in ADR-0001 Deferred as a **separate** product.
+
+### Changed
+- **Value-first docs A-E** ([#13](https://github.com/manhquydev/flow-skill/pull/13)): `/docs/` rewrite EN+VI (install → what-you-get → features → analysis last), curated ≤14 sidebar, complete security-halt page, first-run T3, landing reorder, 47→13 pages/locale with a 132-row 301 redirect surface, `{#id}` heading anchors.
+
+### Fixed
+- **macOS BSD grep** ([#14](https://github.com/manhquydev/flow-skill/pull/14)): cap grep interval at 200 (`RE_DUP_MAX=255`) in the host-agnostic parallel test so the assertion is valid on macOS BSD grep as well as GNU grep.
+
 ## 0.30.0 — 2026-08-14 — discipline-layer identity + CI/eval hardening
 
 Identity ADR: flow owns gates and receipts, never the runtime. npm installer → **0.7.0**.
