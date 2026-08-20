@@ -106,7 +106,6 @@ that subshell (official Claude env; keeps OAuth). Do **not** empty `HOME` or poi
 # Auth must be live (`claude auth login` if `claude auth status` says not logged in).
 ISOLATED="$(mktemp -d /tmp/flow-eval-XXXXXX)"   # NOT an ancestor of the flow-skill tree
 export FLOW_EVAL_ISOLATED_CWD="$ISOLATED"
-export CLAUDE_CODE_SAFE_MODE=1                  # official CLI env; flow does not invent an alias
 export FLOW_PROJECT_ROOT="/path/to/real/project"  # results stay in $ROOT/.flow/
 bash /path/to/skills/flow/runner/flow.sh eval --n 1 --fixture fcda
 ```

@@ -928,12 +928,35 @@ echo "ISO-D) FLOW_EVAL_ISOLATED_CWD: existing dir still parses nonce; missing di
 newsb
 iso="$(mktemp -d)"
 export FLOW_EVAL_ISOLATED_CWD="$iso"
-mkmock '
+unset CLAUDE_CODE_SAFE_MODE
+cat > "$MOCKBIN/claude" <<'MOCK'
+#!/usr/bin/env bash
+dump_env() {
+  f="$1"
+  {
+    printf 'pwd=%s\n' "$PWD"
+    if [ -n "${CLAUDE_CODE_SAFE_MODE+x}" ]; then printf 'SAFE=%s\n' "$CLAUDE_CODE_SAFE_MODE"; else printf 'SAFE=<unset>\n'; fi
+    if [ -n "${HOME+x}" ]; then printf 'HOME=%s\n' "$HOME"; else printf 'HOME=<unset>\n'; fi
+    if [ -n "${CLAUDE_CONFIG_DIR+x}" ]; then printf 'CONFIG=%s\n' "$CLAUDE_CONFIG_DIR"; else printf 'CONFIG=<unset>\n'; fi
+    if [ -n "${CLAUDE_CODE_SIMPLE+x}" ]; then printf 'SIMPLE=%s\n' "$CLAUDE_CODE_SIMPLE"; else printf 'SIMPLE=<unset>\n'; fi
+  } > "$f"
+}
+case "$1" in --version)
+  dump_env "$FLOW_PROJECT_ROOT/.iso-version-env"
+  echo "1.0.0 (mock)"; exit 0 ;;
+esac
+prompt="$(cat)"
+case "$prompt" in *FLOWPONG*)
+  dump_env "$FLOW_PROJECT_ROOT/.iso-probe-env"
+  echo "FLOWPONG"; exit 0 ;;
+esac
+dump_env "$FLOW_PROJECT_ROOT/.iso-engine-env"
 printf "%s" "$PWD" > "$FLOW_PROJECT_ROOT/.iso-cwd"
 nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" | head -1)"
 marker="${nonce_line% FLAG}"
 printf "%s PASS\n" "$marker"
-'
+MOCK
+chmod +x "$MOCKBIN/claude"
 out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcda --n 1 --timeout 20 2>&1)"; rc=$?
 ck 0 "$rc" "isolated cwd still matches expected PASS (absolute promptfile survived cd)"
 has "$out" "matches expected PASS" "nonce parsed after isolated cwd wrap"
@@ -941,6 +964,12 @@ no  "$out" "SKIP" "did not silently take the skip path"
 resline="$(grep '"fixture":"fcda"' "$SB/.flow/eval-results.jsonl" 2>/dev/null | tail -1)"
 has "$resline" '"fixture":"fcda"' "result row still emitted under isolated cwd"
 ck "$(cat "$SB/.iso-cwd" 2>/dev/null)" "$iso" "engine cwd is the isolated dir"
+has "$(cat "$SB/.iso-engine-env" 2>/dev/null)" "SAFE=1" "isolated engine sees CLAUDE_CODE_SAFE_MODE=1"
+has "$(cat "$SB/.iso-probe-env" 2>/dev/null)" "SAFE=1" "isolated probe sees CLAUDE_CODE_SAFE_MODE=1"
+has "$(cat "$SB/.iso-version-env" 2>/dev/null)" "SAFE=<unset>" "parent claude --version does not see SAFE_MODE"
+has "$(cat "$SB/.iso-engine-env" 2>/dev/null)" "CONFIG=<unset>" "isolation does not set CLAUDE_CONFIG_DIR"
+has "$(cat "$SB/.iso-engine-env" 2>/dev/null)" "SIMPLE=<unset>" "isolation does not set CLAUDE_CODE_SIMPLE"
+ck "$(grep '^HOME=' "$SB/.iso-version-env" 2>/dev/null)" "$(grep '^HOME=' "$SB/.iso-engine-env" 2>/dev/null)" "isolation does not empty or retarget HOME"
 rm -rf "$iso"
 unset FLOW_EVAL_ISOLATED_CWD
 clean
