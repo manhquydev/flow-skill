@@ -7,8 +7,8 @@ Work down this table first — most reports match one of these six rows.
 
 | Symptom | Fix |
 |---|---|
-| No `/flow` after `npm i` | Run `npx @manhquy/flow-skill@latest`. You must **execute** the CLI; installing the package alone copies nothing into a skill home. |
-| Old skill after a "reinstall" | Always use `@latest`. A bare package name can be served from the npx cache. |
+| No `/flow` after `npm i` | Run `npx @manhquy/flow-skill@next`. You must **execute** the CLI; installing the package alone copies nothing into a skill home. |
+| Old skill after a "reinstall" | Use `@next` for skill v0.31.0 (`@latest` still ships 0.30.0 until promoted). A bare package name can be served from the npx cache. |
 | Claude or Codex does not list the skill | Fully restart the agent once after the first install. |
 | `flow.sh: No such file` in PowerShell | Call `…/runner/flow.cmd`, not `bash`. |
 | `durable layer DISABLED` | Install `python3`, or ignore it — the mechanical gates still run. |
@@ -63,7 +63,7 @@ reach that home — re-run the installer and select the agent explicitly.
 Two pinning mistakes cause most stale installs:
 
 - Pinning the **skill product** version on npm. That number is not a published package
-  version. Pin the installer CLI version, or use `@latest`.
+  version. Pin the installer CLI version, or use `@next` for the current skill.
 - Using the `@rc` tag. It is retired and stale.
 
 If npm says `No matching version found`, you pinned the skill product number. Use `@latest`
@@ -99,7 +99,7 @@ numbers `--help` prints, and the exact command with its error text. Open an issu
 
 ## Alternative install paths {#alternative-install}
 
-The npm installer, `npx @manhquy/flow-skill@latest`, is the recommended path for everyone.
+The npm installer, `npx @manhquy/flow-skill@next`, is the recommended path for skill v0.31.0.
 The alternatives exist for contributors and air-gapped machines.
 
 From a git checkout:
@@ -127,21 +127,22 @@ Commands and platform notes:
 ## Install CLI flags {#install-cli-flags}
 
 ```bash
-npx @manhquy/flow-skill@latest
+npx @manhquy/flow-skill@next
 ```
 
-Requires [Node.js](https://nodejs.org/) **22.14 or newer**. Always include `@latest` — a bare
-`npx @manhquy/flow-skill` can be served from the npx cache and re-run an older copy.
+Requires [Node.js](https://nodejs.org/) **22.14 or newer**. Use `@next` for the current skill;
+`@latest` still ships 0.30.0 until promoted. A bare `npx @manhquy/flow-skill` can be served
+from the npx cache and re-run an older copy.
 
 Copy these; do not paraphrase flag meaning. `--project` applies only to `claude`.
 
 ```bash
-npx @manhquy/flow-skill@latest --yes
-npx @manhquy/flow-skill@latest --yes --target claude
-npx @manhquy/flow-skill@latest --yes -t claude -t codex
-npx @manhquy/flow-skill@latest --yes --all
-npx @manhquy/flow-skill@latest --yes --project --dir .
-npx @manhquy/flow-skill@latest --yes --all --dry-run --json
+npx @manhquy/flow-skill@next --yes
+npx @manhquy/flow-skill@next --yes --target claude
+npx @manhquy/flow-skill@next --yes -t claude -t codex
+npx @manhquy/flow-skill@next --yes --all
+npx @manhquy/flow-skill@next --yes --project --dir .
+npx @manhquy/flow-skill@next --yes --all --dry-run --json
 ```
 
 | Flag | Meaning |
@@ -159,10 +160,10 @@ npx @manhquy/flow-skill@latest --yes --all --dry-run --json
 
 | Do | Don’t |
 |---|---|
-| `npx @manhquy/flow-skill@latest` | Bare `npx @manhquy/flow-skill` (stale npx cache) |
+| `npx @manhquy/flow-skill@next` | Bare `npx @manhquy/flow-skill` (stale npx cache) |
 | **Run** the CLI to copy the skill | `npm i` alone (package only; no skill files in agent homes) |
 | Pin the installer version if you need a fixed release | Pin the skill product version on npm |
-| Prefer `@latest` | `@rc` (retired / behind) |
+| Prefer `@next` for the current skill | `@rc` (retired / behind) |
 
 Package: [`@manhquy/flow-skill` on npm](https://www.npmjs.com/package/@manhquy/flow-skill).
 Flag meanings are kept with the installer:
@@ -268,8 +269,8 @@ Authoritative definitions:
 | **npm installer** | The `@manhquy/flow-skill` CLI that copies the skill into your agent homes. Lives on the npm package. |
 
 ```bash
-npx @manhquy/flow-skill@latest --help
-# installer CLI version, then the skill product it ships
+npx @manhquy/flow-skill@next --help
+# flow-skill v0.7.1-next.0 (ships skill v0.31.0)
 
 grep -E '^\s*version:' ~/.claude/skills/flow/SKILL.md | head -1
 ```
@@ -303,17 +304,18 @@ gate versions to the installer's release cadence. Both are worse than explaining
 
 The failure mode is pinning the wrong number. The skill product version is not a published
 npm package version. Pin the installer CLI if you need a fixed release. Better for almost
-everyone: `@latest`.
+everyone: `@next` (until `@latest` is promoted).
 
 ```bash
 # Wrong — pin the skill product version (it is not an npm package version)
-# Right — pin the installer CLI version, or use @latest
-npx @manhquy/flow-skill@latest
+# Right — pin the installer CLI version, or use @next for the current skill
+npx @manhquy/flow-skill@next
 ```
 
-Always use `@latest` when you want the newest skill. A bare `npx @manhquy/flow-skill` can be
-served from the npx cache and quietly re-run an older copy. The `@rc` tag is retired; do not
-use it.
+Right now the newest skill is on `@next` (`0.7.1-next.0` ships skill `0.31.0`). `@latest`
+still ships installer `0.7.0` / skill `0.30.0` until promoted. A bare
+`npx @manhquy/flow-skill` can be served from the npx cache and quietly re-run an older copy.
+The `@rc` tag is retired; do not use it.
 
 If npm reports `No matching version found`, you almost certainly pinned the skill product
 number. `--help` prints both numbers; pin the installer one.

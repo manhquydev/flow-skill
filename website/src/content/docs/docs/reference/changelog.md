@@ -3,12 +3,21 @@ title: "Changelog"
 description: "Curated user-facing release notes for the flow skill, with a pointer to the full changelog."
 ---
 
-The skill product and the npm installer version different things — `--help` prints both
-numbers. See
+Current pairing: skill product **v0.31.0**, npm installer **0.7.1-next.0** on `@next`
+(`@latest` still ships 0.7.0 / skill 0.30.0 until promoted). The two numbers version
+different things — `--help` prints both. See
 [Two version numbers](/docs/how-to/troubleshoot-install/#two-version-numbers).
+GitHub Release: [`v0.31.0`](https://github.com/manhquydev/flow-skill/releases/tag/v0.31.0).
 
 These are the changes most likely to affect how you use `flow`. The complete, unabridged
 history lives in the repository.
+
+## 0.31.0 — eval hardening + host-agnostic parallel + value-first docs
+
+- **Eval hardening.** Judge-input receipt, CI-only fixture-impossibility linter, `doctor` timeout line, cheaper isolated live-eval recipe.
+- **Host-agnostic parallel law.** Flow stays the discipline layer; own-runtime parked behind a named tripwire (ADR-0001).
+- **Value-first docs.** Landing + docs hub outcome-first, real heading anchors, i18n parity.
+- **Cross-OS.** macOS BSD grep hotfix in the bash suite.
 
 ## 0.30.0 — discipline-layer identity + CI/eval hardening
 

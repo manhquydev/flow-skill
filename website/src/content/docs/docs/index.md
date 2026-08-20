@@ -8,10 +8,10 @@ description: "Install flow with npx. After install you get an honest stop, and a
 You need [Node.js](https://nodejs.org/) **22.14 or newer** and one coding agent: Claude Code, Codex, Cursor, or Antigravity.
 
 ```bash
-npx @manhquy/flow-skill@latest
+npx @manhquy/flow-skill@next
 ```
 
-Do not `npm i` this package. That does not copy the skill. Do not pin the skill version on npm. Always include `@latest`.
+Current pairing: skill product **v0.31.0**, npm installer **0.7.1-next.0** on `@next`. `@latest` still ships 0.7.0 / skill 0.30.0 until promoted. Do not `npm i` this package. That does not copy the skill. Do not pin the skill version on npm.
 
 What happens: the installer detects agents, you pick homes, the skill lands (example `~/.claude/skills/flow`).
 
@@ -39,7 +39,7 @@ Three capabilities. The first is true after `npx`. The next two are true after y
 ## First run — one command, one restart, one check.
 
 ```bash
-npx @manhquy/flow-skill@latest
+npx @manhquy/flow-skill@next
 # restart the agent
 # in a project directory:
 I want to build an inventory app for my shop.

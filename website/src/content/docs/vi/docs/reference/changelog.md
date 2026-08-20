@@ -4,9 +4,19 @@ description: "Ghi chú phát hành hướng operator đã chọn lọc cho skill
 lang: vi
 ---
 
-Skill product và npm installer version thứ khác nhau. `--help` in cả hai số. Xem [Hai số phiên bản](/vi/docs/how-to/troubleshoot-install/#two-version-numbers).
+Cặp hiện tại: skill product **v0.31.0**, npm installer **0.7.1-next.0** trên `@next`
+(`@latest` vẫn ship 0.7.0 / skill 0.30.0 cho đến khi được promote). Hai số version thứ khác
+nhau — `--help` in cả hai. Xem [Hai số phiên bản](/vi/docs/how-to/troubleshoot-install/#two-version-numbers).
+GitHub Release: [`v0.31.0`](https://github.com/manhquydev/flow-skill/releases/tag/v0.31.0).
 
 Đây là thay đổi có khả năng ảnh hưởng cách bạn dùng `flow` nhất. Lịch sử đầy đủ, không rút gọn, sống trong kho.
+
+## 0.31.0 — harden eval + parallel bất-kể-host + docs value-first
+
+- **Harden eval.** Biên nhận judge-input, linter fixture-impossibility chỉ-CI, dòng timeout `doctor`, recipe live-eval isolated rẻ hơn.
+- **Luật parallel bất-kể-host.** Flow vẫn là lớp kỷ luật; own-runtime đỗ sau tripwire có tên (ADR-0001).
+- **Docs value-first.** Landing + docs hub outcome-first, heading anchor thật, i18n parity.
+- **Cross-OS.** Hotfix BSD grep trên macOS trong bash suite.
 
 ## 0.30.0 — identity lớp kỷ luật + harden CI/eval
 

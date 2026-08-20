@@ -9,10 +9,10 @@ lang: vi
 Cần [Node.js](https://nodejs.org/) **22.14 trở lên** và một coding agent: Claude Code, Codex, Cursor, hoặc Antigravity.
 
 ```bash
-npx @manhquy/flow-skill@latest
+npx @manhquy/flow-skill@next
 ```
 
-Đừng `npm i` gói này. Lệnh đó không copy skill. Đừng pin version skill trên npm. Luôn ghi `@latest`.
+Cặp hiện tại: skill product **v0.31.0**, npm installer **0.7.1-next.0** trên `@next`. `@latest` vẫn ship 0.7.0 / skill 0.30.0 cho đến khi được promote. Đừng `npm i` gói này. Lệnh đó không copy skill. Đừng pin version skill trên npm.
 
 Chuyện xảy ra: installer detect agent, bạn chọn home, skill nằm xuống (ví dụ `~/.claude/skills/flow`).
 
@@ -40,7 +40,7 @@ Ba khả năng. Cái đầu đúng ngay sau `npx`. Hai cái sau đúng sau khi �
 ## Lần chạy đầu: một lệnh, một restart, một kiểm
 
 ```bash
-npx @manhquy/flow-skill@latest
+npx @manhquy/flow-skill@next
 # restart agent
 # trong thư mục project:
 Tôi muốn build app quản lý kho cho cửa hàng.
