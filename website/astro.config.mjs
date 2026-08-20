@@ -2,6 +2,8 @@
 import { readFileSync } from 'node:fs';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import { satteri } from '@astrojs/markdown-satteri';
+import { customHeadingIdPlugin } from './plugins/custom-heading-id.mjs';
 
 const redirects = JSON.parse(
 	readFileSync(new URL('./redirects.json', import.meta.url), 'utf8'),
@@ -11,6 +13,13 @@ const redirects = JSON.parse(
 export default defineConfig({
 	site: 'https://flowskill.io.vn',
 	redirects,
+	markdown: {
+		// Sätteri ignores markdown.remarkPlugins. Custom `{#id}` markers are
+		// converted here so dest hashes in _redirects resolve to real HTML ids.
+		processor: satteri({
+			hastPlugins: [customHeadingIdPlugin],
+		}),
+	},
 	integrations: [
 		starlight({
 			title: 'flow',

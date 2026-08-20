@@ -32,7 +32,7 @@ Optional: `bash ~/.claude/skills/flow/runner/flow.sh doctor` should print `READY
 
 Three capabilities. The first is true after `npx`. The next two are true after you walk gates or close a card.
 
-1. **An honest stop.** `/flow next` will not unlock the next stage if the file is empty, fabricated, or scope-laundered. Killing the idea is valid. This is a gate refuse, not a stop switch on the agent.
+1. **An honest stop.** `/flow next` will not unlock the next stage if the file is empty, fabricated, or scope-laundered. Killing the idea is valid. This is a gate refuse; the agent itself keeps running.
 2. **A written plan in your repo, when you walk the gates.** Six files under `flow/`, then cards under `cards/`. Another session can pick up cold. Those files do not exist after install alone.
 3. **Done that means the thing exists.** Live URL, CLI that runs, importable API, or a skill that actually ran. Not “tests pass.”
 
