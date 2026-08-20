@@ -59,7 +59,7 @@ hasE "$SEAM" "must not exec.{0,80}herdr agent start" "forbidden: herdr agent sta
 hasE "$SEAM" "must not exec.{0,120}herdr agent wait" "forbidden: herdr agent wait"
 hasE "$SEAM" "must not exec.{0,180}herdr agent prompt" "forbidden: herdr agent prompt"
 hasE "$SEAM" "must not exec.{0,220}herdr server stop" "forbidden: herdr server stop"
-hasE "$SEAM" "must not exec.{0,260}tmux send-keys" "forbidden: tmux send-keys"
+hasE "$SEAM" "must not exec.{0,200}tmux send-keys" "forbidden: tmux send-keys"
 hasE "$SEAM" "Forbidden by name.{0,40}mux-up" "forbidden by name: mux-up"
 hasE "$SEAM" "Forbidden by name.{0,80}mux-run-wave" "forbidden by name: mux-run-wave"
 hasE "$SEAM" "Forbidden by name.{0,120}mux-proxy" "forbidden by name: mux-proxy"
