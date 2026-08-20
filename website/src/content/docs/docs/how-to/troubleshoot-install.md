@@ -66,7 +66,7 @@ Two pinning mistakes cause most stale installs:
   version. Pin the installer CLI version, or use `@next` for the current skill.
 - Using the `@rc` tag. It is retired and stale.
 
-If npm says `No matching version found`, you pinned the skill product number. Use `@latest`
+If npm says `No matching version found`, you pinned the skill product number. Use `@next`
 or pin the installer. The two numbers and why they differ are under
 [Two version numbers](#two-version-numbers).
 
