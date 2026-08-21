@@ -3,7 +3,7 @@
 ## 0.31.0 — 2026-08-20 — eval receipts, host-agnostic parallel, value-first docs
 
 Eval receipt+linter+doctor+isolated-eval, host-agnostic parallel law, value-first
-docs A-E, macOS grep hotfix. npm installer → **0.7.1-next.0** (dist-tag `next`).
+docs A-E, macOS grep hotfix. npm installer → **0.7.1** (dist-tag `latest`; first cut **0.7.1-next.0** / `next`).
 
 ### Added
 - **Eval hardening** ([#11](https://github.com/manhquydev/flow-skill/pull/11)): hash-only `prompt_sha` judge-input receipt (skip-if-absent, mismatch hard-fail, no committed prompt bodies); CI fixture-impossibility linter that protects `fcdd`/`fcdc` as mechanical-PASS; doctor `timeout: full|partial|absent` + `timed_out` JSONL at the caller; `FLOW_EVAL_ISOLATED_CWD` + `CLAUDE_CODE_SAFE_MODE=1` isolated cheap live-eval. Eval STOP held (`_eval_engine_run`/`_run_with_timeout` byte-identical).

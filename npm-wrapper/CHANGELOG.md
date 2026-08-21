@@ -2,6 +2,16 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.7.1] — 2026-08-21 — ships skill v0.31.0 (stable / latest)
+
+Skill-content release. Graduates **0.7.1-next.0** to stable. Ships skill product
+**v0.31.0** (see root `CHANGELOG.md` `## 0.31.0`). Installer CLI contract
+unchanged. Publishes to dist-tag **`latest`**.
+
+### Changed
+- Bundled skill tree re-synced from monorepo `skills/flow/`.
+- Install: **`npx @manhquy/flow-skill@latest`**.
+
 ## [0.7.1-next.0] — 2026-08-20 — ships skill v0.31.0 (eval receipts + host-agnostic parallel + value-first docs)
 
 Skill-content release. Re-ships skill product **v0.31.0** (see root
