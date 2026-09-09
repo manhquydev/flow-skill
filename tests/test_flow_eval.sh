@@ -252,6 +252,25 @@ fi
 rm -rf "$notimeoutbin"
 clean
 
+# ---------- H2b) darwin-sim + no timeout + no claude: unmeasured SKIP, not REFUSED ----------
+echo "H2b) darwin-sim without timeout/gtimeout and without claude SKIP unmeasured (exit 0)"
+newsb
+unset FLOW_EVAL_UNBOUNDED
+notimeoutbin="$(make_notimeoutbin)"
+if PATH="$notimeoutbin" command -v timeout >/dev/null 2>&1 || PATH="$notimeoutbin" command -v gtimeout >/dev/null 2>&1; then
+  echo "  skip [timeout-still-resolves] (cannot hide timeout/gtimeout on this platform)"
+elif PATH="$notimeoutbin" command -v claude >/dev/null 2>&1; then
+  echo "  skip [claude-still-resolves] (cannot hide claude on this platform)"
+else
+  out="$(FLOW_EVAL_FORCE_DARWIN=1 PATH="$notimeoutbin" bash "$RUN" eval --fixture fcda --n 1 --timeout 30 2>&1)"; rc=$?
+  ck 0 "$rc" "absent claude on darwin-sim SKIP exit 0"
+  has "$out" "semantic layer unmeasured on this host" "names unmeasured, not REFUSED"
+  no  "$out" "REFUSED" "did not hit the unbounded-billing refuse-guard"
+fi
+rm -rf "$notimeoutbin"
+clean
+
+
 # ---------- H3) darwin-sim + no timeout + FLOW_EVAL_UNBOUNDED=1: proceeds ----------
 echo "H3) darwin-sim without timeout + FLOW_EVAL_UNBOUNDED=1 proceeds"
 newsb

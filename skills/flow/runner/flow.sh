@@ -4402,6 +4402,8 @@ _eval_guard_unbounded_darwin() { # $1=replay_mode (0/1); return 1 = refused
   local replay_mode="${1:-0}"
   [ "$replay_mode" -eq 0 ] || return 0
   [ "${FLOW_EVAL_UNBOUNDED:-}" = "1" ] && return 0
+  # No judge binary => no stuck call to bound. Probe SKIP (unmeasured) owns this case.
+  command -v claude >/dev/null 2>&1 || return 0
   local darwin=0
   if [ "${FLOW_EVAL_FORCE_DARWIN:-}" = "1" ]; then
     darwin=1
