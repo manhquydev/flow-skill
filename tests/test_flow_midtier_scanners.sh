@@ -379,6 +379,16 @@ EOF
 out="$(G 02-scope)"; ck 0 $? "H+C does not fail mechanical L-above-A"
 clean
 
+echo "P) type lock holds after artifacts exist even when 01 is midtier-dirty"
+newsb
+for s in 00-idea 01-research 02-scope 03-prd 04-adr 05-contract; do
+  printf '#%s\n## Gate\n- [x] ok\n\nbody\n' "$s" > "$SB/flow/$s.md"
+done
+bash "$RUN" project-type web >/dev/null; ck 0 $? "first type set after artifacts present"
+out="$(bash "$RUN" project-type cli 2>&1)"; ck 1 $? "flip refused while 01 midtier-dirty"
+has "$out" "locked" "type lock names locked despite dirty 01"
+clean
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

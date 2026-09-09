@@ -14,7 +14,7 @@ metadata:
 
 # /flow — buildflow gated build harness
 
-Idea to a **deployed URL**, not paperwork. Each stage has an artifact and a **GATE**.
+Idea to **world-state done-evidence** (deployed URL for web; install+run for cli/library/skill), not paperwork. Each stage has an artifact and a **GATE**.
 **Kill at any gate is a valid, honored outcome.**
 
 ```
@@ -28,9 +28,10 @@ Idea -> Research -> Scope -> PRD -> ADR -> Contract -> Cards -> Build -> Review 
 
 1. **Mechanical — `runner/flow.sh`** (deterministic, exit 0/1). Stage/card lifecycle plus
    cheatable checks: unchecked boxes (including leftover `- [ ]` under `## Open decisions`),
-   `[FILL]`, card status, empty done-evidence. Always run it first — its exit code is
-   ground truth, never host judgment. Open-decision leftover boxes are the same
-   scanner; `clarify` only prints them — not a second gate.
+   `[FILL]`, card status, empty done-evidence, plus content scanners on 01/02/03/05
+   (typed-web entry floor, L-above-A, PRD adjectives, OD cap). Always run it first — its
+   exit code is ground truth, never host judgment. Open-decision leftover boxes are the
+   same scanner; `clarify` only prints them — not a second gate.
 2. **Semantic — this skill.** The script cannot tell a real competitor quote from a
    fabricated one, or a grade-laundered C feature from an honest B. After mechanical
    PASS, apply `references/gate-rules.md` before letting the operator advance.

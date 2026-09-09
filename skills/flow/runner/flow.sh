@@ -561,6 +561,18 @@ planning_complete() { # 0 = yes: each stage is clean, OR debt-skipped (a skipped
   return 0
 }
 
+# Files exist (or debt-skipped). Used by project-type lock so a midtier-dirty
+# 01 cannot unlock a type flip after stages 00-05 are on disk.
+planning_artifacts_present() {
+  local s
+  for s in $STAGES; do
+    if [ ! -f "$FLOW_DIR/$s.md" ]; then
+      stage_skipped "$s" || return 1
+    fi
+  done
+  return 0
+}
+
 # project type (web|cli|library|skill); absent => web. Adapts done-evidence + guidance.
 get_project_type() {
   local t; t="$(cat "$PROJECT_TYPE_FILE" 2>/dev/null | tr -d '\r' | awk 'NF{print; exit}')"
@@ -1737,9 +1749,10 @@ cmd_project_type() {
   fi
   case "$arg" in
     web|cli|library|skill)
-      # After planning is complete AND an explicit type file exists, refuse silent
+      # After planning artifacts exist AND an explicit type file exists, refuse silent
       # type flips unless FLOW_FORCE=1 (D6). Default-web with no file is not "locked".
-      if planning_complete 2>/dev/null && [ -f "$PROJECT_TYPE_FILE" ]; then
+      # Gate cleanliness is NOT required: a midtier-dirty 01 must not unlock a flip.
+      if planning_artifacts_present 2>/dev/null && [ -f "$PROJECT_TYPE_FILE" ]; then
         local cur; cur="$(get_project_type)"
         if [ -n "$cur" ] && [ "$cur" != "$arg" ] && [ "${FLOW_FORCE:-0}" != "1" ]; then
           echo "FAIL: project type is locked to '$cur' after planning completes (would change done-evidence lens)."

@@ -1,6 +1,6 @@
 # Gate examples — hot-path PASS / FLAG
 
-After `flow.sh` mechanical PASS, compare the artifact to these excerpts. Same challenges as `gate-rules.md`; **no new rules**. Full fixtures live in `eval/fixtures/` (f01a/f01b, f02a/f02b, fcda/fcdb).
+After `flow.sh` mechanical PASS, compare the artifact to these excerpts. Same challenges as `gate-rules.md`; **no new rules**. Full fixtures live in `eval/fixtures/` (f01a/f01b, f02a/f02b, fcda). `fcdb` is a mechanical FAIL (`flow.sh check` exits 1) — not a semantic FLAG after PASS.
 
 ## §01 Research
 
@@ -36,8 +36,8 @@ Same FLAG class: quotes with no URL ("users online"); "social media" as the firs
 > Test run: `PASS src/balance/simplify.test.ts` — 14 cases
 > Screenshot: `docs/evidence/C-001-staging-balance-screen.png` — nudge text "Alice owes Bob $12.50" replacing the raw pairwise table
 
-**FLAG** (fcdb) — process-only / artifact-less. CI green, two approvals, release notes. No URL, curl, or path:
+**Mechanical FAIL** (fcdb) — `flow.sh check` exits 1. Process-only / artifact-less. CI green, two approvals, release notes. No URL, curl, or path:
 
 > The pull request went through the normal review process, picked up the two required approvals, and the CI pipeline stayed green the whole way through. The branch was merged into main and is now included in this cycle's release notes under "new features," so the nudge is part of the current build going forward.
 
-Merge ≠ shipped. Plausible prose that names neither artifact nor the command that produced it is still hollow (`ground-truth-gates.md` rule 8).
+Merge ≠ shipped. Plausible prose that names neither artifact nor the command that produced it is still hollow (`ground-truth-gates.md` rule 8). Do not treat this as a semantic FLAG after mechanical PASS — the script already fails it.

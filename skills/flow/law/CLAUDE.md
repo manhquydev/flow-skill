@@ -38,7 +38,8 @@ done-rules are identical in both modes.
 4. Done-evidence = world-state (deployed URL, curl output, DB row). "Tests pass" /
    "code merged" are mid-pipeline, never done.
 5. Before coding a card, read `law/CODING.md`.
-6. Never check a gate box or write a planning artifact on the user's behalf.
+6. Never check a gate box or write a planning artifact on the user's behalf (teach).
+   In work mode the host drafts after the interview; gates still bind.
    Never set a card `done` without pasted evidence.
 7. Read any file flow.sh just created before first editing it.
 8. **Playbooks** (`playbooks/`): paid-for stack knowledge. Before building a card that
