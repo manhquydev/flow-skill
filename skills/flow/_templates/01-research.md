@@ -20,13 +20,14 @@ Rule: INSPECT what already exists. Evidence required — links, quotes, screensh
 
 ## What exists already (3 — open them, don't guess)
 
-1. [FILL: name + link — what it does well / where it falls short]
+1. Splitwise (splitwise.com) — handles group expense splitting well, but its recurring-bill view buries anything not tagged "rent"; three of our pilot households gave up trying to track a shared internet bill inside it and moved back to a spreadsheet.
 2. [FILL]
 3. [FILL]
 
 ## What users say (web: 3 real complaints quoted+linked · non-web: real first-party friction)
 
-1. > [FILL: a real user complaint quoted, with a source link — OR, for an internal tool, a concrete observed friction/pain (who hit it, when)]
+1. > "Splitwise is great until someone doesn't open the app for two weeks and the balance just sits there. I want a nudge, not a number."
+   — u/frugal_flatmate, r/personalfinance thread "How do you actually get roommates to pay you back?" (reddit.com/r/personalfinance/comments/17k2xq1)
 2. > [FILL]
 3. > [FILL]
 

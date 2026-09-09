@@ -3322,17 +3322,26 @@ _eval_heading_pattern() {
   esac
 }
 
-# Extract one stage's ritual text: from its heading line up to (not including) the next '## '
-# heading, or EOF. Prints nothing on a bad stage/missing file - caller MUST assert non-empty
-# before any billable call (a silent empty extraction would judge against no rule at all).
+# Extract one stage's ritual text from the mapped file (01→gate-01.md, 02→gate-02.md,
+# card→gate-card.md): from its heading line up to (not including) the next '## '
+# heading, or EOF. Prints nothing on a bad stage/missing file - caller MUST assert
+# non-empty before any billable call (a silent empty extraction would judge against
+# no rule at all).
 _eval_extract_section() { # $1 = stage (01|02|card)
-  local pat; pat="$(_eval_heading_pattern "$1")" || return 1
-  [ -f "$GATE_RULES_FILE" ] || return 1
+  local pat src
+  pat="$(_eval_heading_pattern "$1")" || return 1
+  case "$1" in
+    01)   src="$SCRIPT_DIR/../references/gate-01.md" ;;
+    02)   src="$SCRIPT_DIR/../references/gate-02.md" ;;
+    card) src="$SCRIPT_DIR/../references/gate-card.md" ;;
+    *)    return 1 ;;
+  esac
+  [ -f "$src" ] || return 1
   awk -v pat="$pat" '
     $0 ~ pat { f=1; print; next }
     f && /^## / { f=0 }
     f { print }
-  ' "$GATE_RULES_FILE"
+  ' "$src"
 }
 
 # Usability probe: zero cost if `claude` is absent; exactly one minimal billable call if present.
@@ -3387,12 +3396,15 @@ _eval_isolated_run() {
 }
 
 
-# Build the judge prompt for one fixture. Returns 1 (writes nothing usable) if the gate-rules.md
-# section extraction came back empty.
+# Build the judge prompt for one fixture. The challenge block is the extract output
+# (already the judge bytes; `_eval_gate_rules_sha` is not stdin). Returns 1 if empty.
 _eval_build_prompt() { # $1=outfile $2=stage $3=artifact-file $4=nonce
-  local outfile="$1" stage="$2" artifact="$3" nonce="$4" section
+  local outfile="$1" stage="$2" artifact="$3" nonce="$4" section shared
   section="$(_eval_extract_section "$stage")" || return 1
   [ -n "$section" ] || return 1
+  shared="$SCRIPT_DIR/../references/gate-shared.md"
+  [ -f "$shared" ] && section="$section
+$(cat "$shared")"
   {
     printf 'You are reviewing a build-process artifact against the quality-gate challenge below.\n'
     printf 'Read the challenge, then the artifact, then decide honestly: does the artifact\n'
@@ -3471,11 +3483,27 @@ _eval_nonce_epoch() { # $1=run_id -> epoch seconds (or empty)
   printf '%s' "$1" | awk -F- 'NF>=2 { print $(NF-1) }'
 }
 
-# CRLF-normalized gate-rules.md hash: a raw-byte hash would differ per checkout line-endings
-# (git autocrlf) and produce a false "prose changed" drift alarm across identical content.
+# CRLF-normalized hash of the explicit gate-rules corpus (index + shared + 11
+# section files). Never glob `gate-*.md` (would pull gate-eval.md + gate-examples.md).
+# A raw-byte hash would differ per checkout line-endings (git autocrlf).
 _eval_gate_rules_sha() {
-  [ -f "$GATE_RULES_FILE" ] || { printf 'unknown'; return; }
-  tr -d '\r' < "$GATE_RULES_FILE" | cksum | awk '{print $1}'
+  local ref="$SCRIPT_DIR/../references"
+  [ -f "$ref/gate-rules.md" ] || { printf 'unknown'; return; }
+  {
+    cat "$ref/gate-rules.md"
+    [ -f "$ref/gate-shared.md" ] && cat "$ref/gate-shared.md"
+    [ -f "$ref/gate-assess.md" ] && cat "$ref/gate-assess.md"
+    [ -f "$ref/gate-00.md" ] && cat "$ref/gate-00.md"
+    [ -f "$ref/gate-01.md" ] && cat "$ref/gate-01.md"
+    [ -f "$ref/gate-02.md" ] && cat "$ref/gate-02.md"
+    [ -f "$ref/gate-03.md" ] && cat "$ref/gate-03.md"
+    [ -f "$ref/gate-04.md" ] && cat "$ref/gate-04.md"
+    [ -f "$ref/gate-05.md" ] && cat "$ref/gate-05.md"
+    [ -f "$ref/gate-card.md" ] && cat "$ref/gate-card.md"
+    [ -f "$ref/gate-consistency.md" ] && cat "$ref/gate-consistency.md"
+    [ -f "$ref/gate-constitution.md" ] && cat "$ref/gate-constitution.md"
+    [ -f "$ref/gate-debt.md" ] && cat "$ref/gate-debt.md"
+  } | tr -d '\r' | cksum | awk '{print $1}'
 }
 
 # CRLF-normalized assembler-output hash (same recipe as _eval_gate_rules_sha). Covers

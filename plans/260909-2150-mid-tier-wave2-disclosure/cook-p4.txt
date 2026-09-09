@@ -1,0 +1,18 @@
+Implement ONLY Phase 4 of plans/260909-2150-mid-tier-wave2-disclosure/phase-04-dispatch-catalog.md.
+
+Exclusive writes:
+- skills/flow/references/command-dispatch.md
+- skills/flow/references/concierge.md
+
+Do NOT edit SKILL.md, flow.sh, auto-run.md. Do NOT split into per-verb files. Do NOT claim row-only load.
+
+Must:
+- Host-duties one line + pointer
+- #verb-next anchor exists
+- concierge: no "SKILL.md's Commands table"
+- next duties mention gate-examples.md; card duties mention law/CODING.md
+- no AutoDecision enum in command-dispatch.md
+
+MAY run tests/test_flow_concierge.sh. Skip full suite.
+
+Print DONE and files changed.

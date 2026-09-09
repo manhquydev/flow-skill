@@ -783,8 +783,7 @@ clean
 # ============================================================================================
 # Replay / record (Phase 7) — harness-built synthetic transcripts only. Never live envelopes.
 # ============================================================================================
-GATE_RULES="$HERE/../skills/flow/references/gate-rules.md"
-grsha="$(tr -d '\r' < "$GATE_RULES" | cksum | awk '{print $1}')"
+grsha="$(FLOW_LIB_ONLY=1 bash -c '. "$0"; _eval_gate_rules_sha' "$RUN")"
 write_synth_replay() {
   # $1=dir $2=nonce $3=sha $4=fid $5=FLAG|PASS $6=n
   local d="$1" nonce="$2" sha="$3" fid="$4" verd="$5" nn="$6" i=1

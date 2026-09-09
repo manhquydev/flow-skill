@@ -1,244 +1,40 @@
-# Gate rules — the semantic layer
+# Gate rules — semantic layer (index)
 
-The runner (`flow.sh`) checks the mechanical gate: no `[FILL]`, no unchecked `- [ ]`, valid
-card status, non-empty evidence. **This file is what YOU check after the script passes.**
-The script cannot judge truth or quality; you can. For each stage, after a mechanical PASS,
-run the challenge below. If it fails, tell the operator: *"mechanically passed, but
-qualitatively weak: <reason>"* and let them decide — never silently advance a hollow
-artifact, never silently block a sound one.
+The runner (`flow.sh`) checks the mechanical gate: no `[FILL]`, no unchecked `- [ ]`,
+valid card status, non-empty evidence. After mechanical PASS, load the **one** stage
+file below (and `gate-shared.md` when the stage has open decisions). Report
+*"mechanically passed, but qualitatively weak: <reason>"* — never silently advance a
+hollow artifact, never silently block a sound one.
 
-> Rule of behavior: in `teach` mode you do NOT edit the artifact or tick boxes. You report.
-> In `work` mode you authored it, so you self-challenge before presenting.
+> Teach: report only; do not edit the artifact or tick boxes.
+> Work: self-challenge before presenting.
 
-> Authoring note (when editing these challenges): **match the form to the failure.** A challenge
-> that fights a *discipline drift* — the agent rationalizing a hollow artifact through (grade
-> laundering, fabricated quotes, "merge ≈ shipped") — is rightly a prohibition + the specific
-> rationalization it counters. A challenge that fixes a *wrong-shaped artifact* (a missing field, a
-> drifted name) is better written as a positive recipe — "every interface has both shapes, names
-> that won't drift" — than as a ban; a bare prohibition on a shaping problem can produce *more* of
-> the bad shape, not less, and a hedging "unless it matters" clause turns a crisp recipe noisy. Pick
-> the form deliberately; don't reflexively reach for another "do NOT".
+> Authoring note: match the form to the failure. Discipline drift (grade laundering,
+> fabricated quotes, "merge ≈ shipped") is a prohibition plus the rationalization it
+> counters. A wrong-shaped artifact is a positive recipe, not a bare ban.
 
-## Brownfield assess (flow/00-inspect.md)
+Open-decision / material-authority unique home: `gate-shared.md`.
 
-Separate from Stage 00 Idea. After `flow.sh assess` mechanical PASS (no `[FILL]`, boxes
-checked), apply this semantic challenge before planning:
+| Stage | Mechanical | File | Examples |
+|---|---|---|---|
+| Assess | no FILL, boxes | `gate-assess.md` | — |
+| 00 Idea | pitch, named person, no FILL | `gate-00.md` | — |
+| 01 Research | 7 boxes, no FILL | `gate-01.md` | §01 |
+| 02 Scope | Impact+Grade, no L-above-A in v1, cut, GO/KILL | `gate-02.md` | §02 |
+| 03 PRD | numeric metric, pain table, no FILL | `gate-03.md` | §03 |
+| 04 ADR | why+rejected, NOT-doing, storage/auth/deploy | `gate-04.md` | — |
+| 05 Contract | feature→interface, both shapes, access/effects | `gate-05.md` | §05 |
+| Card | no FILL, status, evidence if done | `gate-card.md` | §Card |
+| Consistency | advisory ID coverage | `gate-consistency.md` | — |
+| Constitution | table well-formed | `gate-constitution.md` | — |
+| Debt | DEBT.md line | `gate-debt.md` | — |
 
-- Are material claims in the **Evidence ledger** tagged
-  (Authoritative / Observed / Derived / Decision required / Unknown)?
-- Is any **Observed** or **Derived** claim silently promoted to must-build product law
-  without operator authority?
-- Are **Decision required** / **Unknown** items listed for the operator — not invented into
-  Scope/PRD?
-- If the ledger is empty or only `[FILL]` rows remain while the gate boxes are checked,
-  the assessment is hollow — report mechanically-passed-but-qualitatively-weak.
+Hot-path first check — compare to `gate-examples.md`:
+- 01: §01 (PASS = named tool + link; FLAG = unsourced competitors).
+- 02: §02 (PASS = C called C; FLAG = C-launder, realtime graded B).
+- 03: §03 (PASS = numeric metric + pain table + FR1 action→result; FLAG = unquantified adjective or feature with no pain).
+- 05: §05 (PASS = method/path/request/response/errors/owner; FLAG = vibe/auth-optional).
+- Card: §Card (PASS names URL/curl/path; FLAG = process-only / artifact-less).
 
-## Stage 00 — Idea
-Mechanical: pitch present, one real person named, no FILL.
-**Challenge:** Is the pitch really 3 sentences (who / pain / what)? Is the named person a
-*real, specific* person or group ("my uncle's 20-unit building"), not "people who..." or
-"users"? Is the pain concrete, not a category?
-- **Offer the forge-idea ritual (opt-in-with-prompt — `native-rituals.md`'s sibling
-  `references/forge-idea.md`).** Before drafting the pitch, or when the operator sounds
-  unsure, offer to pressure-test the idea through persona interrogation until it
-  hardens, proves out, or dies cheaply. Never auto-fired; never a condition this gate
-  checks for — a killed idea and a hardened idea both still go through the normal gate.
-
-## Stage 01 — Research
-Mechanical: 7 boxes checked, no FILL.
-**Apply the lens by project type (`/flow project-type`, default web):**
-- **web / market product** → the strict version below. Reject the soft "non-web" framing for a
-  product that has a real market: a real product DOES have online complaints + a GTM channel,
-  and dodging them is the failure this gate exists to catch.
-- **cli / library / skill / internal tool** → items 2+4 use first-party friction + who-benefits.
-  Demand it be *concrete and real* (a named observed pain, named beneficiaries) — not vague.
-  "No market channel" is expected here and is NOT a kill signal.
-**Challenge (highest fabrication risk):**
-- Compare to `gate-examples.md` §01 (PASS = named tool + link; FLAG = unsourced competitors).
-- Were 3 competitors *actually opened*? Each note should read like someone used the tool. (all types)
-- web: are the 3 complaints *real quotes with working source links*? · non-web: is the
-  first-party friction *concrete and observed* (who hit it, when), not a guess?
-- Are competitor/status-quo costs *real* (web: prices+who-pays · non-web: time/manual-work spent today)?
-- web: is the first-10-users channel a *specific place* (reject "social media"/"online") ·
-  non-web: are the *named beneficiaries* + how-they-learn real?
-- Does the switch reason name what makes the *named* users move off today's workaround?
-
-## Stage 02 — Scope (the decision stage)
-Mechanical: every feature has Impact (H/M/L) + Grade (A/B/C), no L-above-A in v1, cut list,
-GO/KILL, no FILL.
-**Challenge — watch for GRADE LAUNDERING:**
-- Compare to `gate-examples.md` §02 (PASS = C called C; FLAG = C-launder, realtime graded B).
-- **Material-authority stop:** if materially different externally observable product choices
-  remain open (quota, identity key, tenancy model, response contract, enforcement owner, …),
-  **stop** — list the choice and consequences. Configurable defaults are not authority.
-- Is any expensive feature quietly graded B when it's really C? (realtime, payments from
-  scratch, custom auth, autonomous agentic pipeline, heavy concurrency = C). Call C a C.
-- For every C in scope, is it justified as one of: (1) C IS the product -> it goes FIRST;
-  (2) re-architected C->B (e.g. multi-step agent -> single structured call; auto-send ->
-  human-approves-draft; custom -> managed service); (3) irreducible -> KILL/re-budget?
-- Classic failure: v1 full of A-grade L-impact features (cheap to build, worthless to sell).
-- If the product itself is a C, is it FIRST in build order with sibling Cs on the cut list?
-- **Offer the forge-idea ritual (opt-in-with-prompt — `references/forge-idea.md`)** when a
-  GO/KILL call is genuinely close. It informs the decision; it never decides it — the
-  operator still calls GO or KILL.
-- **Assumption vs open decision:** read `## Assumptions`. A bullet that encodes product
-  law (who can access what, tenancy, retention, billing, enforcement owner) with no
-  operator/ADR authority is an **open decision or a stop**, not a silent default — move
-  it under `## Open decisions` (a line like `- [ ] which tenant key?`) or halt. Do not
-  invent auth/tenancy/retention/billing to clear `[FILL]`.
-- **Too many open decisions** is a semantic judgment (there is no mechanical cap): if
-  the section is a pile, assume or cut rather than interview everything. Offer the
-  clarify ritual (`references/clarify.md`, opt-in, never a `next` prereq) when any
-  open decision remains.
-
-## Stage 03 — PRD
-Mechanical: filled from stage 02, numeric success metric, pain&gain table, no FILL.
-**Challenge:**
-- **Material-authority stop:** if the PRD invents policy (who can access what, retention,
-  billing rules) with no prior operator/ADR authority, stop and list Decision-required items.
-- Is the success metric a real NUMBER ("first response < 2h"), not "save time" / "better UX"?
-- The pain&gain table is the spine: does *every pain* cite evidence (a stage-01 quote or
-  named observation) AND name the v1 feature that kills it? Does *every v1 feature* kill at
-  least one pain? Orphans on either side = scope drift.
-- Could a stranger build v1 from this without asking the operator anything?
-- Read Features and NFRs as a reviewer of English, not of code: any unquantified adjective (fast/secure/intuitive) or an `FRn` with no named failure/empty case is a rewrite, not a vibe.
-- **Assumption vs open decision:** read `## Assumptions`. A bullet that encodes product
-  law (who can access what, tenancy, retention, billing, enforcement owner) with no
-  operator/ADR authority is an **open decision or a stop**, not a silent default — move
-  it under `## Open decisions` or halt. Do not invent policy to clear `[FILL]`.
-- **Too many open decisions** is a semantic judgment (no mechanical cap): assume or
-  cut rather than interview a pile. Offer the clarify ritual (`references/clarify.md`,
-  opt-in, never a `next` prereq) when any open decision remains.
-
-## Stage 04 — ADR
-Mechanical: each decision has why + rejected, NOT-doing list, covers storage/auth/deploy.
-**Challenge:** Does each decision name a *real* rejected alternative (not a strawman)? Are
-data storage, auth approach, and deploy target all actually decided (not "TBD")? Is the
-NOT-doing list honest about what's deferred?
-- **Offer the native persona-debate ritual** (`native-rituals.md` §1 — the guaranteed
-  baseline, no external skill required) before locking a non-trivial decision: a 5-lens
-  debate (architect/security/ops/user-advocate/cost) that surfaces defects while reversal
-  is still cheap. Output INFORMS this challenge; it never passes the gate. Skip on a
-  trivial ADR.
-- **If `ck-predict` is installed**, it is a richer alternative to the native ritual (same
-  INFORMS-only rule, opt-in-with-prompt — see `claudekit-skills.md`).
-
-## Stage 05 — Contract (the seam)
-Mechanical: every PRD feature -> >=1 interface, every interface has input+output shapes,
-access/effects column filled, no FILL.
-**The "interface" is the project type's seam** (`/flow project-type`): web=endpoint,
-cli=command+flags+output/exit, library=public function+args+return, skill=command/file.
-**Challenge — this is where producer/consumer drift is born (every type):**
-- **Material-authority stop:** access/effects (public/token/admin, writes) that encode product
-  policy without operator authority → stop; do not invent tenancy/auth from convenience.
-- Does every PRD feature map to at least one interface, and vice versa?
-- Does every interface have BOTH input and output shapes, with field/flag names that will not
-  drift (the #1 AI-build failure: backend ships `player_email`, UI assumed `email`, both green;
-  the cli equivalent: `--out` vs `--output`)?
-- Is the access/effects column real for every interface (web: public/token/admin · non-web:
-  writes/side-effects or "none")? Do NOT let a web product blank the access column.
-- Read each write interface as a reviewer of English, not of code: if the failure shape is missing or Access/effects is a vibe word (secure/authenticated/restricted), the seam is not written yet.
-- **Assumption vs open decision:** access/effects or shared shapes that encode product
-  law (tenancy, auth, retention, billing) with no operator/ADR authority are an **open
-  decision or a stop**, not a silent default — add a `## Open decisions` bullet or halt.
-  (Contract has no `## Assumptions` section; do not invent one.) Do not invent
-  tenancy/auth from convenience to clear `[FILL]`.
-- **Too many open decisions** is a semantic judgment (no mechanical cap): assume or
-  cut rather than interview a pile. Offer the clarify ritual (`references/clarify.md`,
-  opt-in, never a `next` prereq) when any open decision remains.
-- One-way rule: this file is planning source of truth. For web the served spec
-  (`/openapi.json`) is the runtime artifact of the SAME contract (amend file -> code -> spec).
-  For non-web there is no served spec — the no-drift check is the per-type done-evidence.
-- **Self-consistency pass (the contract is ground truth every downstream card trusts).** Before
-  passing this gate, read the contract AGAINST any doc it names as its own source of truth and
-  re-state each shared rule in your own words — a contradiction here ships as "passed" and every
-  card inherits it. (This gate once passed an internally-inconsistent seam that only a later
-  cross-model review caught — catch that class HERE, at its source, where it is cheapest.) When the
-  **codex tier is USABLE**, an OPTIONAL opt-in **cross-model** check of the contract is the
-  highest-value single Codex call in a run — a different engine breaks the same-model blind spot at
-  the one artifact whose drift is most expensive downstream.
-- **Offer the native edge-case ritual** (`native-rituals.md` §2 — the guaranteed
-  baseline) to harden the seam: each case becomes an acceptance criterion + a per-type
-  no-drift check, so the contract is exhaustive before any card trusts it. Complements
-  `/flow consistency` (it *generates* cases; consistency checks *coherence*). INFORMS
-  the gate; never auto-passes it.
-- **If `ck-scenario` is installed**, it is a richer 12-dimension alternative to the
-  native ritual (same INFORMS-only rule, opt-in-with-prompt — see
-  `claudekit-skills.md`).
-
-## Card gate (`/flow check C-NNN`)
-Mechanical: no FILL, valid status, required sections, if done -> verify boxes checked +
-evidence non-empty.
-**Challenge:**
-- Compare to `gate-examples.md` §Card (PASS names URL/curl/path; FLAG = process-only / artifact-less).
-- Is the scope ONE thing? If it's two, split the card.
-- **Independent test:** if the field is empty, missing on a value card, or is
-  "unit tests pass" / "code merged", split or rewrite. A value card names a
-  user-visible proof ("resident files a ticket at /new and sees it on /tickets").
-  Scaffold/CI/contract-test/e2e may say `infra` or `none`. Mechanical leftover
-  `[FILL]` fails `check` only while the heading remains (the heading is not a
-  required `cmd_check` section — §1.6 is cut).
-- Does the diff touch only `## Allowed files`? Drift outside = stop, amend the card first.
-- Do request/response shapes match `flow/05-contract.md` exactly? No improvised shapes.
-- For UI cards: reviewed against `law/DESIGN.md` (tokens, affordance ladder, object-first,
-  no engine words, no emoji, no gradient on inputs/tables)?
-- **Is `## Evidence` real world-state** — a clickable URL, real curl output, a DB row — and
-  NOT "tests pass" / "code merged" / "deployed successfully"? Merge != shipped: the proof is
-  the live surface changing, verified as a user.
-- **Does every `## Evidence` item name its artifact (path/URL) or the command that produced
-  it?** Plausible prose that names neither is still hollow even when the mechanical floor
-  passes (`ground-truth-gates.md` rule 8).
-- **If this card fixes a bug/regression**, the evidence includes the red→green proof that the
-  new test was actually tied to the bug (`ground-truth-gates.md` → "Bug-fix cards"), not just a
-  green run.
-
-## Cross-artifact consistency (`/flow consistency`)
-Run after the Contract gate and before building cards (advisory; never blocks the build path).
-The runner does the **precise, ID-based** passes mechanically: every PRD `FRn` is claimed by a
-card (`implements:`) and served by an interface, the success metric carries a number, no leftover
-placeholders. **You do the passes that need judgment, not string-matching:**
-- **Hollow coverage:** an `FRn` is "covered" by a card whose scope does not actually deliver it
-  (the id is referenced but the work isn't there). Mechanical coverage can be gamed by pasting an
-  id; read the card scope against the feature.
-- **Conflicting requirements:** two artifacts state incompatible things (PRD says no-login, ADR
-  decides OAuth; scope cut a feature the PRD still lists). The runner won't catch a contradiction
-  expressed in different words — you must.
-- **Cut-list contradiction:** a feature on the stage-02 cut list reappears (by name, not id) as a
-  v1 PRD feature or a card. Scope drift in disguise.
-- **Terminology drift:** the same entity named differently across artifacts (`ticket`/`issue`/
-  `request`) — the seed of producer/consumer drift the contract gate guards against.
-If you find any, report *"`consistency` passed mechanically, but <artifact> contradicts <artifact>
-on <thing>"* and let the operator decide — same posture as every other gate.
-
-**Canonical form the mechanical pass expects** (deviate and coverage silently can't map — the runner
-then prints "no FR ids found" rather than a false pass, but be aware): FR ids are **uppercase `FRn`**,
-declared in the PRD's **`## Features`** section (ids in prose or the pain table are intentionally
-ignored so a legacy mention can't inflate the set). A blank success-metric body is the gate's job, not
-this probe's (it only checks "if a metric exists, it carries a number"). When `consistency` reports
-"no FR ids found", treat it as *coverage-unverified*, not *coverage-clean*.
-
-## Constitution challenge (operator invariants — run at scope/PRD/contract)
-
-`flow.sh constitution` is the mechanical half: it proves the `flow/constitution.md` table is
-well-formed (no placeholder, every invariant has an ID) and scans any declared grep-marker. It
-**cannot** tell whether the artifact you just wrote actually *honors* the invariant — that is your
-job. After the mechanical pass, for each invariant whose `applies-at` includes the current stage,
-challenge the stage artifact against it:
-
-- Read each invariant (e.g. "all PII access is facility-scoped", "no API surface ships without a
-  `flow/05-contract.md` entry").
-- Walk the current artifact (scope / PRD / contract) and ask: does anything here *violate* it, or
-  quietly assume an exception? A contract endpoint exposing cross-tenant data violates a
-  facility-scoped invariant even though the table is structurally clean.
-- If you find a violation, report *"constitution passed mechanically, but `<artifact>` violates
-  invariant `<ID>` (`<rule>`)"* and let the operator decide — same posture as every other gate.
-
-This is **advisory and per-project**; it never auto-blocks `next`, and it does NOT replace the
-security-class Tier-C halt (a constitution rule may *restate* a security concern, but the halt is
-the enforcement). Low-noise by design: the mechanical layer is structural, the judgement is yours.
-
-## Debt (deliberate skips)
-If the operator deliberately skips/reorders a gate, ensure a line opens in `DEBT.md` naming
-the skip, the concrete exposure, and the close condition. **Security-class skips** (auth,
-admin exposure, tenancy, payments) are never silent and never your decision — the operator
-accepts the exposure in writing. In `/flow auto`, that is a Tier-C halt.
+`flow.sh eval` extracts `## Stage 01` / `## Stage 02` / `## Card gate` from those files,
+not this index. Rituals: `native-rituals.md`, `forge-idea.md`, `clarify.md`.

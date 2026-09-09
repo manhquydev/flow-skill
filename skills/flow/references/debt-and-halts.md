@@ -50,7 +50,7 @@ options:
 2. <re-plan / shrink the card>
 3. <repair with a fresh scoped brief>
 4. <stop the run (`flow auto stop`)>
-AutoDecision: halt
+see auto-run.md AutoDecision
 STATUS: BLOCKED
 ```
 Let the operator pick — don't patch around a regression.

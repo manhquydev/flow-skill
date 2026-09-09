@@ -1,0 +1,21 @@
+Implement ONLY Phase 2 of plans/260909-2150-mid-tier-wave2-disclosure/phase-02-few-shot-templates.md.
+
+Exclusive writes:
+- skills/flow/references/gate-examples.md
+- skills/flow/_templates/01-research.md
+- skills/flow/_templates/02-scope.md
+- skills/flow/_templates/03-prd.md
+- skills/flow/_templates/card.md
+
+Do NOT edit gate-rules.md, flow.sh, SKILL.md.
+
+Must:
+- gate-examples §03 and §05 PASS/FLAG; no new rules; fcdb stays mechanical FAIL
+- 01 first incumbent not FILL; user quote is a > blockquote like f01a. NO DATA fence in the template.
+- 02 one C-called-C path bullet + one L+A
+- 03 P1 table row filled; one FR1 bullet with empty/fail
+- card.md comments: status todo|in_progress|done; Evidence anti-self-report
+
+Skip formatters/linters/full suite.
+
+Print DONE and files changed.

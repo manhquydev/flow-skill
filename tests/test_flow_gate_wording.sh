@@ -4,7 +4,8 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 T="$HERE/../skills/flow/_templates"
-G="$HERE/../skills/flow/references/gate-rules.md"
+G01="$HERE/../skills/flow/references/gate-01.md"
+G05="$HERE/../skills/flow/references/gate-05.md"
 pass=0; fail=0
 has() { if grep -q "$2" "$1" 2>/dev/null; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3]"; fail=$((fail+1)); fi; }
 structok() { # file has a Gate section + at least one checkbox + at least one FILL slot
@@ -27,10 +28,10 @@ has "$T/05-contract.md" "web only" "OpenAPI/Swagger rule marked web-only"
 has "$T/05-contract.md" "interface map" "feature->interface map"
 structok "$T/05-contract.md" "05-contract"
 
-echo "Semantic layer (gate-rules.md) applies the lens by project type + guards web abuse"
-has "$G" "Apply the lens by project type" "stage 01 challenge keys on project type"
-has "$G" "Do NOT let a web product blank the access column" "stage 05 guards web abuse of non-web framing"
-has "$G" "Reject the soft" "stage 01 refuses a web product hiding behind soft framing"
+echo "Semantic layer applies the lens by project type + guards web abuse"
+has "$G01" "Apply the lens by project type" "stage 01 challenge keys on project type"
+has "$G05" "Do NOT let a web product blank the access column" "stage 05 guards web abuse of non-web framing"
+has "$G01" "Reject the soft" "stage 01 refuses a web product hiding behind soft framing"
 
 echo
 echo "RESULT: $pass passed, $fail failed"

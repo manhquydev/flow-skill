@@ -19,7 +19,7 @@ ask routes through this loop before you consider typing a verb for the operator.
    has never read a flow doc).
 4. Offer to run it now, using the May-run / Must-ask classification below. A typed verb
    from the operator always wins — never intercept or reinterpret an explicit
-   `/flow <verb>` command; dispatch it exactly as SKILL.md's Commands table says.
+   `/flow <verb>` command; dispatch it exactly as the `command-dispatch.md` verb row says.
 
 ## New-user consent (teach-mode boundary)
 
@@ -90,7 +90,7 @@ gate discipline exists to prevent.
 - One proposal at a time — never dump the full verb list on someone who just wants to
   chat.
 - Power-user verbs pass through untouched: a typed `/flow next` dispatches exactly as
-  SKILL.md's Commands table describes, with zero concierge interpretation.
+  the `command-dispatch.md` verb row describes, with zero concierge interpretation.
 
 ## First-run script (new-user acceptance path)
 

@@ -61,10 +61,10 @@ has  "$REF/agent-stage-mapping.md" "claudekit-skills.md" "stage map points to cl
 hasE "$REF/agent-stage-mapping.md" "ck-predict.{0,80}ADR" "stage map names ck-predict@ADR"
 hasE "$REF/agent-stage-mapping.md" "ck-scenario.{0,80}Contract" "stage map names ck-scenario@Contract"
 
-# Invariant 9: the two deep wirings reached the gate ritual itself (gate-rules.md), bound + INFORM-only.
-hasE "$REF/gate-rules.md" "ck-predict" "gate-rules ADR carries ck-predict"
-hasE "$REF/gate-rules.md" "ck-scenario" "gate-rules Contract carries ck-scenario"
-hasE "$REF/gate-rules.md" "INFORMS this challenge|INFORMS the gate" "gate-rules: skill INFORMS, not passes"
+# Invariant 9: the two deep wirings reached the gate ritual itself (per-section files), bound + INFORM-only.
+hasE "$REF/gate-04.md" "ck-predict" "gate-04 ADR carries ck-predict"
+hasE "$REF/gate-05.md" "ck-scenario" "gate-05 Contract carries ck-scenario"
+hasE "$REF/gate-04.md" "INFORMS this challenge|INFORMS the gate" "gate-04: skill INFORMS, not passes"
 
 # ---- Round-2: review-pr / ck-security / retro wired into their gate rituals ----
 RETRO="$HERE/../skills/flow/law/RETRO.md"

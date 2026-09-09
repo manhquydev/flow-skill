@@ -34,7 +34,7 @@ Idea -> Research -> Scope -> PRD -> ADR -> Contract -> Cards -> Build -> Review 
    same scanner; `clarify` only prints them — not a second gate.
 2. **Semantic — this skill.** The script cannot tell a real competitor quote from a
    fabricated one, or a grade-laundered C feature from an honest B. After mechanical
-   PASS, apply `references/gate-rules.md` before letting the operator advance.
+   PASS, apply `references/gate-examples.md` before letting the operator advance.
 
 ## PTC_ONLY
 
@@ -51,6 +51,7 @@ needed. Typed verbs always win over chat.
 - Security-class skip/debt → **HALT** until the operator accepts the exposure in `DEBT.md`.
 - Never mark a card `done` without pasted world-state evidence.
 - Never edit `_templates/` or `runner/flow.sh` during a project run.
+- `NEXT_VERB=` is advisory; never auto-exec `auto`/`skip`.
 
 ## Run `flow.sh` first
 
@@ -78,14 +79,15 @@ only when `bash` is Git Bash.
 900s). Mutating commands refuse a fresh foreign lock. Export a stable `FLOW_SESSION_ID`.
 `FLOW_FORCE=1` only for a lock known dead; `unlock` clears it.
 
-## Three laws (`law/CLAUDE.md`)
+## Three laws
 
 1. **Inspect first.** Competitors, live systems, code. Evidence, not vibes.
 2. **Contract is the seam.** Stage 05 before any code. Backend builds TO it, UI consumes
    FROM it. Amend the contract, then code. Honor a shape now (null/stub) even when the
    value ships later.
-3. **Done = proof in the world.** Name done-evidence up front. Verify on the live URL as
-   a user. "Tests pass" / "code merged" are mid-pipeline, never done.
+3. **Done = proof in the world.** Name type-aware done-evidence up front: deployed URL
+   for web; install+run for cli/library/skill. "Tests pass" / "code merged" are
+   mid-pipeline, never done.
 
 ## Load table
 
@@ -93,7 +95,7 @@ only when `bash` is Git Bash.
 |---|---|
 | typed verb | `references/command-dispatch.md` (that row only) |
 | plain language | `references/concierge.md`, `references/flow-catalog.tsv` |
-| next PASS / check semantic | `references/gate-rules.md` |
+| next PASS / check semantic | `references/gate-examples.md` |
 | card / build session | `law/CLAUDE.md` |
 | UI | `law/DESIGN.md` |
 | auto | `references/auto-run.md` |
@@ -115,8 +117,8 @@ only when `bash` is Git Bash.
    one `NEXT ->` line). Skip only with live context this session.
 2. **Always call `flow.sh` first** and relay exit + output. Lock BLOCKED → STOP.
 3. **On next:** FAIL → stop, offer help, never author/tick in teach. PASS → semantic
-   challenge in `gate-rules.md`. Do not silently advance hollow content; do not silently
-   block a sound artifact.
+   challenge in `gate-examples.md` (the one extra file). Do not silently advance hollow
+   content; do not silently block a sound artifact.
 4. **On card/check:** `law/CLAUDE.md` — one card per session, only `## Allowed files`,
    contract is the seam, done = world-state proof. Run recall first; apply its output.
 5. **Mode `work`:** interview once, draft 00–05, pause only for scope sign-off, same

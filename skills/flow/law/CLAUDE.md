@@ -8,9 +8,8 @@ no advance. Read `README.md` once for the method; THESE rules govern every sessi
 
 `/flow` (status) · `/flow next` (gate-check + unlock stage) · `/flow card` (new card) ·
 `/flow check C-NNN` (validate card) · `/flow mode teach|work` (who writes the plan) ·
-`/flow retro` (3 questions → RETRO.md / playbooks/ / FLOW-FEEDBACK.md) ·
 `/flow ready` (what's buildable now, parallel-safe groups) · `/flow auto` (autonomous
-build run — preflight via runner, then drive per SKILL.md AUTO PRINCIPLES: subagent per
+build run — preflight via runner, then drive per `references/auto-run.md`: subagent per
 card, planner reviews + verifies, worktree isolation for parallel groups, operator-gated
 cards halt by design, state in card files + AUTO-LOG.md).
 Runner: `bash .claude/skills/flow/runner/flow.sh <cmd>`.

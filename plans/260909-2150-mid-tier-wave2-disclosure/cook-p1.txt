@@ -1,0 +1,22 @@
+Implement ONLY Phase 1 of plans/260909-2150-mid-tier-wave2-disclosure/phase-01-start.md (cwd flow-skill).
+
+Exclusive writes:
+- skills/flow/SKILL.md
+- skills/flow/law/CLAUDE.md
+- AGENTS.md
+- skills/flow/references/ground-truth-gates.md
+
+Do NOT edit flow.sh, gate-rules.md, command-dispatch.md, auto-run.md, templates, eval/.
+
+Must:
+- CLAUDE.md: no AUTO PRINCIPLES; auto → references/auto-run.md
+- SKILL.md: next-PASS load-table extra is ONLY gate-examples.md (not also gate-rules.md). card extra stays law/CLAUDE.md only.
+- SKILL.md Three laws: type-aware done-evidence, no "live URL as a user"
+- NEXT_VERB advisory STOP line
+- wc -w SKILL.md ≤1600
+- AGENTS.md Command table home = command-dispatch.md
+- ground-truth-gates Card DONE = per-type world-state
+
+Skip formatters, linters, full run_all.sh. MAY run tests/test_doc_budgets.sh.
+
+Print DONE, wc -w SKILL.md, files changed.

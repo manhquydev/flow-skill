@@ -20,7 +20,7 @@ Point; do not copy. If a fact already has a home, link it.
 | Fact | Home |
 |---|---|
 | Install | `README.md` (short front door) |
-| Command table | `skills/flow/SKILL.md` + [website /docs/reference/commands](https://flowskill.io.vn/docs/reference/commands) |
+| Command table | `skills/flow/references/command-dispatch.md` |
 | Skill dispatch + semantic gate | `skills/flow/SKILL.md` |
 | Build-session / card law | `skills/flow/law/CLAUDE.md` |
 | UI law | `skills/flow/law/DESIGN.md` |
@@ -57,8 +57,7 @@ These have no other home. Keep them here only.
 
 ## Commands (entry only)
 
-Full verb table: `skills/flow/SKILL.md` and
-[docs/reference/commands](https://flowskill.io.vn/docs/reference/commands).
+Full verb table: `skills/flow/references/command-dispatch.md`.
 Everyday: `/flow` (status), `/flow next`, `/flow card`, `/flow check C-NNN`,
 `/flow doctor`. Codex: `$flow`. Mechanical ground truth is
 `bash skills/flow/runner/flow.sh <cmd>` (exit 0/1).

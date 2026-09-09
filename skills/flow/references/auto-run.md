@@ -19,12 +19,20 @@ Do not add `FLOW_AUTO_OK`.
 | Decision | When |
 |---|---|
 | **auto-merge** | Tier-A: card built, review green, verify-live passed, no security-class concern |
-| **repair** | Tier-B: review/verify fixable; first repair = debugger (or inline + same-ladder host); deadlock then USABLE Codex then Antigravity |
+| **repair** | Tier-B: review/verify fixable; first repair = debugger if present else inline + fresh scoped brief; deadlock then USABLE Codex then Antigravity |
 | **halt** | Tier-C, hard-stop cap, parallel merge conflict, or security DEBT needed |
 | **blocked** | Child report missing `STATUS` (treat as BLOCKED), or `STATUS: BLOCKED`/`NEEDS_CONTEXT` that more context cannot resolve |
 | **needs-operator** | Two-strikes with no USABLE cross-vendor engine, or work the parent must not auto-act |
 
-Child complete = worker report. Parent still runs `flow.sh check`. Child `STATUS: DONE` is not a card pass. Runner does not parse `STATUS`.
+Child complete = worker report. Parent still runs `flow.sh check`. Child `STATUS: DONE` is not a card pass. Runner does not parse `STATUS`. Missing last-line STATUS → parent BLOCKED.
+
+```
+summary: C-012 checkout live 200
+evidence: cards/C-012.md; curl -sS https://app.example/api/checkout -> 200
+nextSteps: parent runs flow.sh check C-012
+blocker:
+STATUS: DONE
+```
 
 ## Default-deny (no scoped subagents)
 
@@ -35,7 +43,7 @@ Hosts that cannot spawn a scoped subagent with an isolated brief (Flash and simi
 | Tier | What | Action |
 |---|---|---|
 | **A** | Card built, review green, verify-live passed, no security-class concern | **Auto-merge without asking.** Log PR URL + merged SHA in `AUTO-LOG.md`. |
-| **B** | Built but review found fixable issues, or verify ambiguous | First repair = **`Task(subagent_type="debugger")`** with scoped brief (task + card + test output + acceptance; no session history). If `debugger` is absent, degrade to inline root-cause + fresh same-ladder host subagent. If THAT repair is still red — the **two-strikes deadlock** — THEN try the next USABLE cross-vendor engine: **Codex** (`codex:codex-rescue`) first, then **Antigravity/Gemini-3** (`antigravity-integration.md`) if Codex is unusable or also red; else escalate to operator. (A cross-vendor engine may come in earlier ONLY on a security-class card or explicit operator opt-in — the cost gate. Do NOT call a billable engine on the first red of an ordinary card.) |
+| **B** | Built but review found fixable issues, or verify ambiguous | First repair = **debugger if present else inline + fresh scoped brief** (task + card + test output + acceptance; no session history). If THAT repair is still red — the **two-strikes deadlock** — THEN try the next USABLE cross-vendor engine: **Codex** (`codex:codex-rescue`) first, then **Antigravity/Gemini-3** (`antigravity-integration.md`) if Codex is unusable or also red; else escalate to operator. (A cross-vendor engine may come in earlier ONLY on a security-class card or explicit operator opt-in — the cost gate. Do NOT call a billable engine on the first red of an ordinary card.) |
 | **C** | Security-class touch (auth, authorization, admin exposure, tenancy, payments, data migration, removing validation) OR a debt skip | **HALT.** Operator must accept the exposure in writing in `DEBT.md`. Never planner-decided. |
 
 ## Loop per card (serial by default; parallel only when `/flow ready` says safe)
@@ -56,12 +64,10 @@ for each todo card in card-number order:
       gate/step boundaries — the next `check` is what proves it]
   3. review the diff (code-reviewer or bmad-code-review 3-layer; see adversarial-review.md).
        On a security-class card, add a USABLE cross-vendor lens (Codex, and/or Antigravity/Gemini-3).
-       red (strike 1) -> repair: spawn Task(subagent_type="debugger") with a SCOPED BRIEF
+       red (strike 1) -> repair: debugger if present else inline + fresh scoped brief
          (task + failing card file + test output + ## Verify acceptance; NO session history).
-         Debugger diagnoses root cause and returns a fix recommendation or revised implementation.
-         Degrade rung: if `debugger` is ABSENT in the host, run inline root-cause analysis then
-         spawn a FRESH same-ladder host subagent for the redraw. A missing `debugger` changes
-         WHO diagnoses, never whether ## Verify + flow.sh check must pass for real.
+         Diagnose root cause and return a fix recommendation or revised implementation.
+         A missing `debugger` changes WHO diagnoses, never whether ## Verify + flow.sh check must pass for real.
        still red (strike 2 / deadlock) -> Codex fresh-engine repair if USABLE, then Antigravity if
          USABLE, else escalate
        green -> continue
