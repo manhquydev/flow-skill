@@ -65,7 +65,7 @@ cat > "$SB/flow/01-research.md" <<'EOF'
 EOF
 out="$(N)"; ck 1 $? "next exits 1 on 2 hostnames typed-web"
 has "$out" "typed web" "FAIL names typed-web hostname floor"
-has "$out" "[x]" "midtier [x] printed"
+has "$out" '\[x\]' "midtier [x] printed"
 clean
 
 newsb
@@ -160,6 +160,23 @@ EOF
 out="$(G 02-scope)"; ck 0 $? "L + grade A PASSes mechanical L-above-A"
 clean
 
+echo "E2) impact: L / grade: B (colon spelling) FAIL"
+newsb
+stage_clean "Idea" "$SB/flow/00-idea.md"
+stage_clean "Research" "$SB/flow/01-research.md"
+cat > "$SB/flow/02-scope.md" <<'EOF'
+# Scope
+## Gate
+- [x] every feature has impact and grade
+## Features in v1
+- Shared calendar — impact: L — grade: B — 3rd-party integration
+## Open decisions
+EOF
+out="$(G 02-scope)"; ck 1 $? "colon L+B fails gate"
+has "$out" "L-impact" "colon spelling names L-impact above A"
+clean
+
+
 echo "F) PRD Features 'secure API' FAIL; gate checkbox 'secure' PASS"
 newsb
 stage_clean "Idea" "$SB/flow/00-idea.md"
@@ -195,6 +212,7 @@ page load < 2s
 EOF
 out="$(G 03-prd)"; ck 0 $? "gate checkbox containing secure PASSes (body has no adjective)"
 clean
+
 
 echo "G) 6 open-decision bullets FAIL (checked or not)"
 newsb

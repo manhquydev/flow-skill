@@ -231,8 +231,8 @@ _midtier_l_above_a() { # stdin = ## Features in v1 body; exit 1 if a joined bull
     function flush() {
       if (buf == "") return
       low = tolower(buf)
-      hasL = (low ~ /impact[[:space:]]+l([^a-z]|$)/ || low ~ /(^|[^a-z])l-impact/)
-      hasBC = (low ~ /grade[[:space:]]+[bc]([^a-z]|$)/)
+      hasL = (low ~ /impact[[:space:]]*:?[[:space:]]*l([^a-z]|$)/ || low ~ /(^|[^a-z])l-impact/)
+      hasBC = (low ~ /grade[[:space:]]*:?[[:space:]]*[bc]([^a-z]|$)/)
       if (hasL && hasBC) bad++
       buf = ""
     }
@@ -244,7 +244,7 @@ _midtier_l_above_a() { # stdin = ## Features in v1 body; exit 1 if a joined bull
   '
 }
 
-_midtier_adjectives() { # stdin = Features or NFR body; print first unquantified adjective
+_midtier_adjectives() { # stdin = Features or NFR body; print first listed adjective
   awk '
     /^[[:space:]]*- \[[ xX]\]/ { next }
     {
@@ -1755,7 +1755,7 @@ cmd_project_type() {
       if planning_artifacts_present 2>/dev/null && [ -f "$PROJECT_TYPE_FILE" ]; then
         local cur; cur="$(get_project_type)"
         if [ -n "$cur" ] && [ "$cur" != "$arg" ] && [ "${FLOW_FORCE:-0}" != "1" ]; then
-          echo "FAIL: project type is locked to '$cur' after planning completes (would change done-evidence lens)."
+          echo "FAIL: project type is locked to '$cur' once planning artifacts exist (would change done-evidence lens)."
           echo "  re-set with FLOW_FORCE=1 if intentional, and record a DEBT.md line for the change."
           return 1
         fi
