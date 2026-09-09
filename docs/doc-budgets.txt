@@ -1,8 +1,8 @@
-# path max_words  — measured 2026-08-14 + 10% headroom (AGENTS.md is a new cap).
+# path max_words  — measured 2026-09-09 + 10% headroom (AGENTS.md is a new cap).
 # Enforced by scripts/check-doc-budgets.sh (preflight + tests/test_doc_budgets.sh).
-# Advisory during a /flow run. Ratchet down later; wave 1 stops growth.
+# Advisory during a /flow run. SKILL.md clamped to 1600–1800 (file 1141w); gate-rules measured+10%.
 AGENTS.md 1200
 README.md 900
-skills/flow/SKILL.md 3950
-skills/flow/references/gate-rules.md 2890
+skills/flow/SKILL.md 1600
+skills/flow/references/gate-rules.md 2968
 skills/flow/references/attestations.md 1580

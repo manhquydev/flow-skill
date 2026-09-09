@@ -37,10 +37,11 @@ done-rules are identical in both modes.
    into `## Evidence`. Only then set `status: done`, then run `/flow check C-NNN`.
 4. Done-evidence = world-state (deployed URL, curl output, DB row). "Tests pass" /
    "code merged" are mid-pipeline, never done.
-5. Never check a gate box or write a planning artifact on the user's behalf.
+5. Before coding a card, read `law/CODING.md`.
+6. Never check a gate box or write a planning artifact on the user's behalf.
    Never set a card `done` without pasted evidence.
-6. Read any file flow.sh just created before first editing it.
-7. **Playbooks** (`playbooks/`): paid-for stack knowledge. Before building a card that
+7. Read any file flow.sh just created before first editing it.
+8. **Playbooks** (`playbooks/`): paid-for stack knowledge. Before building a card that
    touches a stack with a playbook (check `playbooks/README.md` index), READ it and run
    its smoke tests before committing to a design on that stack. After a card pays for a
    non-obvious lesson, HARVEST it back into a playbook — the card review isn't done

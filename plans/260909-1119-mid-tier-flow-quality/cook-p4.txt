@@ -1,0 +1,13 @@
+Implement ONLY Phase 4 of plans/260909-1119-mid-tier-flow-quality/phase-04-coding-constitution.md.
+
+Exclusive writes:
+- skills/flow/law/CODING.md (create, ≤400 words, MUST/NEVER + good/bad examples)
+- skills/flow/law/CLAUDE.md (one pointer)
+- skills/flow/_templates/card.md (Verify FILL line only; NO new - [ ] boxes)
+- skills/flow/_templates/05-contract.md (one worked example row above FILL)
+
+Do NOT edit SKILL.md, flow.sh, gate-rules.md, auto-run.md.
+
+Skip formatters, linters, full test suites.
+
+When done, print DONE, wc -w CODING.md, and confirm git diff -- _templates/card.md adds no new `- [ ]` gate boxes.

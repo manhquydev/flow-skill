@@ -3,7 +3,7 @@ name: flow
 description: Run the buildflow gated build process from idea to real done-evidence. Walk gated stages (Idea->Research->Scope->PRD->ADR->Contract->Cards->Build->Review->Deploy/Ship->Verify->Retro), each with a honest gate that must pass before advancing. Adapts to project type (web|cli|library|skill). Use when starting or driving a real product build, when the user types /flow, /flow next, /flow card, /flow check, or asks to scope/plan/ship a project through gates. Kill at any gate is a valid outcome.
 user-invocable: true
 when_to_use: "User wants to build a real product end-to-end with discipline (idea -> a deployed URL for web, or installs+runs for a CLI/library/skill), or types any /flow command, or asks for a gated build process, scope decision, contract-first plan, or card-based shipping."
-argument-hint: "[ resume | next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | workspace add|list|enter|remove|check|doctor | auto [stop] | attest semantic|live-verify|status|recover | doctor | retro | eval --stage 01|02|05|card|routing|converge --fixture <id> --n 3 --keep-going --report --record|--replay | clarify | converge | or just say what you want in plain language ]"
+argument-hint: "[ resume | next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready | workspace add|list|enter|remove|check|doctor | auto [stop] | attest semantic|live-verify|status|recover | doctor | retro | eval | clarify | converge | or just say what you want in plain language ]"
 keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deploy, vertical-slice, cli, library, skill, worktree, parallel-agents, workspace, multi-agent]
 license: MIT
 metadata:
@@ -14,251 +14,135 @@ metadata:
 
 # /flow — buildflow gated build harness
 
-Idea to a **deployed URL**, not idea to paperwork. You walk gated stages; each has an
-**output artifact** and a **GATE** — a checklist that must be honestly satisfied before
-you advance. **Kill at any gate is a valid, honored outcome** (killing a weak idea at
-Scope is cheap and smart).
+Idea to a **deployed URL**, not paperwork. Each stage has an artifact and a **GATE**.
+**Kill at any gate is a valid, honored outcome.**
 
 ```
 Idea -> Research -> Scope -> PRD -> ADR -> Contract -> Cards -> Build -> Review -> Deploy -> Verify-live -> Retro
 |------------------ planning (files in flow/) ------------------|  |------- shipping (inside cards/) -------|
 ```
 
-## Two-layer harness (this is the core idea)
+## Two-layer harness
 
-`/flow` is **two layers working together**:
+`/flow` is two layers. Both must agree; the script can pass hollow content.
 
-1. **Mechanical layer — `runner/flow.sh`** (deterministic, exit 0/1). It manages the
-   stage/card lifecycle and checks the *cheatable* things: unchecked gate boxes
-   (including leftover `- [ ]` bullets under `## Open decisions` — same scanner), leftover
-   `[FILL]` placeholders, card status validity, empty done-evidence. Always run it first
-   — its exit code is ground truth, never your own judgment. `/flow clarify` is an
-   advisory printer of those open-decision bullets, not a second gate.
-2. **Semantic layer — YOU (Claude), via this skill** (quality gatekeeper). The script
-   cannot tell a real competitor quote from a fabricated one, or a grade-laundered C
-   feature from an honest B. **That is your job.** After the script passes, apply the
-   per-stage challenges in `references/gate-rules.md` before you let the operator advance.
+1. **Mechanical — `runner/flow.sh`** (deterministic, exit 0/1). Stage/card lifecycle plus
+   cheatable checks: unchecked boxes (including leftover `- [ ]` under `## Open decisions`),
+   `[FILL]`, card status, empty done-evidence. Always run it first — its exit code is
+   ground truth, never host judgment. Open-decision leftover boxes are the same
+   scanner; `clarify` only prints them — not a second gate.
+2. **Semantic — this skill.** The script cannot tell a real competitor quote from a
+   fabricated one, or a grade-laundered C feature from an honest B. After mechanical
+   PASS, apply `references/gate-rules.md` before letting the operator advance.
 
-A gate is only truly passed when **both** layers agree. The script can pass while the
-content is hollow — catch that.
+## PTC_ONLY
 
-## Running the mechanical layer
+This file is always-on. Load **one** extra reference for the verb in play (load table)
+plus that verb's row in `references/command-dispatch.md`. Do not load the rest until
+needed. Typed verbs always win over chat.
 
-From the **project root** (where `flow/` and `cards/` live), run the runner that ships
-with this skill:
+## STOP
+
+- Runner reports **BLOCKED by another session's lock** → STOP. Never `FLOW_FORCE` a live
+  session; concurrent runs corrupt the plan. Set `FLOW_SESSION_ID` per session.
+- Mechanical **FAIL** → STOP. Relay exact line numbers. In `teach`, never tick a box or
+  write an artifact on the operator's behalf.
+- Security-class skip/debt → **HALT** until the operator accepts the exposure in `DEBT.md`.
+- Never mark a card `done` without pasted world-state evidence.
+- Never edit `_templates/` or `runner/flow.sh` during a project run.
+
+## Run `flow.sh` first
+
+From the **project root** (where `flow/` and `cards/` live):
 
 ```
 # macOS / Linux / Windows Git Bash:
-bash <skill-dir>/runner/flow.sh <command>          # e.g. bash ~/.claude/skills/flow/runner/flow.sh next
+bash <skill-dir>/runner/flow.sh <command>
 
-# Windows PowerShell or cmd (INCLUDING inside Codex): use the .cmd launcher, NOT bare `bash`.
-<skill-dir>\runner\flow.cmd <command>              # e.g. ...\.codex\skills\flow\runner\flow.cmd status
-# from PowerShell call it directly:  & "<skill-dir>\runner\flow.cmd" status
+# Windows PowerShell or cmd (INCLUDING inside Codex): use the .cmd launcher, NOT bare bash.
+<skill-dir>\runner\flow.cmd <command>
 ```
 
-**Windows / Codex gotcha (read this):** in PowerShell/Codex a bare `bash` usually resolves to
-**WSL** (`C:\WINDOWS\system32\bash.exe`), which **cannot** read `C:/...` or `/c/...` paths and
-fails with `No such file or directory` — the mechanical layer then looks "broken" when it is not.
-**Always invoke `runner/flow.cmd`** on Windows; it locates Git Bash and runs the engine with a
-path Git Bash accepts. Only call `bash flow.sh` directly when you've confirmed `bash` is Git Bash.
+Bare `bash` on Windows/Codex is usually WSL and cannot read `C:/` paths. Always
+`runner/flow.cmd` from a Windows shell; it locates Git Bash. Call `flow.sh` directly
+only when `bash` is Git Bash.
 
-`<skill-dir>` is wherever this skill is installed (`~/.claude/skills/flow`, `~/.codex/skills/flow`,
-`~/.agents/skills/flow`, the Antigravity homes `~/.gemini/antigravity-cli/skills/flow` (CLI) /
-`~/.gemini/config/skills/flow` (IDE), or a project `.claude/skills/flow`). The runner reads/writes
-`flow/` and `cards/` under the current directory (override with `FLOW_PROJECT_ROOT`).
+`<skill-dir>` is the install home (`~/.claude/skills/flow`, `~/.codex/skills/flow`,
+`~/.agents/skills/flow`, Antigravity `~/.gemini/antigravity-cli/skills/flow` (CLI) /
+`~/.gemini/config/skills/flow` (IDE), or project `.claude/skills/flow`). Override with
+`FLOW_PROJECT_ROOT`. Antigravity (`agy` CLI / IDE): same `SKILL.md` bundle; run
+`agy inspect` to confirm it loaded.
 
-**Antigravity (`agy` CLI / IDE):** flow installs as the same `SKILL.md` bundle; run `agy inspect` to
-confirm Antigravity discovered it. The mechanical layer is the **same** `bash flow.sh` / `flow.cmd`
-runner — the Windows WSL-bash trap below applies identically (use `flow.cmd` from a Windows shell).
-The Antigravity agent invokes shell tools, so it drives `flow.sh` like any other harness.
+**One session per project.** `flow/.lock` auto-reclaims after `FLOW_LOCK_TTL` (default
+900s). Mutating commands refuse a fresh foreign lock. Export a stable `FLOW_SESSION_ID`.
+`FLOW_FORCE=1` only for a lock known dead; `unlock` clears it.
 
-**One session per project (concurrency lock).** Two `/flow` sessions sharing one project
-will stomp each other's plan. The runner keeps a `flow/.lock` (auto-reclaimed after
-`FLOW_LOCK_TTL`, default 900s): mutating commands (`next`/`card`/`skip`/`auto`) refuse a
-fresh **foreign** lock and `status` warns. For hard protection, **export a stable
-`FLOW_SESSION_ID` once per session** and pass it on every call (e.g.
-`FLOW_SESSION_ID=$mysid bash <skill-dir>/runner/flow.sh next`) — without it the runner can
-only warn (it can't prove a different session, so it never self-blocks). `FLOW_FORCE=1`
-takes over a lock you're sure is dead; `/flow unlock` clears it.
+## Three laws (`law/CLAUDE.md`)
 
-## Commands
+1. **Inspect first.** Competitors, live systems, code. Evidence, not vibes.
+2. **Contract is the seam.** Stage 05 before any code. Backend builds TO it, UI consumes
+   FROM it. Amend the contract, then code. Honor a shape now (null/stub) even when the
+   value ships later.
+3. **Done = proof in the world.** Name done-evidence up front. Verify on the live URL as
+   a user. "Tests pass" / "code merged" are mid-pipeline, never done.
 
-| You type | Skill does |
+## Load table
+
+| In play | Load |
 |---|---|
-| `/flow` | `flow.sh status` — where am I, what's blocking, card states |
-| `/flow resume` | `flow.sh resume` — **read-only session-story brief for entering a project mid-cycle**: last session (command names only, never raw args), in-flight card + dwell, gate state, one `NEXT ->` line. No lock. Run this FIRST when picking up an existing project (see the dispatch rule below). |
-| `/flow next` | `flow.sh next` — gate-check current stage; on pass, unlock next stage. **Then** you apply the semantic challenge for the stage just passed. |
-| `/flow assess` | `flow.sh assess` — **brownfield**: scaffold + gate a current-state assessment (`flow/00-inspect.md`, auto-scan seeded) for an EXISTING codebase before planning. Operator-reviewed. |
-| `/flow card` | `flow.sh card` — create next build card (only after all 6 planning gates pass) |
-| `/flow card start C-NNN` | `flow.sh card start` — mark a card **in flight** (operator-visible in-progress; shown in `/flow status`). Tracked in a portable `cards/.inflight` registry, never touches the gated `status:` field. Optional convenience — coexists with hand-editing. |
-| `/flow card done C-NNN` | `flow.sh card done` — CLI-owned flip of a card to `done`, gated by the SAME done-rules as `check` (real Evidence + checked Verify); **reverts** if the gate fails (never a hollow done). Coexists with hand-editing `status: done` + `/flow check`. |
-| `/flow check C-NNN` | `flow.sh check C-NNN` — validate a card; **then** you review diff-vs-scope, allowed-files drift, contract shapes, DESIGN.md for UI, and that evidence is real world-state |
-| `/flow mode teach\|work` | set who writes the artifacts (default `teach`) |
-| `/flow ready` | `flow.sh ready` — which todo cards are buildable + parallel-safety hint |
-| `/flow workspace add\|list\|enter\|remove\|check\|doctor` | `flow.sh workspace …` — **multi-agent worktree isolation** for running several agents (Claude/Codex/Antigravity, many terminals) in parallel WITHOUT the "one agent switches branch → every terminal flips" trap. Each agent gets its own `git worktree` (own HEAD/index/files, shared object store); git is the live registry (`git worktree list`) and a 10-field JSONL side-file (`.flow/workspaces.jsonl`) adds vendor/card/port/task. `add <branch> [--card C-NNN] [--vendor …] [--task …] [--copy-env]` provisions a worktree + distinct port-offset + paste-ready cd/env block; `list` shows who-is-where; `enter <branch>` re-prints a crashed terminal's env; `check <branch> [--card]` flags branch-claim + allowed-files overlap before you launch; `remove <branch> [--force]` tears down safely (never auto-forces); `doctor` reconciles orphan trees/records. Advisory layer; git's refusal to check out one branch twice is the real lock. |
-| `/flow auto` | `flow.sh auto` — attested preflight (risk + Stage 05 receipt) activates shared auto policy; then drive the autonomous run (see AUTO principles). `auto stop` clears it. |
-| `/flow attest …` | `flow.sh attest semantic\|live-verify\|status\|recover` — mint/inspect fingerprint-bound receipts (`references/attestations.md`) |
-| `/flow recall` | `flow.sh recall` — read back durable memory (open debt, recent retro, previous-card scope, harness friction/backlog, playbooks) **at the start of a stage/card** so you don't re-learn known pain |
-| `/flow usage` | `flow.sh usage` — roll up the mechanical usage log (JSONL flight-recorder of every invocation) into `usage_event` and print build analytics: cycle-time, gate fail-rate, per-stage dwell, cycle completion, command breakdown. `--global` for the device-wide view; `--prune [--keep N]` caps the log (crash-safe). Local-only; disable with `FLOW_LOG_DISABLE=1`/`DO_NOT_TRACK=1`. `recall` now surfaces a one-line usage digest and `retro`'s `propose` flags chronically-failing stages. |
-| `/flow contract` | `flow.sh contract` — flag client base-URL vs served-path prefix drift (web; advisory; run after the contract gate) |
-| `/flow tokens` | `flow.sh tokens` — flag DESIGN.md vs CSS design-token drift: unused tokens + value mismatches + orphan vars (advisory; UI cards) |
-| `/flow coherence` | `flow.sh coherence` — flag version drift across declared version fields (doc-vs-code coherence; advisory) |
-| `/flow consistency` | `flow.sh consistency` — audit cross-artifact coverage: every PRD `FRn` is claimed by a card (`implements:`) and served by a contract interface; numeric success metric; no leftover placeholders (advisory; run after the contract gate, before cards) |
-| `/flow constitution` | `flow.sh constitution` — check operator-authored per-project invariants in `flow/constitution.md` (structure + optional grep-markers); **advisory and NOT a `next` gate** — run it at the scope/PRD/contract seam, then apply the semantic challenge in `gate-rules.md` |
-| `/flow clarify` | `flow.sh clarify` — list leftover `- [ ]` bullets under `## Open decisions` on scope/PRD/contract (section-scoped, always exit 0); **advisory and NOT a `next` gate**. Write-back is the ritual in `references/clarify.md` (opt-in). |
-| `/flow converge` | `flow.sh converge [--file <payload>]` — **append-only** remainder cards reconciling present code vs plan. Assess per `references/converge.md`, write a `flow-converge/v1` payload, then run: transactional (all cards or none), never edits an existing card, prints `CONVERGED` + writes nothing when there is no gap. Semantic proof: `flow.sh eval --stage converge`. |
-| `/flow eval [--stage 01\|02\|card] [--fixture <id>] [--n 3] [--timeout <s>] [--keep-going]` | `flow.sh eval` — **behavioral eval**: does the LLM semantic gate (`gate-rules.md`) actually flag a hollow-but-mechanically-clean fixture? Opt-in, **billable** (live mode skips cleanly, zero calls, if `claude` CLI absent; `--replay` never inherits that SKIP); prints a per-stage scorecard. v0.21: on a final-INVALID vote, raw stdout + stderr + rc are persisted to `.flow/eval-raw/<run_id>/` (git-ignored, envelope-stripped) so an INVALID storm is postmortemable; the first UNRELIABLE fixture aborts the batch (`--keep-going` forces full-batch, worst-case ~37 calls at `--n 3`); the retry backoff is env-injectable (`FLOW_EVAL_RETRY_BACKOFF`, default 5s, set 0 in tests). See `references/gate-eval.md` for scope/cost/limitations. |
-| `/flow eval --report` | `flow.sh eval --report` — **offline**, zero calls: last complete batch's scorecard + drift vs the prior complete batch |
-| `/flow eval --replay` | `flow.sh eval --replay` — **keyless**: replay recorded stripped transcripts through parse → vote → per-fixture match lines (no scorecard; replay writes no results rows). Not a fresh-judge; verdicts never count toward the eval floor. Stale gate-rules hash → exit 1 (re-record live with `--record`). |
-| `/flow promote <file>` | `flow.sh promote <file>` — copy a playbook into the cross-project KB (`~/.claude/flow/playbooks`); `recall` then surfaces it everywhere |
-| `/flow project-type <web\|cli\|library\|skill>` | `flow.sh project-type` — set/read the project type that selects the per-type gate lens (`references/project-types.md`) |
-| `/flow skip <stage>` | `flow.sh skip` — advance past a gate that has a matching open `DEBT.md` line; **security-class skips are operator-only and HALT** (never auto-skipped) |
-| `/flow doctor` | `flow.sh doctor` — environment/install self-check (paths, runner, Git Bash) |
-| `/flow harness … \| debt … \| design` | runner subsystems: `harness` (durable intake/story/trace/decision/backlog — see `harness/README.md`), `debt` (record/list deliberate gate-skips), `design` (mechanical UI-token check) |
-| `/flow unlock` | `flow.sh unlock` — clear this project's concurrency lock after a crashed/abandoned session |
-| `/flow retro` | the 3 retro questions; the operator writes the line, never you |
+| typed verb | `references/command-dispatch.md` (that row only) |
+| plain language | `references/concierge.md`, `references/flow-catalog.tsv` |
+| next PASS / check semantic | `references/gate-rules.md` |
+| card / build session | `law/CLAUDE.md` |
+| UI | `law/DESIGN.md` |
+| auto | `references/auto-run.md` |
+| attest / receipts | `references/attestations.md` |
+| mode work | `references/mode-work.md` |
+| eval | `references/gate-eval.md` |
+| Idea/Scope ritual | `references/forge-idea.md` |
+| engines | `references/codex-integration.md`, `references/antigravity-integration.md`, `references/claudekit-skills.md` |
+| parallel occupancy | `references/host-agnostic-parallel.md` |
+| agents | `references/agent-detection.md`, `references/agent-stage-mapping.md` |
+| skip / halt | `references/debt-and-halts.md` |
+| harness | `harness/README.md` |
+| retro | `law/RETRO.md` |
 
-## Conversational entry (default)
+## Dispatch rules
 
-Chat is the default front door — most operators should never need to learn a verb.
-Any natural-language ask routes through `references/concierge.md`: run `flow.sh status`
-(ground truth, never guess) → look up the closest row in `references/flow-catalog.tsv`
-→ propose exactly ONE next action in plain language, zero-jargon → offer to run it,
-following the file's May-run/Must-ask default-deny classification. Typed verbs always
-win — the concierge never intercepts an explicit `/flow <verb>`. New users get one
-plain consent question before the concierge switches to `mode work` on their behalf.
+1. **Entering a project mid-cycle?** Fresh session and existing `flow/` or `cards/` → run
+   resume first (read-only session-story: last session, in-flight + dwell, gate state,
+   one `NEXT ->` line). Skip only with live context this session.
+2. **Always call `flow.sh` first** and relay exit + output. Lock BLOCKED → STOP.
+3. **On next:** FAIL → stop, offer help, never author/tick in teach. PASS → semantic
+   challenge in `gate-rules.md`. Do not silently advance hollow content; do not silently
+   block a sound artifact.
+4. **On card/check:** `law/CLAUDE.md` — one card per session, only `## Allowed files`,
+   contract is the seam, done = world-state proof. Run recall first; apply its output.
+5. **Mode `work`:** interview once, draft 00–05, pause only for scope sign-off, same
+   gates as teach.
+6. **Never** edit `_templates/` or `runner/flow.sh` during a project run. Read any file
+   the runner just created before editing it.
 
-## Dispatch rules (how to behave for each command)
+## Seams (one-line pointers)
 
-1. **Entering a project mid-cycle? Run `/flow resume` before any other flow verb.** If this is
-   a fresh session (no prior context in this conversation) and the project already has a
-   `flow/` or `cards/` dir, `resume` is the read-only session-story brief that replaces
-   re-deriving state from scratch — last session, in-flight card + dwell, gate state, one
-   `NEXT ->` line. Skip this only when you already have live context (e.g. you were the one who
-   just ran `next`/`card` this same session) — running it every single command is unnecessary.
-2. **Always call `flow.sh` first** and read its exit code + output. Relay it faithfully. If it
-   reports **BLOCKED by another session's lock**, STOP and coordinate — never `FLOW_FORCE` past a
-   live session; concurrent `/flow` runs corrupt the plan.
-3. **On `next`:** if the script FAILS, stop — report exactly what it listed (line numbers),
-   and offer to help fill, but **never check a box or write an artifact on the operator's
-   behalf** in `teach` mode. If the script PASSES, run the **semantic gate** for the stage
-   just completed (see `references/gate-rules.md`). If you find hollow content (fabricated
-   quotes, grade-laundering, a pain with no feature, an endpoint with no auth), tell the
-   operator it mechanically passed but is qualitatively weak, and let them decide. Do not
-   silently advance past a hollow artifact; do not silently block a sound one.
-4. **On `card`/`check`:** enforce the build-session laws in `law/CLAUDE.md` — one card per
-   session, touch only `## Allowed files`, contract is the seam, done = world-state proof.
-   **Before authoring a new stage or card, run `/flow recall`** and treat its output (prior
-   debt / retro / friction / previous-card scope) as context to apply, not noise.
-5. **Mode `work`:** interview the operator once, draft stages 00–05 yourself, pause only
-   for scope sign-off, deliver the card set as one summary. Gates and done-rules are
-   identical to `teach` — you still must pass every gate, you just also author.
-6. **Never** edit `_templates/` or `runner/flow.sh` during a project run. Read any file the
-   runner just created before editing it.
-
-## The three rules under everything (from law/CLAUDE.md)
-
-1. **Inspect first.** Before planning, look at what already exists (competitors, live
-   systems, code). Evidence, not vibes.
-2. **Contract is the seam.** The API contract (stage 05) is written before any code.
-   Backend builds TO it, UI consumes FROM it. Never improvise a shape; amend the contract
-   first, then code. Honor a shape now (null/stub) even when its value ships in a later card.
-3. **Done = proof in the world.** Every card names its done-evidence up front. Verify on
-   the live URL as a user. "Tests pass" / "code merged" are mid-pipeline, never done.
-
-## Agent orchestration
-
-Each stage can delegate to a specialist agent, and degrades to built-in behavior when none
-exist — `/flow` stays portable. Priority: **ck: agents first, bmad-* skills as alternative,
-built-in fallback** (`references/agent-detection.md`). When the `openai-codex` plugin is present
-**and usable**, a cross-vendor **Codex (GPT-5.x) second engine** unlocks — used at three gated
-moments: two-strikes rescue, cross-model adversarial review (a different *model*, not just a
-different context), and opt-in primary drafter at research/build (default stays ck:). It detects
-and degrades like every other tier (installed≠usable; absence never breaks a run). Full seam,
-cost gate, and shapes: **`references/codex-integration.md`**. When `agy`/the Antigravity IDE is
-present **and usable**, a cross-vendor **Antigravity (Gemini-3) third engine** unlocks too — same
-high-value moments, giving a **three-model** adversarial gate. Antigravity needs the strictest
-usability check (`agy -p` returns exit 0 + empty stdout even when unauthenticated, so route only on
-non-empty expected output, never exit code; headless capture is unreliable → interactive review is
-the supported default). Full seam: **`references/antigravity-integration.md`**. The stage→agent map, scoped prompt
-template, and durable-record hooks are in `references/agent-stage-mapping.md`:
-research→`researcher`, scope/PRD→`planner`, ADR→`architect`, contract→`bmad-spec` kernel,
-build→`fullstack-developer`, review→`code-reviewer` or `bmad-code-review` (3-layer
-adversarial), verify-live→`tester`. **The gate is identical on every path** — an agent
-drafts, the gate still judges. Give each subagent ONLY task + files + acceptance + relevant
-law/contract excerpts (no session history); each returns DONE/DONE_WITH_CONCERNS/BLOCKED/
-NEEDS_CONTEXT. After a delegation: run the gate, apply the semantic challenge, write the
-durable hook (`flow.sh harness ...`), announce which path ran.
-
-Parallel cards ride the current host (in-process Task, extra terminals, or an already-inside mux); flow requires no named multiplexer — `references/host-agnostic-parallel.md`.
-
-Mode `work` (`references/mode-work.md`): interview once → draft 00-05 → one scope pause →
-deliver the card set as one summary. Gates bind the same as `teach`.
-
-## AUTO principles
-
-`/flow auto` drives the build phase autonomously (`references/auto-run.md`) under the
-**attested-execution** trust control plane (`references/attestations.md`). Mechanical
-preflight persists auto policy only when every card has classified risk (security-class
-needs a distinct-author DEBT ack) and Stage 05 has a current `semantic_gate` receipt.
-While auto is active, `check` / `card done` / ready deps / merged worktree remove require
-fingerprint-bound semantic and live receipts; `auto stop` returns to warning-only manual
-mode. Operator setting: **Tier-A auto-merge green cards; halt at security-class.** Per
-card: tier-classify → scoped subagent in its own worktree → build → adversarial review →
-owner-backed semantic receipt → `flow.sh check` PASS → merge → deploy → live_verify
-receipt → world-state evidence → `card done` → durable trace + `AUTO-LOG.md`.
-- **Tier A**: green + no security-class → auto-merge, no ask.
-- **Tier B**: fixable issues → one repair by a FRESH subagent (two-strikes), else escalate.
-  If the fix needs >1 experimental attempt against a single numeric target (not a review
-  disagreement), reach for `flow.sh loop-prep` + the native loop protocol
-  (`references/native-rituals.md` §5) instead — richer with the `ck-loop` skill if
-  installed. See "Loop vs two-strikes" in `references/claudekit-skills.md`.
-- **Tier C**: security-class (auth, authorization, admin exposure, tenancy, payments, data
-  migration, removing validation) → **HALT.** Operator accepts the exposure in `DEBT.md`,
-  in writing. Never planner-decided.
-Hard stops (iteration/token/time caps) and ground-truth gates (`flow.sh` exit, real
-`## Verify` runs, live check — never an agent's self-assessment) are mandatory.
-
-## Law & reference files
-
-- `law/CLAUDE.md` — build-session discipline, card sequence, PR/merge, debt, worktree, forbidden. **Read before building any card.**
-- `law/DESIGN.md` — UI law for every mock/frontend card (tokens, affordance ladder, object-first, never-do list).
-- `law/RETRO.md` — one honest line per run.
-- `references/gate-rules.md` — the per-stage semantic challenges (the heart of your gatekeeping).
-- `references/stage-state-machine.md` — stage order, unlock conditions, what each artifact must contain.
-- `references/artifact-lifecycle.md` — named mutation models (living plan + append-only cards default; cycle-forward; flow-back). Converge is the flow-back closer. Prevents a `specs/` import. Not a `next` gate.
-- `references/project-types.md` — per-type (web|cli|library|skill) adaptations of the stages, gate lenses, and done-evidence.
-- `references/command-dispatch.md` — exact mapping of each `/flow` command to runner call + your duties.
-- `references/concierge.md` — the default conversational entry: routing loop, May-run/Must-ask default-deny classification, new-user consent script.
-- `references/flow-catalog.tsv` — the intent-class × state → action routing table the concierge reads (source of truth for automated checks).
-- `references/forge-idea.md` — the Idea/Scope persona-interrogation ritual (adapted from BMAD-METHOD's `bmad-forge-idea`, MIT, opt-in, never a gate condition).
-- `references/clarify.md` — bounded sequential write-back for leftover `## Open decisions` bullets on Scope/PRD/Contract (opt-in, never a `next` prereq).
-- `references/converge.md` — the flow-back closer: assess code vs plan, append remainder cards transactionally (`/flow converge`); gap taxonomy + `flow-converge/v1` payload schema. Semantic proof via `eval --stage converge`.
-- `references/agent-detection.md` — detect ck:/bmad agents + priority + fallback.
-- `references/agent-stage-mapping.md` — stage→agent map, scoped prompt template, durable hooks.
-- `references/claudekit-skills.md` — the **skill layer** on top of the agents: the curated per-stage ck-skill whitelist ("what to use when"), the 6 deep-wired high-ROI skills (ck-predict@ADR, ck-scenario@Contract, review-pr@Review/Ship, ck-security@security-cards, retro@Retro, ck-loop@Build/Verify), the binding rules (skill INFORMS / gate JUDGES; Claude-side detection + silent degrade; opt-in-with-prompt, off the hot path), and the loop-vs-two-strikes decision matrix (`flow.sh loop-prep`/`loop-log` plumbing, ck-loop as the untouched execution engine).
-- `references/codex-integration.md` — the Codex cross-vendor second-engine seam: detection (installed≠usable), cost gate, invocation surfaces, ReviewResult shape, gate parity.
-- `references/antigravity-integration.md` — the Antigravity (Gemini-3) cross-vendor third-engine seam: install homes, strict usability (exit code lies → route on non-empty output), interactive-default review, cost/data gate, gate parity.
-- `references/gate-rules.md` → "Cross-artifact consistency" — the semantic passes behind `/flow consistency` (hollow coverage, conflicting requirements, cut-list contradiction, terminology drift) that the runner's ID-based check can't judge.
-- `references/mode-work.md` — work-mode script (interview once → draft → one scope pause → summary).
-- `references/auto-run.md` — `/flow auto` tiers, worktree loop, AUTO-LOG, security-class halt.
-- `references/loop-harness-2026-principles.md` — harness-first, hard stops, ground-truth, context isolation.
-- `references/ground-truth-gates.md` — the mechanical signal each gate decides on (never self-assessment).
-- `references/adversarial-review.md` — the 3-layer "must find issues" Review gate + triage.
-- `references/debt-and-halts.md` — `DEBT.md` ledger, security-class Tier-C halt, when a run halts.
-- `references/design-review-checklist.md` — UI card review (mechanical `flow.sh design` + semantic DESIGN.md).
-- `references/ui-patterns-tcr.md` — 7 UI patterns + T-C-R frame + pattern-choice priority rules.
-- `references/gate-eval.md` — `/flow eval` behavioral proof for the semantic layer: what it
-  measures (a fresh-judge lower bound, NOT the work-mode self-challenge), cost, thresholds,
-  and the honest authorship-bias limitation. Read before running or relaying a scorecard.
-- `harness/` — **flow-owned** durable layer (`flow.sh harness ...`): intake/story/**complete**/trace/decision/backlog. Live authority = this Python CLI + `flow.sh` + gate-rules (not external `harness-cli`). Historical gap: `harness/GAP-MATRIX-0.1.17.md` (SUPERSEDED). Never `story update --status implemented` — use `story complete --proof-source …`. Improve skill/harness guidance: ritual **R-IMPROVE-HARNESS** in `references/native-rituals.md` (explicit-only; fresh-agent rerun before keep).
-- `playbooks/` — paid-for stack knowledge: read before building a card on that stack, harvest the lesson after.
-- `_templates/` — the 7 artifacts the runner copies into `flow/` and `cards/`. Never edit during a run.
+- Verb map: `references/command-dispatch.md` (no Commands table in this file).
+- Chat front door: `references/concierge.md` + `references/flow-catalog.tsv`.
+- Idea/Scope persona ritual: `references/forge-idea.md` (adapted from BMAD-METHOD,
+  `bmad-forge-idea`, MIT, opt-in, never a gate condition).
+- Codex second engine: `references/codex-integration.md`.
+- Antigravity Gemini-3 **third engine**: `references/antigravity-integration.md`
+  (confirm load with `agy inspect`).
+- ck-skill layer: `references/claudekit-skills.md`.
+- Parallel occupancy: `references/host-agnostic-parallel.md`.
+- Receipts: `references/attestations.md`.
+- `harness/` is **flow-owned**. Improve via **R-IMPROVE-HARNESS** in
+  `references/native-rituals.md`. Never `story update --status implemented` — use
+  `story complete --proof-source`.
 
 ## Forbidden
 
-- Checking a gate box or writing a planning artifact on the operator's behalf (in `teach` mode).
+- Checking a gate box or writing a planning artifact on the operator's behalf (teach).
 - Setting a card `done` without pasted world-state evidence.
-- Building two cards in one session, or in parallel before `/flow ready` marks them safe.
+- Building two cards in one session, or in parallel before `ready` marks them safe.
 - Frontend code before the UI mock card is approved.
 - Editing `_templates/` or `runner/flow.sh` during a project run.

@@ -171,6 +171,7 @@ current_stage_idx() { # highest CONTIGUOUS-from-00 stage index, or -1 if 00 miss
 # Prints violations; returns 0 = clean, 1 = violations found.
 scan_gate() {
   local file="$1" found=0 unchecked fills
+  _MIDTIER_FAILS=0
   if [ ! -f "$file" ]; then
     echo "  missing file: $file"
     return 1
@@ -187,7 +188,130 @@ scan_gate() {
     printf '%s\n' "$fills" | sed 's/^/      L/'
     found=1
   fi
+  case "$(basename "$file")" in
+    01-research.md|02-scope.md|03-prd.md|05-contract.md)
+      if ! _scan_midtier "$file"; then
+        found=1
+      fi
+      ;;
+  esac
   return $found
+}
+
+# Materialize a ## heading body into stdout (one awk; caller assigns to a var).
+# Copy of cmd_clarify's heading walk: start at heading, stop at the next ##.
+_heading_slice() { # $1=file $2=heading prefix after "## "
+  local file="$1" heading="$2"
+  awk -v h="$heading" '
+    {
+      line = $0
+      sub(/\r$/, "", line)
+    }
+    line ~ ("^##[[:space:]]+" h) { f=1; next }
+    /^##[[:space:]]/ { f=0 }
+    f { print line }
+  ' "$file"
+}
+
+_midtier_hit() {
+  echo "  [x] $1"
+  _MIDTIER_FAILS=$((_MIDTIER_FAILS + 1))
+}
+
+_midtier_entry_n() { # stdin = ## What exists already -> numbered or bullet entries
+  awk '
+    /^[[:space:]]*[0-9]+\./ { c++; next }
+    /^[[:space:]]*- / { c++ }
+    END { print c + 0 }
+  '
+}
+
+_midtier_l_above_a() { # stdin = ## Features in v1 body; exit 1 if a joined bullet is L + B/C
+  awk '
+    function flush() {
+      if (buf == "") return
+      low = tolower(buf)
+      hasL = (low ~ /impact[[:space:]]+l([^a-z]|$)/ || low ~ /(^|[^a-z])l-impact/)
+      hasBC = (low ~ /grade[[:space:]]+[bc]([^a-z]|$)/)
+      if (hasL && hasBC) bad++
+      buf = ""
+    }
+    /^[[:space:]]*- / { flush(); buf = $0; next }
+    /^[[:space:]]*$/ { flush(); next }
+    buf != "" { buf = buf " " $0; next }
+    { flush() }
+    END { flush(); exit (bad > 0) ? 1 : 0 }
+  '
+}
+
+_midtier_adjectives() { # stdin = Features or NFR body; print first unquantified adjective
+  awk '
+    /^[[:space:]]*- \[[ xX]\]/ { next }
+    {
+      line = tolower($0)
+      n = split("fast secure intuitive robust prominent", w, " ")
+      for (i = 1; i <= n; i++) {
+        if (line ~ "(^|[^a-z])" w[i] "([^a-z]|$)") { print w[i]; exit }
+      }
+    }
+  '
+}
+
+_midtier_od_n() { # stdin = ## Open decisions body -> markdown bullet count (checked or not)
+  awk '/^[[:space:]]*- / { c++ } END { print c + 0 }'
+}
+
+_midtier_open_decisions() { # $1=file
+  local body n
+  body="$(_heading_slice "$1" "Open decisions")"
+  n="$(printf '%s\n' "$body" | _midtier_od_n)"
+  if [ "$n" -gt 5 ]; then
+    _midtier_hit "more than 5 ## Open decisions bullets ($n)"
+  fi
+}
+
+_scan_midtier() { # $1=file; prints [x] lines; return 1 if any hit
+  local file="$1" base body n pt adj
+  base="$(basename "$file")"
+  case "$base" in
+    01-research.md)
+      if [ -f "$PROJECT_TYPE_FILE" ]; then
+        pt="$(tr -d '\r' < "$PROJECT_TYPE_FILE" | awk 'NF{print; exit}')"
+        if [ "$pt" = "web" ]; then
+          body="$(_heading_slice "$file" "What exists already")"
+          n="$(printf '%s\n' "$body" | _midtier_entry_n)"
+          if [ "$n" -lt 3 ]; then
+            _midtier_hit "fewer than 3 entries under ## What exists already (typed web, got $n)"
+          fi
+        fi
+      fi
+      ;;
+    02-scope.md)
+      body="$(_heading_slice "$file" "Features in v1")"
+      if ! printf '%s\n' "$body" | _midtier_l_above_a; then
+        _midtier_hit "L-impact feature above grade A in ## Features in v1"
+      fi
+      _midtier_open_decisions "$file"
+      ;;
+    03-prd.md)
+      body="$(_heading_slice "$file" "Features")"
+      adj="$(printf '%s\n' "$body" | _midtier_adjectives)"
+      if [ -n "$adj" ]; then
+        _midtier_hit "unquantified adjective '$adj' in ## Features"
+      else
+        body="$(_heading_slice "$file" "Non-functional requirements")"
+        adj="$(printf '%s\n' "$body" | _midtier_adjectives)"
+        if [ -n "$adj" ]; then
+          _midtier_hit "unquantified adjective '$adj' in ## Non-functional requirements"
+        fi
+      fi
+      _midtier_open_decisions "$file"
+      ;;
+    05-contract.md)
+      _midtier_open_decisions "$file"
+      ;;
+  esac
+  [ "$_MIDTIER_FAILS" -eq 0 ]
 }
 
 _python() {
@@ -759,7 +883,7 @@ cmd_status() {
   echo "  auto:    $_ast$([ "$_ast" = ACTIVE ] && echo " (receipts enforced)" || true)"
   lock_warn
   echo
-  echo "NEXT -> $(_next_action)"
+  _emit_next
   echo
   if [ -f "$FLOW_DIR/00-inspect.md" ]; then
     if scan_gate "$FLOW_DIR/00-inspect.md" >/dev/null 2>&1; then
@@ -856,7 +980,9 @@ _resume_valid_lines() {
 cmd_resume() {
   local idx; idx="$(current_stage_idx)"
   if [ "$idx" -lt 0 ]; then
-    echo "nothing to resume - $(_next_action)"
+    _na="$(_next_action)"
+    echo "nothing to resume - $_na"
+    echo "NEXT_VERB=$(_next_verb_from "$_na")"
     return 0
   fi
 
@@ -874,7 +1000,7 @@ cmd_resume() {
     echo
     _gate_state_brief "$idx"
     echo
-    echo "NEXT -> $(_next_action)"
+    _emit_next
     return 0
   fi
 
@@ -966,7 +1092,7 @@ cmd_resume() {
   echo
 
   # ---- NEXT (shared with `status` via _next_action - the two verbs can never disagree) ----
-  echo "NEXT -> $(_next_action)"
+  _emit_next
 }
 
 cmd_next() {
@@ -1005,7 +1131,7 @@ cmd_next() {
     # attribute the failing event to THIS stage (so usage top-fail-stage + propose can see it)
     # and record WHICH checks failed, so a chronically-failing stage is diagnosable.
     FLOW_LOG_STAGE_TO="$cur"
-    FLOW_LAST_GATE_FAIL="fill:$(grep -c '\[FILL' "$FLOW_DIR/$cur.md" 2>/dev/null || echo 0),unchecked:$(grep -cE '^[[:space:]]*- \[ \]' "$FLOW_DIR/$cur.md" 2>/dev/null || echo 0)"
+    FLOW_LAST_GATE_FAIL="fill:$(grep -c '\[FILL' "$FLOW_DIR/$cur.md" 2>/dev/null || echo 0),unchecked:$(grep -cE '^[[:space:]]*- \[ \]' "$FLOW_DIR/$cur.md" 2>/dev/null || echo 0),midtier:${_MIDTIER_FAILS:-0}"
     echo
     echo "Fix the above, then run '/flow next' again. (Kill at a gate is also valid.)"
     return 1
@@ -1177,6 +1303,27 @@ _next_action() {
     return 0
   fi
   echo "run '/flow check' then ship per stage 09"
+}
+
+# Closed advisory enum from _next_action prose only. Hosts must not auto-exec auto/skip.
+_next_verb_from() { # $1 = _next_action text
+  local a="$1"
+  case "$a" in
+    *"fix gate:"*) echo fix-gate ;;
+    *"/flow card start"*) echo card-start ;;
+    *"/flow card"*) echo card ;;
+    *"/flow check"*) echo check ;;
+    *"/flow next"*) echo next ;;
+    *"in flight"*) echo card-start ;;
+    *) echo none ;;
+  esac
+}
+
+_emit_next() {
+  local a
+  a="$(_next_action)"
+  echo "NEXT -> $a"
+  echo "NEXT_VERB=$(_next_verb_from "$a")"
 }
 
 _set_card_status() { # $1=file $2=value -> rewrite the ^status: line (portable substitute; temp+mv)
@@ -3781,6 +3928,9 @@ _eval_routing_print_scorecard() { # $1=run_id
   '
 }
 
+_eval_skip_unmeasured() { # $1 = kind (eval / routing eval / converge eval)
+  echo "SKIP: 'claude' CLI not found on PATH - $1 needs it to run the LLM judge. Zero calls made."
+}
 # NOTE: defined with the `function name { }` form (no parens) rather than this file's usual
 # `name() { }` style, solely so the literal 4-byte substring the shipped verb name is built
 # from never appears immediately followed by '(' in the source - a blind text-pattern security
@@ -3812,7 +3962,8 @@ function cmd_eval_routing { # same arg shape as cmd_eval, called only when --sta
   local probe; probe="$(_eval_isolated_run _eval_probe)"
   case "$probe" in
     absent)
-      echo "SKIP: 'claude' CLI not found on PATH - routing eval needs it to run the LLM judge. Zero calls made."
+      _eval_skip_unmeasured "routing eval"
+      echo "semantic layer unmeasured on this host"
       return 0 ;;
     fail)
       echo "SKIP: 'claude' CLI is present but the sentinel probe did not come back clean (one minimal"
@@ -4123,7 +4274,7 @@ function cmd_eval_converge { # same arg shape as cmd_eval, called only when --st
 
   local probe; probe="$(_eval_isolated_run _eval_probe)"
   case "$probe" in
-    absent) echo "SKIP: 'claude' CLI not found on PATH - converge eval needs it to run the LLM judge. Zero calls made."; return 0 ;;
+    absent) _eval_skip_unmeasured "converge eval"; echo "semantic layer unmeasured on this host"; return 0 ;;
     fail)   echo "SKIP: 'claude' CLI present but the sentinel probe did not come back clean (one minimal probe call was made). Retry once 'claude -p' runs headless."; return 0 ;;
   esac
 
@@ -4378,7 +4529,8 @@ function cmd_eval {
     local probe; probe="$(_eval_isolated_run _eval_probe)"
     case "$probe" in
       absent)
-        echo "SKIP: 'claude' CLI not found on PATH - eval needs it to run the LLM judge. Zero calls made."
+        _eval_skip_unmeasured "eval"
+        echo "semantic layer unmeasured on this host"
         return 0 ;;
       fail)
         echo "SKIP: 'claude' CLI is present but the sentinel probe did not come back clean (one minimal"

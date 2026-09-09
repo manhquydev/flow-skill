@@ -21,7 +21,7 @@ risk-ack: none
 
 ## Verify (run these before calling the card done)
 
-- [ ] [FILL: a concrete check — a curl, a click, a command + expected output]
+- [ ] [FILL: command + expected output OR URL/path + observable user fact. Not "tests pass"]
 
 ## Done-evidence (world-state proof, named BEFORE building)
 

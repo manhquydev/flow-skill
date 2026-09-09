@@ -4,17 +4,38 @@
 `flow.sh auto` requires planning complete, classified card **risk** (no `unknown`),
 valid security-class DEBT acknowledgement when needed, a reliable live supervisor, and a
 current Stage 05 `semantic_gate` receipt — then writes shared `.flow/auto-state`. Full
-contract: `references/attestations.md`. Then YOU (Claude) orchestrate per the principles
+contract: `references/attestations.md`. Then the hosting agent orchestrates per the principles
 below. Operator chose: **Tier-A auto-merge green cards; halt at security-class.**
 While auto is active, mechanical transitions require current card semantic/live receipts;
 there is no hidden bypass — use `flow auto stop` for deliberate manual continuation.
+
+## AutoDecision (docs vocabulary only)
+
+Closed enum — this file is the only home. `cmd_auto` is unchanged and does not parse it.
+Do not add `FLOW_AUTO_OK`.
+
+`auto-merge | repair | halt | blocked | needs-operator`
+
+| Decision | When |
+|---|---|
+| **auto-merge** | Tier-A: card built, review green, verify-live passed, no security-class concern |
+| **repair** | Tier-B: review/verify fixable; first repair = debugger (or inline + same-ladder host); deadlock then USABLE Codex then Antigravity |
+| **halt** | Tier-C, hard-stop cap, parallel merge conflict, or security DEBT needed |
+| **blocked** | Child report missing `STATUS` (treat as BLOCKED), or `STATUS: BLOCKED`/`NEEDS_CONTEXT` that more context cannot resolve |
+| **needs-operator** | Two-strikes with no USABLE cross-vendor engine, or work the parent must not auto-act |
+
+Child complete = worker report. Parent still runs `flow.sh check`. Child `STATUS: DONE` is not a card pass. Runner does not parse `STATUS`.
+
+## Default-deny (no scoped subagents)
+
+Hosts that cannot spawn a scoped subagent with an isolated brief (Flash and similar) must not run `/flow auto`. Use `/flow next` + `/flow check`. Default-deny. Absence of scoped subagents never lowers a gate.
 
 ## Tiers (decide per card before acting)
 
 | Tier | What | Action |
 |---|---|---|
 | **A** | Card built, review green, verify-live passed, no security-class concern | **Auto-merge without asking.** Log PR URL + merged SHA in `AUTO-LOG.md`. |
-| **B** | Built but review found fixable issues, or verify ambiguous | First repair = **`Task(subagent_type="debugger")`** with scoped brief (task + card + test output + acceptance; no session history). If `debugger` is absent, degrade to inline root-cause + fresh same-ladder (Claude) subagent. If THAT repair is still red — the **two-strikes deadlock** — THEN try the next USABLE cross-vendor engine: **Codex** (`codex:codex-rescue`) first, then **Antigravity/Gemini-3** (`antigravity-integration.md`) if Codex is unusable or also red; else escalate to operator. (A cross-vendor engine may come in earlier ONLY on a security-class card or explicit operator opt-in — the cost gate. Do NOT call a billable engine on the first red of an ordinary card.) |
+| **B** | Built but review found fixable issues, or verify ambiguous | First repair = **`Task(subagent_type="debugger")`** with scoped brief (task + card + test output + acceptance; no session history). If `debugger` is absent, degrade to inline root-cause + fresh same-ladder host subagent. If THAT repair is still red — the **two-strikes deadlock** — THEN try the next USABLE cross-vendor engine: **Codex** (`codex:codex-rescue`) first, then **Antigravity/Gemini-3** (`antigravity-integration.md`) if Codex is unusable or also red; else escalate to operator. (A cross-vendor engine may come in earlier ONLY on a security-class card or explicit operator opt-in — the cost gate. Do NOT call a billable engine on the first red of an ordinary card.) |
 | **C** | Security-class touch (auth, authorization, admin exposure, tenancy, payments, data migration, removing validation) OR a debt skip | **HALT.** Operator must accept the exposure in writing in `DEBT.md`. Never planner-decided. |
 
 ## Loop per card (serial by default; parallel only when `/flow ready` says safe)
@@ -25,6 +46,9 @@ for each todo card in card-number order:
      [records: flow harness graph record --execution "$(flow.sh harness graph session)" \
                  --ns card:C-NNN --node card-review --interrupt --security-class]
   1. spawn ONE scoped subagent (agent-stage-mapping.md) in its own worktree
+     spawn-not-fork: the brief is whole context (no session history).
+     Child MUST NOT resolve Tier-C, write DEBT, skip a gate, or merge. Parent still `flow.sh check`.
+     Docs-only; runner does not refuse child `debt`/`skip`.
      /flow workspace add card/C-NNN --card C-NNN     [records: card-dispatch]
      (a raw `git worktree add` records NOTHING — use the verb, or the journal has a hole)
   2. agent builds to contract, touches only allowed files, runs ## Verify for real
@@ -36,7 +60,7 @@ for each todo card in card-number order:
          (task + failing card file + test output + ## Verify acceptance; NO session history).
          Debugger diagnoses root cause and returns a fix recommendation or revised implementation.
          Degrade rung: if `debugger` is ABSENT in the host, run inline root-cause analysis then
-         spawn a FRESH same-ladder (Claude) subagent for the redraw. A missing `debugger` changes
+         spawn a FRESH same-ladder host subagent for the redraw. A missing `debugger` changes
          WHO diagnoses, never whether ## Verify + flow.sh check must pass for real.
        still red (strike 2 / deadlock) -> Codex fresh-engine repair if USABLE, then Antigravity if
          USABLE, else escalate

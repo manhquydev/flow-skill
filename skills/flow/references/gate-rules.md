@@ -54,6 +54,7 @@ Mechanical: 7 boxes checked, no FILL.
   Demand it be *concrete and real* (a named observed pain, named beneficiaries) — not vague.
   "No market channel" is expected here and is NOT a kill signal.
 **Challenge (highest fabrication risk):**
+- Compare to `gate-examples.md` §01 (PASS = named tool + link; FLAG = unsourced competitors).
 - Were 3 competitors *actually opened*? Each note should read like someone used the tool. (all types)
 - web: are the 3 complaints *real quotes with working source links*? · non-web: is the
   first-party friction *concrete and observed* (who hit it, when), not a guess?
@@ -66,6 +67,7 @@ Mechanical: 7 boxes checked, no FILL.
 Mechanical: every feature has Impact (H/M/L) + Grade (A/B/C), no L-above-A in v1, cut list,
 GO/KILL, no FILL.
 **Challenge — watch for GRADE LAUNDERING:**
+- Compare to `gate-examples.md` §02 (PASS = C called C; FLAG = C-launder, realtime graded B).
 - **Material-authority stop:** if materially different externally observable product choices
   remain open (quota, identity key, tenancy model, response contract, enforcement owner, …),
   **stop** — list the choice and consequences. Configurable defaults are not authority.
@@ -168,6 +170,7 @@ cli=command+flags+output/exit, library=public function+args+return, skill=comman
 Mechanical: no FILL, valid status, required sections, if done -> verify boxes checked +
 evidence non-empty.
 **Challenge:**
+- Compare to `gate-examples.md` §Card (PASS names URL/curl/path; FLAG = process-only / artifact-less).
 - Is the scope ONE thing? If it's two, split the card.
 - **Independent test:** if the field is empty, missing on a value card, or is
   "unit tests pass" / "code merged", split or rewrite. A value card names a

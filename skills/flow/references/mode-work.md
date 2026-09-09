@@ -2,17 +2,20 @@
 
 `MODE` file at project root (default `teach`). Set with `/flow mode work`.
 
-- **teach** — the operator writes every artifact; you only gatekeep. Default.
-- **work** — you interview the operator ONCE, draft stages 00-05 yourself, pause only for
+- **teach** — the operator writes every artifact; the host only gatekeeps. Default.
+- **work** — interview the operator ONCE, draft stages 00-05, pause only for
   scope sign-off, deliver the card set as one summary. **Gates and done-rules are identical
-  to teach** — you still pass every gate, you just also author.
+  to teach** — every gate still passes; the host also authors.
 
 ## The work-mode shape (interview once -> draft -> one pause -> summary)
 
-1. **Interview once.** Ask a single tight batch (use `AskUserQuestion`): the idea in one
-   line, who has the pain (a real named person/group), the rough budget/time, the stack if
-   they have a preference, and the one channel for the first users. Don't drip questions
-   across stages.
+1. **Interview once.** One tight batch — numbered questions, not a drip across stages:
+   1. Idea in one line?
+   2. Who has the pain (a real named person/group)?
+   3. Rough budget/time?
+   4. Stack preference, if any?
+   5. One channel for the first users?
+   Host-neutral: use whatever ask/prompt surface the host has.
 2. **Draft 00 -> 01 -> 02.** Fill idea, do real research (delegate to `researcher` per
    `agent-stage-mapping.md` — actually open competitors, quote real complaints with links),
    and produce the scope table with honest Impact + Grade. Run each gate with `flow.sh next`.
@@ -33,8 +36,8 @@
 
 ## Rules that still hold in work mode
 - Every gate must pass mechanically (`flow.sh`) AND semantically (`gate-rules.md`). Drafting
-  does not lower the bar — self-challenge before presenting (you are now the author AND under
-  review, so apply the adversarial lens to your own draft).
+  does not lower the bar — self-challenge the draft before presenting. Self-challenge is
+  color, not a verdict: it never substitutes for `flow.sh` + `gate-rules.md`.
 - Research must be real (opened competitors, quoted complaints with links) — no fabrication.
   This is the highest-risk stage for an AI author; verify every quote has a source.
 - Scope honesty: do not grade-launder your own C features to B. Call C a C, justify the path.
@@ -43,5 +46,5 @@
   can still halt or add a bullet (a policy-encoding `## Assumptions` line with no operator/ADR
   authority is an open decision, not a silent default). Never invent auth / tenancy / retention
   / billing to clear FILL.
-- Done is still world-state evidence; you cannot mark a card done without real proof.
+- Done is still world-state evidence; a card cannot be marked done without real proof.
 - Write durable records (intake/decision/story) as you go, same as teach mode.

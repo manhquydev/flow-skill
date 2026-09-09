@@ -112,6 +112,7 @@ else
   ck 0 "$rc" "eval exit 0 when claude absent"
   has "$out" "SKIP" "prints SKIP message"
   has "$out" "not found" "explains claude missing"
+  has "$out" "semantic layer unmeasured on this host" "eval SKIP names unmeasured, not a pass"
 fi
 rm -rf "$fakebin"
 clean
@@ -600,6 +601,7 @@ else
   ck 0 "$rc" "SKIP exits 0, not an error"
   has "$out" "SKIP" "prints SKIP message"
   has "$out" "Zero calls made" "explicit zero-calls statement"
+  has "$out" "semantic layer unmeasured on this host" "routing SKIP names unmeasured, not a pass"
 fi
 rm -rf "$fakebin"
 clean
@@ -676,6 +678,29 @@ has "$promptcontent" "GATE-EVAL-testnonce123: ACTION=" "verdict marker line uses
 clean
 
 # ---------- CV) converge modality: repo-state gap-detection judge (mocked engine) ----------
+echo "CV-0) --stage converge skips cleanly with zero calls when claude is absent"
+newsb
+fakebin="$(mktemp -d)"
+for d in /usr/bin /bin; do
+  [ -d "$d" ] || continue
+  for f in "$d"/*; do
+    [ -e "$f" ] || continue
+    b="$(basename "$f")"
+    case "$b" in claude|claude.exe|claude.cmd) continue ;; esac
+    [ -e "$fakebin/$b" ] || ln -s "$f" "$fakebin/$b" 2>/dev/null || cp "$f" "$fakebin/$b" 2>/dev/null
+  done
+done
+if PATH="$fakebin" command -v claude >/dev/null 2>&1; then
+  echo "  skip [claude-absent] (platform still resolves claude outside /usr/bin,/bin; cannot hide it here)"
+else
+  out="$(PATH="$fakebin" bash "$RUN" eval --stage converge 2>&1)"; rc=$?
+  ck 0 "$rc" "converge SKIP exits 0, not an error"
+  has "$out" "SKIP" "prints SKIP message"
+  has "$out" "semantic layer unmeasured on this host" "converge SKIP names unmeasured, not a pass"
+fi
+rm -rf "$fakebin"
+clean
+
 echo "CV-A) --stage converge is a recognized value (not rejected by validation)"
 out="$(bash "$RUN" eval --stage converge --report 2>&1)"; rc=$?
 no "$out" "must be one of" "converge accepted by --stage validation"
@@ -997,6 +1022,10 @@ has "$promptcontent" "Convergence criteria" "criteria section sliced from conver
 has "$promptcontent" "GATE-EVAL-testnonce123: GAP" "verdict marker uses the GAP/CONVERGED form"
 has "$promptcontent" "def create_task" "allow-listed source file was inlined"
 clean
+
+echo "UM) grep -cF unmeasured phrase == 3 in flow.sh"
+n="$(grep -cF 'semantic layer unmeasured on this host' "$RUN")"
+ck "3" "$n" "unmeasured phrase appears exactly 3 times in flow.sh"
 
 echo
 echo "RESULT: $pass passed, $fail failed"

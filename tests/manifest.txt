@@ -20,6 +20,7 @@ test_flow_codex_integration.sh
 test_flow_consistency.sh
 test_flow_constitution.sh
 test_flow_open_decisions.sh
+test_flow_midtier_scanners.sh
 test_flow_slice_quality.sh
 test_flow_converge.sh
 test_flow_antigravity_integration.sh

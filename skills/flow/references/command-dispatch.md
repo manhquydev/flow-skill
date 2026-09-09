@@ -1,19 +1,19 @@
 # Command dispatch
 
-Exact mapping: user input -> runner call -> your (Claude) duties. Always run the runner
+Exact mapping: user input -> runner call -> host duties. Always run the runner
 first, relay its output faithfully, then do the semantic part. `<skill>` = this skill's
 install dir; run from the project root so `flow/` and `cards/` resolve.
 
-| User input | Runner call | Your duties after |
+| User input | Runner call | Host duties after |
 |---|---|---|
 | `/flow` | `bash <skill>/runner/flow.sh status` | Runner now prints its own `NEXT ->` line (same helper as `resume`) plus stage dwell and, past 10 cards, a compact done/in-flight/todo summary. Relay it; nothing to author. |
-| `/flow resume` | `bash <skill>/runner/flow.sh resume` | Read-only, no lock. Relay all four sections verbatim (last session, in-flight + dwell, gate state, NEXT ->). Run this FIRST when entering a project mid-cycle with no prior context this session. Never expand on or guess at raw args it didn't print — it deliberately shows command names only. |
-| `/flow next` | `bash <skill>/runner/flow.sh next` | If FAIL: relay the exact violations + line numbers; offer help, don't author/tick in teach mode. If PASS: run the stage's challenge in `gate-rules.md`; flag hollow content, let operator decide. |
+| `/flow resume` | `bash <skill>/runner/flow.sh resume` | See After-FAIL/PASS/Never. Read-only, no lock. |
+| `/flow next` | `bash <skill>/runner/flow.sh next` | See After-FAIL/PASS/Never. Semantic challenge: `gate-rules.md`. |
 | `/flow assess` | `bash <skill>/runner/flow.sh assess` | Brownfield only: fill `flow/00-inspect.md` from EVIDENCE (read the code) — functionality/UI/UX vs product, risks, test baseline, **Evidence ledger** claim tags. After mechanical PASS, apply gate-rules **Brownfield assess** challenge (no Observed→product-law promotion). Reuse `scout`/`researcher`. Gate is operator-reviewed; then proceed to `/flow next`. |
-| `/flow card` | `bash <skill>/runner/flow.sh card` | Confirm the new card id; remind: fill Scope (one thing) / Independent test / Allowed files / Verify / Done-evidence per `law/CLAUDE.md`. |
+| `/flow card` | `bash <skill>/runner/flow.sh card` | See After-FAIL/PASS/Never. Fill per `law/CLAUDE.md`. |
 | `/flow card start C-NNN` | `bash <skill>/runner/flow.sh card start C-NNN` | Optional: mark the card in flight (operator-visible in-progress, shown in `/flow status`). Portable `cards/.inflight` registry; does NOT touch the gated `status:` field. Coexists with hand-edit. |
 | `/flow card done C-NNN` | `bash <skill>/runner/flow.sh card done C-NNN` | Optional convenience: CLI-owned flip to `done`, gated by the SAME done-rules as `check` (reverts on fail — never a hollow done). Then still apply the semantic card review (diff-vs-scope, contract shapes, real evidence) as with `check`. |
-| `/flow check C-NNN` | `bash <skill>/runner/flow.sh check C-NNN` | If PASS mechanically: review diff-vs-scope, allowed-files drift, contract-shape match, DESIGN.md for UI, evidence = real world-state. |
+| `/flow check C-NNN` | `bash <skill>/runner/flow.sh check C-NNN` | See After-FAIL/PASS/Never. |
 | `/flow gate <stage>` (or `--card C-NNN`) | `bash <skill>/runner/flow.sh gate <stage\|--card C-NNN>` | Read-only mechanical scan (unchecked boxes + `[FILL]`) with NO unlock, NO template copy, NO durable writes — the only flow.sh verb the graph executor runs from topology `cmd` position. Relay findings; `next`/`check` still own real progression + durable hooks. |
 | `/flow contract` | `bash <skill>/runner/flow.sh contract` | After the contract gate / before UI cards (web): flags client base-URL vs served-path prefix drift (double-`/api`, mixed-prefix) — the class spec-diff tools miss. Advisory; confirm on the running app. |
 | `/flow tokens` | `bash <skill>/runner/flow.sh tokens` | On/after UI cards: flags DESIGN.md tokens the CSS never uses + VALUE mismatches (same name, drifted value) + orphan CSS vars (info). Advisory; if the swap is intentional, record a dated DESIGN.md amendment. |
@@ -33,16 +33,38 @@ install dir; run from the project root so `flow/` and `cards/` resolve.
 | `/flow harness <args>` | `bash <skill>/runner/flow.sh harness <args>` | Passthrough to the durable-layer CLI (intake/story/trace/decision/backlog/query). Visible output + real exit code. Use to write the durable hook after a stage/card; read it back with `recall`. |
 | `/flow doctor` | `bash <skill>/runner/flow.sh doctor` | Environment/install self-check (bash/python/grep/git across macOS/Linux/Windows, runner path, Git Bash). Relay any FAIL as the fix list. Read-only. |
 | `/flow promote <file>` | `bash <skill>/runner/flow.sh promote <file>` | Copy a hard-won playbook into the cross-project KB (`~/.claude/flow/playbooks`) so its lesson is surfaced by `recall` in every project, not just this one. |
-| `/flow mode teach` | `bash <skill>/runner/flow.sh mode teach` | Confirm; you only gatekeep, operator authors. |
+| `/flow mode teach` | `bash <skill>/runner/flow.sh mode teach` | Confirm; host only gatekeeps, operator authors. |
 | `/flow mode work` | `bash <skill>/runner/flow.sh mode work` | Interview once, draft 00-05, pause for scope sign-off, deliver card set; still pass every gate. |
 | `/flow ready` | `bash <skill>/runner/flow.sh ready` | Relay buildable cards; confirm allowed-files truly don't overlap before suggesting parallel. Operator dispatches. |
 | `/flow workspace <verb>` | `bash <skill>/runner/flow.sh workspace add\|list\|enter\|remove\|check\|doctor [...]` | Multi-agent worktree isolation (human-driven, cross-vendor). Relay the runner output faithfully: on `add`, hand the operator the printed cd/env block (one worktree per agent — Claude `--worktree`/`-w`, Codex CLI manual + `CODEX_HOME`, Antigravity = open the dir as a workspace); on `check`/`doctor` exit 1, surface the collision/drift, don't auto-`--force` a `remove`. git is the source of truth; the `.flow/workspaces.jsonl` side-file only adds vendor/card/port/task. Advisory — not a `next` gate. |
-| `/flow auto` | `bash <skill>/runner/flow.sh auto` | On preflight PASS (risk + Stage 05 receipt), shared auto-state is active — drive the autonomous run per SKILL.md AUTO principles + `attestations.md`. |
+| `/flow auto` | `bash <skill>/runner/flow.sh auto` | Load `references/auto-run.md`. |
 | `/flow auto stop` | `bash <skill>/runner/flow.sh auto stop` | Clear auto policy; return to warning-only manual path. |
 | `/flow attest …` | `bash <skill>/runner/flow.sh attest semantic\|live-verify\|status\|recover …` | Mint/inspect receipts. Must-ask before mint/recover; `attest status` is read-only. |
 | `/flow recall` | `bash <skill>/runner/flow.sh recall` | Read back prior knowledge (open debt, recent retro, previous-card scope, harness friction/backlog, playbooks). Run at the START of a stage/card; apply it, don't re-learn known pain. |
 | `/flow unlock` | `bash <skill>/runner/flow.sh unlock` | Clear this project's concurrency lock after a crashed/abandoned session. Confirm the other session is really gone first. |
-| `/flow retro` | `bash <skill>/runner/flow.sh retro` | Ask the 3 questions; the operator writes the RETRO.md line — never you. |
+| `/flow retro` | `bash <skill>/runner/flow.sh retro` | Ask the 3 questions; the operator writes the RETRO.md line — never the host. |
+
+## After-FAIL / After-PASS / Never (next, check, card, resume)
+
+### next
+- **After-FAIL:** relay the exact violations + line numbers; offer help; do not author or tick in teach.
+- **After-PASS:** run the stage challenge in `gate-rules.md`; flag hollow content; let the operator decide.
+- **Never:** silently advance hollow; silently block sound; `FLOW_FORCE` a live lock; check a box for the operator in teach.
+
+### check
+- **After-FAIL:** relay mechanical misses; do not mark the card `done`.
+- **After-PASS:** review diff-vs-scope, allowed-files drift, contract-shape match, DESIGN.md for UI, evidence = real world-state.
+- **Never:** set `done` without pasted world-state evidence; treat tests-pass or merge as done.
+
+### card
+- **After-FAIL:** planning is incomplete — do not invent a card or skip remaining gates.
+- **After-PASS:** confirm the new id; fill Scope (one thing) / Independent test / Allowed files / Verify / Done-evidence per `law/CLAUDE.md`. Run `recall` first.
+- **Never:** two cards in one session; touch files outside `## Allowed files`; build before `/flow ready` marks parallel-safe.
+
+### resume
+- **After-FAIL:** unexpected (read-only). Relay the runner error verbatim; do not guess state.
+- **After-PASS:** relay all four sections verbatim (last session, in-flight + dwell, gate state, `NEXT ->`). Run this FIRST when entering a project mid-cycle with no prior context this session.
+- **Never:** expand on or guess at raw args the runner did not print; skip resume when entering mid-cycle with no live context.
 
 ## Behavioral invariants (all commands)
 1. The runner's exit code is ground truth. Don't override it with optimism.
@@ -57,4 +79,5 @@ install dir; run from the project root so `flow/` and `cards/` resolve.
 ## Install-path note
 - Project install: `bash .claude/skills/flow/runner/flow.sh <cmd>`
 - Global install: `bash ~/.claude/skills/flow/runner/flow.sh <cmd>`
+- Windows PowerShell/cmd: `<skill>\runner\flow.cmd <cmd>` (not bare `bash`)
 - Override project root: `FLOW_PROJECT_ROOT=/path bash <skill>/runner/flow.sh <cmd>`
