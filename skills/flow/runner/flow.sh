@@ -3402,9 +3402,13 @@ _eval_build_prompt() { # $1=outfile $2=stage $3=artifact-file $4=nonce
   local outfile="$1" stage="$2" artifact="$3" nonce="$4" section shared
   section="$(_eval_extract_section "$stage")" || return 1
   [ -n "$section" ] || return 1
-  shared="$SCRIPT_DIR/../references/gate-shared.md"
-  [ -f "$shared" ] && section="$section
+  # Shared OD/authority lives in 02/03/05 challenges. Extract maps 01/02/card only;
+  # appending shared onto 01/card lets OD rules false-FLAG research/evidence.
+  if [ "$stage" = "02" ]; then
+    shared="$SCRIPT_DIR/../references/gate-shared.md"
+    [ -f "$shared" ] && section="$section
 $(cat "$shared")"
+  fi
   {
     printf 'You are reviewing a build-process artifact against the quality-gate challenge below.\n'
     printf 'Read the challenge, then the artifact, then decide honestly: does the artifact\n'

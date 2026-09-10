@@ -58,7 +58,7 @@ rm -rf "$SB"
 echo "Round 7 - repair ladder order: debugger named before codex escalation in auto-run.md"
 AUTORUN="$HERE/../skills/flow/references/auto-run.md"
 # First repair-ladder debugger line (strike-1 repair entry)
-dbg_line="$(grep -n 'subagent_type="debugger"' "$AUTORUN" | head -1 | cut -d: -f1)"
+dbg_line="$(grep -n 'repair: debugger if present' "$AUTORUN" | head -1 | cut -d: -f1)"
 # First codex escalation line (strike-2 deadlock -> Codex)
 cdx_line="$(grep -n 'strike 2.*Codex\|Codex.*fresh-engine repair' "$AUTORUN" | head -1 | cut -d: -f1)"
 if [ -n "$dbg_line" ] && [ -n "$cdx_line" ] && [ "$dbg_line" -lt "$cdx_line" ]; then

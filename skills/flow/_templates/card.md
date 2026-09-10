@@ -1,7 +1,7 @@
 # C-NNN — [FILL: one-line scope, ONE thing]
 
 status: todo
-<!-- status: todo|in_progress|done -->
+<!-- status: todo|done (in-flight is cards/.inflight, not a status value) -->
 deps: [FILL: card ids this depends on, e.g. "C-001, C-002" — or "none"]
 implements: [FILL: PRD feature ids this card delivers, e.g. "FR1, FR2" — or "infra"/"none" for non-feature cards]
 risk: unknown
