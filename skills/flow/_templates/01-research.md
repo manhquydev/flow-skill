@@ -20,14 +20,14 @@ Rule: INSPECT what already exists. Evidence required — links, quotes, screensh
 
 ## What exists already (3 — open them, don't guess)
 
-1. Billnest (billnest.io) — splits a shared tab well, but anything not tagged "rent" disappears from the recurring view; three pilot households bounced back to a spreadsheet.
+1. Splitwise (splitwise.com) — handles group expense splitting well, but its recurring-bill view buries anything not tagged "rent"; three of our pilot households gave up trying to track a shared internet bill inside it and moved back to a spreadsheet.
 2. [FILL]
 3. [FILL]
 
 ## What users say (web: 3 real complaints quoted+linked · non-web: real first-party friction)
 
-1. > "Great until someone doesn't open the app for two weeks. I want a nudge, not a number."
-   — a roommate who actually used the incumbent (paste YOUR source URL)
+1. > "Splitwise is great until someone doesn't open the app for two weeks and the balance just sits there. I want a nudge, not a number."
+   — u/frugal_flatmate, r/personalfinance thread "How do you actually get roommates to pay you back?" (reddit.com/r/personalfinance/comments/17k2xq1)
 2. > [FILL]
 3. > [FILL]
 

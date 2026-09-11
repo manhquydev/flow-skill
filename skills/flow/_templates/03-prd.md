@@ -29,7 +29,7 @@ it; if a pain has no feature, it goes to the "not addressed" list — honestly.
 
 | # | Persona | Pain (concrete) | Evidence (stage-01 quote/source or named observation) | Today's workaround | V1 feature that kills it | Observable gain |
 |---|---|---|---|---|---|---|
-| P1 | Roommate who owns the internet bill | Recurring bills not tagged rent vanish in the incumbent; households bounce back to a spreadsheet | stage-01 quote + YOUR source URL | Shared spreadsheet that breaks under concurrent edits | Debt-simplification nudge (FR1) | Group balance shows "Alice owes Bob $12.50" instead of a pairwise table |
+| P1 | Roommate who owns the internet bill | Recurring bills not tagged rent vanish in Splitwise; households bounce back to a spreadsheet | stage-01: "I want a nudge, not a number." — u/frugal_flatmate (reddit.com/r/personalfinance/comments/17k2xq1) | Shared Google Sheet that breaks under concurrent edits | Debt-simplification nudge (FR1) | Group balance shows "Alice owes Bob $12.50" instead of a pairwise table |
 
 ### Pains NOT addressed in v1 (deliberate — tie to the scope cut list)
 
