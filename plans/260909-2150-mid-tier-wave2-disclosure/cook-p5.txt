@@ -1,0 +1,18 @@
+Implement ONLY Phase 5 of plans/260909-2150-mid-tier-wave2-disclosure/phase-05-child-status-examples.md.
+
+Exclusive writes:
+- skills/flow/references/agent-stage-mapping.md
+- skills/flow/references/auto-run.md
+- skills/flow/references/debt-and-halts.md
+
+Do NOT parse STATUS in flow.sh. Do NOT add FLOW_AUTO_OK.
+
+Must:
+- filled STATUS: DONE example + missing STATUS = BLOCKED + invalid empty-evidence DONE
+- VN copy opt-in, not always-on in the brief
+- auto-run.md: remove Task(subagent_type="debugger"); host-neutral debugger-if-present
+- AutoDecision enum body only in auto-run.md; debt-and-halts halt template pointers, no five-token list
+
+Skip formatters/linters/full suite.
+
+Print DONE and files changed.

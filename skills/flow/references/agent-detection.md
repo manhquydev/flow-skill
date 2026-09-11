@@ -4,11 +4,11 @@
 built-in behavior when none are present. It stays portable: rich where agents exist,
 unbroken where they don't.
 
-## Detection (at runtime, by the skill = Claude)
+## Detection (built-in-first)
 
-You already know which agents and skills the host exposes (the Task tool's
-`subagent_type` registry + the available Skills list). Detect by checking that registry —
-do NOT assume. Also glob for project-local definitions when unsure:
+The host's inline/generic path is always available. Overlay named specialists only when the
+host registry actually lists them — do not assume a Task tool, ck: agents, or any one vendor.
+Detect by checking that registry. Also glob for project-local definitions when unsure:
 - ck: agents: `.claude/agents/*.md` (project) and the host agent registry.
 - bmad skills: the Skills list (`bmad-*`) and `.claude/skills/bmad-*`.
 
@@ -17,7 +17,7 @@ do NOT assume. Also glob for project-local definitions when unsure:
 For each stage, pick the FIRST available:
 1. **ck: agent** (primary) — planner, researcher, architect, fullstack-developer, code-reviewer, typescript-reviewer, python-reviewer, tester, ui-ux-designer, docs-manager, git-manager, debugger, scout.
 2. **bmad-* skill** (alternative) — bmad-prd, bmad-create-architecture, bmad-spec, bmad-create-story, bmad-dev-story, bmad-code-review, bmad-check-implementation-readiness, bmad-market-research, bmad-technical-research, bmad-qa-generate-e2e-tests.
-3. **built-in fallback** — you (Claude) do it inline, or spawn a generic `Explore`/`general-purpose` agent. Output shape must match the agent path so the gate is identical.
+3. **built-in fallback** — the host drafts inline, or spawns a generic `Explore`/`general-purpose` agent. Output shape must match the agent path so the gate is identical.
 
 ## Codex — the cross-vendor second engine (a tier that crosses the ladder, not just sits under it)
 
@@ -75,11 +75,13 @@ Manager / real `agy` terminal, paste the ReviewResult back); an empty Gemini res
   contract. An agent fills an artifact; the gate still judges it. A missing agent never
   lowers a gate — it only changes who drafts.
 - **No named mux required.** Absence of any multiplexer never fails a gate. Parallel occupancy is host-owned — `host-agnostic-parallel.md`.
-- **Context isolation (orchestration-protocol).** Give each subagent ONLY: the task, the
-  specific files to read/modify, acceptance criteria, and relevant law/contract excerpts.
+- **Context isolation (orchestration-protocol).** Spawn-not-fork: the brief is whole context.
+  Give each subagent ONLY: the task, the specific files to read/modify, acceptance criteria, and relevant law/contract excerpts.
   Never the full session history. One card = one scoped brief.
-- **Status protocol.** Every subagent returns DONE / DONE_WITH_CONCERNS / BLOCKED /
-  NEEDS_CONTEXT. Handle BLOCKED/NEEDS_CONTEXT before retry (more context → simpler task →
+- **Status protocol.** Every subagent returns the structured block in `agent-stage-mapping.md`
+  (summary / evidence / nextSteps / blocker, last line `STATUS: DONE|DONE_WITH_CONCERNS|BLOCKED|NEEDS_CONTEXT`).
+  Missing STATUS = BLOCKED in the brief contract; the parent treats the child as BLOCKED.
+  The runner does not parse STATUS. Handle BLOCKED/NEEDS_CONTEXT before retry (more context → simpler task →
   escalate). Two-strikes: a second red result → **Codex rescue if the tier is eligible**
   (`codex:codex-rescue`, a different engine), else fresh subagent, else escalate to operator.
 - **Durable record hook.** After a stage/card agent finishes, write the durable record via

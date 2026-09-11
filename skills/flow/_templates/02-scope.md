@@ -51,6 +51,8 @@ When a C feature is the real need, three honest paths:
 
 ## Features in v1 (each with impact AND grade)
 
+- Debt-simplification nudge (who-owes-whom, minimized transaction count) — impact H (the differentiator named in stage-01: "I want a nudge, not a number") — grade C (a real graph-minimization algorithm, not off-the-shelf) — path 1: this C IS the product's differentiator, so it goes FIRST in build order, and no sibling C features are scoped alongside it in v1.
+- Recurring-bill nickname on the group list — impact L (nice-to-have; nobody would pay or switch for a label) — grade A (CRUD string on an existing row)
 - [FILL: feature — impact H/M/L (business reason: acquisition/revenue/retention/core job) — grade A/B/C — why]
 
 ## Suggested features (impact-first — proposed, not decided)

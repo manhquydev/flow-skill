@@ -171,6 +171,7 @@ current_stage_idx() { # highest CONTIGUOUS-from-00 stage index, or -1 if 00 miss
 # Prints violations; returns 0 = clean, 1 = violations found.
 scan_gate() {
   local file="$1" found=0 unchecked fills
+  _MIDTIER_FAILS=0
   if [ ! -f "$file" ]; then
     echo "  missing file: $file"
     return 1
@@ -187,7 +188,130 @@ scan_gate() {
     printf '%s\n' "$fills" | sed 's/^/      L/'
     found=1
   fi
+  case "$(basename "$file")" in
+    01-research.md|02-scope.md|03-prd.md|05-contract.md)
+      if ! _scan_midtier "$file"; then
+        found=1
+      fi
+      ;;
+  esac
   return $found
+}
+
+# Materialize a ## heading body into stdout (one awk; caller assigns to a var).
+# Copy of cmd_clarify's heading walk: start at heading, stop at the next ##.
+_heading_slice() { # $1=file $2=heading prefix after "## "
+  local file="$1" heading="$2"
+  awk -v h="$heading" '
+    {
+      line = $0
+      sub(/\r$/, "", line)
+    }
+    line ~ ("^##[[:space:]]+" h) { f=1; next }
+    /^##[[:space:]]/ { f=0 }
+    f { print line }
+  ' "$file"
+}
+
+_midtier_hit() {
+  echo "  [x] $1"
+  _MIDTIER_FAILS=$((_MIDTIER_FAILS + 1))
+}
+
+_midtier_entry_n() { # stdin = ## What exists already -> numbered or bullet entries
+  awk '
+    /^[[:space:]]*[0-9]+\./ { c++; next }
+    /^[[:space:]]*- / { c++ }
+    END { print c + 0 }
+  '
+}
+
+_midtier_l_above_a() { # stdin = ## Features in v1 body; exit 1 if a joined bullet is L + B/C
+  awk '
+    function flush() {
+      if (buf == "") return
+      low = tolower(buf)
+      hasL = (low ~ /impact[[:space:]]*:?[[:space:]]*l([^a-z]|$)/ || low ~ /(^|[^a-z])l-impact/)
+      hasBC = (low ~ /grade[[:space:]]*:?[[:space:]]*[bc]([^a-z]|$)/)
+      if (hasL && hasBC) bad++
+      buf = ""
+    }
+    /^[[:space:]]*- / { flush(); buf = $0; next }
+    /^[[:space:]]*$/ { flush(); next }
+    buf != "" { buf = buf " " $0; next }
+    { flush() }
+    END { flush(); exit (bad > 0) ? 1 : 0 }
+  '
+}
+
+_midtier_adjectives() { # stdin = Features or NFR body; print first listed adjective
+  awk '
+    /^[[:space:]]*- \[[ xX]\]/ { next }
+    {
+      line = tolower($0)
+      n = split("fast secure intuitive robust prominent", w, " ")
+      for (i = 1; i <= n; i++) {
+        if (line ~ "(^|[^a-z])" w[i] "([^a-z]|$)") { print w[i]; exit }
+      }
+    }
+  '
+}
+
+_midtier_od_n() { # stdin = ## Open decisions body -> markdown bullet count (checked or not)
+  awk '/^[[:space:]]*- / { c++ } END { print c + 0 }'
+}
+
+_midtier_open_decisions() { # $1=file
+  local body n
+  body="$(_heading_slice "$1" "Open decisions")"
+  n="$(printf '%s\n' "$body" | _midtier_od_n)"
+  if [ "$n" -gt 5 ]; then
+    _midtier_hit "more than 5 ## Open decisions bullets ($n)"
+  fi
+}
+
+_scan_midtier() { # $1=file; prints [x] lines; return 1 if any hit
+  local file="$1" base body n pt adj
+  base="$(basename "$file")"
+  case "$base" in
+    01-research.md)
+      if [ -f "$PROJECT_TYPE_FILE" ]; then
+        pt="$(tr -d '\r' < "$PROJECT_TYPE_FILE" | awk 'NF{print; exit}')"
+        if [ "$pt" = "web" ]; then
+          body="$(_heading_slice "$file" "What exists already")"
+          n="$(printf '%s\n' "$body" | _midtier_entry_n)"
+          if [ "$n" -lt 3 ]; then
+            _midtier_hit "fewer than 3 entries under ## What exists already (typed web, got $n)"
+          fi
+        fi
+      fi
+      ;;
+    02-scope.md)
+      body="$(_heading_slice "$file" "Features in v1")"
+      if ! printf '%s\n' "$body" | _midtier_l_above_a; then
+        _midtier_hit "L-impact feature above grade A in ## Features in v1"
+      fi
+      _midtier_open_decisions "$file"
+      ;;
+    03-prd.md)
+      body="$(_heading_slice "$file" "Features")"
+      adj="$(printf '%s\n' "$body" | _midtier_adjectives)"
+      if [ -n "$adj" ]; then
+        _midtier_hit "unquantified adjective '$adj' in ## Features"
+      else
+        body="$(_heading_slice "$file" "Non-functional requirements")"
+        adj="$(printf '%s\n' "$body" | _midtier_adjectives)"
+        if [ -n "$adj" ]; then
+          _midtier_hit "unquantified adjective '$adj' in ## Non-functional requirements"
+        fi
+      fi
+      _midtier_open_decisions "$file"
+      ;;
+    05-contract.md)
+      _midtier_open_decisions "$file"
+      ;;
+  esac
+  [ "$_MIDTIER_FAILS" -eq 0 ]
 }
 
 _python() {
@@ -431,6 +555,18 @@ planning_complete() { # 0 = yes: each stage is clean, OR debt-skipped (a skipped
       continue
     fi
     if ! scan_gate "$FLOW_DIR/$s.md" >/dev/null 2>&1; then
+      stage_skipped "$s" || return 1
+    fi
+  done
+  return 0
+}
+
+# Files exist (or debt-skipped). Used by project-type lock so a midtier-dirty
+# 01 cannot unlock a type flip after stages 00-05 are on disk.
+planning_artifacts_present() {
+  local s
+  for s in $STAGES; do
+    if [ ! -f "$FLOW_DIR/$s.md" ]; then
       stage_skipped "$s" || return 1
     fi
   done
@@ -759,7 +895,7 @@ cmd_status() {
   echo "  auto:    $_ast$([ "$_ast" = ACTIVE ] && echo " (receipts enforced)" || true)"
   lock_warn
   echo
-  echo "NEXT -> $(_next_action)"
+  _emit_next
   echo
   if [ -f "$FLOW_DIR/00-inspect.md" ]; then
     if scan_gate "$FLOW_DIR/00-inspect.md" >/dev/null 2>&1; then
@@ -856,7 +992,9 @@ _resume_valid_lines() {
 cmd_resume() {
   local idx; idx="$(current_stage_idx)"
   if [ "$idx" -lt 0 ]; then
-    echo "nothing to resume - $(_next_action)"
+    _na="$(_next_action)"
+    echo "nothing to resume - $_na"
+    echo "NEXT_VERB=$(_next_verb_from "$_na")"
     return 0
   fi
 
@@ -874,7 +1012,7 @@ cmd_resume() {
     echo
     _gate_state_brief "$idx"
     echo
-    echo "NEXT -> $(_next_action)"
+    _emit_next
     return 0
   fi
 
@@ -966,7 +1104,7 @@ cmd_resume() {
   echo
 
   # ---- NEXT (shared with `status` via _next_action - the two verbs can never disagree) ----
-  echo "NEXT -> $(_next_action)"
+  _emit_next
 }
 
 cmd_next() {
@@ -1005,7 +1143,7 @@ cmd_next() {
     # attribute the failing event to THIS stage (so usage top-fail-stage + propose can see it)
     # and record WHICH checks failed, so a chronically-failing stage is diagnosable.
     FLOW_LOG_STAGE_TO="$cur"
-    FLOW_LAST_GATE_FAIL="fill:$(grep -c '\[FILL' "$FLOW_DIR/$cur.md" 2>/dev/null || echo 0),unchecked:$(grep -cE '^[[:space:]]*- \[ \]' "$FLOW_DIR/$cur.md" 2>/dev/null || echo 0)"
+    FLOW_LAST_GATE_FAIL="fill:$(grep -c '\[FILL' "$FLOW_DIR/$cur.md" 2>/dev/null || echo 0),unchecked:$(grep -cE '^[[:space:]]*- \[ \]' "$FLOW_DIR/$cur.md" 2>/dev/null || echo 0),midtier:${_MIDTIER_FAILS:-0}"
     echo
     echo "Fix the above, then run '/flow next' again. (Kill at a gate is also valid.)"
     return 1
@@ -1177,6 +1315,27 @@ _next_action() {
     return 0
   fi
   echo "run '/flow check' then ship per stage 09"
+}
+
+# Closed advisory enum from _next_action prose only. Hosts must not auto-exec auto/skip.
+_next_verb_from() { # $1 = _next_action text
+  local a="$1"
+  case "$a" in
+    *"fix gate:"*) echo fix-gate ;;
+    *"/flow card start"*) echo card-start ;;
+    *"/flow card"*) echo card ;;
+    *"/flow check"*) echo check ;;
+    *"/flow next"*) echo next ;;
+    *"in flight"*) echo card-start ;;
+    *) echo none ;;
+  esac
+}
+
+_emit_next() {
+  local a
+  a="$(_next_action)"
+  echo "NEXT -> $a"
+  echo "NEXT_VERB=$(_next_verb_from "$a")"
 }
 
 _set_card_status() { # $1=file $2=value -> rewrite the ^status: line (portable substitute; temp+mv)
@@ -1590,12 +1749,13 @@ cmd_project_type() {
   fi
   case "$arg" in
     web|cli|library|skill)
-      # After planning is complete AND an explicit type file exists, refuse silent
+      # After planning artifacts exist AND an explicit type file exists, refuse silent
       # type flips unless FLOW_FORCE=1 (D6). Default-web with no file is not "locked".
-      if planning_complete 2>/dev/null && [ -f "$PROJECT_TYPE_FILE" ]; then
+      # Gate cleanliness is NOT required: a midtier-dirty 01 must not unlock a flip.
+      if planning_artifacts_present 2>/dev/null && [ -f "$PROJECT_TYPE_FILE" ]; then
         local cur; cur="$(get_project_type)"
         if [ -n "$cur" ] && [ "$cur" != "$arg" ] && [ "${FLOW_FORCE:-0}" != "1" ]; then
-          echo "FAIL: project type is locked to '$cur' after planning completes (would change done-evidence lens)."
+          echo "FAIL: project type is locked to '$cur' once planning artifacts exist (would change done-evidence lens)."
           echo "  re-set with FLOW_FORCE=1 if intentional, and record a DEBT.md line for the change."
           return 1
         fi
@@ -3162,17 +3322,26 @@ _eval_heading_pattern() {
   esac
 }
 
-# Extract one stage's ritual text: from its heading line up to (not including) the next '## '
-# heading, or EOF. Prints nothing on a bad stage/missing file - caller MUST assert non-empty
-# before any billable call (a silent empty extraction would judge against no rule at all).
+# Extract one stage's ritual text from the mapped file (01→gate-01.md, 02→gate-02.md,
+# card→gate-card.md): from its heading line up to (not including) the next '## '
+# heading, or EOF. Prints nothing on a bad stage/missing file - caller MUST assert
+# non-empty before any billable call (a silent empty extraction would judge against
+# no rule at all).
 _eval_extract_section() { # $1 = stage (01|02|card)
-  local pat; pat="$(_eval_heading_pattern "$1")" || return 1
-  [ -f "$GATE_RULES_FILE" ] || return 1
+  local pat src
+  pat="$(_eval_heading_pattern "$1")" || return 1
+  case "$1" in
+    01)   src="$SCRIPT_DIR/../references/gate-01.md" ;;
+    02)   src="$SCRIPT_DIR/../references/gate-02.md" ;;
+    card) src="$SCRIPT_DIR/../references/gate-card.md" ;;
+    *)    return 1 ;;
+  esac
+  [ -f "$src" ] || return 1
   awk -v pat="$pat" '
     $0 ~ pat { f=1; print; next }
     f && /^## / { f=0 }
     f { print }
-  ' "$GATE_RULES_FILE"
+  ' "$src"
 }
 
 # Usability probe: zero cost if `claude` is absent; exactly one minimal billable call if present.
@@ -3227,12 +3396,19 @@ _eval_isolated_run() {
 }
 
 
-# Build the judge prompt for one fixture. Returns 1 (writes nothing usable) if the gate-rules.md
-# section extraction came back empty.
+# Build the judge prompt for one fixture. The challenge block is the extract output
+# (already the judge bytes; `_eval_gate_rules_sha` is not stdin). Returns 1 if empty.
 _eval_build_prompt() { # $1=outfile $2=stage $3=artifact-file $4=nonce
-  local outfile="$1" stage="$2" artifact="$3" nonce="$4" section
+  local outfile="$1" stage="$2" artifact="$3" nonce="$4" section shared
   section="$(_eval_extract_section "$stage")" || return 1
   [ -n "$section" ] || return 1
+  # Shared OD/authority lives in 02/03/05 challenges. Extract maps 01/02/card only;
+  # appending shared onto 01/card lets OD rules false-FLAG research/evidence.
+  if [ "$stage" = "02" ]; then
+    shared="$SCRIPT_DIR/../references/gate-shared.md"
+    [ -f "$shared" ] && section="$section
+$(cat "$shared")"
+  fi
   {
     printf 'You are reviewing a build-process artifact against the quality-gate challenge below.\n'
     printf 'Read the challenge, then the artifact, then decide honestly: does the artifact\n'
@@ -3311,11 +3487,27 @@ _eval_nonce_epoch() { # $1=run_id -> epoch seconds (or empty)
   printf '%s' "$1" | awk -F- 'NF>=2 { print $(NF-1) }'
 }
 
-# CRLF-normalized gate-rules.md hash: a raw-byte hash would differ per checkout line-endings
-# (git autocrlf) and produce a false "prose changed" drift alarm across identical content.
+# CRLF-normalized hash of the explicit gate-rules corpus (index + shared + 11
+# section files). Never glob `gate-*.md` (would pull gate-eval.md + gate-examples.md).
+# A raw-byte hash would differ per checkout line-endings (git autocrlf).
 _eval_gate_rules_sha() {
-  [ -f "$GATE_RULES_FILE" ] || { printf 'unknown'; return; }
-  tr -d '\r' < "$GATE_RULES_FILE" | cksum | awk '{print $1}'
+  local ref="$SCRIPT_DIR/../references"
+  [ -f "$ref/gate-rules.md" ] || { printf 'unknown'; return; }
+  {
+    cat "$ref/gate-rules.md"
+    [ -f "$ref/gate-shared.md" ] && cat "$ref/gate-shared.md"
+    [ -f "$ref/gate-assess.md" ] && cat "$ref/gate-assess.md"
+    [ -f "$ref/gate-00.md" ] && cat "$ref/gate-00.md"
+    [ -f "$ref/gate-01.md" ] && cat "$ref/gate-01.md"
+    [ -f "$ref/gate-02.md" ] && cat "$ref/gate-02.md"
+    [ -f "$ref/gate-03.md" ] && cat "$ref/gate-03.md"
+    [ -f "$ref/gate-04.md" ] && cat "$ref/gate-04.md"
+    [ -f "$ref/gate-05.md" ] && cat "$ref/gate-05.md"
+    [ -f "$ref/gate-card.md" ] && cat "$ref/gate-card.md"
+    [ -f "$ref/gate-consistency.md" ] && cat "$ref/gate-consistency.md"
+    [ -f "$ref/gate-constitution.md" ] && cat "$ref/gate-constitution.md"
+    [ -f "$ref/gate-debt.md" ] && cat "$ref/gate-debt.md"
+  } | tr -d '\r' | cksum | awk '{print $1}'
 }
 
 # CRLF-normalized assembler-output hash (same recipe as _eval_gate_rules_sha). Covers
@@ -3781,6 +3973,9 @@ _eval_routing_print_scorecard() { # $1=run_id
   '
 }
 
+_eval_skip_unmeasured() { # $1 = kind (eval / routing eval / converge eval)
+  echo "SKIP: 'claude' CLI not found on PATH - $1 needs it to run the LLM judge. Zero calls made."
+}
 # NOTE: defined with the `function name { }` form (no parens) rather than this file's usual
 # `name() { }` style, solely so the literal 4-byte substring the shipped verb name is built
 # from never appears immediately followed by '(' in the source - a blind text-pattern security
@@ -3812,7 +4007,8 @@ function cmd_eval_routing { # same arg shape as cmd_eval, called only when --sta
   local probe; probe="$(_eval_isolated_run _eval_probe)"
   case "$probe" in
     absent)
-      echo "SKIP: 'claude' CLI not found on PATH - routing eval needs it to run the LLM judge. Zero calls made."
+      _eval_skip_unmeasured "routing eval"
+      echo "semantic layer unmeasured on this host"
       return 0 ;;
     fail)
       echo "SKIP: 'claude' CLI is present but the sentinel probe did not come back clean (one minimal"
@@ -4123,7 +4319,7 @@ function cmd_eval_converge { # same arg shape as cmd_eval, called only when --st
 
   local probe; probe="$(_eval_isolated_run _eval_probe)"
   case "$probe" in
-    absent) echo "SKIP: 'claude' CLI not found on PATH - converge eval needs it to run the LLM judge. Zero calls made."; return 0 ;;
+    absent) _eval_skip_unmeasured "converge eval"; echo "semantic layer unmeasured on this host"; return 0 ;;
     fail)   echo "SKIP: 'claude' CLI present but the sentinel probe did not come back clean (one minimal probe call was made). Retry once 'claude -p' runs headless."; return 0 ;;
   esac
 
@@ -4238,6 +4434,8 @@ _eval_guard_unbounded_darwin() { # $1=replay_mode (0/1); return 1 = refused
   local replay_mode="${1:-0}"
   [ "$replay_mode" -eq 0 ] || return 0
   [ "${FLOW_EVAL_UNBOUNDED:-}" = "1" ] && return 0
+  # No judge binary => no stuck call to bound. Probe SKIP (unmeasured) owns this case.
+  command -v claude >/dev/null 2>&1 || return 0
   local darwin=0
   if [ "${FLOW_EVAL_FORCE_DARWIN:-}" = "1" ]; then
     darwin=1
@@ -4378,7 +4576,8 @@ function cmd_eval {
     local probe; probe="$(_eval_isolated_run _eval_probe)"
     case "$probe" in
       absent)
-        echo "SKIP: 'claude' CLI not found on PATH - eval needs it to run the LLM judge. Zero calls made."
+        _eval_skip_unmeasured "eval"
+        echo "semantic layer unmeasured on this host"
         return 0 ;;
       fail)
         echo "SKIP: 'claude' CLI is present but the sentinel probe did not come back clean (one minimal"

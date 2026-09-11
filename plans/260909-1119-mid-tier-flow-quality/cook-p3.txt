@@ -1,0 +1,23 @@
+Implement ONLY Phase 3 of plans/260909-1119-mid-tier-flow-quality/phase-03-mechanical-scanners.md.
+
+Cwd is flow-skill. Exclusive writes:
+- skills/flow/runner/flow.sh
+- tests/test_flow_midtier_scanners.sh (create)
+- tests/manifest.txt (SAME patch as the suite file)
+
+MUST:
+- Call `_scan_midtier` from inside `scan_gate` BEFORE `return $found`. Set found=1 on any midtier [x].
+- Basename allowlist: 01-research.md 02-scope.md 03-prd.md 05-contract.md only. Cards and 00-inspect unchanged.
+- Hostname floor ONLY if PROJECT_TYPE file exists and equals web. Count hostnames under ## What exists already. Accept host.tld / optional https. f01a-shaped bare domains PASS.
+- Join wrapped Features-in-v1 bullets for L+B/C. Do not claim C-launder.
+- Heading slices: one awk into a variable (copy cmd_clarify ~2416). NEVER sed|grep -q pipes (Git-Bash hang).
+- Adjective scan skip `^[[:space:]]*- \[[ xX]\]`. PRD checkbox containing "secure" must PASS.
+- NEXT_VERB closed enum next|card|card-start|check|fix-gate|none from _next_action (flow.sh ~1114), print on status and every resume exit including idx<0. Advisory. Not catalog action.
+- Shared SKIP printer; grep -cF 'semantic layer unmeasured on this host' flow.sh equals 3. Keep return 0.
+- FLOW_LAST_GATE_FAIL counts midtier [x].
+- Tests: contiguous gate-clean 00-idea.md + dirty 01; bash flow.sh next; timeout 20 on scanner-dirty box-clean 02.
+- Do NOT change _eval_engine_run or _run_with_timeout bodies. Do NOT change _evidence_signal_score. Do NOT refuse cmd_skip.
+
+Skip formatters, linters, full run_all except the new suite.
+
+When done: print DONE, grep -cF unmeasured, git diff --stat flow.sh, prove engine function bodies unchanged vs HEAD.

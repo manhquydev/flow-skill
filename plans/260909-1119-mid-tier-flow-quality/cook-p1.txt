@@ -1,0 +1,18 @@
+Implement ONLY Phase 1 of plans/260909-1119-mid-tier-flow-quality/phase-01-start.md in this repo (cwd is flow-skill).
+
+Read plan.md ownership table and the phase file first. Exclusive writes:
+- skills/flow/SKILL.md
+- skills/flow/references/command-dispatch.md
+- retarget-only lines in tests that grep SKILL.md if a grep breaks
+
+Do NOT edit flow.sh, auto-run.md, gate-rules.md, law/, templates, eval/.
+
+Constraints from R1:
+- wc -w SKILL.md MUST be ≤1600. Fail if over.
+- Keep every currently grepped SKILL.md substring as a one-line pointer (antigravity-integration.md, agy inspect, third engine/Gemini-3, claudekit-skills, codex-integration, concierge.md, flow-catalog.tsv, forge-idea.md, BMAD-METHOD, host-agnostic-parallel, flow-owned/R-IMPROVE, attestations).
+- No YOU (Claude) / Your (Claude).
+- command-dispatch auto row = one-line pointer to auto-run.md, no AutoDecision enum.
+- PTC_ONLY/STOP before any /flow verb list.
+- Skip project-wide test suites, formatters, linters. You MAY run the listed integration tests if you retarget greps.
+
+When done, print DONE and: wc -w of SKILL.md, rg of Claude vocative (should be empty), list of files changed.

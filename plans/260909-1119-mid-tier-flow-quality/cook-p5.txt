@@ -1,0 +1,17 @@
+Implement ONLY Phase 5 of plans/260909-1119-mid-tier-flow-quality/phase-05-isolation-auto-vocab.md.
+
+Exclusive writes:
+- skills/flow/references/auto-run.md
+- skills/flow/references/agent-stage-mapping.md
+- skills/flow/references/agent-detection.md
+- skills/flow/references/debt-and-halts.md
+- skills/flow/references/mode-work.md
+
+Do NOT edit flow.sh, SKILL.md, command-dispatch.md (AutoDecision lives ONLY in auto-run.md).
+Strip YOU (Claude) from auto-run.md.
+Structured STATUS block in the scoped brief. Missing STATUS = BLOCKED in the brief contract. Runner does not parse STATUS.
+Docs-only: children should not resolve Tier-C; do not add FLOW_AUTO_OK.
+
+Skip formatters, linters, full test suites.
+
+When done, print DONE, rg YOU (Claude) in auto-run.md (empty), and files changed.

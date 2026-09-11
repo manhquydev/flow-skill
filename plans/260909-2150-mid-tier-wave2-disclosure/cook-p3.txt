@@ -1,0 +1,15 @@
+Implement ONLY Phase 3 of plans/260909-2150-mid-tier-wave2-disclosure/phase-03-split-gate-rules.md.
+
+Exclusive writes listed in that phase file. Wave 1 (phases 1,2,4,5) is already on disk — do not revert those files except if a grep suite you own must retarget.
+
+HARD:
+- Split EVERY current ## heading in gate-rules.md into gate-assess/00/01/02/03/04/05/card/consistency/constitution/debt.md. Do not invent new challenge prose.
+- gate-rules.md index ≤800w
+- gate-shared.md unique OD/authority home; zero "no mechanical cap" in skills/flow
+- flow.sh ONLY _eval_extract_section (01→gate-01.md, 02→gate-02.md, card→gate-card.md), _eval_build_prompt (inline extract into promptfile), _eval_gate_rules_sha (explicit cat list, NEVER glob gate-*.md)
+- NEVER edit _eval_engine_run or _run_with_timeout bodies. NEVER add heading-pattern 05.
+- Retarget listed tests. test_flow_eval.sh grsha= MUST use the same explicit list as the helper.
+- MAY run: tests/test_doc_budgets.sh tests/test_flow_eval.sh (no live claude)
+- Skip formatters, linters, run_all.sh
+
+Print DONE, wc -w gate-rules.md, confirm engine bodies unchanged.

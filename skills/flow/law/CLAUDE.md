@@ -8,9 +8,8 @@ no advance. Read `README.md` once for the method; THESE rules govern every sessi
 
 `/flow` (status) · `/flow next` (gate-check + unlock stage) · `/flow card` (new card) ·
 `/flow check C-NNN` (validate card) · `/flow mode teach|work` (who writes the plan) ·
-`/flow retro` (3 questions → RETRO.md / playbooks/ / FLOW-FEEDBACK.md) ·
 `/flow ready` (what's buildable now, parallel-safe groups) · `/flow auto` (autonomous
-build run — preflight via runner, then drive per SKILL.md AUTO PRINCIPLES: subagent per
+build run — preflight via runner, then drive per `references/auto-run.md`: subagent per
 card, planner reviews + verifies, worktree isolation for parallel groups, operator-gated
 cards halt by design, state in card files + AUTO-LOG.md).
 Runner: `bash .claude/skills/flow/runner/flow.sh <cmd>`.
@@ -37,10 +36,12 @@ done-rules are identical in both modes.
    into `## Evidence`. Only then set `status: done`, then run `/flow check C-NNN`.
 4. Done-evidence = world-state (deployed URL, curl output, DB row). "Tests pass" /
    "code merged" are mid-pipeline, never done.
-5. Never check a gate box or write a planning artifact on the user's behalf.
+5. Before coding a card, read `law/CODING.md`.
+6. Never check a gate box or write a planning artifact on the user's behalf (teach).
+   In work mode the host drafts after the interview; gates still bind.
    Never set a card `done` without pasted evidence.
-6. Read any file flow.sh just created before first editing it.
-7. **Playbooks** (`playbooks/`): paid-for stack knowledge. Before building a card that
+7. Read any file flow.sh just created before first editing it.
+8. **Playbooks** (`playbooks/`): paid-for stack knowledge. Before building a card that
    touches a stack with a playbook (check `playbooks/README.md` index), READ it and run
    its smoke tests before committing to a design on that stack. After a card pays for a
    non-obvious lesson, HARVEST it back into a playbook — the card review isn't done

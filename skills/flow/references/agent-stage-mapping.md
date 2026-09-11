@@ -11,12 +11,12 @@ ladder below: (1) **rescue** — if the chosen path is BLOCKED twice, hand the s
 the primary drafter for **research** and **build** stages (`codex:codex-rescue --write` /
 `codex-companion.mjs task --write`). **Default stays ck:**; Codex-as-primary is operator-selected,
 never automatic. The scope/PRD/ADR/Contract judgment stages stay Claude by default (Codex may
-still rescue them). The stage gate is identical on the Codex path — Codex drafts, the gate judges. In `teach` mode you do NOT author — you
-gatekeep; agents assist the operator. In `work`/`auto` mode you (or the agent) draft, then
+still rescue them). The stage gate is identical on the Codex path — Codex drafts, the gate judges. In `teach` mode the host does NOT author — it
+gatekeeps; agents assist the operator. In `work`/`auto` mode the host (or a specialist) drafts, then
 the gate still judges.
 
-Artifact language: **Vietnamese for user-facing copy** (per `law/DESIGN.md`: VN native,
-`₫` prices, VietQR), **English for code identifiers/endpoints**.
+Artifact language: **English for code identifiers/endpoints**. User-facing copy is Vietnamese
+**when the project is Vietnamese-facing** (`law/DESIGN.md` VN block: VN native, `₫` prices, VietQR); otherwise match the product language.
 
 ## Brownfield pre-stage (existing codebase)
 
@@ -60,7 +60,7 @@ gate): **`ck-predict` at ADR** (5-persona pre-decision debate) and **`ck-scenari
 
 **Portability degrade rungs for git-manager and docs-manager:**
 - `git-manager` absent → inline: operator runs `git commit` + `git push` + opens PR manually following the durable-hook pattern. Gate (PR merged, SHA logged in `AUTO-LOG.md`) is identical.
-- `docs-manager` absent → inline: Claude updates docs directly after card implementation; gate (impacted docs under `docs/` match the code change) is identical.
+- `docs-manager` absent → inline: the host updates docs directly after card implementation; gate (impacted docs under `docs/` match the code change) is identical.
 
 **Portability degrade rungs for the language-specialist Review lens** (`adversarial-review.md` §Language-specialist lens selection):
 - `typescript-reviewer` or `python-reviewer` AGENT present → run it layered with `code-reviewer` for `.ts/.tsx/.js/.jsx` or `.py` cards respectively. Gate (triage table, adversarial verdict) is identical.
@@ -69,7 +69,7 @@ gate): **`ck-predict` at ADR** (5-persona pre-decision debate) and **`ck-scenari
 
 ## Scoped prompt template (use for EVERY delegation)
 
-Keep it small. No session history. Fill every slot from the live artifacts.
+Keep it small. Spawn-not-fork: the brief is whole context. No session history. Fill every slot from the live artifacts.
 
 ```
 Task: <one stage/card goal>
@@ -78,8 +78,43 @@ Read for context: flow/05-contract.md (shapes), law/DESIGN.md (UI only),
 Files to modify: <card ## Allowed files ONLY>
 Acceptance criteria: <the stage gate from gate-rules.md, or the card ## Verify steps>
 Constraints: contract is the seam (never improvise a shape); done = world-state evidence;
-  Vietnamese user-facing copy; touch only allowed files
-Return: the drafted artifact + status (DONE/DONE_WITH_CONCERNS/BLOCKED/NEEDS_CONTEXT)
+  Vietnamese user-facing copy when the project is Vietnamese-facing (law/DESIGN.md VN block); touch only allowed files
+  Child MUST NOT resolve Tier-C, write DEBT, skip a gate, merge, or run flow.sh check.
+  Child complete = this report. Parent still runs flow.sh check.
+Return — last line MUST be STATUS. Missing STATUS = BLOCKED (brief contract; runner does not parse STATUS):
+summary: <one sentence what changed>
+evidence: <paths, commands, live proof>
+nextSteps: <parent-only; never skip/debt/merge>
+blocker: <empty unless BLOCKED or NEEDS_CONTEXT>
+STATUS: DONE|DONE_WITH_CONCERNS|BLOCKED|NEEDS_CONTEXT
+```
+
+Cross-field (docs-only; runner does not parse STATUS): DONE requires non-empty evidence + empty blocker. BLOCKED and NEEDS_CONTEXT require a non-empty blocker. nextSteps never skip, debt, or merge.
+
+Filled DONE (evidence paths, empty blocker). Child complete = this report; parent still `flow.sh check`:
+```
+summary: C-012 checkout POST matches contract and returns live 200
+evidence: cards/C-012.md; src/api/checkout.ts; curl -sS https://app.example/api/checkout -> 200
+nextSteps: parent runs flow.sh check C-012
+blocker:
+STATUS: DONE
+```
+
+Missing last-line STATUS — parent treats BLOCKED:
+```
+summary: wired checkout handler
+evidence: src/api/checkout.ts
+nextSteps: parent runs flow.sh check C-012
+blocker:
+```
+
+Invalid — `STATUS: DONE` with empty evidence (not a pass; parent still `flow.sh check`):
+```
+summary: checkout done
+evidence:
+nextSteps: parent runs flow.sh check C-012
+blocker:
+STATUS: DONE
 ```
 
 ## Stage notes
@@ -95,17 +130,17 @@ Return: the drafted artifact + status (DONE/DONE_WITH_CONCERNS/BLOCKED/NEEDS_CON
 - **Build via fullstack-developer:** one card = one scoped session. Pass the card's Scope +
   Allowed files + the contract shapes it consumes. It must honor shapes exactly.
 - **Repair / diagnostic via debugger:** detect-first ladder entry — NOT a hard dependency.
-  Dispatch `Task(subagent_type="debugger")` with a scoped brief: task description, the failing
+  Debugger if present else inline + fresh scoped brief: task description, the failing
   card file, test output, and `## Verify` acceptance criteria. NO session history (context
-  isolation per orchestration-protocol). If `debugger` is ABSENT in the host, degrade to inline
-  root-cause analysis + a fresh same-ladder (Claude) subagent for the redraw. A missing agent
+  isolation per orchestration-protocol). A missing agent
   changes WHO diagnoses, never whether `## Verify` + `flow.sh check` must pass for real.
-  Escalation order: debugger (Claude diagnostic) -> Codex (if USABLE) -> Antigravity (if USABLE)
+  Escalation order: debugger (host diagnostic) -> Codex (if USABLE) -> Antigravity (if USABLE)
   -> operator.
 - **Verify-live:** the proof is the LIVE surface (deployed URL, real curl), not "tests pass".
   Record `story update --e2e 1` + a `trace` only after the live check.
 
 ## After any delegation
+Child complete is a worker report, not a gate. Missing STATUS = BLOCKED. Then:
 1. Run the gate (`flow.sh next` for stages, `flow.sh check C-NNN` for cards).
 2. Apply the semantic challenge from `gate-rules.md`.
 3. Write the durable hook above. NOTE: the engine now AUTO-fires some — `flow next` past 01 seeds

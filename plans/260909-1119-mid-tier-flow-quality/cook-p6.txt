@@ -1,0 +1,20 @@
+Implement ONLY Phase 6 of plans/260909-1119-mid-tier-flow-quality/phase-06-eval-fixtures-budgets.md.
+
+Exclusive:
+- skills/flow/references/gate-eval.md
+- docs/doc-budgets.txt
+- tests/test_flow_eval.sh (additive cases only)
+
+Do NOT edit flow.sh or SKILL.md.
+If wc -w skills/flow/SKILL.md > 1600, print BLOCKED and stop (do not raise the cap).
+
+MUST:
+- Measure wc -w SKILL.md and gate-rules.md; set docs/doc-budgets.txt to measured+10% (SKILL cap in 1600–1800)
+- gate-eval.md: skip exit 0 = unmeasured, not a semantic pass
+- Additive test: grep -cF 'semantic layer unmeasured on this host' flow.sh equals 3
+- PATH-hidden claude cases for eval, eval --stage routing, eval --stage converge still exit 0 (if similar cases already exist, extend them to require the unmeasured phrase)
+- No new eval fixtures
+
+Skip formatters, linters, full run_all except test_doc_budgets.sh and the additive eval asserts.
+
+When done: print DONE, new budget lines, wc -w SKILL.md.

@@ -29,7 +29,7 @@ it; if a pain has no feature, it goes to the "not addressed" list — honestly.
 
 | # | Persona | Pain (concrete) | Evidence (stage-01 quote/source or named observation) | Today's workaround | V1 feature that kills it | Observable gain |
 |---|---|---|---|---|---|---|
-| P1 | [FILL] | [FILL] | [FILL] | [FILL] | [FILL] | [FILL] |
+| P1 | Roommate who owns the internet bill | Recurring bills not tagged rent vanish in Splitwise; households bounce back to a spreadsheet | stage-01: "I want a nudge, not a number." — u/frugal_flatmate (reddit.com/r/personalfinance/comments/17k2xq1) | Shared Google Sheet that breaks under concurrent edits | Debt-simplification nudge (FR1) | Group balance shows "Alice owes Bob $12.50" instead of a pairwise table |
 
 ### Pains NOT addressed in v1 (deliberate — tie to the scope cut list)
 
@@ -45,6 +45,7 @@ Tag each v1 feature with a stable id `FRn:` (functional requirement) — the tra
 anchor. Every `FRn` must later be claimed by a card (`implements: FRn`) and served by an
 interface in the contract (`FRn →`); `/flow consistency` checks this mechanically.
 
+- FR1: As a roommate who paid the internet bill, I open the group balance, and I see the minimized who-owes-whom nudge; empty: none; fail: pairwise table plus "couldn't simplify"
 - [FILL: "FR1: As a <user>, I <action>, and I see <result>" — one per v1 feature from stage 02]
 
 ## Non-functional requirements

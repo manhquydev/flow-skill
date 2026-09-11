@@ -112,6 +112,7 @@ else
   ck 0 "$rc" "eval exit 0 when claude absent"
   has "$out" "SKIP" "prints SKIP message"
   has "$out" "not found" "explains claude missing"
+  has "$out" "semantic layer unmeasured on this host" "eval SKIP names unmeasured, not a pass"
 fi
 rm -rf "$fakebin"
 clean
@@ -250,6 +251,25 @@ else
 fi
 rm -rf "$notimeoutbin"
 clean
+
+# ---------- H2b) darwin-sim + no timeout + no claude: unmeasured SKIP, not REFUSED ----------
+echo "H2b) darwin-sim without timeout/gtimeout and without claude SKIP unmeasured (exit 0)"
+newsb
+unset FLOW_EVAL_UNBOUNDED
+notimeoutbin="$(make_notimeoutbin)"
+if PATH="$notimeoutbin" command -v timeout >/dev/null 2>&1 || PATH="$notimeoutbin" command -v gtimeout >/dev/null 2>&1; then
+  echo "  skip [timeout-still-resolves] (cannot hide timeout/gtimeout on this platform)"
+elif PATH="$notimeoutbin" command -v claude >/dev/null 2>&1; then
+  echo "  skip [claude-still-resolves] (cannot hide claude on this platform)"
+else
+  out="$(FLOW_EVAL_FORCE_DARWIN=1 PATH="$notimeoutbin" bash "$RUN" eval --fixture fcda --n 1 --timeout 30 2>&1)"; rc=$?
+  ck 0 "$rc" "absent claude on darwin-sim SKIP exit 0"
+  has "$out" "semantic layer unmeasured on this host" "names unmeasured, not REFUSED"
+  no  "$out" "REFUSED" "did not hit the unbounded-billing refuse-guard"
+fi
+rm -rf "$notimeoutbin"
+clean
+
 
 # ---------- H3) darwin-sim + no timeout + FLOW_EVAL_UNBOUNDED=1: proceeds ----------
 echo "H3) darwin-sim without timeout + FLOW_EVAL_UNBOUNDED=1 proceeds"
@@ -600,6 +620,7 @@ else
   ck 0 "$rc" "SKIP exits 0, not an error"
   has "$out" "SKIP" "prints SKIP message"
   has "$out" "Zero calls made" "explicit zero-calls statement"
+  has "$out" "semantic layer unmeasured on this host" "routing SKIP names unmeasured, not a pass"
 fi
 rm -rf "$fakebin"
 clean
@@ -676,6 +697,29 @@ has "$promptcontent" "GATE-EVAL-testnonce123: ACTION=" "verdict marker line uses
 clean
 
 # ---------- CV) converge modality: repo-state gap-detection judge (mocked engine) ----------
+echo "CV-0) --stage converge skips cleanly with zero calls when claude is absent"
+newsb
+fakebin="$(mktemp -d)"
+for d in /usr/bin /bin; do
+  [ -d "$d" ] || continue
+  for f in "$d"/*; do
+    [ -e "$f" ] || continue
+    b="$(basename "$f")"
+    case "$b" in claude|claude.exe|claude.cmd) continue ;; esac
+    [ -e "$fakebin/$b" ] || ln -s "$f" "$fakebin/$b" 2>/dev/null || cp "$f" "$fakebin/$b" 2>/dev/null
+  done
+done
+if PATH="$fakebin" command -v claude >/dev/null 2>&1; then
+  echo "  skip [claude-absent] (platform still resolves claude outside /usr/bin,/bin; cannot hide it here)"
+else
+  out="$(PATH="$fakebin" bash "$RUN" eval --stage converge 2>&1)"; rc=$?
+  ck 0 "$rc" "converge SKIP exits 0, not an error"
+  has "$out" "SKIP" "prints SKIP message"
+  has "$out" "semantic layer unmeasured on this host" "converge SKIP names unmeasured, not a pass"
+fi
+rm -rf "$fakebin"
+clean
+
 echo "CV-A) --stage converge is a recognized value (not rejected by validation)"
 out="$(bash "$RUN" eval --stage converge --report 2>&1)"; rc=$?
 no "$out" "must be one of" "converge accepted by --stage validation"
@@ -739,8 +783,7 @@ clean
 # ============================================================================================
 # Replay / record (Phase 7) — harness-built synthetic transcripts only. Never live envelopes.
 # ============================================================================================
-GATE_RULES="$HERE/../skills/flow/references/gate-rules.md"
-grsha="$(tr -d '\r' < "$GATE_RULES" | cksum | awk '{print $1}')"
+grsha="$(FLOW_LIB_ONLY=1 bash -c '. "$0"; _eval_gate_rules_sha' "$RUN")"
 write_synth_replay() {
   # $1=dir $2=nonce $3=sha $4=fid $5=FLAG|PASS $6=n
   local d="$1" nonce="$2" sha="$3" fid="$4" verd="$5" nn="$6" i=1
@@ -997,6 +1040,10 @@ has "$promptcontent" "Convergence criteria" "criteria section sliced from conver
 has "$promptcontent" "GATE-EVAL-testnonce123: GAP" "verdict marker uses the GAP/CONVERGED form"
 has "$promptcontent" "def create_task" "allow-listed source file was inlined"
 clean
+
+echo "UM) grep -cF unmeasured phrase == 3 in flow.sh"
+n="$(grep -cF 'semantic layer unmeasured on this host' "$RUN")"
+ck "3" "$n" "unmeasured phrase appears exactly 3 times in flow.sh"
 
 echo
 echo "RESULT: $pass passed, $fail failed"

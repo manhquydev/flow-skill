@@ -46,6 +46,7 @@ Function/—/Access(=none)/Args/Return. The shared column below is "Access/Effec
 
 | Method/Interface | Path/Name | Access/Effects | Input shape | Output shape |
 |---|---|---|---|---|
+| GET | /healthz | public | none | 200 `{ok:true}` · empty: none · fail `{ok:false,error}` |
 | [FILL] | [FILL] | [FILL] | [FILL] | [FILL] |
 
 ## Shared shapes (objects used by multiple interfaces)

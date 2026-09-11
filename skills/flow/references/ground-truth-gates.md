@@ -13,7 +13,7 @@ and used only to add color, never to pass a gate.
 | Card behavior works | the card's `## Verify` steps RUN for real (curl/click/command + expected output) | "the code should work" / "tests would pass" |
 | Story proof | `flow.sh harness story verify <id>` -> `verify_command` exit 0 | "I wrote tests" |
 | Build merged-safe | review green (adversarial) + `flow.sh check` pass | "the diff is small" |
-| Card DONE | deploy ran + **live URL verified as a user** (world-state evidence pasted) | "merged" / "deploy succeeded" / "tests pass" |
+| Card DONE | per-type world-state evidence pasted (deployed URL for web; install+run for cli/library/skill) | "merged" / "deploy succeeded" / "tests pass" |
 | Card DONE (mechanical floor) | `flow.sh check` / `card done`: `## Evidence` multi-signal score ≥2 (URL + curl/command/test-log/path/DB/skill categories; denylist example.com etc.) | process-only prose (PR approvals, CI green, release notes alone); empty/placeholder |
 | Dep ready / parallel | `ready` + graph deps-met: dep `status=done` **and** same Evidence multi-signal floor | hand-edit `status: done` with hollow Evidence |
 | Auto activation | risk set valid + current Stage 05 `semantic_gate` receipt (`attestations.md`) | prose “planning looks done” |

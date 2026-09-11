@@ -9,7 +9,8 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SKILL_DIR="$HERE/../skills/flow"
 RITUALS="$SKILL_DIR/references/native-rituals.md"
-GATE="$SKILL_DIR/references/gate-rules.md"
+GATE04="$SKILL_DIR/references/gate-04.md"
+GATE05="$SKILL_DIR/references/gate-05.md"
 REVIEW="$SKILL_DIR/references/adversarial-review.md"
 RETRO="$SKILL_DIR/law/RETRO.md"
 CATALOG="$SKILL_DIR/references/flow-catalog.tsv"
@@ -58,13 +59,13 @@ echo "D) malicious-input examples are fenced as data, not instructions (red-team
 has "$rr" "DATA, not instruction" "malicious-input block explicitly labeled as data"
 
 echo "E) seam files offer the native ritual BEFORE mentioning the optional ck skill"
-before "$GATE" "native persona-debate ritual" "ck-predict" "gate-rules 04: native ritual before ck-predict"
-before "$GATE" "native edge-case ritual" "ck-scenario" "gate-rules 05: native ritual before ck-scenario"
+before "$GATE04" "native persona-debate ritual" "ck-predict" "gate-04: native ritual before ck-predict"
+before "$GATE05" "native edge-case ritual" "ck-scenario" "gate-05: native ritual before ck-scenario"
 before "$REVIEW" "native STRIDE ritual" "ck-security" "adversarial-review: native STRIDE before ck-security"
 before "$RETRO" "native numeric-retro ritual" "retro.*skill" "law/RETRO.md: native ritual before retro skill"
 
 echo "F) seams reference native-rituals.md explicitly"
-has "$(cat "$GATE" 2>/dev/null)" "native-rituals.md" "gate-rules.md points to native-rituals.md"
+has "$(cat "$GATE04" "$GATE05" 2>/dev/null)" "native-rituals.md" "gate-04/05 point to native-rituals.md"
 has "$(cat "$REVIEW" 2>/dev/null)" "native-rituals.md" "adversarial-review.md points to native-rituals.md"
 has "$(cat "$RETRO" 2>/dev/null)" "native-rituals.md" "law/RETRO.md points to native-rituals.md"
 

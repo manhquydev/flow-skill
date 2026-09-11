@@ -1,19 +1,19 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **skill v0.31.0** (2026-08-20), **npm-wrapper v0.7.1-next.0** (`npx @manhquy/flow-skill@next` after publish).
+Updated as the skill evolves. Current: **skill v0.31.0** (2026-08-20), **npm-wrapper v0.7.1** (`npx @manhquy/flow-skill@latest` after publish).
 
 Release process for future bumps: [`docs/release-process.md`](release-process.md). Release notes: [`CHANGELOG.md`](../CHANGELOG.md).
 
-## npm-wrapper v0.7.1-next.0 + skill v0.31.0 — eval receipts + host-agnostic parallel + value-first docs (2026-08-20)
+## npm-wrapper v0.7.1 + skill v0.31.0 — eval receipts + host-agnostic parallel + value-first docs (2026-08-21)
 
-Current pairing (prerelease). Notes live in [`CHANGELOG.md`](../CHANGELOG.md) (0.31.0). Dist-tag **`next`**; `latest` remains 0.7.0 / skill v0.30.0 until promote.
+Current pairing (stable). Notes live in [`CHANGELOG.md`](../CHANGELOG.md) (0.31.0). Dist-tag **`latest`** after `npm@0.7.1` publish. Prerelease `0.7.1-next.0` remains on `next`.
 
 | Axis | Value | Notes |
 |---|---|---|
-| **npm package** | 0.7.1-next.0 | ships skill v0.31.0; install `npx @manhquy/flow-skill@next` |
+| **npm package** | 0.7.1 | ships skill v0.31.0; install `npx @manhquy/flow-skill@latest` |
 | **Skill product in tarball** | 0.31.0 | SKILL.md / plugin / portable-manifest |
-| **Prerelease dist-tag** | `next` | publish pending env approval |
+| **Stable dist-tag** | `latest` | workflow on non-prerelease tag; not published this session |
 
 ## npm-wrapper v0.7.0 + skill v0.30.0 — discipline-layer identity + CI/eval hardening (2026-08-14)
 

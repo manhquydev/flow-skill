@@ -1,0 +1,13 @@
+Implement ONLY Phase 2 of plans/260909-1119-mid-tier-flow-quality/phase-02-gate-examples-few-shot.md.
+
+Exclusive writes:
+- skills/flow/references/gate-rules.md (pointers only, ≤120 extra words)
+- skills/flow/references/gate-examples.md (create, ≤900 words)
+
+§02 FLAG must be f02b-class C-launder (realtime graded B). Phase 3 scanners will not catch this.
+
+Do NOT edit SKILL.md, flow.sh, law/, templates, auto-run.md.
+
+Skip formatters, linters, full test suites.
+
+When done, print DONE, files changed, and confirm gate-rules still mentions gate-examples.md in stages 01, 02, and Card.

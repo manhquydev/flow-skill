@@ -63,9 +63,12 @@ separately from a real mismatch — never silently counted as a gate pass or fai
 ## Cost
 
 `eval` is **opt-in and billable** — it makes real `claude -p` API calls. Zero cost when the
-`claude` CLI isn't on `PATH` (clean skip, exit 0). When present, exactly one minimal probe call
-is made to confirm the CLI runs headless before any real judging starts; a probe failure means
-one billable call was made, then a clean skip. The artifact manifest is 11 rows; a full
+`claude` CLI isn't on `PATH` (clean skip, exit 0). That skip is **unmeasured, not a semantic
+pass**: `eval`, `eval --stage routing`, and `eval --stage converge` each print
+`semantic layer unmeasured on this host` and return 0. Live eval is not a merge gate
+(scorecard table above). Replay never counts toward the eval floor. When present, exactly one
+minimal probe call is made to confirm the CLI runs headless before any real judging starts; a
+probe failure means one billable call was made, then a clean skip. The artifact manifest is 11 rows; a full
 default batch judges the 9 heading-mapped fixtures (01 / 02 / card) × N=3 = 27 judge calls
 + the 1 probe = 28 calls. The two Stage 05 rows fail closed before a call. Plan accounting
 for a complete re-record is 11 × 3 = 33 + probe.

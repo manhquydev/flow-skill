@@ -17,7 +17,7 @@ Does **not** replace:
 - `mode-work.md` — one batch interview up front; leftover open decisions are the
   *only* reason to ask more after that batch
 - `native-rituals.md` §2 — edge-case *generation* for the contract
-- `gate-rules.md` material-authority stop — detect invented policy; this ritual
+- `gate-shared.md` material-authority stop — detect invented policy; this ritual
   *asks* then writes the answer
 
 Informs, never judges: a finished clarify session does not pass the gate.
@@ -33,10 +33,10 @@ run the stage's semantic challenge.
 - Skip at 00 / 01 / 04 — those stages have forge-idea / research / ADR rituals.
 
 Cap: **at most 5 questions asked** in one session (retries on the same question
-do not count). There is no mechanical cap on how many open-decision bullets a
-file may carry (every leftover `- [ ]` already fails the gate). If the section
-is a pile, that is a **semantic** "too many — assume or cut" judgment (see
-`gate-rules.md`), not a runner count.
+do not count). **More than 5 markdown bullets under `## Open decisions` fails
+`scan_gate`.** Leftover `- [ ]` still fails boxes. If the section is a pile after
+that floor, assume or cut rather than interview everything. Offer this ritual
+(opt-in, never a `next` prereq) when any open decision remains. See `gate-shared.md`.
 
 ## Token rules (authoring, before this ritual)
 
@@ -46,7 +46,7 @@ When drafting 02 / 03 / 05 (especially in `mode work`):
 2. **Assume + record** if a reasonable industry default exists and the choice
    does not change scope, security/privacy, or UX. On 02/03 record it under
    `## Assumptions`. On **05 (contract) there is no `## Assumptions` section** —
-   do not invent one (`gate-rules.md` forbids it); assume by writing the
+   do not invent one (`gate-shared.md` forbids it); assume by writing the
    access/effects cell or shared shape, or cut.
    Reasonable defaults (do **not** open-decide these): data retention for the
    domain, ordinary error-message tone, session/OAuth2 for a standard web app
@@ -166,7 +166,7 @@ Read `## Assumptions` on the artifact you just touched. For each bullet:
   billing, enforcement owner) wearing an assumption hat?
 - If it is product law with no operator/ADR authority → treat it as
   Decision-required: either add an open-decision bullet (and ask it) or
-  **stop** and list it the same way `gate-rules.md` material-authority stop
+  **stop** and list it the same way `gate-shared.md` material-authority stop
   does. Do not silently keep it.
 
 A clean mechanical gate with a sneaky assumption is the exact hollow-pass this

@@ -10,7 +10,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 RUN="$HERE/../skills/flow/runner/flow.sh"
 ROOT="$HERE/../skills/flow"
 T="$ROOT/_templates"
-G="$ROOT/references/gate-rules.md"
+G="$ROOT/references/gate-card.md"
+G03="$ROOT/references/gate-03.md"
 LIFE="$ROOT/references/artifact-lifecycle.md"
 LAW="$ROOT/law/CLAUDE.md"
 pass=0; fail=0
@@ -39,9 +40,9 @@ fi
 has "$T/card.md" 'infra' "card template allows infra/none"
 has "$T/card.md" 'Unit tests pass' "card template FILL hint rejects unit-tests-pass"
 has "$LAW" 'models-only' "law forbids models-only cards"
-has "$G" 'Independent test' "gate-rules card challenge names Independent test"
-has "$G" 'unit tests pass' "gate-rules splits on unit-tests-pass"
-has "$G" 'heading remains' "gate-rules documents M5 (FILL-only while heading remains)"
+has "$G" 'Independent test' "gate-card challenge names Independent test"
+has "$G" 'unit tests pass' "gate-card splits on unit-tests-pass"
+has "$G" 'heading remains' "gate-card documents M5 (FILL-only while heading remains)"
 
 echo "T12 requirements-quality boxes are real ^- [ ] lines (after phase-1 OD Gate line)"
 has "$T/03-prd.md" '^- \[ \] No unquantified adjectives' "PRD quality box is a real unchecked line"
@@ -49,7 +50,7 @@ has "$T/03-prd.md" '^- \[ \] Every `FRn` names the failure or empty case' "PRD F
 has "$T/05-contract.md" '^- \[ \] Every write interface names the failure shape' "contract write-failure box is a real unchecked line"
 has "$T/05-contract.md" '^- \[ \] Every interface that can return empty names the empty shape' "contract empty-shape box is a real unchecked line"
 has "$T/05-contract.md" '^- \[ \] Access/effects is a concrete token' "contract access-token box is a real unchecked line"
-has "$G" 'reviewer of English' "gate-rules 03/05 English-reviewer challenge"
+has "$G03" 'reviewer of English' "gate-03 English-reviewer challenge"
 # M3: boxes live inside ## Gate, after the open-decisions line, before next ## heading
 od03=$(grep -n 'No unresolved open decisions' "$T/03-prd.md" | head -1 | cut -d: -f1)
 adj=$(grep -n '^- \[ \] No unquantified adjectives' "$T/03-prd.md" | head -1 | cut -d: -f1)
