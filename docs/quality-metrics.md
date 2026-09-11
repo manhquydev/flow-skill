@@ -1,19 +1,29 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **skill v0.31.0** (2026-08-20), **npm-wrapper v0.7.1** (`npx @manhquy/flow-skill@latest` after publish).
+Updated as the skill evolves. Current: **skill v0.32.0** (2026-09-11), **npm-wrapper v0.7.2** (`npx @manhquy/flow-skill@latest` after publish).
 
 Release process for future bumps: [`docs/release-process.md`](release-process.md). Release notes: [`CHANGELOG.md`](../CHANGELOG.md).
 
-## npm-wrapper v0.7.1 + skill v0.31.0 — eval receipts + host-agnostic parallel + value-first docs (2026-08-21)
+## npm-wrapper v0.7.2 + skill v0.32.0 — mid-tier gates, scanners, disclosure (2026-09-11)
 
-Current pairing (stable). Notes live in [`CHANGELOG.md`](../CHANGELOG.md) (0.31.0). Dist-tag **`latest`** after `npm@0.7.1` publish. Prerelease `0.7.1-next.0` remains on `next`.
+Current pairing (stable). Notes live in [`CHANGELOG.md`](../CHANGELOG.md) (0.32.0). Dist-tag **`latest`** after `npm@0.7.2` publish.
 
 | Axis | Value | Notes |
 |---|---|---|
-| **npm package** | 0.7.1 | ships skill v0.31.0; install `npx @manhquy/flow-skill@latest` |
+| **npm package** | 0.7.2 | ships skill v0.32.0; install `npx @manhquy/flow-skill@latest` |
+| **Skill product in tarball** | 0.32.0 | SKILL.md / plugin / portable-manifest |
+| **Stable dist-tag** | `latest` | workflow on non-prerelease `npm@0.7.2` |
+
+## npm-wrapper v0.7.1 + skill v0.31.0 — eval receipts + host-agnostic parallel + value-first docs (2026-08-21)
+
+Prior pairing. Notes live in [`CHANGELOG.md`](../CHANGELOG.md) (0.31.0). Dist-tag **`latest`** after `npm@0.7.1` publish. Prerelease `0.7.1-next.0` remains on `next`.
+
+| Axis | Value | Notes |
+|---|---|---|
+| **npm package** | 0.7.1 | ships skill v0.31.0 |
 | **Skill product in tarball** | 0.31.0 | SKILL.md / plugin / portable-manifest |
-| **Stable dist-tag** | `latest` | workflow on non-prerelease tag; not published this session |
+| **Stable dist-tag** | `latest` | until 0.7.2 publishes |
 
 ## npm-wrapper v0.7.0 + skill v0.30.0 — discipline-layer identity + CI/eval hardening (2026-08-14)
 

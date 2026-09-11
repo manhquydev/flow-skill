@@ -4,12 +4,20 @@ description: "Ghi chú phát hành hướng operator đã chọn lọc cho skill
 lang: vi
 ---
 
-Cặp hiện tại: skill product **v0.31.0**, npm installer **0.7.1-next.0** trên `@next`
-(`@latest` vẫn ship 0.7.0 / skill 0.30.0 cho đến khi được promote). Hai số version thứ khác
-nhau — `--help` in cả hai. Xem [Hai số phiên bản](/vi/docs/how-to/troubleshoot-install/#two-version-numbers).
-GitHub Release: [`v0.31.0`](https://github.com/manhquydev/flow-skill/releases/tag/v0.31.0).
+Cặp hiện tại: skill product **v0.32.0**, npm installer **0.7.2** trên `@latest`.
+Hai số version thứ khác nhau — `--help` in cả hai. Xem
+[Hai số phiên bản](/vi/docs/how-to/troubleshoot-install/#two-version-numbers).
+GitHub Release: [`v0.32.0`](https://github.com/manhquydev/flow-skill/releases/tag/v0.32.0).
 
 Đây là thay đổi có khả năng ảnh hưởng cách bạn dùng `flow` nhất. Lịch sử đầy đủ, không rút gọn, sống trong kho.
+
+## 0.32.0 — cổng mid-tier, scanner, disclosure
+
+- **Dispatcher.** `SKILL.md` không gắn host (`YOU (Claude)` đã gỡ); extra next-PASS chỉ `gate-examples.md`.
+- **Scanner cơ học.** Typed-web ≥3 mục research, L-above-A, tính từ PRD, OD>5 — FLAG sau PASS `flow.sh`.
+- **Luật coding.** Sáu MUST/NEVER portable trong `law/CODING.md`.
+- **`NEXT_VERB=`.** Enum advisory đóng từ `_next_action`. Host không auto-exec `auto`/`skip`.
+- **Tách gate-rules.** Index + file từng mục. Eval STOP giữ nguyên.
 
 ## 0.31.0 — harden eval + parallel bất-kể-host + docs value-first
 

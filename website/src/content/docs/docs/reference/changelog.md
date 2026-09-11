@@ -3,14 +3,21 @@ title: "Changelog"
 description: "Curated user-facing release notes for the flow skill, with a pointer to the full changelog."
 ---
 
-Current pairing: skill product **v0.31.0**, npm installer **0.7.1-next.0** on `@next`
-(`@latest` still ships 0.7.0 / skill 0.30.0 until promoted). The two numbers version
-different things — `--help` prints both. See
+Current pairing: skill product **v0.32.0**, npm installer **0.7.2** on `@latest`.
+The two numbers version different things — `--help` prints both. See
 [Two version numbers](/docs/how-to/troubleshoot-install/#two-version-numbers).
-GitHub Release: [`v0.31.0`](https://github.com/manhquydev/flow-skill/releases/tag/v0.31.0).
+GitHub Release: [`v0.32.0`](https://github.com/manhquydev/flow-skill/releases/tag/v0.32.0).
 
 These are the changes most likely to affect how you use `flow`. The complete, unabridged
 history lives in the repository.
+
+## 0.32.0 — mid-tier gates, scanners, disclosure
+
+- **Dispatcher.** `SKILL.md` is host-agnostic (no `YOU (Claude)`); next-PASS extra is `gate-examples.md` only.
+- **Mechanical scanners.** Typed-web ≥3 research entries, L-above-A, PRD adjectives, OD>5 — FLAG after `flow.sh` PASS.
+- **Coding law.** Six portable MUST/NEVER rules in `law/CODING.md`.
+- **`NEXT_VERB=`.** Closed advisory enum from `_next_action`. Hosts must not auto-exec `auto`/`skip`.
+- **Split gate-rules.** Index + per-section files. Eval STOP held.
 
 ## 0.31.0 — eval hardening + host-agnostic parallel + value-first docs
 

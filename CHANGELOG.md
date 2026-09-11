@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.32.0 — 2026-09-11 — mid-tier gates, scanners, disclosure
+
+Host-agnostic discipline for Gemini Flash / DeepSeek without owning a runtime
+(ADR-0001). npm installer → **0.7.2** (dist-tag `latest` after `npm@0.7.2` publish).
+
+### Added
+- **`law/CODING.md`:** six portable MUST/NEVER laws (explicit resolve, fail-loud, behavior-named tests, no empty catch, cite the seam, library over hand-roll).
+- **`gate-examples.md`:** hot-path PASS/FLAG few-shots for stages 01/02/03/05 and cards. `fcdb` labeled mechanical FAIL.
+- **`_scan_midtier` in `scan_gate`:** typed-web ≥3 research entries, L-above-A (optional colon), PRD adjectives, OD>5. Card path stays box/FILL only.
+- **`NEXT_VERB=`** advisory closed enum from `_next_action` (hosts must not auto-exec `auto`/`skip`).
+- **Split `gate-rules.md`:** index + per-section files + `gate-shared.md`. Eval extract maps 01/02/card; sha is an explicit file list; `_eval_engine_run` / `_run_with_timeout` unchanged.
+
+### Changed
+- **Dispatcher `SKILL.md`:** PTC_ONLY load table; no `YOU (Claude)`; next-PASS extra is `gate-examples.md` only; type-aware done-evidence; ≤1600w.
+- **Templates 01/02/03/card:** one worked PASS-shaped row (Splitwise corpus matches f01a/§01); remaining rows FILL.
+- **Child briefs:** STATUS examples docs-only; AutoDecision unique home `auto-run.md`; VN copy opt-in.
+
+### Fixed
+- Project-type lock uses planning artifacts on disk, not `scan_gate` cleanliness.
+- Darwin live-eval SKIP (exit 0, unmeasured) when `claude` is absent.
+- Host-neutral repair ladder (`debugger if present`) before Codex; scenarios suite retargeted.
+
 ## 0.31.0 — 2026-08-20 — eval receipts, host-agnostic parallel, value-first docs
 
 Eval receipt+linter+doctor+isolated-eval, host-agnostic parallel law, value-first
