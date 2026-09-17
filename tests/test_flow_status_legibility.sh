@@ -172,21 +172,41 @@ prose="$(bash "$RUN" status | grep '^NEXT_VERB=' | sed 's/^NEXT_VERB=//')"
 ck "$prose" "$(json_get "$js" next_verb)" "JSON next_verb equals prose NEXT_VERB= on empty project"
 clean
 
-echo "J) resume --json with stages but empty events; prose NEXT_VERB match"
+echo "J) resume --json with stages; events empty at resume time (logger disabled)"
 newsb
 clean_stage 00-idea
 rm -f "$SB/.flow/events.jsonl"
-js="$(bash "$RUN" status --json)"
-jr="$(bash "$RUN" resume --json)"
-ck "00-idea" "$(json_get "$js" stage)" "status --json stage=00-idea"
+# FLOW_LOG_DISABLE only on this call so EXIT logger cannot recreate events.jsonl
+# before resume runs — that was the hole in the first J (status --json recreated the file).
+jr="$(FLOW_LOG_DISABLE=1 bash "$RUN" resume --json)"
+rcr=$?
+ck 0 "$rcr" "resume --json exits 0 with stages and empty events"
+if [ ! -s "$SB/.flow/events.jsonl" ]; then echo "  ok   [events.jsonl still absent/empty at resume --json time]"; pass=$((pass+1)); else echo "  FAIL [events.jsonl recreated before resume --json]"; fail=$((fail+1)); fi
 ck "00-idea" "$(json_get "$jr" stage)" "resume --json stage=00-idea with empty events"
-ck "$(json_get "$js" next_verb)" "$(json_get "$jr" next_verb)" "resume --json next_verb matches status --json (empty events)"
-ck "$(json_get "$js" gate)" "$(json_get "$jr" gate)" "resume --json gate matches status --json (empty events)"
 nobj="$(printf '%s\n' "$jr" | grep -c '^{' || true)"
 ck 1 "$nobj" "resume --json empty-events is one JSON object"
 no "$jr" "receipts" "resume --json has no receipts key"
-prose="$(bash "$RUN" status | grep '^NEXT_VERB=' | sed 's/^NEXT_VERB=//')"
-ck "$prose" "$(json_get "$js" next_verb)" "JSON next_verb equals prose NEXT_VERB= with a stage"
+js="$(bash "$RUN" status --json)"
+ck "$(json_get "$js" next_verb)" "$(json_get "$jr" next_verb)" "empty-events resume next_verb matches later status --json"
+clean
+
+echo "L) JSON gate=PASS on a clean stage; inflight card sets load=law/CLAUDE.md"
+newsb
+clean_stage 00-idea
+js="$(bash "$RUN" status --json)"
+ck "PASS" "$(json_get "$js" gate)" "JSON gate=PASS on a clean current stage"
+ck "00-idea" "$(json_get "$js" stage)" "JSON stage=00-idea when gate=PASS"
+clean_stage 01-research; clean_stage 02-scope
+clean_stage 03-prd; clean_stage 04-adr; clean_stage 05-contract
+mkcard 1 todo
+FLOW_SESSION_ID=SA bash "$RUN" card start C-001 >/dev/null 2>&1
+js="$(bash "$RUN" status --json)"
+ck "card-start" "$(json_get "$js" next_verb)" "inflight todo next_verb=card-start"
+ck "C-001" "$(json_get "$js" card)" "inflight todo card=C-001"
+ck "law/CLAUDE.md" "$(json_get "$js" load)" "card-start load=law/CLAUDE.md"
+jr="$(bash "$RUN" resume --json)"
+ck "C-001" "$(json_get "$jr" card)" "resume --json card matches status --json"
+ck "law/CLAUDE.md" "$(json_get "$jr" load)" "resume --json load=law/CLAUDE.md"
 clean
 
 echo "K) unknown extra flags: usage + exit 2 on both verbs"

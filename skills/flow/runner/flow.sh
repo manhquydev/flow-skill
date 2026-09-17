@@ -1333,7 +1333,8 @@ _next_action() {
   echo "run '/flow check' then ship per stage 09"
 }
 
-# Closed advisory enum from _next_action prose only. Hosts must not auto-exec auto/skip.
+# Closed advisory enum from _next_action prose only. Hosts must not auto-exec
+# next/card/card-start/check/fix-gate/auto/skip.
 _next_verb_from() { # $1 = _next_action text
   local a="$1"
   case "$a" in
@@ -4965,10 +4966,12 @@ flow.sh - buildflow gate runner (mechanical layer)
 
 usage: bash flow.sh <command> [args]
 
-  status            Where am I? What's blocking? (also: no command)
-  resume            Session-story brief for a fresh agent entering mid-cycle: last session
+  status [--json]   Where am I? What's blocking? (also: no command). --json prints
+                     one flow_context/v1 object (display-only; do not auto-exec next_verb).
+  resume [--json]   Session-story brief for a fresh agent entering mid-cycle: last session
                      (command names only, never raw args), in-flight card + dwell, gate state,
                      one NEXT-> line. Read-only, no lock. Run this FIRST when resuming a project.
+                     --json: same closed object as status --json.
   next              Check current gate; unlock next stage (or start at 00)
   assess            Brownfield: scaffold + gate a current-state assessment (flow/00-inspect.md) before planning
   card              Create the next build card (after planning complete)
