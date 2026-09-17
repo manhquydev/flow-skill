@@ -9,8 +9,8 @@ is no fragment loader (ADR-0001).
 
 | User input | Runner call | Host duties after |
 |---|---|---|
-| `/flow` | `bash <skill>/runner/flow.sh status` | Relay `NEXT ->`, dwell, and (past 10 cards) the compact summary; nothing to author. |
-| `/flow resume` | `bash <skill>/runner/flow.sh resume` | Read-only session-story; no lock. FAIL/PASS/Never: SKILL.md STOP + Dispatch. |
+| `/flow` | `bash <skill>/runner/flow.sh status` | Relay prose `NEXT ->`, dwell, and (past 10 cards) the compact summary; nothing to author. Optional `status --json` prints one `flow_context/v1` object (`v,stage,gate,next_verb,card,dwell,load`) — **display-only**. Hosts MUST NOT dispatch `next_verb` (`next`/`card`/`card-start`/`check`/`fix-gate`/`auto`/`skip`). Default `/flow` stays prose status. |
+| `/flow resume` | `bash <skill>/runner/flow.sh resume` | Read-only session-story; no lock. Optional `resume --json` same closed schema as status; display-only, never exec `next_verb`. FAIL/PASS/Never: SKILL.md STOP + Dispatch. |
 | `/flow next` | `bash <skill>/runner/flow.sh next` | After PASS, compare to `gate-examples.md` (not a second always-on load). FAIL/Never: SKILL.md STOP + Dispatch. |
 | `/flow assess` | `bash <skill>/runner/flow.sh assess` | Fill `flow/00-inspect.md` from EVIDENCE; Brownfield challenge in `gate-rules.md`. |
 | `/flow card` | `bash <skill>/runner/flow.sh card` | Fill per `law/CLAUDE.md`; before coding, `law/CODING.md`. |
@@ -25,7 +25,7 @@ is no fragment loader (ADR-0001).
 | `/flow constitution` | `bash <skill>/runner/flow.sh constitution` | Advisory constitution form + markers; then `gate-rules.md`. Not a `next` gate. |
 | `/flow clarify` | `bash <skill>/runner/flow.sh clarify` | List leftover Open-decision boxes; write-back `references/clarify.md`. Not a `next` gate. |
 | `/flow converge` | `bash <skill>/runner/flow.sh converge [--file <payload>]` | Assess vs plan per `references/converge.md`; present the findings table first. |
-| `/flow eval [--stage 01\|02\|card] [--fixture <id>] [--n 3] [--timeout <s>]` | `bash <skill>/runner/flow.sh eval [...]` | Billable; live mode skips if `claude` absent. `--replay` does not inherit that SKIP. See `references/gate-eval.md`. |
+| `/flow eval [--stage 01\|02\|05\|card] [--fixture <id>] [--n 3] [--timeout <s>]` | `bash <skill>/runner/flow.sh eval [...]` | Billable; live mode skips if `claude` absent. `--replay` does not inherit that SKIP. See `references/gate-eval.md`. |
 | `/flow eval --report` | `bash <skill>/runner/flow.sh eval --report` | Offline; relay last complete batch + drift. See `references/gate-eval.md`. |
 | `/flow eval --replay` | `bash <skill>/runner/flow.sh eval --replay` | Keyless replay; missing/stale fixtures exit 1. Verdicts never count toward the eval floor. |
 | `/flow project-type <web\|cli\|library\|skill>` | `bash <skill>/runner/flow.sh project-type [t]` | Set/read type per `references/project-types.md`. Confirm before planning. |

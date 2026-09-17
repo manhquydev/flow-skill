@@ -27,8 +27,8 @@ rule text is enforceable by *a* judge," not "this build's self-review caught eve
 
 Eleven shipped fixtures (`skills/flow/eval/fixtures/`, manifest `skills/flow/eval/manifest.tsv`):
 sound/hollow pairs for Stage 01 (Research — fabricated quotes, vague "users"), Stage 02 (Scope —
-grade laundering, a real C quietly graded B), Stage 05 (listed; heading map does not yet judge
-them), and the card gate:
+grade laundering, a real C quietly graded B), Stage 05 (heading-mapped from `gate-05.md`; live
+floor unmeasured until operator `--record`; do not cat `gate-shared.md` onto 05), and the card gate:
 - **fcda** — sound multi-signal Evidence (mechanical PASS, semantic PASS)
 - **fcdb** — process-only hollow (mechanical **FAIL** after hollow-done floor; still listed for
   historical FLAG text / offline inspection)
@@ -69,9 +69,9 @@ pass**: `eval`, `eval --stage routing`, and `eval --stage converge` each print
 (scorecard table above). Replay never counts toward the eval floor. When present, exactly one
 minimal probe call is made to confirm the CLI runs headless before any real judging starts; a
 probe failure means one billable call was made, then a clean skip. The artifact manifest is 11 rows; a full
-default batch judges the 9 heading-mapped fixtures (01 / 02 / card) × N=3 = 27 judge calls
-+ the 1 probe = 28 calls. The two Stage 05 rows fail closed before a call. Plan accounting
-for a complete re-record is 11 × 3 = 33 + probe.
+default batch judges all 11 heading-mapped fixtures (01 / 02 / 05 / card) × N=3 = 33 judge calls
++ the 1 probe = 34 calls. Unfiltered batches are `--report`-complete (`n_written` == `n_expected`
+== 11). Old 9-eval jsonl (05 FAIL-empty before increment) is not comparable.
 
 **Measured real cost** (this machine, 2026-07-10, default/unforced model, no `--bare` available
 under an OAuth/subscription session — see the build's spike notes): roughly **$0.30–0.37 per
@@ -158,11 +158,11 @@ What it can do: hard-fail when `_eval_gate_rules_sha` ≠ the recorded hash (`fi
 re-record live per ADR re-baseline rule`). Replay verdicts **never count toward the eval floor**.
 
 **Refresh protocol:** edit both sides of a rules change, run a live `--record` batch (11 × `--n 3`
-= 33 judge calls + 1 probe; 9 heading-mapped fixtures bill 27 + probe today) on a host with
+= 33 judge calls + 1 probe; 11 heading-mapped) on a host with
 real `timeout`/`gtimeout`, commit the stripped `eval/replay/` tree (verdict lines only — no
 `session_id` / `cwd` envelopes) **in the same change** as the `gate-rules.md` edit. No
 operator-recorded batch exists yet — the `eval-replay` CI job skip-with-notice until then;
-the recorded-sha staleness check is unchanged.
+the recorded-sha staleness check is unchanged. Do not invent replay `meta`.
 
 **B1 escalation:** if hollow-done decoys that name no artifact/command recur in dogfood or
 live eval after the B1-S addendum lands, escalate to full structured lineage evidence. Replay
@@ -238,7 +238,7 @@ yet (the same "measure, don't assume" discipline that gated this build in the fi
   platform: a signal arriving while the runner is blocked on a foreground judge call was not
   observed to preempt that call promptly. Cleanup between fixtures/calls fires reliably; a
   normal (uninterrupted) run always cleans up its temp files immediately.
-- **Small fixture corpus (eleven manifest rows, nine heading-mapped)**: enough to prove the
+- **Small fixture corpus (eleven manifest rows, eleven heading-mapped)**: enough to prove the
   mechanism and give a real number, not enough for statistical confidence across every
   stage/failure-mode combination. Widening the corpus is a natural v1.x follow-up, not a
   v1 blocker.
@@ -267,8 +267,8 @@ window; the mechanism was never confirmed at the time (rate-limit vs hook conten
 4. **Circuit breaker.** The FIRST evaluated fixture coming back UNRELIABLE (`invalid_count*3 > n`)
    aborts the batch with a distinct nonzero exit code (2) and NO `done` trailer written — the
    junk batch is invisible to `--report`/drift, so it cannot poison the baseline. `--keep-going`
-   forces the full batch; document worst case (≤ N_fixtures × n × 2 + 1 probe ≈ 55 calls at
-   default 9 heading-mapped × 3).
+   forces the full batch; document worst case (≤ N_fixtures × n × 2 + 1 probe ≈ 67 calls at
+   default 11 heading-mapped × 3).
 
 ### Rate-limit visibility (advisory, best-effort)
 

@@ -886,6 +886,14 @@ _stage_dwell() { # $1 = current stage name -> "Xm/Xh/Xd" from genuine entry, or 
 }
 
 cmd_status() {
+  if [ "${1:-}" = "--json" ]; then
+    if [ -n "${2:-}" ]; then usage; exit 2; fi
+    _emit_context_json
+    return 0
+  elif [ -n "${1:-}" ]; then
+    usage
+    exit 2
+  fi
   local idx; idx="$(current_stage_idx)"
   echo "flow status"
   echo "  project: $ROOT"
@@ -990,6 +998,14 @@ _resume_valid_lines() {
 }
 
 cmd_resume() {
+  if [ "${1:-}" = "--json" ]; then
+    if [ -n "${2:-}" ]; then usage; exit 2; fi
+    _emit_context_json
+    return 0
+  elif [ -n "${1:-}" ]; then
+    usage
+    exit 2
+  fi
   local idx; idx="$(current_stage_idx)"
   if [ "$idx" -lt 0 ]; then
     _na="$(_next_action)"
@@ -1337,6 +1353,54 @@ _emit_next() {
   echo "NEXT -> $a"
   echo "NEXT_VERB=$(_next_verb_from "$a")"
 }
+
+# PTC-aligned load hint for JSON status/resume. Display-only — never a capability token.
+# Matches SKILL.md load table: card/build -> law/CLAUDE.md; fix-gate/next/none stay empty
+# (mechanical FAIL is the blocked stage file; next PASS few-shots are after unlock).
+_json_load_for_verb() { # $1 = next_verb
+  case "${1:-}" in
+    card|card-start|check) echo "law/CLAUDE.md" ;;
+    *) echo "" ;;
+  esac
+}
+
+# Closed flow_context/v1 printer. Scalars through _json_str. scan_gate never piped.
+# Hosts MUST NOT dispatch next_verb (next/card/card-start/check/fix-gate/auto/skip).
+_emit_context_json() {
+  local idx cur f stage="" gate="none" next_verb card="" dwell="" load na infl id ts
+  idx="$(current_stage_idx)"
+  if [ "$idx" -ge 0 ]; then
+    cur="$(stage_name_at "$idx")"
+    stage="$cur"
+    f="$FLOW_DIR/$cur.md"
+    if [ -f "$f" ]; then
+      if scan_gate "$f" >/dev/null 2>&1; then
+        gate="PASS"
+      else
+        gate="BLOCKED"
+      fi
+    fi
+    dwell="$(_stage_dwell "$cur")"
+  fi
+  na="$(_next_action)"
+  next_verb="$(_next_verb_from "$na")"
+  load="$(_json_load_for_verb "$next_verb")"
+  infl="$(_inflight_file)"
+  if [ -f "$infl" ]; then
+    while read -r id ts; do
+      [ -n "$id" ] || continue
+      f="$(resolve_card_file "$id" 2>/dev/null)"
+      [ -n "$f" ] && [ -f "$f" ] || continue
+      [ "$(card_status "$f")" = "todo" ] || continue
+      card="$id"
+      break
+    done < "$infl"
+  fi
+  printf '{"v":"%s","stage":"%s","gate":"%s","next_verb":"%s","card":"%s","dwell":"%s","load":"%s"}\n' \
+    "$(_json_str "flow_context/v1")" "$(_json_str "$stage")" "$(_json_str "$gate")" \
+    "$(_json_str "$next_verb")" "$(_json_str "$card")" "$(_json_str "$dwell")" "$(_json_str "$load")"
+}
+
 
 _set_card_status() { # $1=file $2=value -> rewrite the ^status: line (portable substitute; temp+mv)
   local f="$1" v="$2"
@@ -3317,22 +3381,24 @@ _eval_heading_pattern() {
   case "$1" in
     01)   echo '^## Stage 01' ;;
     02)   echo '^## Stage 02' ;;
+    05)   echo '^## Stage 05' ;;
     card) echo '^## Card gate' ;;
     *)    return 1 ;;
   esac
 }
 
 # Extract one stage's ritual text from the mapped file (01→gate-01.md, 02→gate-02.md,
-# card→gate-card.md): from its heading line up to (not including) the next '## '
-# heading, or EOF. Prints nothing on a bad stage/missing file - caller MUST assert
+# 05→gate-05.md, card→gate-card.md): from its heading line up to (not including) the next
+# '## ' heading, or EOF. Prints nothing on a bad stage/missing file - caller MUST assert
 # non-empty before any billable call (a silent empty extraction would judge against
 # no rule at all).
-_eval_extract_section() { # $1 = stage (01|02|card)
+_eval_extract_section() { # $1 = stage (01|02|05|card)
   local pat src
   pat="$(_eval_heading_pattern "$1")" || return 1
   case "$1" in
     01)   src="$SCRIPT_DIR/../references/gate-01.md" ;;
     02)   src="$SCRIPT_DIR/../references/gate-02.md" ;;
+    05)   src="$SCRIPT_DIR/../references/gate-05.md" ;;
     card) src="$SCRIPT_DIR/../references/gate-card.md" ;;
     *)    return 1 ;;
   esac
@@ -3402,8 +3468,9 @@ _eval_build_prompt() { # $1=outfile $2=stage $3=artifact-file $4=nonce
   local outfile="$1" stage="$2" artifact="$3" nonce="$4" section shared
   section="$(_eval_extract_section "$stage")" || return 1
   [ -n "$section" ] || return 1
-  # Shared OD/authority lives in 02/03/05 challenges. Extract maps 01/02/card only;
-  # appending shared onto 01/card lets OD rules false-FLAG research/evidence.
+  # Shared OD/authority lives in 02/03/05 challenges. Extract maps 01/02/05/card;
+  # append shared onto 02 only. 05 extract may mention gate-shared.md; do not cat it
+  # (shared OD on 05 false-FLAGs f05a — PASS fixture states bearer auth without an ADR).
   if [ "$stage" = "02" ]; then
     shared="$SCRIPT_DIR/../references/gate-shared.md"
     [ -f "$shared" ] && section="$section
@@ -4641,7 +4708,7 @@ function cmd_eval {
     [ -z "$fid" ] && continue
     # manifest's stage column uses flow.sh's own full STAGES names ("01-research", "02-scope",
     # "card") for consistency with the rest of the codebase; --stage/heading-map use the terse
-    # 01|02|card form the plan's CLI spec documents - normalize by stripping to the leading
+    # 01|02|05|card form the plan's CLI spec documents - normalize by stripping to the leading
     # token before the first '-' (a bare "card" has none, so it passes through unchanged).
     local fstage_short="${fstage%%-*}"
     [ -n "$stage_filter" ] && [ "$fstage_short" != "$stage_filter" ] && continue
@@ -4667,7 +4734,7 @@ function cmd_eval {
     local promptfile="$rundir/prompt.txt"
     if ! _eval_build_prompt "$promptfile" "$fstage_short" "$artifact_path" "$nonce"; then
       if [ "$replay_mode" -eq 1 ]; then
-        echo "  $fid: SKIP - no heading-mapped section (artifact-replay scope is 01|02|card)"
+        echo "  $fid: SKIP - no heading-mapped section (artifact-replay scope is 01|02|05|card)"
         rm -rf "$rundir" 2>/dev/null
         continue
       fi
@@ -5110,8 +5177,8 @@ fi
 FLOW_LOG_START="$(_now)"
 trap '_log_on_exit' EXIT
 case "$cmd" in
-  status|"")      cmd_status ;;
-  resume)         cmd_resume ;;
+  status|"")      cmd_status "$@" ;;
+  resume)         cmd_resume "$@" ;;
   next)           cmd_next ;;
   assess)         cmd_assess ;;
   card)           cmd_card "$@" ;;
