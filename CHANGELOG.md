@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.33.0 — 2026-09-17 — status --json + Stage 05 heading map
+
+Mid-tier hosts lose gate state after compact. Additive `status --json` /
+`resume --json` (`flow_context/v1`) plus heading-map Stage 05 so shipped
+f05a/f05b actually judge. ADR-0001 held. Eval STOP held. npm installer →
+**0.7.3** (dist-tag `latest` after `npm@0.7.3` publish).
+
+### Added
+- **`status --json` / `resume --json`:** one closed `flow_context/v1` object
+  (`v,stage,gate,next_verb,card,dwell,load`). Display-only. No `receipts.*`.
+  No `.flow/context.*` pack. Inherits EXIT logger like prose status.
+- **Heading-map Stage 05:** `_eval_heading_pattern` / `_eval_extract_section`
+  read `gate-05.md` only (no `gate-shared.md` cat). Eval census 9→11.
+
+### Changed
+- **`NEXT_VERB=` / JSON `next_verb`:** hosts MUST NOT auto-exec the whole
+  enum (`next`/`card`/`card-start`/`check`/`fix-gate`/`auto`/`skip`), not
+  only `auto`/`skip`.
+- Unknown extra args on `status`/`resume` exit **2**.
+
+### Tests
+- `test_flow_status_legibility.sh` JSON arms (empty-events, `gate=PASS`,
+  `load=law/CLAUDE.md`, extras exit 2). `test_eval_fixture_lint.sh` treats
+  05 as a heading-mapped pair. `test_flow_eval.sh` `of 11 evaluated`.
+
+PR: [#19](https://github.com/manhquydev/flow-skill/pull/19).
+
 ## 0.32.0 — 2026-09-11 — mid-tier gates, scanners, disclosure
 
 Host-agnostic discipline for Gemini Flash / DeepSeek without owning a runtime
