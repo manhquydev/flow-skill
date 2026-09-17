@@ -6,5 +6,5 @@
 # Wave-1 initial record = HEAD blobs (A5 is a drift detector, not a translation rewrite).
 # Root pair re-recorded after the landing-card rewrite (same structure both sides).
 # npm-wrapper pair aligned at 0.7.1 / skill v0.31.0.
-README.md README_VN.md 04e929a9e29c4e93aababb690d881e46e08d414f 1ac1e1370840ea5388eb0e2e71d9589c51daeb69
-npm-wrapper/README.md npm-wrapper/README_VN.md 9ccd13216af73ef8201a88c02b14590b621a37e7 4bb7c60367f9c6c91d1f50d3cc09dd9ab894ea5b
+README.md README_VN.md 23c03713b328a6c3b9fa512ed5d4a5ee8cb319c2 53ed1220248e50c7ef65d9cefceb35db48e6f34a
+npm-wrapper/README.md npm-wrapper/README_VN.md 5f622c579f45f8aabeb0636b8c78bc645aa2242d aea2bd3dcb16876bc54db6bccfd5b349973d038b
