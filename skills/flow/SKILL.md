@@ -51,7 +51,8 @@ needed. Typed verbs always win over chat.
 - Security-class skip/debt → **HALT** until the operator accepts the exposure in `DEBT.md`.
 - Never mark a card `done` without pasted world-state evidence.
 - Never edit `_templates/` or `runner/flow.sh` during a project run.
-- `NEXT_VERB=` is advisory; never auto-exec `auto`/`skip`.
+- `NEXT_VERB=` / JSON `next_verb` is advisory; never auto-exec `next`, `card`,
+  `card-start`, `check`, `fix-gate`, `auto`, or `skip`.
 
 ## Run `flow.sh` first
 

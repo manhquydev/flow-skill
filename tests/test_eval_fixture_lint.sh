@@ -104,10 +104,11 @@ while IFS=$'\t' read -r fid fstage fartifact fexpected || [ -n "${fid:-}" ]; do
 done < "$MANIFEST"
 [ "$card_empty" -eq 0 ] && echo "  ok   [PASS-expected cards have real Evidence]" && pass=$((pass+1))
 
-echo "E) heading-mapped PASS fixtures (01/02/card only; not f05) have FLAG partners"
+echo "E) heading-mapped PASS fixtures (01/02/05/card) have FLAG partners"
 # Collect stage -> has_pass / has_flag for heading-mapped stages only.
 has_pass_01=0; has_flag_01=0
 has_pass_02=0; has_flag_02=0
+has_pass_05=0; has_flag_05=0
 has_pass_card=0; has_flag_card=0
 while IFS=$'\t' read -r fid fstage fartifact fexpected || [ -n "${fid:-}" ]; do
   fid="$(printf '%s' "$fid" | tr -d '\r')"
@@ -117,7 +118,7 @@ while IFS=$'\t' read -r fid fstage fartifact fexpected || [ -n "${fid:-}" ]; do
   [ -z "$fid" ] && continue
   short="${fstage%%-*}"
   case "$short" in
-    01|02|card) : ;;
+    01|02|05|card) : ;;
     *) continue ;;
   esac
   if [ "$fexpected" = "PASS" ]; then
@@ -130,16 +131,10 @@ ck 1 "$has_pass_01" "stage 01 has a PASS fixture"
 ck 1 "$has_flag_01" "stage 01 has a FLAG partner"
 ck 1 "$has_pass_02" "stage 02 has a PASS fixture"
 ck 1 "$has_flag_02" "stage 02 has a FLAG partner"
+ck 1 "$has_pass_05" "stage 05 has a PASS fixture"
+ck 1 "$has_flag_05" "stage 05 has a FLAG partner"
 ck 1 "$has_pass_card" "card stage has a PASS fixture"
 ck 1 "$has_flag_card" "card stage has a FLAG partner"
-# f05a/b are listed and unmapped — linter must not demand a heading or a pair for 05.
-if grep -q $'^f05a\t' "$MANIFEST" && grep -q $'^f05b\t' "$MANIFEST"; then
-  echo "  ok   [f05a/b remain listed; not treated as heading-mapped]"
-  pass=$((pass+1))
-else
-  echo "  FAIL [f05a/b should stay listed and unmapped]"
-  fail=$((fail+1))
-fi
 
 echo "F) protect fcdd/fcdc/fcda/fcde mechanical-PASS and fcdb FAIL (linter must not 'fix' them)"
 check_copy() { # $1=fid $2=want_rc $3=label

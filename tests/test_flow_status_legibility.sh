@@ -11,6 +11,10 @@ ck()  { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo
 has() { if printf '%s' "$1" | grep -q "$2"; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] (missing: $2)"; fail=$((fail+1)); fi; }
 no()  { if printf '%s' "$1" | grep -q "$2"; then echo "  FAIL [$3] (unexpected: $2)"; fail=$((fail+1)); else echo "  ok   [$3]"; pass=$((pass+1)); fi; }
 count_lines() { printf '%s' "$1" | grep -c "$2" || true; }
+json_get() { # $1=json $2=field -> unescaped string value (closed scalars, no nested objects)
+  printf '%s' "$1" | grep -oE "\"$2\":\"[^\"]*\"" | head -1 | sed -E "s/^\"$2\":\"([^\"]*)\"\$/\1/"
+}
+
 
 # Portable timeout: macOS ships neither `timeout` nor `gtimeout` by default (BSD userland, no
 # GNU coreutils) - a bare `timeout N cmd...` call exits 127 "command not found" there, which is
@@ -138,7 +142,87 @@ out="$(_portable_timeout 20 bash "$RUN" status 2>&1)"; rc=$?
 ck 0 "$rc" "status on a BLOCKED current stage returns (not 124=timeout, not a hang)"
 has "$out" "NEXT -> fix gate:" "NEXT-> reports the fix-gate action for the blocked stage"
 has "$out" "gate: BLOCKED -" "gate state still shown as BLOCKED"
+outj="$(_portable_timeout 20 bash "$RUN" status --json)"; rcj=$?
+ck 0 "$rcj" "status --json on a BLOCKED current stage returns (not 124=timeout, not a hang)"
+ck "BLOCKED" "$(json_get "$outj" gate)" "JSON gate=BLOCKED on blocked stage"
+ck "fix-gate" "$(json_get "$outj" next_verb)" "JSON next_verb=fix-gate on blocked stage"
+ck "" "$(json_get "$outj" load)" "JSON load empty for fix-gate"
 clean
+
+
+echo "I) status --json / resume --json: closed schema, empty project, NEXT_VERB match"
+newsb
+js="$(bash "$RUN" status --json)"; rc=$?
+ck 0 "$rc" "status --json exits 0 on empty project"
+has "$js" '"v":"flow_context/v1"' "status --json v=flow_context/v1"
+ck "" "$(json_get "$js" stage)" "empty project stage is empty"
+ck "none" "$(json_get "$js" gate)" "empty project gate=none"
+ck "next" "$(json_get "$js" next_verb)" "unlock-00 next_verb=next"
+ck "" "$(json_get "$js" card)" "empty project card empty"
+ck "" "$(json_get "$js" load)" "next_verb=next load empty"
+no "$js" "receipts" "v1 JSON has no receipts key"
+nobj="$(printf '%s\n' "$js" | grep -c '^{' || true)"
+ck 1 "$nobj" "status --json is one JSON object"
+jr="$(bash "$RUN" resume --json)"; rcr=$?
+ck 0 "$rcr" "resume --json exits 0 on idx<0"
+has "$jr" '"v":"flow_context/v1"' "resume --json v=flow_context/v1 on idx<0"
+ck "next" "$(json_get "$jr" next_verb)" "resume --json unlock-00 next_verb=next"
+ck "$(json_get "$js" gate)" "$(json_get "$jr" gate)" "resume --json gate matches status --json on idx<0"
+prose="$(bash "$RUN" status | grep '^NEXT_VERB=' | sed 's/^NEXT_VERB=//')"
+ck "$prose" "$(json_get "$js" next_verb)" "JSON next_verb equals prose NEXT_VERB= on empty project"
+clean
+
+echo "J) resume --json with stages; events empty at resume time (logger disabled)"
+newsb
+clean_stage 00-idea
+rm -f "$SB/.flow/events.jsonl"
+# FLOW_LOG_DISABLE only on this call so EXIT logger cannot recreate events.jsonl
+# before resume runs — that was the hole in the first J (status --json recreated the file).
+jr="$(FLOW_LOG_DISABLE=1 bash "$RUN" resume --json)"
+rcr=$?
+ck 0 "$rcr" "resume --json exits 0 with stages and empty events"
+if [ ! -s "$SB/.flow/events.jsonl" ]; then echo "  ok   [events.jsonl still absent/empty at resume --json time]"; pass=$((pass+1)); else echo "  FAIL [events.jsonl recreated before resume --json]"; fail=$((fail+1)); fi
+ck "00-idea" "$(json_get "$jr" stage)" "resume --json stage=00-idea with empty events"
+nobj="$(printf '%s\n' "$jr" | grep -c '^{' || true)"
+ck 1 "$nobj" "resume --json empty-events is one JSON object"
+no "$jr" "receipts" "resume --json has no receipts key"
+js="$(bash "$RUN" status --json)"
+ck "$(json_get "$js" next_verb)" "$(json_get "$jr" next_verb)" "empty-events resume next_verb matches later status --json"
+clean
+
+echo "L) JSON gate=PASS on a clean stage; inflight card sets load=law/CLAUDE.md"
+newsb
+clean_stage 00-idea
+js="$(bash "$RUN" status --json)"
+ck "PASS" "$(json_get "$js" gate)" "JSON gate=PASS on a clean current stage"
+ck "00-idea" "$(json_get "$js" stage)" "JSON stage=00-idea when gate=PASS"
+clean_stage 01-research; clean_stage 02-scope
+clean_stage 03-prd; clean_stage 04-adr; clean_stage 05-contract
+mkcard 1 todo
+FLOW_SESSION_ID=SA bash "$RUN" card start C-001 >/dev/null 2>&1
+js="$(bash "$RUN" status --json)"
+ck "card-start" "$(json_get "$js" next_verb)" "inflight todo next_verb=card-start"
+ck "C-001" "$(json_get "$js" card)" "inflight todo card=C-001"
+ck "law/CLAUDE.md" "$(json_get "$js" load)" "card-start load=law/CLAUDE.md"
+jr="$(bash "$RUN" resume --json)"
+ck "C-001" "$(json_get "$jr" card)" "resume --json card matches status --json"
+ck "law/CLAUDE.md" "$(json_get "$jr" load)" "resume --json load=law/CLAUDE.md"
+clean
+
+echo "K) unknown extra flags: usage + exit 2 on both verbs"
+newsb
+out="$(bash "$RUN" status --json --nope 2>&1)"; rc=$?
+ck 2 "$rc" "status --json --nope exits 2"
+has "$out" "usage: bash flow.sh" "status --json --nope prints usage"
+out="$(bash "$RUN" resume --json --nope 2>&1)"; rc=$?
+ck 2 "$rc" "resume --json --nope exits 2"
+has "$out" "usage: bash flow.sh" "resume --json --nope prints usage"
+out="$(bash "$RUN" status --nope 2>&1)"; rc=$?
+ck 2 "$rc" "status --nope exits 2"
+out="$(bash "$RUN" resume --nope 2>&1)"; rc=$?
+ck 2 "$rc" "resume --nope exits 2"
+clean
+
 
 echo
 echo "RESULT: $pass passed, $fail failed"

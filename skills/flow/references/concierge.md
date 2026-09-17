@@ -10,9 +10,11 @@ ask routes through this loop before you consider typing a verb for the operator.
 
 1. On any natural-language ask, run `flow.sh status` first (or `resume` when entering a
    project cold mid-cycle — see SKILL.md dispatch rule 1). **Never guess state.**
-   `status`/`resume` output is human-readable prose, not a machine token contract — you
-   (the model) parse it. Reliable on Claude; treat routing on other engines (Codex,
-   Antigravity/Gemini) as best-effort, not guaranteed.
+   Default `status`/`resume` is human-readable prose. Optional `--json` is **display-only**:
+   `next_verb` is not executable. Hosts MUST NOT dispatch `next`, `card`, `card-start`,
+   `check`, `fix-gate`, `auto`, or `skip` from it. Concierge stays on prose (May-run);
+   do not switch the chat entry to `status --json`. Reliable on Claude; treat routing on
+   other engines (Codex, Antigravity/Gemini) as best-effort, not guaranteed.
 2. Look up the closest `intent-class` row in `flow-catalog.tsv` for the parsed state.
 3. Propose exactly **ONE** next action in plain language. Explain any gate concept in
    one short sentence the first time it comes up (zero-jargon default — assume the user

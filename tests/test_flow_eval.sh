@@ -354,12 +354,12 @@ batch_out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --n 3 --timeout 20 2>&1)"
 # this mock always returns PASS regardless of fixture, so FLAG-expected fixtures
 # correctly mismatch - assert all heading-mapped fixtures were genuinely evaluated
 # (not silently skipped), not that they all matched.
-has "$batch_out" "of 9 evaluated" "the full 9-fixture batch actually completed (not a silent skip)"
+has "$batch_out" "of 11 evaluated" "the full 11-fixture batch actually completed (not a silent skip)"
 after_count=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -type d 2>/dev/null | wc -l)
 # Allow +/-1 ambient noise from other processes on the system - the real regression this test
 # guards is "N rundirs leak per batch", which would show +6 or more, not +/-1.
 delta=$((after_count - before_count)); [ "$delta" -lt 0 ] && delta=$((-delta))
-if [ "$delta" -le 1 ]; then echo "  ok   [TMPDIR delta=$delta after a full 9-fixture batch (no rundir residue - allowing +/-1 ambient noise)]"; pass=$((pass+1)); else echo "  FAIL [TMPDIR delta=$delta after a full 9-fixture batch - rundir cleanup regression]"; fail=$((fail+1)); fi
+if [ "$delta" -le 1 ]; then echo "  ok   [TMPDIR delta=$delta after a full 11-fixture batch (no rundir residue - allowing +/-1 ambient noise)]"; pass=$((pass+1)); else echo "  FAIL [TMPDIR delta=$delta after a full 11-fixture batch - rundir cleanup regression]"; fail=$((fail+1)); fi
 clean
 
 # ---------- L) results/report cases ----------
@@ -406,7 +406,14 @@ PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcda --n 1 --timeout 20 >/dev/n
 received="$(cat "$SB/.received_prompt.txt" 2>/dev/null)"
 has "$received" "Card gate" "the card-fixture prompt actually contains the real '## Card gate' heading text"
 has "$received" "merge" "the card-fixture prompt contains real challenge content (merge != shipped language)"
+f05_out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture f05a --n 1 --timeout 20 2>&1)"
+no "$f05_out" "extracted EMPTY" "f05a is heading-mapped (not FAIL-empty before a call)"
+received="$(cat "$SB/.received_prompt.txt" 2>/dev/null)"
+has "$received" "## Stage 05" "05 extract starts with ## Stage 05"
+has "$received" "GATE-EVAL-" "05 prompt contains GATE-EVAL- task lines"
+no "$received" "do not invent tenancy/auth from convenience" "05 prompt does not cat gate-shared.md"
 clean
+
 
 # ---------- N) anti-leak guard: deny-list tokens absent from every fixture body/path ----------
 echo "N) fixture bodies/paths carry none of the deny-listed tokens"
@@ -443,14 +450,14 @@ unset FLOW_EVAL_RETRY_BACKOFF
 clean
 
 # ---------- P) v0.21: --keep-going overrides the first-fixture breaker ----------
-echo "P) v0.21 --keep-going: all-invalid mock runs the full 9-fixture batch instead of aborting"
+echo "P) v0.21 --keep-going: all-invalid mock runs the full 11-fixture batch instead of aborting"
 newsb
 export FLOW_EVAL_RETRY_BACKOFF=0
 mkmock '
 echo "nothing parseable"
 '
 out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --n 1 --timeout 20 --keep-going 2>&1)"; rc=$?
-has "$out" "of 9 evaluated" "--keep-going ran the full 9-fixture batch"
+has "$out" "of 11 evaluated" "--keep-going ran the full 11-fixture batch"
 no  "$out" "ABORT after first fixture" "--keep-going suppresses the breaker abort line"
 ck 1 "$rc" "--keep-going full batch UNRELIABLE -> exit 1 (FAIL path), not 2 (abort path)"
 unset FLOW_EVAL_RETRY_BACKOFF
