@@ -28,6 +28,6 @@ cli=command+flags+output/exit, library=public function+args+return, skill=comman
   no-drift check, so the contract is exhaustive before any card trusts it. Complements
   `/flow consistency` (it *generates* cases; consistency checks *coherence*). INFORMS
   the gate; never auto-passes it.
-- **If `ck-scenario` is installed**, it is a richer 12-dimension alternative to the
+- **If `ck-scenario` or `ak:scenario` is installed**, it is a richer 12-dimension alternative to the
   native ritual (same INFORMS-only rule, opt-in-with-prompt — see
-  `claudekit-skills.md`).
+  `claudekit-skills.md` Name resolution).

@@ -1,0 +1,5 @@
+PIN v1
+Never FLOW_FORCE a live session. Mechanical FAIL -> STOP.
+Security-class skip/debt -> HALT until the operator accepts in DEBT.md.
+Never mark a card done without pasted world-state evidence.
+NEXT_VERB is advisory; never auto-exec next, card, card-start, check, fix-gate, auto, or skip.

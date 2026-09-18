@@ -14,6 +14,22 @@ count_lines() { printf '%s' "$1" | grep -c "$2" || true; }
 json_get() { # $1=json $2=field -> unescaped string value (closed scalars, no nested objects)
   printf '%s' "$1" | grep -oE "\"$2\":\"[^\"]*\"" | head -1 | sed -E "s/^\"$2\":\"([^\"]*)\"\$/\1/"
 }
+PIN_FILE="$HERE/../skills/flow/references/pin-v1.txt"
+pin_text() { tr -d '\r' < "$PIN_FILE"; }
+pin_from() { # $1 = captured stdout
+  printf '%s\n' "$1" | awk '/^PIN v1$/{ok=1} ok{print} /^NEXT_VERB is advisory/ && ok {exit}'
+}
+json_key_n() { printf '%s' "$1" | grep -o '"[^"]*":' | grep -c . || true; }
+pin_grep_f() { # $1=haystack $2=label — every pin-v1.txt line via grep -F
+  local miss=0 pline
+  while IFS= read -r pline; do
+    [ -n "$pline" ] || continue
+    printf '%s' "$1" | grep -Fq "$pline" || miss=1
+  done <<EOF
+$(pin_text)
+EOF
+  if [ "$miss" -eq 0 ]; then echo "  ok   [$2 grep -F pin-v1.txt]"; pass=$((pass+1)); else echo "  FAIL [$2 grep -F pin-v1.txt]"; fail=$((fail+1)); fi
+}
 
 
 # Portable timeout: macOS ships neither `timeout` nor `gtimeout` by default (BSD userland, no
@@ -223,6 +239,33 @@ out="$(bash "$RUN" resume --nope 2>&1)"; rc=$?
 ck 2 "$rc" "resume --nope exits 2"
 clean
 
+
+echo "M) PIN v1: status == resume == pin-v1.txt; idx<0 resume; JSON has no PIN"
+newsb
+clean_stage 00-idea
+out_s="$(bash "$RUN" status 2>&1)"
+out_r="$(bash "$RUN" resume 2>&1)"
+exp="$(pin_text)"
+ps="$(pin_from "$out_s")"
+pr="$(pin_from "$out_r")"
+ck "$exp" "$ps" "status PIN == pin-v1.txt"
+ck "$exp" "$pr" "resume PIN == pin-v1.txt"
+ck "$ps" "$pr" "status PIN == resume PIN"
+pin_grep_f "$out_s" "status"
+pin_grep_f "$out_r" "resume"
+clean
+
+newsb
+out_empty="$(bash "$RUN" resume 2>&1)"
+has "$out_empty" "PIN v1" "resume idx<0 prints PIN v1"
+ck "$(pin_text)" "$(pin_from "$out_empty")" "resume idx<0 PIN == pin-v1.txt"
+js="$(bash "$RUN" status --json)"
+no "$js" "PIN v1" "status --json has no PIN v1"
+ck 7 "$(json_key_n "$js")" "status --json still 7 keys"
+jr="$(bash "$RUN" resume --json)"
+no "$jr" "PIN v1" "resume --json has no PIN v1"
+ck 7 "$(json_key_n "$jr")" "resume --json still 7 keys"
+clean
 
 echo
 echo "RESULT: $pass passed, $fail failed"

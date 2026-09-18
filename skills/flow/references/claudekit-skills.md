@@ -1,12 +1,13 @@
 # claudekit skills — the per-stage capability map (the seam)
 
-`/flow` already orchestrates claudekit at the **agent layer** (`agent-detection.md` +
-`agent-stage-mapping.md`: 13 ck: agents, ck:→bmad→built-in degrade). This file extends that
-same seam to the **skill layer** — the curated set of ck *skills* worth reaching for at each
-stage, beyond the wired agents. It is a **whitelist, not a dump**: the kit has ~87 skills and
-~60% are marketing/content noise for a build harness. Only the skills below ever get surfaced.
-
-This is the single source of truth for the skill map; `agent-stage-mapping.md` points here.
+`/flow` already orchestrates specialists at the **agent layer** (`agent-detection.md` +
+`agent-stage-mapping.md`: host-native / ck: agents, then bmad, then built-in). This file
+extends that same seam to the **skill layer** — the curated set of build skills worth
+reaching for at each stage. It is a **whitelist, not a dump**: ClaudeKit (~87) and
+AgentKit (~100+) both ship marketing/content noise. Only the skills below ever get
+surfaced. ClaudeKit `ck-*` and AgentKit `ak:*` names are the **same rows** (Name
+resolution). This is the single source of truth for the skill map;
+`agent-stage-mapping.md` points here.
 
 ## Standalone note (v0.22)
 
@@ -31,6 +32,33 @@ review natively.
    Codex, Antigravity ×2, project — differ), so skill detection is never put in the runner. A
    missing skill **never lowers a gate** — it only changes whether the enrichment is offered.
    Rich where the skill exists, unbroken where it doesn't.
+
+
+## Name resolution (ClaudeKit + AgentKit)
+
+Host registries spell the same skill three ways: `ck-<slug>`, `ak:<slug>` /
+`ak-<slug>`, or bare `<slug>`. Strip `ck:` / `ck-` / `ak:` / `ak-` and match the
+slug. Offer the **first listed** alias; never offer two names for one verb.
+AgentKit is not a dependency — absence degrades to the native ritual.
+
+| Whitelist row | Also detect |
+|---|---|
+| ck-predict | ak:predict, ak-predict, predict |
+| ck-scenario | ak:scenario, ak-scenario, scenario |
+| ck-security | ak:security, ak-security |
+| ck-loop | ak:loop, ak-loop, loop |
+| ck-graphify | ak:graphify, ak-graphify, graphify |
+| review-pr | ak:review-pr, ak-review-pr |
+| security-scan | ak:security-scan, ak-security-scan |
+| retro | ak:retro, ak-retro |
+| xia | ak:xia, ak-xia |
+| deploy | ak:deploy, ak-deploy |
+| web-testing | ak:web-testing, ak-web-testing |
+| docs-seeker | ak:docs-seeker, ak-docs-seeker |
+| scout | ak:scout, ak-scout |
+| repomix | ak:repomix, ak-repomix |
+
+`gkg` / `ak:gkg` stay unwired (single graph pick = ck-graphify / ak:graphify).
 
 ## Cost gate — offer, don't impose
 
@@ -91,10 +119,10 @@ tail, plumbing via `flow.sh loop-prep`/`loop-log` (this file).
 6. **ck-loop @ Build/Verify (Implement→Test→Audit→Fix tail)** — when a fix needs more than one
    experimental attempt against a single numeric target (failing-test count, lint errors, etc.),
    offer `flow.sh loop-prep <card>` to set up an isolated worktree + Verify/Guard commands, then
-   invoke the `ck-loop` skill with the printed block (ck-loop stays the untouched execution
-   engine — flow supplies plumbing only). See "Loop vs two-strikes" below for when to reach for
-   this instead of the default repair path. The finished run is recorded via `flow.sh loop-log`
-   (NOT the `intervention` channel below — recording it twice would double-count the same event).
+   invoke `ck-loop` or `ak:loop` with the printed block (the loop skill stays the untouched
+   execution engine — flow supplies plumbing only). See "Loop vs two-strikes" below. The
+   finished run is recorded via `flow.sh loop-log` (NOT the `intervention` channel below —
+   recording it twice would double-count the same event).
 
 ## Loop vs two-strikes — the one "fix it" decision tree
 
@@ -105,20 +133,22 @@ different tool for a different situation; do not let operators reach for the wro
 | Situation | Use | Why |
 |---|---|---|
 | Review BLOCKED twice, same model, no metric | two-strikes → cross-model lens | bounded disagreement, not a number |
-| One numeric verify command, needs >1 experimental attempt | `flow.sh loop-prep` + ck-loop | open iterate-to-target, git-tracked/revertable |
-| Drive failing-tests / lint / perf count to a threshold | ck-loop | Verify is a single number; Direction lower |
+| One numeric verify command, needs >1 experimental attempt | `flow.sh loop-prep` + ck-loop / ak:loop | open iterate-to-target, git-tracked/revertable |
+| Drive failing-tests / lint / perf count to a threshold | ck-loop / ak:loop | Verify is a single number; Direction lower |
 | Single obvious fix, one retry | default auto repair | cheaper than spinning up a worktree+loop |
 
 ## Don't surface (cut on purpose — these add noise, not signal)
 
 - **Skill/agent twins** — the wired agent already covers these; surfacing the duplicate skill
-  doubles the "what do I use" confusion: research/researcher, ck-code-review/code-reviewer,
-  ck-debug/debugger, test/tester, git/git-manager, ck-plan/planner, docs/docs-manager,
-  journal/journal-writer, ask, brainstorm. Prefer the **agent** for in-stage execution; reach
-  for the skill only for a distinct verb the agent lacks (already captured above).
-- **Competing orchestrators (cook, vibe, ship, bootstrap)** — each is its own end-to-end
+  doubles the "what do I use" confusion: research/researcher, ck-code-review / ak:code-review /
+  code-reviewer, ck-debug / ak:debug / debugger, test / ak:test / tester, git / ak:git /
+  git-manager, ck-plan / ak:plan / planner, docs / ak:docs / docs-manager, journal /
+  ak:journal / journal-writer, ask, brainstorm. Prefer the **agent** for in-stage execution;
+  reach for the skill only for a distinct verb the agent lacks (already captured above).
+- **Competing orchestrators (cook, vibe, ship, bootstrap, agentkit, plan, orchestrate, team, handover, issue-to-plan, fix)** — each is its own end-to-end
   pipeline with its own gates; invoking one inside a flow stage double-gates and fights flow's
   stage authority. Cherry-pick a sub-step (e.g. ship's merge/PR) at the matching stage only.
+  `ak:agentkit` routes *away* from flow — never invoke it mid-gate.
 - **`worktree` skill** — flow already ships `flow.sh workspace` (git-worktree-per-agent). Pure
   duplicate; never wire it.
 - **`bmad-spec` as a gate** — overlaps flow's own `/flow consistency` cross-artifact audit.

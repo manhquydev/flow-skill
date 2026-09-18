@@ -1,7 +1,7 @@
 # Stage -> agent mapping
 
 How each buildflow stage delegates to a specialist. Pick the path by `agent-detection.md`
-priority (ck: first, bmad alternative, built-in fallback). The artifact + gate are
+priority (host-native / ck: first, bmad alternative, built-in fallback). The artifact + gate are
 identical across paths; only the drafter changes.
 
 **Codex (cross-vendor second engine) column.** When the codex tier is eligible
@@ -9,9 +9,11 @@ identical across paths; only the drafter changes.
 ladder below: (1) **rescue** — if the chosen path is BLOCKED twice, hand the scoped brief to
 `codex:codex-rescue` before escalating; (2) **opt-in primary** — the operator may select Codex as
 the primary drafter for **research** and **build** stages (`codex:codex-rescue --write` /
-`codex-companion.mjs task --write`). **Default stays ck:**; Codex-as-primary is operator-selected,
-never automatic. The scope/PRD/ADR/Contract judgment stages stay Claude by default (Codex may
-still rescue them). The stage gate is identical on the Codex path — Codex drafts, the gate judges. In `teach` mode the host does NOT author — it
+`codex-companion.mjs task --write`). **Default stays the host specialist**
+(`planner` / `ck:planner`); Codex-as-primary is operator-selected,
+never automatic. The scope/PRD/ADR/Contract judgment stages stay the host by default (Codex may
+still rescue them). The stage gate is identical on the Codex path — Codex drafts, the gate judges.
+In `teach` mode the host does NOT author — it
 gatekeeps; agents assist the operator. In `work`/`auto` mode the host (or a specialist) drafts, then
 the gate still judges.
 
@@ -21,8 +23,8 @@ Artifact language: **English for code identifiers/endpoints**. User-facing copy 
 ## Brownfield pre-stage (existing codebase)
 
 If the project ALREADY EXISTS, run `/flow assess` first → `flow/00-inspect.md` (current-state map:
-stack, functionality/UI/UX vs product goals, risks, test baseline). Delegate to `ck:scout` +
-`researcher` (or `bmad-document-project`); the gate is operator-reviewed. This seeds planning (and
+stack, functionality/UI/UX vs product goals, risks, test baseline). Delegate to `scout` /
+`ck:scout` + `researcher` (or `bmad-document-project`); the gate is operator-reviewed. This seeds planning (and
 the harness) with reality before stage 01. Greenfield projects skip it and start at `/flow next` (00).
 
 ## Planning stages (flow/)
@@ -35,16 +37,16 @@ the harness) with reality before stage 01. Greenfield projects skip it and start
 | 04 ADR | `architect` | `bmad-create-architecture` | inline | `harness decision add` per ADR |
 | 05 Contract | `planner` | `bmad-spec` (5-field kernel) | inline | — |
 
-**Optional ck-skill enrichments per stage** (the skill layer on top of the agents above; the
+**Optional skill enrichments per stage** (the skill layer on top of the agents above; the
 agent drafts, a skill adds a distinct verb): the curated whitelist + the rules (skill INFORMS,
-gate JUDGES; Claude-side detection; opt-in-with-prompt) live in **`references/claudekit-skills.md`**.
+gate JUDGES; host-side detection; opt-in-with-prompt) live in **`references/claudekit-skills.md`**.
 Deep-wired into the gate ritual (all opt-in-with-prompt, degrade silently, never auto-pass a
-gate): **`ck-predict` at ADR** (5-persona pre-decision debate) and **`ck-scenario` at Contract**
-(12-dim edge-case → acceptance + contract tests) — both in `gate-rules.md`; **`review-pr` +
-`ck-security` at the Review gate** (PR-context lens / STRIDE+OWASP on security-class cards) — in
+gate): **`ck-predict` at ADR** (or `ak:predict` — 5-persona pre-decision debate) and **`ck-scenario` at Contract**
+(or `ak:scenario` — 12-dim edge-case → acceptance + contract tests) — both in `gate-rules.md`; **`review-pr` +
+`ck-security` at the Review gate** (`ak:review-pr` / `ak:security`; PR-context lens / STRIDE+OWASP on security-class cards) — in
 `adversarial-review.md`; **`retro` at Retro** (git-history numbers for the operator's line) — in
 `law/RETRO.md`. After any of these runs at its gate, record the lazy durable metric
-(`flow.sh harness intervention add`). Full whitelist + rules: `references/claudekit-skills.md`.
+(`flow.sh harness intervention add`). Full whitelist + Name resolution: `references/claudekit-skills.md`.
 
 ## Shipping (inside cards/)
 

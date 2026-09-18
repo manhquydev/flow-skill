@@ -6,12 +6,12 @@ maintenance. Each was written fresh from public/generic patterns (persona-panel 
 generic edge-case taxonomy, STRIDE — public Microsoft SDL methodology, git-log
 retrospection, iterate-to-numeric-target loops, evidence-backed harness improvement) —
 none of this text is copied from claudekit-engineer (proprietary, All Rights Reserved)
-or any other kit. Where a matching ck skill is installed, it is offered as a **richer
+or any other kit. Where a matching ck or ak skill is installed, it is offered as a **richer
 alternative**, never a requirement — see the seam files (`gate-rules.md`,
 `adversarial-review.md`, `law/RETRO.md`) for the native-first wiring, and
-`claudekit-skills.md` for the optional-enrichment annex.
+`claudekit-skills.md` for the optional-enrichment annex (Name resolution).
 
-Every ritual below follows the same rule as the ck skills it stands in for: it
+Every ritual below follows the same rule as the ck/ak skills it stands in for: it
 **informs** the gate; the gate (the `flow.sh` exit code + the semantic challenge) still
 judges. A ritual "looks good" is not a PASS.
 

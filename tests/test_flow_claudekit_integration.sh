@@ -99,6 +99,21 @@ hasE "$REF/agent-stage-mapping.md" "review-pr" "R2 stage map: names review-pr"
 hasE "$REF/agent-stage-mapping.md" "ck-security" "R2 stage map: names ck-security"
 hasE "$REF/agent-stage-mapping.md" "retro. at Retro|retro at Retro" "R2 stage map: names retro@Retro"
 
+# AgentKit alias overlay: same whitelist rows, host-native specialists, no mid-gate router.
+hasE "$CAT" "Name resolution" "AgentKit: name-resolution section exists"
+hasE "$CAT" "ak:predict" "AgentKit: ak:predict aliases ck-predict"
+hasE "$CAT" "ak:scenario" "AgentKit: ak:scenario aliases ck-scenario"
+hasE "$CAT" "ak:security" "AgentKit: ak:security aliases ck-security"
+hasE "$CAT" "ak:loop" "AgentKit: ak:loop aliases ck-loop"
+hasE "$CAT" "ak:agentkit" "AgentKit: competing orchestrator ak:agentkit cut"
+hasE "$REF/agent-detection.md" "unprefixed" "agent-detection: unprefixed host specialists"
+hasE "$REF/gate-04.md" "ak:predict" "gate-04 offers ak:predict"
+hasE "$REF/gate-05.md" "ak:scenario" "gate-05 offers ak:scenario"
+hasE "$AREV" "ak:security" "review gate offers ak:security"
+hasE "$AREV" "ak:review-pr" "review gate offers ak:review-pr"
+hasE "$SKILL" "ck/ak skill layer" "SKILL.md names ck/ak skill layer"
+
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
