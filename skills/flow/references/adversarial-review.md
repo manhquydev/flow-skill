@@ -20,13 +20,14 @@ STRIDE categories regardless of which lens above is present. Output INFORMS tria
 
 **Agent vs skill:** `security-reviewer` is an **AGENT** (`Task(subagent_type="security-reviewer")`)
 invoked in subagent isolation — it sees the diff, contract, and acceptance only. `ck-security`
-is a **SKILL** (main-context Skill tool, no subagent isolation); it may be used as an optional
+(or `ak:security` — same row, `claudekit-skills.md` Name resolution) is a **SKILL**
+(main-context Skill tool, no subagent isolation); it may be used as an optional
 inline pass by the orchestrator, but it is **never** the delegated review subagent.
 
-**If `ck-security` is installed**, offer it as a richer alternative / extra threat-model
+**If `ck-security` is installed** (or `ak:security`), offer it as a richer alternative / extra threat-model
 pass on top of the native ritual (opt-in-with-prompt) — the operator confirms; it is not
-auto-fired. Same INFORMS-only rule. After either the native ritual or `ck-security` runs,
-record the lazy durable metric via `flow.sh harness intervention add` (the wired-gate
+auto-fired. Same INFORMS-only rule. After either the native ritual or `ck-security` /
+`ak:security` runs, record the lazy durable metric via `flow.sh harness intervention add` (the wired-gate
 skill-telemetry — `claudekit-skills.md` §"Lazy capture"). See `claudekit-skills.md`.
 
 **Portability degrade rung** (detect-first, gate identical on every rung):
@@ -161,7 +162,7 @@ Same parity rule: it INFORMS, never auto-passes/auto-fails. Log the same durable
 ## Optional lens — review-pr (PR-context, when the card ships as a GitHub PR)
 
 The three layers + cross-model lenses all review a **diff**. When the card's change lives as a
-**GitHub PR**, offer the `review-pr` SKILL as an additional lens — it adds the PR-context checks a
+**GitHub PR**, offer the `review-pr` SKILL (or `ak:review-pr` — same row) as an additional lens — it adds the PR-context checks a
 diff-only review structurally can't see: duplicate prior work, AI-slop patterns, breaking-change
 detection across the whole PR, and CI-blocker triage (with optional `--fix`). It is **distinct from
 the wired `code-reviewer` agent** (diff lens), not a twin — see `claudekit-skills.md`.

@@ -8,14 +8,17 @@ unbroken where they don't.
 
 The host's inline/generic path is always available. Overlay named specialists only when the
 host registry actually lists them — do not assume a Task tool, ck: agents, or any one vendor.
-Detect by checking that registry. Also glob for project-local definitions when unsure:
-- ck: agents: `.claude/agents/*.md` (project) and the host agent registry.
+Detect by checking that registry. Specialist names may be **unprefixed** (`planner`),
+**ck-prefixed** (`ck:planner` / `ck-planner`), or the same token under another kit.
+Strip `ck:` / `ck-` / `ak:` / `ak-` before comparing. Also glob for project-local
+definitions when unsure:
+- specialists: `.claude/agents/*.md` (project) and the host agent registry.
 - bmad skills: the Skills list (`bmad-*`) and `.claude/skills/bmad-*`.
 
-## Priority order (operator chose: ck: first, bmad alternative)
+## Priority order (host specialist first, bmad alternative)
 
 For each stage, pick the FIRST available:
-1. **ck: agent** (primary) — planner, researcher, architect, fullstack-developer, code-reviewer, typescript-reviewer, python-reviewer, tester, ui-ux-designer, docs-manager, git-manager, debugger, scout.
+1. **Host specialist** (primary) — `planner`, `researcher`, `architect`, `fullstack-developer`, `code-reviewer`, `typescript-reviewer`, `python-reviewer`, `tester`, `ui-ux-designer`, `docs-manager`, `git-manager`, `debugger`, `scout` — whether unprefixed or `ck:`/`ck-` spelled. This is the Codex / Cursor / Claude Code / AgentKit roster.
 2. **bmad-* skill** (alternative) — bmad-prd, bmad-create-architecture, bmad-spec, bmad-create-story, bmad-dev-story, bmad-code-review, bmad-check-implementation-readiness, bmad-market-research, bmad-technical-research, bmad-qa-generate-e2e-tests.
 3. **built-in fallback** — the host drafts inline, or spawns a generic `Explore`/`general-purpose` agent. Output shape must match the agent path so the gate is identical.
 

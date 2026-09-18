@@ -8,5 +8,5 @@ NOT-doing list honest about what's deferred?
   debate (architect/security/ops/user-advocate/cost) that surfaces defects while reversal
   is still cheap. Output INFORMS this challenge; it never passes the gate. Skip on a
   trivial ADR.
-- **If `ck-predict` is installed**, it is a richer alternative to the native ritual (same
-  INFORMS-only rule, opt-in-with-prompt — see `claudekit-skills.md`).
+- **If `ck-predict` or `ak:predict` is installed**, it is a richer alternative to the native ritual (same
+  INFORMS-only rule, opt-in-with-prompt — see `claudekit-skills.md` Name resolution).

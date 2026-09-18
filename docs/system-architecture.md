@@ -108,14 +108,15 @@ The npm channel is the **canonical distribution** for cross-platform adoption (p
 
 ## Deep-wired skills (pluggable agents + decision matrix)
 
-`/flow` ships 6 deep-wired ClaudeKit skills (opt-in, never in `cmd_next`/`cmd_check`):
+`/flow` ships 6 deep-wired skills (opt-in, never in `cmd_next`/`cmd_check`):
 `ck-predict` (ADR), `ck-scenario` (Contract), `review-pr` (Review/Ship), `ck-security`
-(security-cards), `retro`, `ck-loop` (loop-engineering). **v0.22 standalone**: 5 of these 6
+(security-cards), `retro`, `ck-loop` (loop-engineering). AgentKit `ak:*` names are the
+same rows (`references/claudekit-skills.md` Name resolution). **v0.22 standalone**: 5 of these 6
 now have a **native ritual** as the guaranteed baseline (`references/native-rituals.md`) —
 persona-debate@ADR, edge-case@Contract, STRIDE@Review, numeric-retro@Retro, native loop
-protocol@Build/Verify. The ck skills above are offered as richer alternatives *when installed*,
+protocol@Build/Verify. The ck/ak skills above are offered as richer alternatives *when installed*,
 never a requirement; only `review-pr` has no native equivalent (PR-context-specific).
-**Loop vs two-strikes:** operators choose based on repair scope — `ck-loop`/the native loop
+**Loop vs two-strikes:** operators choose based on repair scope — `ck-loop`/`ak:loop`/the native loop
 protocol iterates toward a numeric metric (Implement→Test→Audit→Fix tail, worktree-isolated,
 5-iteration stuck-break); two-strikes gates handle deadlock in review (bounded 2-pass
 escalation). Decision matrix in `references/claudekit-skills.md`.

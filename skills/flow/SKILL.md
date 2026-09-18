@@ -136,7 +136,7 @@ only when `bash` is Git Bash.
 - Codex second engine: `references/codex-integration.md`.
 - Antigravity Gemini-3 **third engine**: `references/antigravity-integration.md`
   (confirm load with `agy inspect`).
-- ck-skill layer: `references/claudekit-skills.md`.
+- ck/ak skill layer: `references/claudekit-skills.md`.
 - Parallel occupancy: `references/host-agnostic-parallel.md`.
 - Receipts: `references/attestations.md`.
 - `harness/` is **flow-owned**. Improve via **R-IMPROVE-HARNESS** in
