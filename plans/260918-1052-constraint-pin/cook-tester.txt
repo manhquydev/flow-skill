@@ -1,0 +1,16 @@
+You are the tester for plans/260918-1052-constraint-pin after Phase 1 overlay and Phase 2 PIN printer landed.
+
+Do not edit product code except if a test assertion is wrong vs the plan. Prefer not editing.
+
+Run:
+1. bash tests/test_flow_status_legibility.sh
+2. bash tests/test_flow_claudekit_integration.sh
+3. bash tests/test_flow_native_rituals.sh
+4. bash tests/test_flow_concierge.sh
+5. bash tests/test_doc_budgets.sh
+6. Confirm: git diff HEAD -- skills/flow/runner/flow.sh | grep -E '_eval_engine_run|_run_with_timeout' is empty of hunks on those function bodies.
+7. Smoke: empty FLOW_PROJECT_ROOT sandbox — bash skills/flow/runner/flow.sh resume 2>/dev/null | grep -F 'PIN v1'
+8. Smoke: bash skills/flow/runner/flow.sh status --json | grep -F 'PIN v1' must be empty.
+
+Write plans/260918-1052-constraint-pin/reports/cook-test.md with exit codes and Status: DONE or BLOCKED.
+Do not commit.

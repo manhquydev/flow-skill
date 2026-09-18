@@ -1,0 +1,19 @@
+You are cooking Phase 1 of plans/260918-1052-constraint-pin (AgentKit overlay).
+
+Read:
+- plans/260918-1052-constraint-pin/plan.md
+- plans/260918-1052-constraint-pin/phase-01-start.md
+
+The overlay diff is already in the working tree. Do NOT rewrite it. Do NOT touch flow.sh, pin-v1.txt, or test_flow_status_legibility.sh (Phase 2 exclusive).
+
+Run:
+- bash tests/test_flow_claudekit_integration.sh
+- bash tests/test_flow_native_rituals.sh
+- bash tests/test_flow_concierge.sh
+- bash tests/test_doc_budgets.sh
+
+If a test fails, fix ONLY Phase 1 exclusive files listed in phase-01-start.md.
+
+Write a short report to plans/260918-1052-constraint-pin/reports/cook-overlay.md with commands, exit codes, and Status: DONE or BLOCKED.
+
+Do not commit. Do not implement PIN.

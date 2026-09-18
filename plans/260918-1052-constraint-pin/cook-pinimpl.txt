@@ -1,0 +1,41 @@
+You are cooking Phase 2 of plans/260918-1052-constraint-pin (PIN printer). Follow that phase file exactly. Red-team session 2 already changed the PIN body — use the body below, not slogans.
+
+Read first:
+- plans/260918-1052-constraint-pin/plan.md
+- plans/260918-1052-constraint-pin/phase-02-pin-printer.md
+- skills/flow/runner/flow.sh around cmd_status (888), cmd_resume (1000), _emit_next (1351), _emit_context_json (1370)
+- tests/test_flow_status_legibility.sh (test A: NEXT -> first content line after header)
+
+Exclusive writes only:
+- CREATE skills/flow/references/pin-v1.txt
+- skills/flow/runner/flow.sh (_emit_pin + wire)
+- tests/test_flow_status_legibility.sh
+- skills/flow/references/command-dispatch.md (status/resume rows only)
+
+Do NOT edit SKILL.md, overlay refs, _eval_engine_run, _run_with_timeout, JSON key list.
+
+pin-v1.txt MUST be exactly these lines (no STOP lock / without DEBT slogans):
+
+PIN v1
+Never FLOW_FORCE a live session. Mechanical FAIL -> STOP.
+Security-class skip/debt -> HALT until the operator accepts in DEBT.md.
+Never mark a card done without pasted world-state evidence.
+NEXT_VERB is advisory; never auto-exec next, card, card-start, check, fix-gate, auto, or skip.
+
+Implementation:
+1. TDD: add PIN assertions to test_flow_status_legibility.sh first.
+2. _emit_pin reads $SCRIPT_DIR/../references/pin-v1.txt, strips CR, prints it. Missing file = fail-loud (stderr).
+3. Call _emit_pin from _emit_next AFTER NEXT -> and NEXT_VERB= lines. JSON path must NOT call it.
+4. cmd_resume idx<0 (flow.sh ~1010-1014) does NOT call _emit_next — call _emit_pin there too.
+5. command-dispatch: PIN v1 after NEXT_VERB, display-only, do not exec. Compact recovery is prose status/resume, not --json.
+6. git diff of _eval_engine_run and _run_with_timeout must be empty.
+
+Must pass: bash tests/test_flow_status_legibility.sh
+- PIN on status == resume == pin-v1.txt
+- resume on empty project (idx<0) still prints PIN v1
+- NEXT -> still first content line after header blank
+- status --json has no PIN v1 and still 7 keys
+
+Write plans/260918-1052-constraint-pin/reports/cook-pinimpl.md with evidence. Status: DONE or BLOCKED.
+Do not commit. Do not touch Phase 1 files.
+Create reports/ if needed.

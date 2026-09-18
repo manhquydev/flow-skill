@@ -1,0 +1,21 @@
+You are code-reviewing the constraint-pin + overlay working tree vs plans/260918-1052-constraint-pin.
+
+Read plan.md, phase-02-pin-printer.md, cook-pinimpl.md, then the diff:
+- skills/flow/runner/flow.sh (_emit_pin, _emit_next, cmd_resume idx<0)
+- skills/flow/references/pin-v1.txt
+- tests/test_flow_status_legibility.sh
+- skills/flow/references/command-dispatch.md
+- overlay files if needed
+
+Checks:
+- PIN is exact STOP excerpts, not slogans STOP lock / without DEBT
+- JSON 7 keys, no PIN on --json
+- resume idx<0 emits PIN without routing through _emit_next
+- missing pin file fail-loud
+- NEXT -> still first content after header
+- eval engine bodies untouched
+- overlay does not lower gates
+- no FLOW_FORCE live-session bypass in PIN
+
+Write plans/260918-1052-constraint-pin/reports/cook-review.md with findings (Accept/Nit) and verdict APPROVE or REQUEST_CHANGES.
+Do not implement fixes unless Critical. Do not commit.
