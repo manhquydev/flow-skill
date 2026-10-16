@@ -6,7 +6,7 @@ Please do **not** open a public GitHub issue for a security vulnerability.
 
 Instead, either:
 
-- use [GitHub's private security advisory](https://github.com/manhquydev/mq_flow/security/advisories/new), or
+- use [GitHub's private security advisory](https://github.com/manhquydev/flow-skill/security/advisories/new), or
 - email `manhquy.mqy@gmail.com` with a description, reproduction steps, and impact.
 
 This is a solo-maintained project — no fixed SLA is promised, but reports are read and

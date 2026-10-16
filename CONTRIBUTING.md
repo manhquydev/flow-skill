@@ -52,3 +52,7 @@ Our contributor standards prioritize stability across operating systems and agen
 ## Code of Conduct
 
 This project adheres to the Contributor Covenant. Please review [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before participating in our community.
+
+## GitHub maintenance
+
+Maintainers: see [the Vietnamese GitHub workflow guide](docs/github-maintenance.vi.md) for security triage, dependency updates, and the branch protection workflow.
