@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Bangkok"
+    open-pull-requests-limit: 3
+    groups:
+      actions-minor-patch:
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "npm"
+    directory: "/npm-wrapper"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Bangkok"
+    open-pull-requests-limit: 3
+    groups:
+      installer-minor-patch:
+        update-types: ["minor", "patch"]
+# Website version updates are deferred until its branch policy is reconciled.
+# See docs/github-maintenance.vi.md and CONTRIBUTING.md.
