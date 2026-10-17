@@ -2645,35 +2645,123 @@ cmd_design() {
   return 1
 }
 
+_emit_debt_list_json() { # $1 = debt file
+  local debt_file="$1"
+  if [ ! -f "$debt_file" ]; then
+    printf '{"schema_version":1,"kind":"debt.list","total":0,"open_count":0,"debts":[]}\n'
+    return 0
+  fi
+  local raw_matches
+  raw_matches="$(grep -nE '^- \[[ xX]\] DEBT:' "$debt_file" 2>/dev/null || true)"
+  if [ -z "$raw_matches" ]; then
+    printf '{"schema_version":1,"kind":"debt.list","total":0,"open_count":0,"debts":[]}\n'
+    return 0
+  fi
+
+  local total=0 open_count=0
+  local darr="" dfirst=1 line line_num line_text is_open
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
+    [ -n "$line" ] || continue
+    line_num="${line%%:*}"
+    line_text="${line#*:}"
+    case "$line_text" in
+      "- [ ]"*) is_open="true"; open_count=$((open_count + 1)) ;;
+      *)        is_open="false" ;;
+    esac
+    total=$((total + 1))
+    local esc_text
+    esc_text="$(_gate_json_finding "$line_text")"
+    local entry="{\"text\":\"$esc_text\",\"open\":$is_open,\"line\":$line_num}"
+    if [ "$dfirst" -eq 1 ]; then
+      darr="$entry"
+      dfirst=0
+    else
+      darr="$darr,$entry"
+    fi
+  done <<EOF
+$raw_matches
+EOF
+
+  printf '{"schema_version":1,"kind":"debt.list","total":%d,"open_count":%d,"debts":[%s]}\n' \
+    "$total" "$open_count" "$darr"
+  return 0
+}
+
 cmd_debt() {
-  local sub="${1:-list}"; shift 2>/dev/null || true
-  case "$sub" in
-    add)
-      local what="${1:-}" exposure="${2:-}" close="${3:-}"
-      if [ -z "$what" ] || [ -z "$exposure" ] || [ -z "$close" ]; then
-        echo 'usage: /flow debt add "<what skipped>" "<exposure>" "<close-before condition>"'
-        return 1
-      fi
-      # strip newlines so one debt is always exactly one line (keeps `debt list` counts honest)
-      what="$(printf '%s' "$what" | tr -d '\n\r')"
-      exposure="$(printf '%s' "$exposure" | tr -d '\n\r')"
-      close="$(printf '%s' "$close" | tr -d '\n\r')"
-      [ -f "$DEBT_FILE" ] || printf '# DEBT - deliberate gate-skips (a loan, written down)\n\n' > "$DEBT_FILE"
-      printf -- '- [ ] DEBT: %s -- %s -- close before: %s -- opened %s\n' \
-        "$what" "$exposure" "$close" "$(date +%Y-%m-%d)" >> "$DEBT_FILE"
-      echo "PASS: debt recorded in DEBT.md"
-      echo "  Security-class (auth/authz/admin/tenancy/payments/data/validation)? The OPERATOR"
-      echo "  must accept this exposure in writing - it is never decided for them. In /flow auto this halts."
-      return 0 ;;
-    list|"")
-      if [ ! -f "$DEBT_FILE" ]; then echo "No debts recorded."; return 0; fi
-      local open; open="$(grep -nE '^- \[ \] DEBT:' "$DEBT_FILE" 2>/dev/null || true)"
-      if [ -z "$open" ]; then echo "No OPEN debts (all closed)."; else
-        echo "OPEN debts (close before their named condition):"; printf '%s\n' "$open" | sed 's/^/  L/'
-      fi
-      return 0 ;;
-    *) echo "usage: /flow debt add|list"; return 1 ;;
-  esac
+  local opt_json=0
+  local is_add=0
+  local is_list=0
+
+  _debt_usage() {
+    echo "usage: /flow debt [list] [--json] | /flow debt add \"<what skipped>\" \"<exposure>\" \"<close-before condition>\""
+  }
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json)
+        if [ "$opt_json" -eq 1 ] || [ "$is_add" -eq 1 ]; then
+          _debt_usage
+          return 2
+        fi
+        opt_json=1
+        shift
+        ;;
+      add)
+        if [ "$opt_json" -eq 1 ] || [ "$is_list" -eq 1 ] || [ "$is_add" -eq 1 ]; then
+          _debt_usage
+          return 2
+        fi
+        is_add=1
+        shift
+        local what="${1:-}" exposure="${2:-}" close="${3:-}"
+        if [ -z "$what" ] || [ -z "$exposure" ] || [ -z "$close" ]; then
+          echo 'usage: /flow debt add "<what skipped>" "<exposure>" "<close-before condition>"'
+          return 1
+        fi
+        if [ $# -gt 3 ]; then
+          _debt_usage
+          return 2
+        fi
+        # strip newlines so one debt is always exactly one line (keeps `debt list` counts honest)
+        what="$(printf '%s' "$what" | tr -d '\n\r')"
+        exposure="$(printf '%s' "$exposure" | tr -d '\n\r')"
+        close="$(printf '%s' "$close" | tr -d '\n\r')"
+        [ -f "$DEBT_FILE" ] || printf '# DEBT - deliberate gate-skips (a loan, written down)\n\n' > "$DEBT_FILE"
+        printf -- '- [ ] DEBT: %s -- %s -- close before: %s -- opened %s\n' \
+          "$what" "$exposure" "$close" "$(date +%Y-%m-%d)" >> "$DEBT_FILE"
+        echo "PASS: debt recorded in DEBT.md"
+        echo "  Security-class (auth/authz/admin/tenancy/payments/data/validation)? The OPERATOR"
+        echo "  must accept this exposure in writing - it is never decided for them. In /flow auto this halts."
+        return 0
+        ;;
+      list)
+        if [ "$is_list" -eq 1 ] || [ "$is_add" -eq 1 ]; then
+          _debt_usage
+          return 2
+        fi
+        is_list=1
+        shift
+        ;;
+      *)
+        _debt_usage
+        return 2
+        ;;
+    esac
+  done
+
+  if [ "$opt_json" -eq 1 ]; then
+    _emit_debt_list_json "$DEBT_FILE"
+    return 0
+  fi
+
+  if [ ! -f "$DEBT_FILE" ]; then echo "No debts recorded."; return 0; fi
+  local open; open="$(grep -nE '^- \[ \] DEBT:' "$DEBT_FILE" 2>/dev/null || true)"
+  if [ -z "$open" ]; then echo "No OPEN debts (all closed)."; else
+    echo "OPEN debts (close before their named condition):"; printf '%s\n' "$open" | sed 's/^/  L/'
+  fi
+  return 0
 }
 
 cmd_contract() {

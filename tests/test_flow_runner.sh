@@ -327,6 +327,178 @@ has "$out" "unchecked gate boxes:" "prose dirty card reports findings"
 
 rm -rf "$SB"
 
+echo "K) flow debt [list] [--json] closed envelope"
+SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB"
+PY_BIN="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+
+# 1. No DEBT.md: exit 0, valid empty JSON envelope, prose unmodified
+out="$(bash "$RUN" debt list --json 2>&1)"; rc=$?
+ck 0 $rc "no DEBT.md debt list --json exit 0"
+has "$out" '"schema_version":1' "no DEBT.md JSON carries schema_version 1"
+has "$out" '"kind":"debt.list"' "no DEBT.md JSON carries kind debt.list"
+has "$out" '"total":0' "no DEBT.md JSON carries total 0"
+has "$out" '"open_count":0' "no DEBT.md JSON carries open_count 0"
+has "$out" '"debts":\[\]' "no DEBT.md JSON carries empty debts array"
+if [ -n "$PY_BIN" ]; then
+  printf '%s' "$out" | "$PY_BIN" -c 'import sys, json; d = json.load(sys.stdin); assert d["schema_version"] == 1; assert d["kind"] == "debt.list"; assert d["total"] == 0; assert d["open_count"] == 0; assert d["debts"] == []'
+  ck 0 $? "no DEBT.md JSON parses via python"
+else
+  echo "  skip [no DEBT.md JSON parses via python] (no python on this PATH)"
+fi
+
+# Flag-order and shorthand parity: debt --json, debt --json list, debt list --json
+out_shorthand="$(bash "$RUN" debt --json 2>&1)"; rc_shorthand=$?
+ck 0 $rc_shorthand "debt --json exit 0"
+ck "$out" "$out_shorthand" "debt --json identical to debt list --json"
+
+out_prefix="$(bash "$RUN" debt --json list 2>&1)"; rc_prefix=$?
+ck 0 $rc_prefix "debt --json list exit 0"
+ck "$out" "$out_prefix" "debt --json list identical to debt list --json"
+
+# Prose parity when no DEBT.md
+out_prose="$(bash "$RUN" debt list 2>&1)"; rc_prose=$?
+ck 0 $rc_prose "prose debt list (no file) exit 0"
+ck "No debts recorded." "$out_prose" "prose debt list reports No debts recorded."
+
+out_prose_bare="$(bash "$RUN" debt 2>&1)"; rc_prose_bare=$?
+ck 0 $rc_prose_bare "prose bare debt (no file) exit 0"
+ck "No debts recorded." "$out_prose_bare" "prose bare debt reports No debts recorded."
+
+# 2. Populated DEBT.md: open, closed (-[x], -[X]), quotes, backslashes, tabs, line preservation
+TAB_CHAR="$(printf '\t')"
+printf '# DEBT - deliberate gate-skips\n\n- [ ] DEBT: skip 01-research -- internal tool with "quotes", \\backslashes\\ and tab1%stomb -- close before: public release -- opened 2026-10-18\n- [x] DEBT: skip 04-adr -- single obvious choice -- close before: v2 -- opened 2026-10-15\n- [X] DEBT: temp auth bypass -- dev only -- close before: staging -- opened 2026-10-16\n' "$TAB_CHAR" > "$SB/DEBT.md"
+
+out_pop="$(bash "$RUN" debt list --json 2>&1)"; rc_pop=$?
+ck 0 $rc_pop "populated debt list --json exit 0"
+has "$out_pop" '"total":3' "populated JSON carries total 3"
+has "$out_pop" '"open_count":1' "populated JSON carries open_count 1"
+if [ -n "$PY_BIN" ]; then
+  printf '%s' "$out_pop" | "$PY_BIN" -c '
+import sys, json
+d = json.load(sys.stdin)
+assert d["schema_version"] == 1
+assert d["kind"] == "debt.list"
+assert d["total"] == 3
+assert d["open_count"] == 1
+assert len(d["debts"]) == 3
+
+# Item 1: open with special characters and tab preserved
+item0 = d["debts"][0]
+assert item0["line"] == 3
+assert item0["open"] is True
+assert "quotes" in item0["text"]
+assert "backslashes" in item0["text"]
+assert "tab1\ttomb" in item0["text"]
+assert item0["text"].startswith("- [ ] DEBT:")
+
+# Item 2: closed with lowercase x
+item1 = d["debts"][1]
+assert item1["line"] == 4
+assert item1["open"] is False
+assert "04-adr" in item1["text"]
+assert item1["text"].startswith("- [x] DEBT:")
+
+# Item 3: closed with uppercase X
+item2 = d["debts"][2]
+assert item2["line"] == 5
+assert item2["open"] is False
+assert "temp auth bypass" in item2["text"]
+assert item2["text"].startswith("- [X] DEBT:")
+'
+  ck 0 $? "populated JSON parses via python with correct open/closed status, lines, and escaped chars"
+else
+  echo "  skip [populated JSON parses via python with correct open/closed status, lines, and escaped chars] (no python on this PATH)"
+fi
+
+# Flag-order and shorthand parity on populated fixture
+out_pop_shorthand="$(bash "$RUN" debt --json 2>&1)"; rc_pop_shorthand=$?
+ck 0 $rc_pop_shorthand "populated debt --json exit 0"
+ck "$out_pop" "$out_pop_shorthand" "populated debt --json identical to debt list --json"
+
+out_pop_prefix="$(bash "$RUN" debt --json list 2>&1)"; rc_pop_prefix=$?
+ck 0 $rc_pop_prefix "populated debt --json list exit 0"
+ck "$out_pop" "$out_pop_prefix" "populated debt --json list identical to debt list --json"
+
+# Prose parity with open debts
+out_pop_prose="$(bash "$RUN" debt list 2>&1)"; rc_pop_prose=$?
+ck 0 $rc_pop_prose "prose debt list with open debts exit 0"
+has "$out_pop_prose" "OPEN debts (close before their named condition):" "prose lists OPEN debts header"
+has "$out_pop_prose" "  L3:- \[ \] DEBT: skip 01-research" "prose lists line 3 with L prefix"
+no "$out_pop_prose" "04-adr" "prose omits closed debt line 4"
+no "$out_pop_prose" "temp auth bypass" "prose omits closed debt line 5"
+
+out_pop_prose_bare="$(bash "$RUN" debt 2>&1)"; rc_pop_prose_bare=$?
+ck 0 $rc_pop_prose_bare "prose bare debt with open debts exit 0"
+ck "$out_pop_prose" "$out_pop_prose_bare" "prose bare debt matches debt list"
+
+# 3. Closed-only DEBT.md fixture
+printf '# DEBT\n\n- [x] DEBT: all settled -- exp -- close before: prod -- opened 2026-10-17\n' > "$SB/DEBT.md"
+out_closed="$(bash "$RUN" debt list --json 2>&1)"; rc_closed=$?
+ck 0 $rc_closed "closed-only debt list --json exit 0"
+has "$out_closed" '"total":1' "closed-only JSON total 1"
+has "$out_closed" '"open_count":0' "closed-only JSON open_count 0"
+if [ -n "$PY_BIN" ]; then
+  printf '%s' "$out_closed" | "$PY_BIN" -c '
+import sys, json
+d = json.load(sys.stdin)
+assert d["total"] == 1
+assert d["open_count"] == 0
+assert len(d["debts"]) == 1
+assert d["debts"][0]["open"] is False
+assert d["debts"][0]["line"] == 3
+'
+  ck 0 $? "closed-only JSON parses via python with open_count 0"
+else
+  echo "  skip [closed-only JSON parses via python with open_count 0] (no python on this PATH)"
+fi
+
+out_closed_prose="$(bash "$RUN" debt list 2>&1)"; rc_closed_prose=$?
+ck 0 $rc_closed_prose "prose debt list closed-only exit 0"
+ck "No OPEN debts (all closed)." "$out_closed_prose" "prose reports No OPEN debts (all closed)."
+
+# 4. Error handling & invalid / duplicate flags exit 2
+out_err="$(bash "$RUN" debt --json --json 2>&1)"; rc_err=$?
+ck 2 $rc_err "duplicate flag debt --json --json exit 2"
+has "$out_err" "usage: /flow debt" "duplicate flag prints usage"
+
+out_err="$(bash "$RUN" debt list --json --json 2>&1)"; rc_err=$?
+ck 2 $rc_err "duplicate flag debt list --json --json exit 2"
+
+out_err="$(bash "$RUN" debt --json list --json 2>&1)"; rc_err=$?
+ck 2 $rc_err "duplicate flag debt --json list --json exit 2"
+
+out_err="$(bash "$RUN" debt --bogus 2>&1)"; rc_err=$?
+ck 2 $rc_err "unknown flag debt --bogus exit 2"
+
+out_err="$(bash "$RUN" debt list --bogus 2>&1)"; rc_err=$?
+ck 2 $rc_err "unknown flag debt list --bogus exit 2"
+
+out_err="$(bash "$RUN" debt list extra 2>&1)"; rc_err=$?
+ck 2 $rc_err "extra arg debt list extra exit 2"
+
+out_err="$(bash "$RUN" debt --json extra 2>&1)"; rc_err=$?
+ck 2 $rc_err "extra arg debt --json extra exit 2"
+
+out_err="$(bash "$RUN" debt --json add "what" "exp" "close" 2>&1)"; rc_err=$?
+ck 2 $rc_err "invalid flag on add debt --json add exit 2"
+
+out_err="$(bash "$RUN" debt bogus 2>&1)"; rc_err=$?
+ck 2 $rc_err "unknown subcommand debt bogus exit 2"
+
+out_err="$(bash "$RUN" debt "" 2>&1)"; rc_err=$?
+ck 2 $rc_err "empty positional arg debt '' exit 2"
+
+# 5. debt add prose and exit code non-regression
+out_add_fail="$(bash "$RUN" debt add 2>&1)"; rc_add_fail=$?
+ck 1 $rc_add_fail "debt add missing args exit 1"
+ck 'usage: /flow debt add "<what skipped>" "<exposure>" "<close-before condition>"' "$out_add_fail" "debt add missing args prints exact legacy usage"
+
+out_add_ok="$(bash "$RUN" debt add "new item" "exposure desc" "close condition" 2>&1)"; rc_add_ok=$?
+ck 0 $rc_add_ok "debt add valid args exit 0"
+has "$out_add_ok" "PASS: debt recorded in DEBT.md" "debt add reports PASS"
+
+rm -rf "$SB"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

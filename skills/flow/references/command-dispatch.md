@@ -32,7 +32,7 @@ is no fragment loader (ADR-0001).
 | `/flow project-type <web\|cli\|library\|skill>` | `bash <skill>/runner/flow.sh project-type [t]` | Set/read type per `references/project-types.md`. Confirm before planning. |
 | `/flow usage [--global\|--prune]` | `bash <skill>/runner/flow.sh usage [...]` | Relay local JSONL analytics; `--prune` caps the log. Nothing to author. |
 | `/flow skip <stage> --reason ...` | `bash <skill>/runner/flow.sh skip <stage> --reason ...` | Advance only with matching `DEBT.md`. Security-class: operator-only HALT. |
-| `/flow debt add\|list` | `bash <skill>/runner/flow.sh debt add\|list` | Record/list skips in `DEBT.md`. Security-class is operator-authored only. |
+| `/flow debt add|list` | `bash <skill>/runner/flow.sh debt add | /flow debt [list] [--json]` | Record/list deliberate gate-skips in `DEBT.md`. Optional `--json` on list emits one closed `debt.list` envelope (`schema_version`, `kind`, `total`, `open_count`, `debts[{text,open,line}]`). Exit 0 (or 2 on invalid/duplicate flags). Security-class is operator-authored only. |
 | `/flow design <file>` | `bash <skill>/runner/flow.sh design <file>` | Advisory DESIGN.md mechanical check; pair `design-review-checklist.md` for UI cards. |
 | `/flow harness <args>` | `bash <skill>/runner/flow.sh harness <args>` | Passthrough to the durable-layer CLI; visible output + real exit. Use `recall` to read back. |
 | `/flow doctor` | `bash <skill>/runner/flow.sh doctor [--list] [--check <csv>] [--json]` | Relay FAIL as the fix list. Read-only. Named check registry; verifies full bundled tree integrity against manifest receipt and bounded state integrity (`bounded_json`; modes, nofollow); skipped advisory in local dev checkouts. `--json` outputs machine-readable report. |
