@@ -47,7 +47,7 @@ jobs:
       # Pin the interpreter instead of trusting the runner image: the durable layer and
       # the graph executor are python, and 3.7 is the MEASURED floor (subprocess
       # capture_output/text; no walrus, no match, no builtin generics).
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
