@@ -65,7 +65,7 @@ Everyday: `/flow` (status), `/flow next`, `/flow card`, `/flow check C-NNN`,
 ## Conventions
 
 - bash 3.2-safe; zero new runtime deps; degrade loudly, never lower a gate.
-- Skill product version ≠ npm installer version (`docs/release-process.md`).
+- Skill product and npm installer share one SemVer (`docs/release-process.md`).
 - New bash suites: `tests/test_*.sh` **and** a `tests/manifest.txt` row in the same change.
 - A wave that adds a gate-enforced rule adds ≥1 hollow/sound eval fixture pair (ADR).
 - `docs/doc-budgets.txt` is enforced in preflight/CI; advisory during a `/flow` run.

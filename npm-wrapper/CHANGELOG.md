@@ -2,6 +2,11 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## 1.0.0 - 2026-10-25
+
+- Adopt one shared SemVer for the skill product and npm installer. npm advances from 0.8.0 to 1.0.0; the skill is already 1.0.0.
+- No runtime behavior change; the bundled skill content and immutable `v1.0.0` tag are unchanged. Release preparation only, not a publication receipt.
+
 ## [0.8.0] - 2026-10-24 — skill v1.0.0 (breaking / pending publication)
 - **Bundled skill:** prepared for the v1.0.0 breaking release: Python 3 required for product operations, graph executor owns `/flow next` ordering, `FLOW_HARNESS_DISABLE` refuses product operations. Installer CLI surface is unchanged; the version bump carries the bundled skill content. See root `CHANGELOG.md` 1.0.0 and `docs/migration-v1.md`.
 - Rollback: reinstalling this package does not undo database changes; restore only from a named verified pre-migration backup.

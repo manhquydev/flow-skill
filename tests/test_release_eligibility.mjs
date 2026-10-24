@@ -5,12 +5,32 @@ import { compareVersions, evaluateRelease } from '../scripts/release-eligibility
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+test('skill reconciliation checks stable origin content against retained revision', async () => {
+  const { verifyExistingSkillTag } = await import('../scripts/release-workflow.mjs');
+  const object = 'a'.repeat(40);
+  const run = (different = false, missing = false, moved = false) => {
+    let reads = 0;
+    return args => {
+      if (args[0] === 'ls-remote') return missing ? '' : `${moved && reads++ ? 'b'.repeat(40) : object}\trefs/tags/v1.0.0`;
+      if (args[0] === 'fetch') return '';
+      if (args[0] === 'rev-parse') {
+        assert.ok(!args.at(-1).startsWith('HEAD'));
+        return args.at(-1) === 'retained:skills' && different ? 'different' : 'same-tree';
+      }
+      assert.fail(`unexpected git command ${args}`);
+    };
+  };
+  assert.doesNotThrow(() => verifyExistingSkillTag('v1.0.0', 'retained', run()));
+  assert.throws(() => verifyExistingSkillTag('v1.0.0', 'retained', run(true)), /subtree differs/);
+  assert.throws(() => verifyExistingSkillTag('v1.0.0', 'retained', run(false, true)), /unavailable/);
+  assert.throws(() => verifyExistingSkillTag('v1.0.0', 'retained', run(false, false, true)), /moved/);
+});
 const base = () => ({
   mode: 'workflow_run', phase: 'eligibility',
   expected: { workflowId: 123, workflowPath: '.github/workflows/ci.yml', publisherWorkflowPath: '.github/workflows/publish-npm-wrapper.yml', masterSha: 'abc123', repository: 'owner/repo' },
   run: { workflowId: 123, workflowPath: '.github/workflows/ci.yml', event: 'push', branch: 'master', conclusion: 'success', id: 88, attempt: 2, latestAttempt: 2, headSha: 'abc123', authoritativeJob: { name: 'all-checks-passed', app: 'github-actions', conclusion: 'success' } },
   pullRequest: { merged: true, baseRepo: 'owner/repo', baseBranch: 'master', headSha: 'abc123' },
-  release: { intent: true, npmVersion: '0.8.0', skillVersion: '0.25.0', channel: 'latest', npmChangelog: true, skillChangelog: true },
+  release: { intent: true, npmVersion: '0.8.0', skillVersion: '0.8.0', channel: 'latest', npmChangelog: true, skillChangelog: true },
   artifact: { integrity: 'sha512-test', commit: 'abc123', workflowRunId: 88, workflowRunAttempt: 2 },
   registry: { state: 'absent', error: 'E404', channelVersion: '0.7.11' },
   currentMasterSha: 'abc123', autopublishEnabled: true,
@@ -171,13 +191,15 @@ test('publish phase binds exact artifact to publisher run, separate from CI run'
   assert.equal(evaluateRelease(snapshot).decision, 'refuse');
 });
 
-test('npm-only release intent permits null skill version and requires only npm changelog', () => {
+test('new intent requires matching present versions; legacy null remains readable in reconciliation', () => {
   const snapshot = base();
   snapshot.release.skillVersion = null;
   snapshot.release.skillChangelog = false;
-  assert.equal(evaluateRelease(snapshot).decision, 'eligible');
-  snapshot.release.npmChangelog = false;
-  assert.equal(evaluateRelease(snapshot).decision, 'refuse');
+  assert.equal(evaluateRelease(snapshot).reason, 'invalid-unified-release-intent');
+  snapshot.phase = 'reconcile';
+  assert.notEqual(evaluateRelease(snapshot).reason, 'invalid-unified-release-intent');
+  snapshot.release.skillVersion = '9.9.9';
+  assert.equal(evaluateRelease(snapshot).reason, 'invalid-unified-release-intent');
 });
 
 test('workflow publish snapshot forwards the observed prepublish registry state', t => {
@@ -199,8 +221,8 @@ test('workflow publish snapshot forwards the observed prepublish registry state'
       assert.fail(`unexpected API ${path}`);
     },
     git: args => { assert.deepEqual(args, ['rev-parse', 'HEAD']); return sha; },
-    pkg: () => ({ name: RELEASE_CONSTANTS.package, version }), skillVersion: () => '0.25.0', changelogHeading: () => true,
-    readFileSync: () => JSON.stringify({ schema_version: 1, intent: true, npm_version: version, skill_version: null, channel: 'latest', compatibility: 'backwards-compatible', security_rights_expanded: false }),
+    pkg: () => ({ name: RELEASE_CONSTANTS.package, version }), skillVersion: () => version, changelogHeading: () => true,
+    readFileSync: () => JSON.stringify({ schema_version: 1, intent: true, npm_version: version, skill_version: version, channel: 'latest', compatibility: 'backwards-compatible', security_rights_expanded: false }),
     npmView: (_spec, fields) => fields[0] === 'dist-tags' ? { present: true, value: { latest: '0.7.11' } } : { present: false, error: 'E404' },
   };
   const request = { mode: 'publish', phase: 'publish', sha, version, publisherRunId: 9001, publisherRunAttempt: 2, artifact: { integrity: 'sha512-test', commit: sha, workflowRunId: 9001, workflowRunAttempt: 2 }, prepublishMasterSha: sha, prepublishRegistry: { state: 'absent', error: 'E404', channelVersion: '0.7.11' } };
@@ -234,8 +256,8 @@ test('breaking release intent requires a committed owner decision record and pro
   process.env.GITHUB_SHA = sha;
   const repository = process.env.GITHUB_REPOSITORY || RELEASE_CONSTANTS.repository;
   const run = { id: 88, workflow_id: RELEASE_CONSTANTS.ciWorkflowId, path: RELEASE_CONSTANTS.ciWorkflowPath, head_sha: sha, head_branch: 'master', event: 'push', run_attempt: 2, status: 'completed', conclusion: 'success' };
-  const breakingIntent = JSON.stringify({ schema_version: 1, intent: true, npm_version: version, skill_version: null, channel: 'latest', compatibility: 'breaking', security_rights_expanded: false });
-  const validAuth = JSON.stringify({ schema_version: 1, authorized_by: 'owner', decision: 'v1 breaking axes authorized', decision_record: 'docs/release-owner-decision-v1.md', authorized_versions: { npm: version, skill: null }, compatibility: 'breaking', security_rights_expanded: false, acceptance_evidence: ['https://github.com/manhquydev/flow-skill/pull/87'] });
+  const breakingIntent = JSON.stringify({ schema_version: 1, intent: true, npm_version: version, skill_version: version, channel: 'latest', compatibility: 'breaking', security_rights_expanded: false });
+  const validAuth = JSON.stringify({ schema_version: 1, authorized_by: 'owner', decision: 'v1 breaking axes authorized', decision_record: 'docs/release-owner-decision-v1.md', authorized_versions: { npm: version, skill: version }, compatibility: 'breaking', security_rights_expanded: false, acceptance_evidence: ['https://github.com/manhquydev/flow-skill/pull/87'] });
   const makeIo = authBody => ({
     gh: path => {
       if (path.endsWith('/git/ref/heads/master')) return { object: { sha } };
@@ -246,7 +268,7 @@ test('breaking release intent requires a committed owner decision record and pro
       assert.fail(`unexpected API ${path}`);
     },
     git: args => { assert.deepEqual(args, ['rev-parse', 'HEAD']); return sha; },
-    pkg: () => ({ name: RELEASE_CONSTANTS.package, version }), skillVersion: () => '0.25.0', changelogHeading: () => true,
+    pkg: () => ({ name: RELEASE_CONSTANTS.package, version }), skillVersion: () => version, changelogHeading: () => true,
     readFileSync: path => {
       const normalized = String(path).replaceAll('\\', '/');
       if (normalized.endsWith('docs/release-intent.json')) return breakingIntent;

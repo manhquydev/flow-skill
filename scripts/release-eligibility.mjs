@@ -34,7 +34,7 @@ export function evaluateRelease(snapshot) {
   if (!validRun(run, expected)) return refuse('triggering-ci-run-not-authoritative-current-success');
   if (!pullRequest || pullRequest.merged !== true || pullRequest.baseRepo !== expected.repository || pullRequest.baseBranch !== 'master' || pullRequest.headSha !== run.headSha) return refuse('no-matching-merged-master-pr');
   if (release?.intent === false) return { decision: 'noop-no-release-intent', reason: 'no-committed-release-intent' };
-  if (!release || !parseSemver(release.npmVersion) || (release.skillVersion !== null && !parseSemver(release.skillVersion)) || !release.npmChangelog || (release.skillVersion !== null && !release.skillChangelog)) return refuse('invalid-dual-axis-release-intent');
+  if (!release || !parseSemver(release.npmVersion) || (release.skillVersion !== null && (!parseSemver(release.skillVersion) || release.skillVersion !== release.npmVersion)) || (release.skillVersion === null && snapshot.phase !== 'reconcile') || !release.npmChangelog || (release.skillVersion !== null && !release.skillChangelog)) return refuse('invalid-unified-release-intent');
   const channel = parseSemver(release.npmVersion).prerelease ? 'next' : 'latest';
   if (release.channel !== channel) return refuse('channel-does-not-match-version');
   if (!registry || !['absent', 'present'].includes(registry.state)) return refuse('registry-state-unknown');

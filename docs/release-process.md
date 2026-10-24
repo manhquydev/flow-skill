@@ -2,15 +2,13 @@
 
 Canonical runbook for shipping future versions. Release policy: [`docs/adr/0002-unattended-release-policy.md`](adr/0002-unattended-release-policy.md).
 
-## Two version axes
+## One shared SemVer
 
-| Axis | Declared in | Bump when | Installed as |
-|---|---|---|---|
-| Skill product | `skills/flow/SKILL.md` metadata.version | Flow behavior/content changes | Installed skill tree |
-| Skill mirrors | `.claude-plugin/plugin.json`, `portable-manifest.json` | Same skill change | `/flow coherence` enforces parity |
-| npm installer | `npm-wrapper/package.json` | Installer CLI/targets/sync/release behavior changes | `npx @manhquy/flow-skill@latest` or exact version; prerelease `@next` |
+Skill product and npm installer share one SemVer, including installer-only and skill-only changes. The canonical source is `skills/flow/SKILL.md`; `npm-wrapper/package.json`, `.claude-plugin/plugin.json` and `portable-manifest.json` are release mirrors. `sync-release --check` requires equality. See the [owner decision](release-owner-decision-unified-version.md) and its [authoritative record](../plans/261025-0023-unified-version/decision.md).
 
-`flow-skill` reports both npm package and bundled skill version. Each release PR updates the intended axes, changelogs, synchronized docs, and release intent. `skill_version: null` explicitly selects npm-only installer publication and must not recreate a prior skill tag/Release; a non-null skill version selects both npm and skill axes. Loop ticks without a version/changelog change do not publish. Breaking compatibility or expanding security/service rights needs a separate owner decision recorded in `docs/release-owner-authorization.json` (`authorized_by: "owner"` plus decision and acceptance evidence); the release gate fails closed without that committed record.
+The existing field names, marketplace catalog and banner `flow-skill vX (ships skill vY)` remain compatible; X and Y now agree. Release intent records both versions. Historical releases, including npm 0.8.0 and skill tag `v1.0.0`, remain immutable. The first alignment is npm 1.0.0 with the already-versioned, unchanged skill 1.0.0.
+
+Each release PR updates the common version, changelogs, synchronized docs and release intent. Loop ticks without a version/changelog change do not publish. Breaking compatibility or expanding security/service rights still requires a separate owner authorization in `docs/release-owner-authorization.json`; all provenance, CI and review gates remain fail-closed.
 
 ## Flow v1 breaking release gate
 
@@ -46,8 +44,8 @@ Publisher dispatch defaults to `dry-run`. Live mode requires `FLOW_AUTOPUBLISH_E
 
 ## Phase 1: release preparation PR
 
-1. Bump only the versions required for a meaningful release. Skill version is declared in `skills/flow/SKILL.md`; keep `.claude-plugin/plugin.json` and `portable-manifest.json` coherent. npm installer version is `npm-wrapper/package.json`.
-2. Add exact release headings/notes in root `CHANGELOG.md` (when `skill_version` is selected) and `npm-wrapper/CHANGELOG.md` (npm axis). Ensure compatibility classification and no unapproved breaking/security-rights expansion.
+1. Bump the common version for a meaningful change to either skill or installer. Declare it in `skills/flow/SKILL.md`; keep npm package and skill mirrors equal. For initial 1.0.0 alignment only, the skill and its mirrors already have the target version.
+2. Add exact release headings/notes in root `CHANGELOG.md` and `npm-wrapper/CHANGELOG.md`. Ensure compatibility classification and no unapproved breaking/security-rights expansion.
 3. Synchronize docs and bundled tree; run `node scripts/sync-release.mjs --sync`, `node scripts/sync-release.mjs --check`, `bash scripts/release-preflight.sh`, i18n verification and relevant package tests.
 4. Merge through repository review/thread-resolution/required-CI gates. Do not tag, publish or change remote settings in the PR.
 
@@ -58,11 +56,14 @@ bash scripts/release.sh --dry-run
 bash scripts/release.sh --yes
 ```
 
-`--yes` requires clean working tree, local `master == origin/master`, dual-axis coherence/changelog entries, zero sync drift, i18n integrity, unused tags, exact-HEAD authoritative CI, and read-only verification battery. It dispatches with a unique request UUID through the workflow-dispatch REST endpoint using `return_run_details=true`, then validates the returned repository-bound `workflow_run_id` and watches that exact run. A 204/missing/invalid response is an ambiguous dispatch: fail closed and do not redispatch blindly. After the run succeeds, re-read and verify its workflow path, ref, SHA, event, title, attempt and conclusion, then require successful eligibility and live publish jobs from that exact attempt (dry-run requires publish to be skipped). Finally verify registry integrity/provenance/install smoke; only then create/push the release tags — the npm tag always; the skill tag and its GitHub Release only when release intent selects a skill version (`skill_version` non-null; an npm-only release must not mint a skill tag or GitHub Release).
+`--yes` requires clean working tree, local `master == origin/master`, unified-version coherence/changelog entries, zero sync drift, i18n integrity, unused npm tags, exact-HEAD authoritative CI, and read-only verification battery. It dispatches with a unique request UUID through the workflow-dispatch REST endpoint using `return_run_details=true`, validates the returned repository-bound `workflow_run_id` and watches that exact run. A missing or invalid receipt fails closed; never redispatch blindly. Re-verify workflow identity, exact SHA, attempt, eligibility and live publish jobs, then registry integrity/provenance/install smoke. Only then create/push the npm tag and a new skill tag/Release, or preserve an existing identical-subtree skill tag/Release as described below.
 
 When checking whether the skill-axis GitHub Release is absent, `scripts/sync-release.mjs` recognizes only `gh release view`'s exact `release not found` diagnostic (with one optional terminal LF or CRLF); every other lookup error fails closed and must not trigger release creation. Never infer absence from a generic HTTP 404 or a broad `not found` substring.
 
 Stable releases publish to `latest`; prereleases to `next`. Stable versions are never downgraded. A prerelease does not automatically move `latest` backward or promote itself to `latest`.
+
+An existing skill tag is acceptable only when `git rev-parse <tag>:skills` equals `git rev-parse HEAD:skills`. Ship checks this both before promotion and at tagging, skips creation of that immutable skill tag and its existing Release, and logs why. Different or unavailable subtree hashes require the next common bump. Existing npm tags remain a refusal; no tag is moved or recreated.
+
 
 ## Artifact and post-publish verification
 
@@ -93,7 +94,7 @@ The smoke runs against the public registry from a clean temporary working direct
 ## Harness / durable layer notes
 
 - Runtime telemetry field `flow_version` in usage events comes from the **installed skill** product version, not npm package version.
-- Schema migrations live under `skills/flow/harness/schema/` — bump skill product version when schema/behavior changes; do not bump npm-only for pure skill content unless you also want a new tarball on npm.
+- Schema migrations live under `skills/flow/harness/schema/` — schema/behavior changes require the next common skill and npm version.
 - `flow_harness.py` / schema numbers (009–012, …) are independent of npm semver.
 
 ## Historical anti-patterns
@@ -102,7 +103,7 @@ The smoke runs against the public registry from a clean temporary working direct
 |---|---|
 | Run nightly smoke / `npx @manhquy/flow-skill@…` with cwd = `npm-wrapper/` | Same package name → local workspace shadows registry |
 | Expect `npm dist-tag add` in GHA OIDC | E401; stable releases publish directly to latest; no separate dist-tag mutation |
-| Publish skill version as npm version (`@0.22.0`) | Does not exist; confuses users |
+| Relabel changed skill content with an existing version | Existing skill tags may be reused only when their `skills/` tree equals HEAD; otherwise bump the common version |
 | `npm i` alone for end users | No postinstall; must **run** the CLI |
 | Assume Windows bash shard < 15m | Serial baseline ~54–64m; shard timings unmeasured, budget remains 80m each |
 | Re-add `NODE_AUTH_TOKEN must be empty` CI guard | Breaks setup-node OIDC |

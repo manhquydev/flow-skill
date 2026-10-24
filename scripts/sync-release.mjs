@@ -4,7 +4,7 @@
  *
  * Unified release synchronization & coherence tool for flow-skill.
  *
- * Inspects and validates dual-axis release coherence across skill and npm channels,
+ * Inspects and validates unified release coherence across skill and npm channels,
  * synchronizes documentation tables, re-materializes bundled assets, and prints
  * exact release/tag commands.
  *
@@ -135,13 +135,13 @@ function runChecks() {
     pass: Boolean(npm_v),
   });
 
-  // 5. Dual-axis non-equality (npm_v !== skill_v)
-  const dualAxisDiff = Boolean(skill_v && npm_v && skill_v !== npm_v);
+  // 5. Unified version (npm_v === skill_v)
+  const unifiedVersion = Boolean(skill_v && npm_v && skill_v === npm_v);
   results.push({
-    surface: 'Dual-axis separation (npm_v !== skill_v)',
-    expected: 'npm_v !== skill_v',
-    actual: skill_v && npm_v ? (dualAxisDiff ? `${npm_v} !== ${skill_v}` : `${npm_v} === ${skill_v} (EQUAL)`) : 'N/A',
-    pass: dualAxisDiff,
+    surface: 'Unified version (npm_v === skill_v)',
+    expected: 'npm_v === skill_v',
+    actual: skill_v && npm_v ? `${npm_v} ${unifiedVersion ? '===' : '!=='} ${skill_v}` : 'N/A',
+    pass: unifiedVersion,
   });
 
   // 6. SHA-256 runner hash of skills/flow/runner/flow.sh vs portable-manifest.json
@@ -279,6 +279,13 @@ export function getExpectedReadmeTransforms(skill_v, npm_v) {
 }
 
 function syncRelease(skill_v, npm_v) {
+  const packagePath = join(repoRoot, 'npm-wrapper/package.json');
+  const manifest = JSON.parse(readFileSync(packagePath, 'utf8'));
+  if (manifest.version !== skill_v) {
+    manifest.version = skill_v;
+    writeFileSync(packagePath, JSON.stringify(manifest, null, 2) + '\n');
+  }
+  npm_v = skill_v;
   console.log(`\nSynchronizing release surfaces for skill v${skill_v} and npm ${npm_v}...`);
   for (const item of getExpectedReadmeTransforms(skill_v, npm_v)) {
     const fullPath = join(repoRoot, item.relPath);
@@ -407,6 +414,27 @@ function gitTagExists(tagName) {
   }
 }
 
+export function verifyExistingSkillTag(tagName, cwd = repoRoot) {
+  try {
+    const tree = (ref) => execFileSync('git', ['rev-parse', '--verify', `${ref}:skills`], {
+      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    const ref = `refs/tags/${tagName}`;
+    const options = { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] };
+    const remote = execFileSync('git', ['ls-remote', '--tags', 'origin', ref], options).trim().split(/\s+/);
+    if (!/^[a-f0-9]{40,64}$/.test(remote[0]) || remote[1] !== ref) throw new Error('remote skill tag unavailable');
+    execFileSync('git', ['fetch', '--no-tags', '--no-write-fetch-head', 'origin', ref], options);
+    const confirmed = execFileSync('git', ['ls-remote', '--tags', 'origin', ref], options).trim().split(/\s+/);
+    if (confirmed[0] !== remote[0] || confirmed[1] !== ref) throw new Error('remote skill tag moved');
+    const tagTree = tree(`${remote[0]}^{commit}`);
+    const headTree = tree('HEAD');
+    if (tagTree && tagTree === headTree) return { ok: true, reason: `Existing skill tag ${tagName} has identical skills/ subtree ${headTree}; skipping skill tag creation.` };
+  } catch {
+    // Missing tag objects or subtree hashes cannot authorize reuse.
+  }
+  return { ok: false, reason: `Skill tag ${tagName} differs from HEAD or its skills/ subtree hash is unavailable; bump to the next common version.` };
+}
+
 function printReleaseInstructions(skill_v, npm_v) {
   const npmTag = `npm@${npm_v}`;
   const skillTag = `v${skill_v}`;
@@ -415,7 +443,7 @@ function printReleaseInstructions(skill_v, npm_v) {
 
   console.log(`
 ================================================================================
-Release Instructions (Dual-Axis Channels)
+Release Instructions (Unified Version Channels)
 ================================================================================
 Skill Product: v${skill_v}
 npm Package:   ${npm_v}
@@ -861,12 +889,12 @@ To execute release promotion live, re-run with --yes:
   }
 
   if (hasSkillRelease && skillTagStatus.exists) {
-    if (!isDryRun) {
-      console.error(`\nFAIL: Git tag ${skillTag} already exists (${skillTagStatus.source}). Refusing release promotion.`);
+    const reuse = verifyExistingSkillTag(skillTag);
+    if (!reuse.ok) {
+      console.error(`\nFAIL: ${reuse.reason}`);
       process.exit(1);
-    } else {
-      console.log(`[WARN] Git tag ${skillTag} already exists (${skillTagStatus.source}).`);
     }
+    console.log(`✓ ${reuse.reason}`);
   }
   if (!npmTagStatus.exists && (!hasSkillRelease || !skillTagStatus.exists) && npmTagStatus.source !== 'unconfirmed' && (!hasSkillRelease || skillTagStatus.source !== 'unconfirmed')) {
     console.log(hasSkillRelease ? `✓ Release tags ${npmTag} and ${skillTag} do not exist locally or remotely.` : `✓ Release tag ${npmTag} does not exist locally or remotely.`);
@@ -1021,9 +1049,14 @@ To execute release promotion live, re-run with --yes:
   }
   const preTagNpmStatus = gitTagExists(npmTag);
   const preTagSkillStatus = hasSkillRelease ? gitTagExists(skillTag) : { exists: false, source: 'not-selected' };
-  if (preTagNpmStatus.exists || (hasSkillRelease && preTagSkillStatus.exists)) {
-    console.error(`\nFAIL: A selected release tag already exists (${preTagNpmStatus.exists ? npmTag : skillTag}). Refusing promotion.`);
+  if (preTagNpmStatus.exists || preTagNpmStatus.source === 'unconfirmed' || (hasSkillRelease && preTagSkillStatus.source === 'unconfirmed')) {
+    console.error('\nFAIL: npm tag exists or selected release tag status is unconfirmed. Refusing promotion.');
     process.exit(1);
+  }
+  if (hasSkillRelease && preTagSkillStatus.exists) {
+    const reuse = verifyExistingSkillTag(skillTag);
+    if (!reuse.ok) { console.error(`\nFAIL: ${reuse.reason}`); process.exit(1); }
+    console.log(`✓ ${reuse.reason}`);
   }
 
   console.log('\nVerifying exact master-only npm-publish environment policy...');
@@ -1043,11 +1076,16 @@ To execute release promotion live, re-run with --yes:
   console.log('\n================================================================================');
   console.log('Tagging Release');
   console.log('================================================================================\n');
+  if (hasSkillRelease && preTagSkillStatus.exists) {
+    const reuse = verifyExistingSkillTag(skillTag);
+    if (!reuse.ok) { console.error(`\nFAIL: ${reuse.reason}`); process.exit(1); }
+    console.log(`✓ ${reuse.reason}`);
+  }
 
   const releaseTags = [npmTag];
   console.log(`Creating git tag ${npmTag}...`);
   execFileSync('git', ['tag', npmTag], { cwd: repoRoot, stdio: 'inherit' });
-  if (hasSkillRelease) {
+  if (hasSkillRelease && !preTagSkillStatus.exists) {
     releaseTags.push(skillTag);
     console.log(`Creating git tag ${skillTag}...`);
     execFileSync('git', ['tag', skillTag], { cwd: repoRoot, stdio: 'inherit' });
@@ -1064,7 +1102,7 @@ To execute release promotion live, re-run with --yes:
     }
     process.exit(err.status ?? 1);
   }
-  if (hasSkillRelease) {
+  if (hasSkillRelease && !preTagSkillStatus.exists) {
     let releaseExists = false;
     try {
       const viewOut = execGh(['release', 'view', skillTag, '--json', 'tagName'], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -1150,7 +1188,7 @@ Options:
   }
   if (isSync) {
     const skill_v = getSkillVersion();
-    const npm_v = getNpmVersion();
+    const npm_v = skill_v;
     if (!skill_v) { console.error('FAIL: Missing skill version in skills/flow/SKILL.md'); process.exit(1); }
     if (!npm_v) { console.error('FAIL: Missing npm version in npm-wrapper/package.json'); process.exit(1); }
     syncRelease(skill_v, npm_v);

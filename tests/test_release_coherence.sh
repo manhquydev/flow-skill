@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Offline release coherence (v0.28 dual-version + next prerelease policy).
+# Offline release coherence (shared SemVer + next prerelease policy).
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 pass=0; fail=0
@@ -21,7 +21,7 @@ import { readFileSync } from 'node:fs';
 const root = process.argv[2];
 const { getExpectedReadmeTransforms } = await import(pathToFileURL(resolve(root, 'scripts/sync-release.mjs')));
 for (const version of ['0.7.15', '0.7.16-next.0']) {
-  for (const item of getExpectedReadmeTransforms('0.34.8', version)) {
+  for (const item of getExpectedReadmeTransforms(version, version)) {
     const source = readFileSync(resolve(root, item.relPath), 'utf8');
     const result = item.transform(source);
     assert.equal(item.transform(result), result, `${item.relPath}: idempotent`);
@@ -342,7 +342,7 @@ printf '# fixture module\n' > "$fixture/skills/flow/harness/flow_harness.py"
 cat > "$fixture/npm-wrapper/bin/cli.mjs" <<'JS'
 import fs from 'node:fs';
 const {version} = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url)));
-console.log(`flow-skill v${version} (ships skill v1.0.0)`);
+console.log(`flow-skill v${version} (ships skill v${version})`);
 JS
 cat > "$fixture/bin/npm" <<'SH'
 #!/usr/bin/env bash
@@ -358,6 +358,10 @@ for version in 2.0.0 2.1.0-next.1; do
   channel=latest
   case "$version" in *-*) channel=next ;; esac
   printf '{"version":"%s"}\n' "$version" > "$fixture/npm-wrapper/package.json"
+  printf 'version: %s\n' "$version" > "$fixture/skills/flow/SKILL.md"
+  cp "$fixture/skills/flow/SKILL.md" "$fixture/npm-wrapper/skills/flow/"
+  printf '{"version":"%s"}\n' "$version" > "$fixture/portable-manifest.json"
+  cp "$fixture/portable-manifest.json" "$fixture/.claude-plugin/plugin.json"
   log="$OUT/preflight-$channel.out"
   PATH="$fixture/bin:$PATH" NPM_CALLS="$OUT/npm-$channel.calls" \
     bash "$fixture/scripts/release-preflight.sh" > "$log" 2>&1

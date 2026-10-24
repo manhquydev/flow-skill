@@ -194,12 +194,28 @@ export function reconcile(packageDirectory, evidenceDirectory, expectedSha, expe
   let skillTag = null;
   if (intent.skill_version !== null) {
     skillTag = `v${intent.skill_version}`;
-    verifyExistingTag(skillTag, expectedSha, git);
+    verifyExistingSkillTag(skillTag, expectedSha, git);
     const release = gh(`repos/${REPO}/releases/tags/${skillTag}`);
     // target_commitish may be a branch hint; the verified remote tag is authoritative.
     if (release.tag_name !== skillTag) throw new Error('GitHub Release tag does not match retained release tag');
   }
   console.log(JSON.stringify({ decision: 'published-artifact-fully-reconciled', npmTag, skillTag, version, channel, sha: expectedSha, runId: Number(expectedRunId), runAttempt: Number(expectedRunAttempt), verified }, null, 2));
+}
+
+export function verifyExistingSkillTag(tagName, retainedSha, runGit = git) {
+  const ref = `refs/tags/${tagName}`;
+  const remoteRef = () => {
+    const rows = runGit(['ls-remote', '--tags', 'origin', ref]).trim().split('\n').filter(Boolean).map(line => line.split(/\s+/));
+    const object = rows.find(([, name]) => name === ref)?.[0];
+    if (!/^[a-f0-9]{40,64}$/.test(object || '')) throw new Error('remote skill tag unavailable');
+    return object;
+  };
+  const object = remoteRef();
+  runGit(['fetch', '--no-tags', '--no-write-fetch-head', 'origin', ref]);
+  if (remoteRef() !== object) throw new Error('remote skill tag moved during reconciliation');
+  const remoteTree = runGit(['rev-parse', '--verify', `${object}^{commit}:skills`]).trim();
+  const retainedTree = runGit(['rev-parse', '--verify', `${retainedSha}:skills`]).trim();
+  if (!remoteTree || remoteTree !== retainedTree) throw new Error('remote skill tag subtree differs from retained release revision');
 }
 
 export function verifyExistingTag(tagName, expectedSha, runGit = git) {

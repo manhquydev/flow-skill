@@ -27,7 +27,7 @@ required.
 | | |
 |---|---|
 | **Skill product** | Release target **v1.0.0** (not a publication receipt) |
-| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) — release target **0.8.0**, intended channel `latest` (not a publication receipt) |
+| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) — release target **1.0.0**, intended channel `latest` (not a publication receipt) |
 | **Website** | **[flowskill.io.vn](https://flowskill.io.vn)** |
 | **Tests / CI** | [`tests/manifest.txt`](tests/manifest.txt) · Ubuntu · macOS · Windows |
 | **License** | MIT |
@@ -48,11 +48,10 @@ npx @manhquy/flow-skill@latest
 ```
 
 Always use `@latest`. Do not `npm i` the package alone — that does not copy
-the skill. Do not use a skill product version as an npm package pin — that is
-the skill version, not the installer.
+the skill. Historical skill versions are not necessarily npm package pins.
 
-Two version numbers (intentional): npm package = installer CLI; skill product
-= `SKILL.md` `metadata.version`. `--help` prints both:
+Skill product and npm installer now share one SemVer; `SKILL.md` is canonical.
+`--help` preserves the compatible banner with equal versions:
 `flow-skill v<package-version> (ships skill v<skill-version>)`.
 
 Walkthrough: [Install and first run](https://flowskill.io.vn/docs/tutorials/install-and-first-run/).

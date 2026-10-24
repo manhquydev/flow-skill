@@ -26,7 +26,7 @@ stage tiến. Kill tại một cổng là kết quả hợp lệ, được tôn 
 | | |
 |---|---|
 | **Skill product** | Mục tiêu phát hành **v1.0.0** (không phải biên nhận đã phát hành) |
-| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) — mục tiêu phát hành **0.8.0**, kênh dự kiến `latest` (không phải biên nhận đã phát hành) |
+| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) — mục tiêu phát hành **1.0.0**, kênh dự kiến `latest` (không phải biên nhận đã phát hành) |
 | **Website** | **[flowskill.io.vn](https://flowskill.io.vn)** |
 | **Test / CI** | [`tests/manifest.txt`](tests/manifest.txt) · Ubuntu · macOS · Windows |
 | **License** | MIT |
@@ -47,11 +47,10 @@ npx @manhquy/flow-skill@latest
 ```
 
 Luôn dùng `@latest`. Đừng chỉ `npm i` package — lệnh đó không copy skill.
-Đừng dùng version của skill product để pin package npm — đó là version skill,
-không phải installer.
+Version skill trong lịch sử không nhất thiết là version package npm để pin.
 
-Hai số version (cố ý): package npm = installer CLI; skill product =
-`SKILL.md` `metadata.version`. `--help` in cả hai:
+Skill product và npm installer nay dùng chung một SemVer; `SKILL.md` là nguồn chuẩn.
+`--help` giữ banner tương thích với hai giá trị bằng nhau:
 `flow-skill v<package-version> (ships skill v<skill-version>)`.
 
 Hướng dẫn: [Cài đặt và lần chạy đầu](https://flowskill.io.vn/vi/docs/tutorials/install-and-first-run/).

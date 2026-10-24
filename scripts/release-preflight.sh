@@ -106,8 +106,8 @@ if [ -n "$skill_v" ] && [ "$skill_v" = "$plugin_v" ] && [ "$skill_v" = "$portabl
 else
   fail "skill product mirrors disagree"
 fi
-if [ -n "$npm_v" ] && [ -n "$skill_v" ] && [ "$npm_v" = "$skill_v" ]; then
-  warn "npm package version equals skill product ($npm_v) — usually accidental; dual-axis is intentional"
+if [ -z "$npm_v" ] || [ -z "$skill_v" ] || [ "$npm_v" != "$skill_v" ]; then
+  fail "npm package and skill product versions must share one SemVer ($npm_v != $skill_v)"
 fi
 
 # marketplace metadata.version is NOT skill product (hosting catalog)

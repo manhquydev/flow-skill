@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "intent": true,
-  "npm_version": "0.8.0",
+  "npm_version": "1.0.0",
   "skill_version": "1.0.0",
   "channel": "latest",
-  "compatibility": "breaking",
+  "compatibility": "backwards-compatible",
   "security_rights_expanded": false
 }

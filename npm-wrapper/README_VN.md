@@ -91,7 +91,7 @@ Sau khi cài đặt hoàn tất, hãy khởi động lại hoặc tải lại co
 
 | | |
 |---|---|
-| **Mục tiêu phát hành** | npm **0.8.0** / skill **v1.0.0** — kênh dự kiến `latest`; không phải biên nhận đã phát hành |
+| **Mục tiêu phát hành** | npm **1.0.0** / skill **v1.0.0** — kênh dự kiến `latest`; không phải biên nhận đã phát hành |
 | **Node.js** | `>= 22.14.0` |
 | **Tài liệu** | [flowskill.io.vn](https://flowskill.io.vn) |
 | **Kho lưu trữ** | [GitHub: manhquydev/flow-skill](https://github.com/manhquydev/flow-skill) |

@@ -19,10 +19,18 @@ nodepath() {
   if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi
 }
 
+# Clones start from committed HEAD; overlay all release metadata under test.
+copy_release_metadata() {
+  cp "$ROOT/npm-wrapper/package.json" "$ROOT/npm-wrapper/CHANGELOG.md" "$ROOT/npm-wrapper/README.md" "$ROOT/npm-wrapper/README_VN.md" "$tmp/r/npm-wrapper/"
+  cp "$ROOT/README.md" "$ROOT/README_VN.md" "$tmp/r/"
+  cp "$ROOT/scripts/check-release-coherence.sh" "$tmp/r/scripts/"
+  git -C "$tmp/r" add npm-wrapper/package.json npm-wrapper/CHANGELOG.md npm-wrapper/README.md npm-wrapper/README_VN.md README.md README_VN.md scripts/check-release-coherence.sh
+}
 echo "A) sync-release --check exits 0 on current repository"
 node "$(winpath "$ROOT/scripts/sync-release.mjs")" --check >/tmp/sync_check.out 2>&1
 ck 0 $? "sync-release --check exit code"
 grep -q "PASS: All release surfaces coherent" /tmp/sync_check.out && ck 0 0 "reported PASS line" || ck 0 1 "reported PASS line"
+grep -q 'Unified version (npm_v === skill_v)' /tmp/sync_check.out && ck 0 0 "shared SemVer equality check visible" || ck 0 1 "shared SemVer equality check visible"
 
 echo "B) --check is strictly read-only"
 before_status="$(git -C "$ROOT" status --porcelain scripts/ npm-wrapper/ README* skills/ .claude-plugin/ portable-manifest.json CHANGELOG*)"
@@ -119,6 +127,20 @@ node -e '
   pkg.version = process.argv[2];
   fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + "\n");
 ' "$(winpath "$tmp/r/npm-wrapper/package.json")" "$prerelease_v"
+node --input-type=module - "$(winpath "$tmp/r")" "$prerelease_v" <<'NODE'
+import fs from 'node:fs';
+const [root, version] = process.argv.slice(2);
+const skill = `${root}/skills/flow/SKILL.md`;
+fs.writeFileSync(skill, fs.readFileSync(skill, 'utf8').replace(/version:\s*"[^"]+"/, `version: "${version}"`));
+for (const rel of ['.claude-plugin/plugin.json', 'portable-manifest.json']) {
+  const file = `${root}/${rel}`;
+  const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  data.version = version;
+  fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
+}
+const changelog = `${root}/CHANGELOG.md`;
+fs.writeFileSync(changelog, `## [${version}]\n\n- Prerelease fixture.\n\n` + fs.readFileSync(changelog, 'utf8'));
+NODE
 # Add changelog entry for the prerelease in npm-wrapper/CHANGELOG.md
 node -e '
   const fs = require("node:fs");
@@ -137,6 +159,11 @@ grep -q "Mục tiêu phát hành.*${prerelease_v}.*không phải biên nhận đ
 ck 0 $? "npm-wrapper/README_VN.md has neutral prerelease target"
 grep -q 'Current GA\|GA hiện tại' "$tmp/r/npm-wrapper/README.md" "$tmp/r/npm-wrapper/README_VN.md"
 ck 1 $? "no inferred current GA rows"
+node -e 'const fs=require("node:fs");const p=process.argv[1];const data=JSON.parse(fs.readFileSync(p));data.version="9.9.9";fs.writeFileSync(p,JSON.stringify(data,null,2)+"\n");' "$(winpath "$tmp/r/npm-wrapper/package.json")"
+node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --sync >/tmp/sync_mirror.out 2>&1
+ck 0 $? "canonical skill version repairs npm version drift"
+repaired_v=$(node -e 'console.log(require(process.argv[1]).version)' "$(winpath "$tmp/r/npm-wrapper/package.json")")
+ck "$prerelease_v" "$repaired_v" "package version mirrored from SKILL.md"
 
 rm -rf "$tmp"
 
@@ -167,6 +194,34 @@ test_npm_v=$(node -e 'const p = process.argv[1]; console.log(require(p).version)
 test_skill_v=$(node -e 'const fs = require("node:fs"); const m = fs.readFileSync(process.argv[1], "utf8").match(/version:\s*"([^"]+)"/); console.log(m[1])' "$(winpath "$tmp/r/skills/flow/SKILL.md")")
 git -C "$tmp/r" tag "npm@$test_npm_v"
 git -C "$tmp/r" tag "v$test_skill_v"
+
+node --input-type=module - "$(nodepath "$tmp/r/scripts/sync-release.mjs")" "$(winpath "$tmp/r")" "v$test_skill_v" <<'NODE'
+import assert from 'node:assert/strict';
+import { pathToFileURL } from 'node:url';
+import { appendFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+const [modulePath, cwd, tag] = process.argv.slice(2);
+const { verifyExistingSkillTag } = await import(pathToFileURL(modulePath));
+assert.equal(verifyExistingSkillTag(tag, cwd).ok, false, 'offline fails closed');
+const origin = `${cwd}-origin.git`;
+execFileSync('git', ['init', '--bare', '-q', origin]);
+execFileSync('git', ['remote', 'add', 'origin', origin], { cwd });
+assert.equal(verifyExistingSkillTag(tag, cwd).ok, false, 'remote missing fails closed');
+execFileSync('git', ['push', '-q', 'origin', `refs/tags/${tag}`], { cwd });
+const same = verifyExistingSkillTag(tag, cwd);
+assert.equal(same.ok, true);
+assert.match(same.reason, /skipping skill tag creation/);
+appendFileSync(`${cwd}/skills/flow/SKILL.md`, '\nfixture changed subtree\n');
+execFileSync('git', ['add', 'skills'], { cwd });
+execFileSync('git', ['-c', 'user.email=test@test', '-c', 'user.name=test', 'commit', '-qm', 'fixture changed subtree'], { cwd });
+assert.equal(verifyExistingSkillTag(tag, cwd).ok, false);
+execFileSync('git', ['tag', 'v-remote-different'], { cwd });
+execFileSync('git', ['push', '-q', 'origin', 'refs/tags/v-remote-different'], { cwd });
+assert.equal(verifyExistingSkillTag('v-missing', cwd).ok, false);
+execFileSync('git', ['revert', '--no-edit', 'HEAD'], { cwd, env: { ...process.env, GIT_COMMITTER_NAME: 'test', GIT_COMMITTER_EMAIL: 'test@test' } });
+assert.equal(verifyExistingSkillTag('v-remote-different', cwd).ok, false, 'remote different subtree fails closed despite matching old local tag');
+NODE
+ck 0 $? "skill tag reuse skips identical subtree and fails closed on changed or unavailable subtree"
 
 node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --instructions >/tmp/sync_f.out 2>&1
 ck 0 $? "sync-release --instructions exit code"
@@ -235,6 +290,7 @@ cp "$ROOT/scripts/release-run-artifact.mjs" "$tmp/r/scripts/"
 cp "$ROOT/npm-wrapper/scripts/semver.mjs" "$tmp/r/npm-wrapper/scripts/"
 mkdir -p "$tmp/r/docs"
 cp "$ROOT/docs/release-intent.json" "$tmp/r/docs/"
+copy_release_metadata
 git -C "$tmp/r" add scripts/ docs/release-intent.json
 commit_err=$(git -C "$tmp/r" commit -qm "sync scripts" 2>&1) || {
   if ! git -C "$tmp/r" diff --cached --quiet; then
@@ -352,6 +408,7 @@ cp "$ROOT/scripts/release-eligibility.mjs" "$ROOT/scripts/release-workflow.mjs" 
 cp "$ROOT/npm-wrapper/scripts/semver.mjs" "$tmp/r/npm-wrapper/scripts/"
 mkdir -p "$tmp/r/docs"
 cp "$ROOT/docs/release-intent.json" "$tmp/r/docs/"
+copy_release_metadata
 node -e 'const fs=require("node:fs");const p=process.argv[1];const intent=JSON.parse(fs.readFileSync(p));intent.intent=true;fs.writeFileSync(p,JSON.stringify(intent));' "$(winpath "$tmp/r/docs/release-intent.json")"
 cp "$ROOT/scripts/check-release-coherence.sh" "$tmp/r/scripts/"
 git -C "$tmp/r" add scripts/ .github/workflows/publish-npm-wrapper.yml npm-wrapper/scripts/semver.mjs docs/release-intent.json

@@ -21,10 +21,10 @@ else
   fail "skill mirrors disagree"
 fi
 [ -n "$npm_v" ] && ok "npm package version $npm_v" || fail "missing npm version"
-if [ "$npm_v" != "$skill_v" ]; then
-  ok "dual-axis versions differ (npm=$npm_v skill=$skill_v)"
+if [ -n "$npm_v" ] && [ "$npm_v" = "$skill_v" ]; then
+  ok "unified version (npm_v === skill_v): $npm_v"
 else
-  fail "npm version equals skill (usually accidental)"
+  fail "npm and skill versions must share one SemVer (npm=$npm_v skill=$skill_v)"
 fi
 
 # C5 — the pack-time runner hash recorded by sync.mjs must match the checkout runner bytes.

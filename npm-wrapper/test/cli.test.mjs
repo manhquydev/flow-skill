@@ -44,10 +44,10 @@ test('--dry-run --all --json emits a plan event whose target set is the full sup
   );
   assert.equal(events[0].dryRun, true);
   assert.equal(events[0].version, pkgVersion);
-  // skillVersion is the product axis (SKILL.md); must not equal a wrong/null shape.
+  // Preserve both compatible fields while enforcing the shared SemVer.
   assert.ok(expectedSkillVersion, 'SKILL.md metadata.version must be readable');
   assert.equal(events[0].skillVersion, expectedSkillVersion);
-  assert.notEqual(events[0].skillVersion, events[0].version);
+  assert.equal(events[0].skillVersion, events[0].version);
 });
 
 test('--project -t codex → exit 2 with clear error', () => {
