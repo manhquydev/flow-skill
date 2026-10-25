@@ -337,8 +337,9 @@ for layout in source global local; do
     scaffold_rc=$?
     if [ "$scaffold_rc" -ne 0 ]; then
       printf 'scaffold %s %s failed:\n%s\n' "$layout" "$target" "$scaffold_out" >&2
-      FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" bash -x "$installed_run" rules "$target" --write 2>&1 \
-        | grep -iE "_with_timeout|timeout|python|harness|cygpath|_wt_arg|cannot start" | tail -30 >&2
+      grep -n "_with_timeout" "$installed_run" >&2
+      FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" bash -x "$installed_run" rules "$target" --write 2>&1 | tail -70 >&2
+      break
     fi
     ck 0 "$scaffold_rc" "$layout $target scaffolding succeeds"
   done
