@@ -88,3 +88,27 @@ Artifact của vòng rebase: `artifact://7236`; rehearsal: `artifact://7239`; gr
 So sánh Node với base post-cutover `4f124970a9b72fd836acc34f8628846a28bbee86` xác nhận `_run_with_timeout` và `_eval_engine_run` byte-identical. So sánh allowlist committed paths và manifest JSON loại bỏ duy nhất runner hash xác nhận không version surface/unrelated drift.
 
 Các jobs `bg_159`, `bg_160`, `bg_161` đều kết thúc; không service/port. Parent cho phép normal push duy nhất branch `flow/cmd-rules-261025`, không PR/merge/release; exact remote HEAD sẽ có trong final handoff.
+
+## PR93 — sửa regression Bash 3.2
+
+Parent báo macOS CI: rules 120 passed/8 failed, trong khi Ubuntu/Windows green. Không chạy lại CI chỉ để xác nhận lỗi đã báo. Tài liệu cài trên host `/usr/share/doc/bash/COMPAT.gz` (đọc bằng `gzip -cd`) item 52 xác nhận Bash 4.3 mới thêm quote removal cho pattern replacement; phần `compat42` ghi rõ phiên bản cũ giữ quotes. Micro-check `BASH_COMPAT=32` của `${v//@RUN@/"$repl"}` phát literal `"bash ..."`. Cùng micro-check cho replacement variable không quote phát hiện Bash 5.3 `patsub_replacement` mặc định thay `&` bằng matched token. Parent duyệt literal prefix/suffix replacement để tránh cả hai version splits.
+
+Loại bỏ toàn bộ bốn pattern-substitution contexts được thêm trong nhánh. Aider program ghép bằng `printf -v`; template rendering dùng loop prefix/suffix expansion và biến replacement, không eval hay dependency mới. Test thêm POSIX `sh`/`grep` assertion rằng sáu Markdown templates không chứa literal `"bash `, exact runner path round-trip (bao gồm `&` trong global fixture), Aider command prefix/exact runner, giữ Roo JSON parse/regex tests. `required harness missing` assertion của hostile inflight lại pass trong cả Bash thường lẫn compat32; không có lỗi độc lập cần workaround.
+
+Full local acceptance, output `artifact://7269`:
+
+| Lệnh | Kết quả |
+|---|---|
+| `bash tests/test_flow_rules.sh` | `RESULT: 131 passed, 0 failed` |
+| `BASH_COMPAT=32 bash tests/test_flow_rules.sh` | `RESULT: 131 passed, 0 failed` (mô phỏng compatibility, không phải binary Bash 3.2 thật) |
+| `node npm-wrapper/scripts/sync.mjs` | Sync 133 files; runner hash `899b3b209f84cd30481944f94eb7a950c323ab1f57f233844c2e4797811a6f95` |
+| `bash tests/test_flow_runner.sh` | `RESULT: 158 passed, 0 failed` |
+| `bash tests/test_flow_graph_planning_parity.sh` | `RESULT: 174 passed, 0 failed` |
+| `bash tests/test_flow_doctor.sh` | `RESULT: 84 passed, 0 failed` |
+| `bash scripts/check-doc-budgets.sh` | `PASS: doc budgets (6 files)` |
+| `bash scripts/check-i18n-pairs.sh verify` | `PASS: i18n pairs (2)` |
+| `node scripts/sync-release.mjs --check` | `PASS: All release surfaces coherent (skill v1.0.0, npm 1.0.0).` |
+| `bash scripts/pack-rehearsal.sh` | `E2E RESULT: 22 passed, 0 failed`; `pack-rehearsal OK` |
+| `bash -n skills/flow/runner/flow.sh tests/test_flow_rules.sh` | Exit 0 |
+
+STOP bodies byte-identical với HEAD trước sửa. Audit executable `cmd_rules` không còn quoted pattern replacements, `@Q`, associative arrays, lowercase expansion, `mapfile`, negative substring offsets. Lần audit đầu match nhầm ví dụ `${v//p/"$r"}` trong explanatory comment; đã loại comment khỏi audit, không sửa code để né check. Không version surface changes; chỉ canonical runner hash thay đổi trong manifest. Job `bg_164` đã kết thúc, không service/port. Actual macOS/Bash 3.2 CI vẫn thuộc parent.

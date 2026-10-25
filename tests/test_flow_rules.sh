@@ -333,11 +333,21 @@ for layout in source global local; do
     FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" bash "$installed_run" rules "$target" --write >/dev/null 2>&1
     ck 0 "$?" "$layout $target scaffolding succeeds"
   done
+  if command -v sh >/dev/null 2>&1; then
+    sh -c '! grep -F '\''"bash '\'' "$@"' sh \
+      "$project/AGENTS.md" "$project/.cursor/rules/flow.mdc" \
+      "$project/.windsurf/rules/flow.md" "$project/.clinerules" \
+      "$project/.openhands/microagents/flow.md" "$project/.github/copilot-instructions.md"
+    ck 0 "$?" "$layout Markdown commands have no literal quote wrapping"
+  fi
   (
     cd "$project"
-    FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" "$PY" - "$layout" <<'PY'
+    FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" "$PY" - "$layout" "$installed_run" <<'PY'
 import json, pathlib, re, shlex, shutil, subprocess, sys
-layout = sys.argv[1]
+layout, installed_run = sys.argv[1:]
+expected_runner = "skills/flow/runner/flow.sh" if layout == "source" else installed_run
+if layout == "global":
+    assert "&" in expected_runner, "fixture must exercise literal ampersand replacement"
 def runner_exists(runner):
     native = subprocess.check_output(["cygpath", "-w", runner], text=True).strip() if shutil.which("cygpath") else runner
     return pathlib.Path(native).is_file()
@@ -352,6 +362,7 @@ for name in files:
     for command in found:
         runner = shlex.split(command)[1]
         assert runner_exists(runner), (name, runner)
+        assert runner == expected_runner, (name, runner, expected_runner)
         if layout == "source":
             assert runner == "skills/flow/runner/flow.sh", (name, runner)
         else:
@@ -364,11 +375,13 @@ for command in commands:
 assert not re.match(regex, "bash other/runner/flow.sh status"), regex
 line = next(line for line in pathlib.Path(".aider.conf.yml").read_text().splitlines() if line.startswith("test-cmd: "))
 test_cmd = json.loads(line[len("test-cmd: "):])
+assert test_cmd.startswith("bash ") and not test_cmd.startswith('"bash '), test_cmd
 program = shlex.split(test_cmd)[2]
 runner_commands = re.findall(r"(?:then|else) (bash .*?) (?:check|status)", program)
 assert len(runner_commands) == 2, program
 for runner in runner_commands:
     assert runner_exists(shlex.split(runner)[1]), runner
+    assert shlex.split(runner)[1] == expected_runner, (runner, expected_runner)
 pathlib.Path("cards").mkdir(exist_ok=True)
 for inflight in ("", "C-001", "C-001; touch injected"):
     pathlib.Path("cards/.inflight").write_text(inflight)

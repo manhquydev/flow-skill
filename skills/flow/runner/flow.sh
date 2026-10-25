@@ -6994,23 +6994,34 @@ This repository enforces Flow discipline:
       runner_path="$SCRIPT_DIR/flow.sh"
     fi
     printf -v runner_cmd 'bash %q' "$runner_path"
+    local token='@FLOW_RUNNER@' replacement="$runner_cmd" rendered=''
     case "$target" in
       roo)
         local command_regex
         command_regex="$(printf '%s' "$runner_cmd" | sed 's/[][\\.^$*+?(){}|]/\\&/g')"
         command_regex="$(_json_str "^${command_regex}.*")"
-        tpl="${tpl//@FLOW_COMMAND_REGEX@/"$command_regex"}"
+        token='@FLOW_COMMAND_REGEX@'
+        replacement="$command_regex"
         ;;
       aider)
-        local aider_program='cid=$(tr -d " \r\n" < cards/.inflight 2>/dev/null); if [[ "$cid" =~ ^C-[0-9]+$ ]]; then @FLOW_RUNNER@ check "$cid"; else @FLOW_RUNNER@ status; fi'
-        local aider_command
-        aider_program="${aider_program//@FLOW_RUNNER@/"$runner_cmd"}"
+        local aider_program aider_command
+        printf -v aider_program '%s%s%s%s%s' \
+          'cid=$(tr -d " \r\n" < cards/.inflight 2>/dev/null); if [[ "$cid" =~ ^C-[0-9]+$ ]]; then ' \
+          "$runner_cmd" ' check "$cid"; else ' "$runner_cmd" ' status; fi'
         printf -v aider_command 'bash -c %q' "$aider_program"
         aider_command="$(_json_str "$aider_command")"
-        tpl="${tpl//@FLOW_AIDER_COMMAND@/"$aider_command"}"
+        token='@FLOW_AIDER_COMMAND@'
+        replacement="$aider_command"
         ;;
-      *) tpl="${tpl//@FLOW_RUNNER@/"$runner_cmd"}" ;;
+      *) ;;
     esac
+    # Literal replacement: Bash 3.2 retains quotes inside ${v//p/"$r"},
+    # while newer Bash can interpret an unquoted replacement's ampersands.
+    while [[ "$tpl" == *"$token"* ]]; do
+      rendered="${rendered}${tpl%%"$token"*}${replacement}"
+      tpl="${tpl#*"$token"}"
+    done
+    tpl="${rendered}${tpl}"
   fi
 
   if [ "$opt_write" -eq 1 ]; then
