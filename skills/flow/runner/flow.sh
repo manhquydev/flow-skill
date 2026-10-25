@@ -540,6 +540,18 @@ _with_timeout() { # seconds, argv (never a shell command string)
   # semantics); accept it only when it is GNU coreutils timeout.
   if command -v timeout >/dev/null 2>&1 && timeout --version >/dev/null 2>&1; then timeout "$secs" "$@"; return $?; fi
   if command -v gtimeout >/dev/null 2>&1; then gtimeout "$secs" "$@"; return $?; fi
+  # The Python fallback below runs outside the MSYS path-translation layer: Windows
+  # Python cannot exec or open `/c/...` argv. Convert existing POSIX-absolute argv.
+  if command -v cygpath >/dev/null 2>&1; then
+    _wt_argv=()
+    for _wt_arg in "$@"; do
+      case "$_wt_arg" in
+        /*) if [ -e "$_wt_arg" ]; then _wt_argv+=("$(cygpath -w "$_wt_arg")"); else _wt_argv+=("$_wt_arg"); fi ;;
+        *) _wt_argv+=("$_wt_arg") ;;
+      esac
+    done
+    set -- "${_wt_argv[@]}"
+  fi
   local py; py="$(_python)"; [ -n "$py" ] || return 4
   "$py" -c 'import os, signal, subprocess, sys
 secs = float(sys.argv[1])
