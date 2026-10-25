@@ -63,7 +63,7 @@ ck 0 "$?" "rules roo generates valid .roomodes JSON/customModes structure"
 echo "D) rules aider emits valid YAML with test-cmd"
 out_aider="$(bash "$RUN" rules aider 2>&1)"; rc_aider=$?
 ck 0 "$rc_aider" "rules aider exits 0"
-has "$out_aider" "test-cmd: \"bash -c 'cid=\$(tr -d" "test-cmd present with cid validation"
+has "$out_aider" 'test-cmd: "bash -c ' "test-cmd present with bash wrapper"
 has "$out_aider" "auto-test: true" "auto-test present"
 no "$out_aider" "check-doc-budgets\.sh" ".aider.conf.yml does not contain check-doc-budgets.sh"
 
@@ -84,15 +84,10 @@ if command -v cygpath >/dev/null 2>&1; then
 fi
 
 test_cmd="$("$PY" -c '
-import re
+import json
 with open(r"'"$AIDER_CONF_FOR_PY"'") as f:
-    text = f.read()
-try:
-    import yaml
-    print(yaml.safe_load(text)["test-cmd"])
-except Exception:
-    m = re.search(r"^test-cmd:\s*\"(.*)\"$", text, re.M)
-    print(m.group(1).replace(r"\"", "\"").replace(r"\\r", "\r").replace(r"\\n", "\n"))
+    line = next(line for line in f if line.startswith("test-cmd: "))
+print(json.loads(line[len("test-cmd: "):]))
 ')"
 
 MARKER="$SCRATCH/flow_aider_injected_$$"
@@ -246,10 +241,13 @@ ck 2 "$?" "extra trailing argument exits 2"
 echo "I) AGENTS.md preview, standard fields, and safe creation"
 AGENTS_DIR="$SCRATCH/agents_md_test"
 mkdir -p "$AGENTS_DIR"
+mkdir -p "$AGENTS_DIR/skills/flow/runner"
+ln -s "$RUN" "$AGENTS_DIR/skills/flow/runner/flow.sh"
+agents_before="$(find "$AGENTS_DIR" -mindepth 1 -print)"
 out_agents_md="$(FLOW_PROJECT_ROOT="$AGENTS_DIR" bash "$RUN" rules agents-md)"; rc_agents_md=$?
 ck 0 "$rc_agents_md" "AGENTS.md preview exits 0"
 [ ! -e "$AGENTS_DIR/AGENTS.md" ]; ck 0 "$?" "preview creates no AGENTS.md file"
-[ -z "$(find "$AGENTS_DIR" -mindepth 1 -print)" ]; ck 0 "$?" "preview leaves project empty"
+ck "$agents_before" "$(find "$AGENTS_DIR" -mindepth 1 -print)" "preview leaves project unchanged"
 no "$out_agents_md" "^---" "no frontmatter in AGENTS.md template"
 has "$out_agents_md" "Flow gated build discipline" "flow discipline marker present"
 has "$out_agents_md" "Idea→Research→Scope→PRD→ADR→Contract→Cards→Build→Review→Verify→Retro" "stage flow progression present"
@@ -258,7 +256,7 @@ has "$out_agents_md" "## Allowed files" "Allowed files marker present"
 has "$out_agents_md" "## Verify" "Verify marker present"
 has "$out_agents_md" "## Evidence" "Evidence marker present"
 has "$out_agents_md" "bash skills/flow/runner/flow.sh <command>" "bash runner command present"
-has "$out_agents_md" "runner/flow.cmd" "Windows runner mentioned"
+has "$out_agents_md" "Git Bash or WSL" "Windows Bash invocation documented"
 has "$out_agents_md" "status" "status command listed"
 has "$out_agents_md" "next" "next command listed"
 has "$out_agents_md" "check C-NNN" "check command listed"
@@ -289,6 +287,103 @@ else
 fi
 FLOW_PROJECT_ROOT="$AGENTS_DIR" bash "$RUN" rules agents-md --write unexpected >/dev/null 2>&1
 ck 2 "$?" "extra trailing argument exits 2"
+
+echo "J) installed runner scaffolds a command that resolves in the user project"
+INSTALL_DIR="$SCRATCH/home/.agents/skills/flow"
+INSTALL_PROJECT="$SCRATCH/installed_project"
+mkdir -p "$INSTALL_DIR" "$INSTALL_PROJECT"
+cp -R "$HERE/../skills/flow/." "$INSTALL_DIR/"
+FLOW_PROJECT_ROOT="$INSTALL_PROJECT" bash "$INSTALL_DIR/runner/flow.sh" rules cursor --write >/dev/null 2>&1
+ck 0 "$?" "installed runner scaffolds Cursor rules"
+(
+  cd "$INSTALL_PROJECT"
+  "$PY" -c '
+import pathlib, re, shlex, shutil, subprocess
+text = pathlib.Path(".cursor/rules/flow.mdc").read_text()
+commands = re.findall(r"`(bash [^`]+)`", text)
+assert commands, "no runner invocation found"
+for command in commands:
+    runner = shlex.split(command)[1]
+    native = subprocess.check_output(["cygpath", "-w", runner], text=True).strip() if shutil.which("cygpath") else runner
+    assert pathlib.Path(native).is_file(), "scaffolded runner does not resolve: " + runner
+'
+)
+ck 0 "$?" "installed template runner paths exist from project root"
+
+echo "K) all harness commands resolve in source, global, and project-local installs"
+SOURCE_PROJECT="$SCRATCH/source_project"
+SPECIAL_INSTALL="$SCRATCH/home/Flow space 'quote' \"double\" \$dollar [x]+(y)&/skills/flow"
+if command -v cygpath >/dev/null 2>&1; then
+  # Windows filenames cannot contain quotes; retain spaces and regex metacharacters.
+  SPECIAL_INSTALL="$SCRATCH/home/Flow space [x]+(y)&/skills/flow"
+fi
+LOCAL_PROJECT="$SCRATCH/local_project"
+mkdir -p "$SOURCE_PROJECT/skills" "$SPECIAL_INSTALL" "$LOCAL_PROJECT/.claude/skills/flow"
+cp -R "$HERE/../skills/flow" "$SOURCE_PROJECT/skills/flow"
+cp -R "$HERE/../skills/flow/." "$SPECIAL_INSTALL/"
+cp -R "$HERE/../skills/flow/." "$LOCAL_PROJECT/.claude/skills/flow/"
+for layout in source global local; do
+  case "$layout" in
+    source) project="$SOURCE_PROJECT"; installed_run="$SOURCE_PROJECT/skills/flow/runner/flow.sh" ;;
+    global) project="$SCRATCH/global_project"; installed_run="$SPECIAL_INSTALL/runner/flow.sh" ;;
+    local) project="$LOCAL_PROJECT"; installed_run="$LOCAL_PROJECT/.claude/skills/flow/runner/flow.sh" ;;
+  esac
+  mkdir -p "$project"
+  for target in agents-md cursor windsurf roo cline aider openhands copilot; do
+    FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" bash "$installed_run" rules "$target" --write >/dev/null 2>&1
+    ck 0 "$?" "$layout $target scaffolding succeeds"
+  done
+  (
+    cd "$project"
+    FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" "$PY" - "$layout" <<'PY'
+import json, pathlib, re, shlex, shutil, subprocess, sys
+layout = sys.argv[1]
+def runner_exists(runner):
+    native = subprocess.check_output(["cygpath", "-w", runner], text=True).strip() if shutil.which("cygpath") else runner
+    return pathlib.Path(native).is_file()
+files = ["AGENTS.md", ".cursor/rules/flow.mdc", ".windsurf/rules/flow.md",
+         ".clinerules", ".openhands/microagents/flow.md", ".github/copilot-instructions.md"]
+commands = []
+for name in files:
+    text = pathlib.Path(name).read_text()
+    assert "@FLOW_" not in text, name
+    found = re.findall(r"`(bash [^`]+)`", text)
+    assert found, name
+    for command in found:
+        runner = shlex.split(command)[1]
+        assert runner_exists(runner), (name, runner)
+        if layout == "source":
+            assert runner == "skills/flow/runner/flow.sh", (name, runner)
+        else:
+            assert runner.startswith("/"), (name, runner)
+        commands.append(command)
+groups = json.loads(pathlib.Path(".roomodes").read_text())["customModes"][0]["groups"]
+regex = next(group[1]["commandRegex"] for group in groups if isinstance(group, list) and group[0] == "command")
+for command in commands:
+    assert re.match(regex, command), (regex, command)
+assert not re.match(regex, "bash other/runner/flow.sh status"), regex
+line = next(line for line in pathlib.Path(".aider.conf.yml").read_text().splitlines() if line.startswith("test-cmd: "))
+test_cmd = json.loads(line[len("test-cmd: "):])
+program = shlex.split(test_cmd)[2]
+runner_commands = re.findall(r"(?:then|else) (bash .*?) (?:check|status)", program)
+assert len(runner_commands) == 2, program
+for runner in runner_commands:
+    assert runner_exists(shlex.split(runner)[1]), runner
+pathlib.Path("cards").mkdir(exist_ok=True)
+for inflight in ("", "C-001", "C-001; touch injected"):
+    pathlib.Path("cards/.inflight").write_text(inflight)
+    result = subprocess.run(["bash", "-c", test_cmd], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    assert result.returncode in (0, 1), result.stdout
+    assert "No such file or directory" not in result.stdout, result.stdout
+    assert "required harness missing" not in result.stdout, result.stdout
+    if inflight == "C-001":
+        assert "C-001" in result.stdout, result.stdout
+    assert not pathlib.Path("injected").exists(), result.stdout
+print("resolved all six Markdown templates, Roo regex, and Aider status/check/injection paths")
+PY
+  )
+  ck 0 "$?" "$layout templates reference resolvable runner commands"
+done
 
 echo
 echo "RESULT: $pass passed, $fail failed"

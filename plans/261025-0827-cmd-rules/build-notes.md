@@ -1,0 +1,64 @@
+# CMD-RULES-261025 — bằng chứng triển khai
+
+- Owner/lease: `CmdRulesBuilder`, `CMD-RULES-261025`.
+- Branch: `flow/cmd-rules-261025`.
+- Base: `87ac25f35ce5178d168bf0afebf5a2461753fae9`.
+- Worktree: `.omp/flow-maintenance/worktrees/cmd-rules-261025`.
+- Không push, không PR; không tích hợp trước khi PR91 publish.
+
+## Phạm vi và nguyên nhân
+
+Tám rule templates cố định đường dẫn source-repo, không tồn tại trong user project dùng global/project-local install. `cmd_rules()` hiện giữ đường dẫn tương đối nếu runner đó tồn tại trong project; nếu không, dùng `$SCRIPT_DIR/flow.sh` tuyệt đối và Bash `%q`. Roo nhận regex đã escape và JSON-encode; Aider nhận shell program đã quote và JSON-encode (hợp lệ trong YAML double-quoted scalar). `agent-skills` giữ nguyên prerequisite canonical bundle. Cập nhật tài liệu tại `skills/flow/references/command-dispatch.md`.
+
+## Red trước khi sửa runner
+
+Lệnh: `bash tests/test_flow_rules.sh`.
+
+Fixture đầu tiên chỉ copy `runner/` thiếu runtime nên đã sửa fixture thành copy bundle đầy đủ, trước mọi thay đổi production. Lần red có ý nghĩa:
+
+```text
+J) installed runner scaffolds a command that resolves in the user project
+  ok   [installed runner scaffolds Cursor rules]
+AssertionError: scaffolded runner does not resolve: skills/flow/runner/flow.sh
+  FAIL [installed template runner paths exist from project root] expected '0' got '1'
+RESULT: 100 passed, 1 failed
+Command exited with code 1
+```
+
+## Kết quả quan sát sau sửa
+
+Tất cả là kiểm tra offline trên Linux; global/project-local layouts là fixture mô phỏng, không phải thay đổi install thật. Không live Claude, không network/publish.
+
+| Lệnh | Kết quả |
+|---|---|
+| `bash tests/test_flow_rules.sh` (sau lần chỉnh test cuối) | `RESULT: 128 passed, 0 failed` |
+| `bash tests/test_flow_runner.sh` | `RESULT: 158 passed, 0 failed` |
+| `bash tests/test_flow_graph_planning_parity.sh` | `RESULT: 174 passed, 0 failed` |
+| `bash tests/test_flow_doctor.sh` | `RESULT: 84 passed, 0 failed` |
+| `bash scripts/check-doc-budgets.sh` | `PASS: doc budgets (6 files)` |
+| `bash tests/test_doc_budgets.sh` | `RESULT: 8 passed, 0 failed` |
+| `bash -n skills/flow/runner/flow.sh tests/test_flow_rules.sh` | Exit 0; `RESULT: Bash syntax checks passed` |
+
+Full scoped-runner/doc command output: `artifact://7162`. Rules coverage: cả tám harnesses trong source/global/local; đường dẫn có space, quotes, `$`, regex metacharacters; Roo regex khớp command đã phát; Aider thực thi status/check và chặn inflight injection; preview/no-overwrite/symlink invariants vẫn được kiểm tra.
+
+Runner suite có warning `flow-harness: warn durable write failed (rc=1)` trong fixture card-start; assertions vẫn 158/0. Không thay đổi hành vi durable write.
+
+## Eval STOP
+
+Đã so sánh bằng Node `execFileSync("git", ["show", "87ac25f35ce5178d168bf0afebf5a2461753fae9:skills/flow/runner/flow.sh"])` với file hiện tại; trích từng function từ dòng khai báo đến `^}` và so sánh byte string. Đồng thời đếm regex `_run_with_timeout|_eval_engine_run` trên toàn bộ `git diff 87ac25f35ce5178d168bf0afebf5a2461753fae9 -- skills/flow/runner/flow.sh` (tương đương phép grep-count trong acceptance):
+
+```text
+RESULT: _run_with_timeout byte-identical sha256=394d70485b68e08d377050d938a5d8d1e3c5f8b602b0edf613050c9b916c65db
+RESULT: _eval_engine_run byte-identical sha256=1ce8d071a3fc7c2dd86a47b71d3e4158656c537fc39dcd820a89417a8a3ee1a7
+RESULT: Eval STOP references in runner diff = 0
+```
+
+## Review và giới hạn
+
+Review nội bộ theo ak-code-review: kiểm tra escaping qua Bash/JSON/YAML/regex, source-repo compatibility, caller templates, no-write preview và STOP bodies. Không thực hiện independent review; parent sở hữu bước đó.
+
+Parent xác nhận bỏ `bash scripts/pack-rehearsal.sh` trong lane này vì prepack ghi `portable-manifest.json` bị cấm; parent chạy sau PR91 publish và rebase onto post-cutover master, cùng required CI. Không sửa version, lockfile, portable manifest hay Eval STOP. Chưa thực thi macOS/Windows/Bash 3.2 thực; implementation chỉ dùng primitive Bash 3.2 có sẵn.
+
+`ak config prefs resolve --json | jq -r 'if .prefs.journal.auto == false then "false" else "true" end'` trả về `true`. Không tạo automatic journal tại `plans/journals/` vì nằm ngoài write allowlist; ghi nhận lịch sử kỹ thuật tại build notes được parent cho phép này. AgentWiki publish skipped.
+
+Không tạo service/port; job `bg_149` đã kết thúc. Bàn giao quyền sở hữu worktree cho parent sau commit; giữ nguyên checkout/branch để parent đóng lifecycle.

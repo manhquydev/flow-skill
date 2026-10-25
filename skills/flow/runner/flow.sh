@@ -6866,18 +6866,18 @@ Idea→Research→Scope→PRD→ADR→Contract→Cards→Build→Review→Verify
 Implementation tasks are tracked in atomic markdown cards (`cards/C-NNN.md`):
 - **Allowed files:** Confine modifications strictly to the active card'\''s `## Allowed files` section. Never touch unlisted files.
 - **Verify:** Run the exact verification commands declared in `## Verify`.
-- Validate card completion with `bash skills/flow/runner/flow.sh check C-NNN`.
+- Validate card completion with `@FLOW_RUNNER@ check C-NNN`.
 
 ## Ground Truth Runner Commands
 
 The Flow runner is the mechanical authority. Run from the repository root:
-- POSIX / Bash: `bash skills/flow/runner/flow.sh <command>`
-- Windows shells: `runner/flow.cmd <command>` (or `skills\flow\runner\flow.cmd <command>`)
+- POSIX / Bash: `@FLOW_RUNNER@ <command>`
+- Windows shells: use Git Bash or WSL with the same runner command.
 
 Core commands:
-- `bash skills/flow/runner/flow.sh status` — inspect active stage, in-flight cards, and blockers.
-- `bash skills/flow/runner/flow.sh next` — evaluate current gate and unlock the next stage.
-- `bash skills/flow/runner/flow.sh check C-NNN` — validate card criteria and verify evidence.'
+- `@FLOW_RUNNER@ status` — inspect active stage, in-flight cards, and blockers.
+- `@FLOW_RUNNER@ next` — evaluate current gate and unlock the next stage.
+- `@FLOW_RUNNER@ check C-NNN` — validate card criteria and verify evidence.'
       local dest="AGENTS.md"
       ;;
     cursor)
@@ -6893,8 +6893,8 @@ You are operating inside a repository managed by Flow (`/flow`).
 Flow turns coding agents into evidence-gated, kill-honest build processes.
 
 ## Rules of Engagement
-1. **Never edit files without an active card.** Check in-flight cards via `bash skills/flow/runner/flow.sh status`.
-2. **Always inspect gates before coding.** Run `bash skills/flow/runner/flow.sh next` or `bash skills/flow/runner/flow.sh check C-NNN`.
+1. **Never edit files without an active card.** Check in-flight cards via `@FLOW_RUNNER@ status`.
+2. **Always inspect gates before coding.** Run `@FLOW_RUNNER@ next` or `@FLOW_RUNNER@ check C-NNN`.
 3. **Respect Allowed Files.** Only modify files explicitly listed in the active card'\''s `## Allowed files` section.
 4. **Never fake verify proof.** Paste real terminal output, exit codes, and URLs into `## Evidence`.'
       local dest=".cursor/rules/flow.mdc"
@@ -6904,12 +6904,12 @@ Flow turns coding agents into evidence-gated, kill-honest build processes.
 
 Cascade must respect Flow repository gates and evidence requirements.
 
-1. **Orientation**: Before modifying code, run `bash skills/flow/runner/flow.sh resume` to inspect recent session transitions and active cards.
-2. **Stage Progression**: Planning advances through stages (`00-idea` through `05-contract`). Do not advance without passing gates (`bash skills/flow/runner/flow.sh next`).
+1. **Orientation**: Before modifying code, run `@FLOW_RUNNER@ resume` to inspect recent session transitions and active cards.
+2. **Stage Progression**: Planning advances through stages (`00-idea` through `05-contract`). Do not advance without passing gates (`@FLOW_RUNNER@ next`).
 3. **Card Execution**: When implementing a card (`cards/C-NNN.md`):
    - Confine changes to `## Allowed files`.
    - Run verify commands listed in `## Verify`.
-   - Verify card passage with `bash skills/flow/runner/flow.sh check C-NNN`.
+   - Verify card passage with `@FLOW_RUNNER@ check C-NNN`.
 4. **Clean Exit**: Do not claim work is complete until `flow check` returns exit code 0.'
       local dest=".windsurf/rules/flow.md"
       ;;
@@ -6923,7 +6923,7 @@ Cascade must respect Flow repository gates and evidence requirements.
       "groups": [
         "read",
         ["edit", { "fileRegex": "^(cards/.*|src/.*|tests/.*|flow/.*)$", "description": "Flow and source directories" }],
-        ["command", { "commandRegex": "^bash skills/flow/runner/flow\\.sh.*", "description": "Flow runner execution" }]
+        ["command", { "commandRegex": "@FLOW_COMMAND_REGEX@", "description": "Flow runner execution" }]
       ]
     }
   ]
@@ -6933,18 +6933,18 @@ Cascade must respect Flow repository gates and evidence requirements.
     cline)
       local tpl='# Flow Discipline Rules for Cline
 
-1. Before starting tasks, execute `bash skills/flow/runner/flow.sh status` to identify the active stage and card.
+1. Before starting tasks, execute `@FLOW_RUNNER@ status` to identify the active stage and card.
 2. If planning is in progress, do not modify application code. Complete stage artifacts in `flow/` first.
 3. If building a card:
    - Read `cards/C-NNN.md`.
    - Strictly honor `## Allowed files`.
-   - Execute verification tests with `bash skills/flow/runner/flow.sh check C-NNN`.
+   - Execute verification tests with `@FLOW_RUNNER@ check C-NNN`.
 4. Never mark a card done without real, verified command output in `## Evidence`.'
       local dest=".clinerules"
       ;;
     aider)
       local tpl='# Aider configuration for Flow discipline layer
-test-cmd: "bash -c '\''cid=$(tr -d \" \\r\\n\" < cards/.inflight 2>/dev/null); if [[ \"$cid\" =~ ^C-[0-9]+$ ]]; then bash skills/flow/runner/flow.sh check \"$cid\"; else bash skills/flow/runner/flow.sh status; fi'\''"
+test-cmd: "@FLOW_AIDER_COMMAND@"
 auto-test: true'
       local dest=".aider.conf.yml"
       ;;
@@ -6960,13 +6960,13 @@ triggers:
 
 # Flow Microagent for OpenHands
 
-When working on this repository, execute all Flow commands using the project-local script inside the container:
-`bash skills/flow/runner/flow.sh <command>`
+When working on this repository, execute all Flow commands from the project root using the resolved runner inside the container:
+`@FLOW_RUNNER@ <command>`
 
 Key commands:
-- `bash skills/flow/runner/flow.sh status` — inspect current stage and in-flight cards.
-- `bash skills/flow/runner/flow.sh next` — advance planning stage.
-- `bash skills/flow/runner/flow.sh check C-NNN` — verify card criteria and gates.'
+- `@FLOW_RUNNER@ status` — inspect current stage and in-flight cards.
+- `@FLOW_RUNNER@ next` — advance planning stage.
+- `@FLOW_RUNNER@ check C-NNN` — verify card criteria and gates.'
       local dest=".openhands/microagents/flow.md"
       ;;
     copilot)
@@ -6977,7 +6977,7 @@ This repository enforces Flow discipline:
 - Units of work are tracked as atomic markdown cards in `cards/C-NNN.md`.
 - Never modify files outside a card'\''s declared `## Allowed files`.
 - Verification requires reproducible commands documented under `## Verify`.
-- Mechanical ground truth is `bash skills/flow/runner/flow.sh check C-NNN`.'
+- Mechanical ground truth is `@FLOW_RUNNER@ check C-NNN`.'
       local dest=".github/copilot-instructions.md"
       ;;
     *)
@@ -6986,6 +6986,32 @@ This repository enforces Flow discipline:
       exit 2
       ;;
   esac
+
+  if [ "$target" != "agent-skills" ]; then
+    # Preserve portable source-repo commands; installed projects use this install.
+    local runner_path='skills/flow/runner/flow.sh' runner_cmd
+    if [ ! -f "$ROOT/$runner_path" ]; then
+      runner_path="$SCRIPT_DIR/flow.sh"
+    fi
+    printf -v runner_cmd 'bash %q' "$runner_path"
+    case "$target" in
+      roo)
+        local command_regex
+        command_regex="$(printf '%s' "$runner_cmd" | sed 's/[][\\.^$*+?(){}|]/\\&/g')"
+        command_regex="$(_json_str "^${command_regex}.*")"
+        tpl="${tpl//@FLOW_COMMAND_REGEX@/"$command_regex"}"
+        ;;
+      aider)
+        local aider_program='cid=$(tr -d " \r\n" < cards/.inflight 2>/dev/null); if [[ "$cid" =~ ^C-[0-9]+$ ]]; then @FLOW_RUNNER@ check "$cid"; else @FLOW_RUNNER@ status; fi'
+        local aider_command
+        aider_program="${aider_program//@FLOW_RUNNER@/"$runner_cmd"}"
+        printf -v aider_command 'bash -c %q' "$aider_program"
+        aider_command="$(_json_str "$aider_command")"
+        tpl="${tpl//@FLOW_AIDER_COMMAND@/"$aider_command"}"
+        ;;
+      *) tpl="${tpl//@FLOW_RUNNER@/"$runner_cmd"}" ;;
+    esac
+  fi
 
   if [ "$opt_write" -eq 1 ]; then
     local parent; parent="$(dirname "$ROOT/$dest")"
