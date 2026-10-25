@@ -546,7 +546,9 @@ _with_timeout() { # seconds, argv (never a shell command string)
     _wt_argv=()
     for _wt_arg in "$@"; do
       case "$_wt_arg" in
-        /*) if [ -e "$_wt_arg" ]; then _wt_argv+=("$(cygpath -w "$_wt_arg")"); else _wt_argv+=("$_wt_arg"); fi ;;
+        /*) if [ -e "$_wt_arg" ]; then _wt_argv+=("$(cygpath -w "$_wt_arg")")
+            elif [ -e "$_wt_arg.exe" ]; then _wt_argv+=("$(cygpath -w "$_wt_arg.exe")")
+            else _wt_argv+=("$_wt_arg"); fi ;;
         *) _wt_argv+=("$_wt_arg") ;;
       esac
     done
