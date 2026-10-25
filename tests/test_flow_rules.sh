@@ -318,6 +318,9 @@ if command -v cygpath >/dev/null 2>&1; then
   SPECIAL_INSTALL="$SCRATCH/home/Flow space [x]+(y)&/skills/flow"
 fi
 LOCAL_PROJECT="$SCRATCH/local_project"
+# Windows Python cannot read MSYS paths; hand the verification a native bash path.
+HOST_BASH="$(command -v bash)"
+if command -v cygpath >/dev/null 2>&1; then HOST_BASH="$(cygpath -w "$HOST_BASH")"; fi
 mkdir -p "$SOURCE_PROJECT/skills" "$SPECIAL_INSTALL" "$LOCAL_PROJECT/.claude/skills/flow"
 cp -R "$HERE/../skills/flow" "$SOURCE_PROJECT/skills/flow"
 cp -R "$HERE/../skills/flow/." "$SPECIAL_INSTALL/"
@@ -346,7 +349,7 @@ for layout in source global local; do
   fi
   (
     cd "$project"
-    FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" "$PY" - "$layout" "$installed_run" "${BASH_BIN:-$(command -v bash)}" <<'PY'
+    FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" "$PY" - "$layout" "$installed_run" "$HOST_BASH" <<'PY'
 import json, os, pathlib, re, shlex, shutil, subprocess, sys
 layout, installed_run, suite_bash = sys.argv[1:]
 def to_native_form(p):

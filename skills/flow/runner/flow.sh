@@ -536,7 +536,9 @@ harness_call_checked() {
 # supplies the fallback when GNU timeout/gtimeout is not installed (e.g. macOS).
 _with_timeout() { # seconds, argv (never a shell command string)
   local secs="$1"; shift
-  if command -v timeout >/dev/null 2>&1; then timeout "$secs" "$@"; return $?; fi
+  # On MSYS/Windows, bare `timeout` resolves to System32 timeout.exe (wait-N-seconds
+  # semantics); accept it only when it is GNU coreutils timeout.
+  if command -v timeout >/dev/null 2>&1 && timeout --version >/dev/null 2>&1; then timeout "$secs" "$@"; return $?; fi
   if command -v gtimeout >/dev/null 2>&1; then gtimeout "$secs" "$@"; return $?; fi
   local py; py="$(_python)"; [ -n "$py" ] || return 4
   "$py" -c 'import os, signal, subprocess, sys
