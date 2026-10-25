@@ -6992,6 +6992,24 @@ This repository enforces Flow discipline:
     local runner_path='skills/flow/runner/flow.sh' runner_cmd
     if [ ! -f "$ROOT/$runner_path" ]; then
       runner_path="$SCRIPT_DIR/flow.sh"
+      # Git Bash/MSYS emits POSIX-form paths ("/tmp/x"); consumers outside bash
+      # (editors, Python os.path) need the Windows-native form. cygpath -m is
+      # canonical; pwd -W is the Git Bash builtin fallback; plain pwd degrades loudly.
+      case "$(uname -s 2>/dev/null)" in
+        MINGW*|MSYS*|CYGWIN*)
+          if command -v cygpath >/dev/null 2>&1; then
+            runner_path="$(cygpath -m "$SCRIPT_DIR")/flow.sh"
+          else
+            local msys_pwd
+            msys_pwd="$(cd "$SCRIPT_DIR" && pwd -W 2>/dev/null)" || msys_pwd=''
+            if [ -z "$msys_pwd" ]; then
+              echo "WARN: cannot convert install path to Windows form (cygpath missing, pwd -W unsupported); emitting POSIX path" >&2
+              msys_pwd="$SCRIPT_DIR"
+            fi
+            runner_path="$msys_pwd/flow.sh"
+          fi
+          ;;
+      esac
     fi
     printf -v runner_cmd 'bash %q' "$runner_path"
     local token='@FLOW_RUNNER@' replacement="$runner_cmd" rendered=''
