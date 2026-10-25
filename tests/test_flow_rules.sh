@@ -330,8 +330,12 @@ for layout in source global local; do
   esac
   mkdir -p "$project"
   for target in agents-md cursor windsurf roo cline aider openhands copilot; do
-    FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" bash "$installed_run" rules "$target" --write >/dev/null 2>&1
-    ck 0 "$?" "$layout $target scaffolding succeeds"
+    scaffold_out=$(FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" bash "$installed_run" rules "$target" --write 2>&1)
+    scaffold_rc=$?
+    if [ "$scaffold_rc" -ne 0 ]; then
+      printf 'scaffold %s %s failed:\n%s\n' "$layout" "$target" "$scaffold_out" >&2
+    fi
+    ck 0 "$scaffold_rc" "$layout $target scaffolding succeeds"
   done
   if command -v sh >/dev/null 2>&1; then
     sh -c '! grep -F '\''"bash '\'' "$@"' sh \
@@ -342,10 +346,21 @@ for layout in source global local; do
   fi
   (
     cd "$project"
-    FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" "$PY" - "$layout" "$installed_run" <<'PY'
-import json, pathlib, re, shlex, shutil, subprocess, sys
-layout, installed_run = sys.argv[1:]
-expected_runner = "skills/flow/runner/flow.sh" if layout == "source" else installed_run
+    FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" "$PY" - "$layout" "$installed_run" "${BASH_BIN:-$(command -v bash)}" <<'PY'
+import json, os, pathlib, re, shlex, shutil, subprocess, sys
+layout, installed_run, suite_bash = sys.argv[1:]
+def to_native_form(p):
+    # Product emits the same Windows-native absolute form (cygpath -m) on MSYS hosts.
+    if os.name == "nt" and shutil.which("cygpath"):
+        return subprocess.check_output(["cygpath", "-m", p], text=True).strip()
+    return p
+expected_runner = "skills/flow/runner/flow.sh" if layout == "source" else to_native_form(installed_run)
+bash_bin = sys.argv[3]
+def pick_bash():
+    # On Windows, bare "bash" on PATH can be WSL bash.exe; use the suite's own bash.
+    if os.name == "nt" and os.path.isfile(bash_bin):
+        return bash_bin
+    return "bash"
 if layout == "global":
     assert "&" in expected_runner, "fixture must exercise literal ampersand replacement"
 def runner_exists(runner):
@@ -366,7 +381,7 @@ for name in files:
         if layout == "source":
             assert runner == "skills/flow/runner/flow.sh", (name, runner)
         else:
-            assert runner.startswith("/"), (name, runner)
+            assert re.match(r"^([A-Za-z]:)?/", runner), (name, runner)
         commands.append(command)
 groups = json.loads(pathlib.Path(".roomodes").read_text())["customModes"][0]["groups"]
 regex = next(group[1]["commandRegex"] for group in groups if isinstance(group, list) and group[0] == "command")
@@ -385,7 +400,7 @@ for runner in runner_commands:
 pathlib.Path("cards").mkdir(exist_ok=True)
 for inflight in ("", "C-001", "C-001; touch injected"):
     pathlib.Path("cards/.inflight").write_text(inflight)
-    result = subprocess.run(["bash", "-c", test_cmd], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    result = subprocess.run([pick_bash(), "-c", test_cmd], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     assert result.returncode in (0, 1), result.stdout
     assert "No such file or directory" not in result.stdout, result.stdout
     assert "required harness missing" not in result.stdout, result.stdout
