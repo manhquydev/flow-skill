@@ -7028,8 +7028,12 @@ This repository enforces Flow discipline:
       # canonical; pwd -W is the Git Bash builtin fallback; plain pwd degrades loudly.
       case "$(uname -s 2>/dev/null)" in
         MINGW*|MSYS*|CYGWIN*)
+          local win_script_dir=''
           if command -v cygpath >/dev/null 2>&1; then
-            runner_path="$(cygpath -m "$SCRIPT_DIR")/flow.sh"
+            win_script_dir="$(cygpath -m "$SCRIPT_DIR" 2>/dev/null)" || win_script_dir=''
+          fi
+          if [ -n "$win_script_dir" ]; then
+            runner_path="$win_script_dir/flow.sh"
           else
             local msys_pwd
             msys_pwd="$(cd "$SCRIPT_DIR" && pwd -W 2>/dev/null)" || msys_pwd=''

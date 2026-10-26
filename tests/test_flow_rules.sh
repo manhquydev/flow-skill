@@ -469,6 +469,62 @@ ck 0 "$([ -f "$out_conv" ]; echo $?)" "converted path is a real readable file"
 out_fb="$(PATH="$SCRATCH/n_bin:$PATH" HARNESS_PY="$HARNESS_SRC" bash -c "$(extract_helper); cygpath() { return 1; }; _harness_native")"
 ck "$HARNESS_SRC" "$out_fb" "identity when converter fails or is absent"
 
+# O) cygpath conversion guard and degradation fallback regression (PR93 P2 finding):
+# When cygpath is present on PATH but fails (exit 1 / empty output), rules scaffolding
+# must not target /flow.sh; it must fall back to the fallback runner path and emit
+# the degradation warning if pwd -W is also unsupported.
+echo "O) installed runner cygpath failure fallback regression"
+REG_INSTALL="$SCRATCH/reg_cygpath_install/skills/flow"
+REG_PROJECT="$SCRATCH/reg_cygpath_project"
+mkdir -p "$REG_INSTALL" "$REG_PROJECT"
+cp -R "$HERE/../skills/flow/." "$REG_INSTALL/"
+
+REG_BIN="$SCRATCH/reg_bin"
+mkdir -p "$REG_BIN"
+REAL_UNAME="$(command -v uname)"
+cat > "$REG_BIN/uname" <<EOF
+#!/usr/bin/env bash
+if [ "\$1" = "-s" ]; then
+  echo "MINGW64_NT-10.0"
+else
+  exec "$REAL_UNAME" "\$@"
+fi
+EOF
+chmod +x "$REG_BIN/uname"
+
+# Variant 1: cygpath stub exits 1 (failure)
+cat > "$REG_BIN/cygpath" <<'STUB'
+#!/usr/bin/env bash
+exit 1
+STUB
+chmod +x "$REG_BIN/cygpath"
+
+err_f1="$SCRATCH/reg_err_1.txt"
+out_reg1="$(PATH="$REG_BIN:$PATH" FLOW_PROJECT_ROOT="$REG_PROJECT" bash "$REG_INSTALL/runner/flow.sh" rules cursor 2>"$err_f1")"
+rc_reg1=$?
+err_reg1="$(cat "$err_f1")"
+ck 0 "$rc_reg1" "rules cursor succeeds when cygpath exits 1"
+has "$out_reg1" "$REG_INSTALL/runner/flow.sh" "generated command targets fallback runner path when cygpath exits 1"
+no "$out_reg1" "bash /flow.sh" "generated command does not target /flow.sh when cygpath exits 1"
+has "$err_reg1" "WARN: cannot convert install path to Windows form" "degradation warning present when cygpath exits 1"
+
+# Variant 2: cygpath stub exits 0 but returns empty output
+cat > "$REG_BIN/cygpath" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  *flow_harness.py) exit 1 ;;
+  *) exit 0 ;;
+esac
+STUB
+err_f2="$SCRATCH/reg_err_2.txt"
+out_reg2="$(PATH="$REG_BIN:$PATH" FLOW_PROJECT_ROOT="$REG_PROJECT" bash "$REG_INSTALL/runner/flow.sh" rules cursor 2>"$err_f2")"
+rc_reg2=$?
+err_reg2="$(cat "$err_f2")"
+ck 0 "$rc_reg2" "rules cursor succeeds when cygpath returns empty output"
+has "$out_reg2" "$REG_INSTALL/runner/flow.sh" "generated command targets fallback runner path when cygpath returns empty"
+no "$out_reg2" "bash /flow.sh" "generated command does not target /flow.sh when cygpath returns empty"
+has "$err_reg2" "WARN: cannot convert install path to Windows form" "degradation warning present when cygpath returns empty"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
