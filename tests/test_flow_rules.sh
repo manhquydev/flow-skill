@@ -446,7 +446,7 @@ done
 # POSIX path otherwise. Behavior-verified via a stub cygpath mapping to a REAL file.
 echo "N) harness native-path conversion"
 HARNESS_SRC="$SCRATCH/n_posix/harness.py"; HARNESS_CONV="$SCRATCH/n_mixed/harness.py"
-mkdir -p "$SCRATCH/n_posix" "$SCRATCH/n_mixed" "$SCRATCH/n_bin"
+mkdir -p "$SCRATCH/n_posix" "$SCRATCH/n_mixed" "$SCRATCH/n_bin" "$SCRATCH/n_empty"
 printf 'x\n' > "$HARNESS_SRC"; printf 'x\n' > "$HARNESS_CONV"
 cat > "$SCRATCH/n_bin/cygpath" <<STUB
 #!/usr/bin/env bash
@@ -464,7 +464,7 @@ out_conv="$(PATH="$SCRATCH/n_bin:$PATH" HARNESS_PY="$HARNESS_SRC" bash -c "$(ext
 ck 0 "$?" "_harness_native uses converter output when cygpath present"
 ck "$HARNESS_CONV" "$out_conv" "converted path equals cygpath mapping"
 ck 0 "$([ -f "$out_conv" ]; echo $?)" "converted path is a real readable file"
-out_id="$(HARNESS_PY="$HARNESS_SRC" bash -c "$(extract_helper); _harness_native")"
+out_id="$(PATH="$SCRATCH/n_empty:$(dirname "$(command -v bash)")" HARNESS_PY="$HARNESS_SRC" bash -c "$(extract_helper); _harness_native")"
 ck "$HARNESS_SRC" "$out_id" "identity when no converter on PATH"
 out_fb="$(PATH="$SCRATCH/n_bin:$PATH" HARNESS_PY="$HARNESS_SRC" bash -c "$(extract_helper); cygpath() { return 1; }; _harness_native")"
 ck "$HARNESS_SRC" "$out_fb" "identity fallback when converter fails"

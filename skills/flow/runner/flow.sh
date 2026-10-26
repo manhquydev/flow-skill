@@ -7056,7 +7056,12 @@ This repository enforces Flow discipline:
         printf -v aider_program '%s%s%s%s%s' \
           'cid=$(tr -d " \r\n" < cards/.inflight 2>/dev/null); if [[ "$cid" =~ ^C-[0-9]+$ ]]; then ' \
           "$runner_cmd" ' check "$cid"; else ' "$runner_cmd" ' status; fi'
-        printf -v aider_command 'bash -c %q' "$aider_program"
+        # The command runs through TWO bash parse layers (host shell -> inner bash -c).
+        # printf %q on the outer layer is not portable: some bashes emit backslash form,
+        # whose quote removal strips the inner layer's path escapes (PR93: unquoted "("
+        # in metacharacter install paths -> syntax error). A single-quoted wrapper is
+        # deterministic: quote removal restores the program verbatim for the inner shell.
+        aider_command="bash -c '${aider_program//\'/\'\\\'\'}'"
         aider_command="$(_json_str "$aider_command")"
         token='@FLOW_AIDER_COMMAND@'
         replacement="$aider_command"
