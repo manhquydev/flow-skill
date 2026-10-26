@@ -471,8 +471,9 @@ ck "$HARNESS_SRC" "$out_fb" "identity when converter fails or is absent"
 
 # O) cygpath conversion guard and degradation fallback regression (PR93 P2 finding):
 # When cygpath is present on PATH but fails (exit 1 / empty output), rules scaffolding
-# must not target /flow.sh; it must fall back to the fallback runner path and emit
-# the degradation warning if pwd -W is also unsupported.
+# must not target /flow.sh; it must fall back to the Windows-native runner path if
+# pwd -W succeeds (Git Bash), and only emit the degradation warning + POSIX path
+# when pwd -W is also unsupported.
 echo "O) installed runner cygpath failure fallback regression"
 REG_INSTALL="$SCRATCH/reg_cygpath_install/skills/flow"
 REG_PROJECT="$SCRATCH/reg_cygpath_project"
@@ -492,39 +493,76 @@ fi
 EOF
 chmod +x "$REG_BIN/uname"
 
-# Variant 1: cygpath stub exits 1 (failure)
+# Variant A: cygpath stub exits 1 (failure); pwd -W succeeds (Git Bash-like fallback)
+# cygpath preserves -w argv to prevent poisoning the timeout helper's Python fallback.
 cat > "$REG_BIN/cygpath" <<'STUB'
 #!/usr/bin/env bash
+if [ "$1" = "-w" ]; then
+  shift
+  printf '%s\n' "$@"
+  exit 0
+fi
 exit 1
 STUB
 chmod +x "$REG_BIN/cygpath"
 
+REG_WIN_RUNNER="C:/fake_git_bash/reg_cygpath_install/skills/flow/runner"
+ENV_A="$SCRATCH/reg_env_a.sh"
+cat > "$ENV_A" <<EOF
+pwd() {
+  if [ "\${1:-}" = "-W" ]; then
+    echo "$REG_WIN_RUNNER"
+  else
+    builtin pwd "\$@"
+  fi
+}
+export -f pwd 2>/dev/null || true
+EOF
+
 err_f1="$SCRATCH/reg_err_1.txt"
-out_reg1="$(PATH="$REG_BIN:$PATH" FLOW_PROJECT_ROOT="$REG_PROJECT" bash "$REG_INSTALL/runner/flow.sh" rules cursor 2>"$err_f1")"
+out_reg1="$(BASH_ENV="$ENV_A" PATH="$REG_BIN:$PATH" FLOW_PROJECT_ROOT="$REG_PROJECT" bash "$REG_INSTALL/runner/flow.sh" rules cursor 2>"$err_f1")"
 rc_reg1=$?
 err_reg1="$(cat "$err_f1")"
-ck 0 "$rc_reg1" "rules cursor succeeds when cygpath exits 1"
-has "$out_reg1" "$REG_INSTALL/runner/flow.sh" "generated command targets fallback runner path when cygpath exits 1"
+ck 0 "$rc_reg1" "rules cursor succeeds when cygpath exits 1 with pwd -W fallback"
+has "$out_reg1" "$REG_WIN_RUNNER/flow.sh" "generated command targets native runner path when pwd -W succeeds"
 no "$out_reg1" "bash /flow.sh" "generated command does not target /flow.sh when cygpath exits 1"
-has "$err_reg1" "WARN: cannot convert install path to Windows form" "degradation warning present when cygpath exits 1"
+no "$err_reg1" "WARN: cannot convert install path to Windows form" "no degradation warning when pwd -W succeeds"
 
-# Variant 2: cygpath stub exits 0 but returns empty output
+# Variant B: cygpath stub returns empty output; pwd -W is unsupported (POSIX degradation fallback)
 cat > "$REG_BIN/cygpath" <<'STUB'
 #!/usr/bin/env bash
+if [ "$1" = "-w" ]; then
+  shift
+  printf '%s\n' "$@"
+  exit 0
+fi
 case "$*" in
   *flow_harness.py) exit 1 ;;
   *) exit 0 ;;
 esac
 STUB
+chmod +x "$REG_BIN/cygpath"
+
+ENV_B="$SCRATCH/reg_env_b.sh"
+cat > "$ENV_B" <<'EOF'
+pwd() {
+  if [ "${1:-}" = "-W" ]; then
+    return 1
+  else
+    builtin pwd "$@"
+  fi
+}
+export -f pwd 2>/dev/null || true
+EOF
+
 err_f2="$SCRATCH/reg_err_2.txt"
-out_reg2="$(PATH="$REG_BIN:$PATH" FLOW_PROJECT_ROOT="$REG_PROJECT" bash "$REG_INSTALL/runner/flow.sh" rules cursor 2>"$err_f2")"
+out_reg2="$(BASH_ENV="$ENV_B" PATH="$REG_BIN:$PATH" FLOW_PROJECT_ROOT="$REG_PROJECT" bash "$REG_INSTALL/runner/flow.sh" rules cursor 2>"$err_f2")"
 rc_reg2=$?
 err_reg2="$(cat "$err_f2")"
-ck 0 "$rc_reg2" "rules cursor succeeds when cygpath returns empty output"
-has "$out_reg2" "$REG_INSTALL/runner/flow.sh" "generated command targets fallback runner path when cygpath returns empty"
+ck 0 "$rc_reg2" "rules cursor succeeds when cygpath returns empty and pwd -W unsupported"
+has "$out_reg2" "$REG_INSTALL/runner/flow.sh" "generated command targets fallback runner path when cygpath and pwd -W fail"
 no "$out_reg2" "bash /flow.sh" "generated command does not target /flow.sh when cygpath returns empty"
-has "$err_reg2" "WARN: cannot convert install path to Windows form" "degradation warning present when cygpath returns empty"
-
+has "$err_reg2" "WARN: cannot convert install path to Windows form" "degradation warning present when pwd -W unsupported"
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
