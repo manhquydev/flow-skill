@@ -335,6 +335,7 @@ for layout in source global local; do
   for target in agents-md cursor windsurf roo cline aider openhands copilot; do
     scaffold_out=$(FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" bash "$installed_run" rules "$target" --write 2>&1)
     scaffold_rc=$?
+    ck 0 "$scaffold_rc" "$layout $target scaffolding succeeds"
     if [ "$scaffold_rc" -ne 0 ]; then
       printf 'scaffold %s %s failed:\n%s\n' "$layout" "$target" "$scaffold_out" >&2
       RUNNER_DIR="$(dirname "$installed_run")"
@@ -360,9 +361,7 @@ for layout in source global local; do
       rm -rf "$plaindir"; cp -R "$RUNNER_DIR/../harness" "$plaindir" 2>/dev/null
       "$py" "$plaindir/flow_harness.py" --help >/tmp/probe2.out 2>&1; printf "probe_plain_rc=%s\n" "$?" >&2
       sed -n '1,8p' /tmp/probe2.out >&2
-      break
     fi
-    ck 0 "$scaffold_rc" "$layout $target scaffolding succeeds"
   done
   if command -v sh >/dev/null 2>&1; then
     sh -c '! grep -F '\''"bash '\'' "$@"' sh \
