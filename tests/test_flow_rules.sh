@@ -337,8 +337,29 @@ for layout in source global local; do
     scaffold_rc=$?
     if [ "$scaffold_rc" -ne 0 ]; then
       printf 'scaffold %s %s failed:\n%s\n' "$layout" "$target" "$scaffold_out" >&2
-      grep -n "_with_timeout" "$installed_run" >&2
-      FLOW_LOG_DISABLE=1 FLOW_PROJECT_ROOT="$project" bash -x "$installed_run" rules "$target" --write 2>&1 | tail -70 >&2
+      RUNNER_DIR="$(dirname "$installed_run")"
+      py="$(command -v python3)"
+      hp="$RUNNER_DIR/../harness/flow_harness.py"
+      # (a) The REAL helper, verbatim body, stderr intact — reveals which branch runs.
+      bash -c '
+        src="$1"; py="$2"; hp="$3"
+        eval "$(awk "/^_with_timeout\\(\\)/{f=1} f{print} f&&/^}$/{exit}" "$src")"
+        _with_timeout 20 "$py" "$hp" --help
+        printf "real_helper_rc=%s\n" "$?" >&2
+      ' diagnose "$RUNNER_DIR/flow.sh" "$py" "$hp" 2>&1 | tail -14 >&2
+      # (b) GNU timeout alone, stderr intact.
+      if command -v timeout >/dev/null 2>&1; then
+        timeout 20 "$py" "$hp" --help; printf "gnu_timeout_rc=%s\n" "$?" >&2
+      else
+        printf "timeout_absent=1\n" >&2
+      fi
+      # (c) What native python actually receives on the specials path.
+      "$py" -c 'import os, sys; p = sys.argv[1]; print("argv_repr=", repr(p)); print("isfile=", os.path.isfile(p))' "$hp" 2>&1 | tail -3 >&2
+      # (d) Plain-path control: whole harness dir (sibling modules preserved).
+      plaindir="$SCRATCH/plain_probe_harness"
+      rm -rf "$plaindir"; cp -R "$RUNNER_DIR/../harness" "$plaindir" 2>/dev/null
+      "$py" "$plaindir/flow_harness.py" --help >/tmp/probe2.out 2>&1; printf "probe_plain_rc=%s\n" "$?" >&2
+      sed -n '1,8p' /tmp/probe2.out >&2
       break
     fi
     ck 0 "$scaffold_rc" "$layout $target scaffolding succeeds"
