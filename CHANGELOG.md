@@ -1,6 +1,7 @@
 # Changelog
 
 ## [Unreleased]
+- fix(rules): scaffolded-rule operations work from installed layouts whose path contains shell metacharacters (e.g. `Flow space [x]+(y)&`). Root cause (PR93, CI-diagnosed): MSYS/Git Bash skip automatic POSIX→Windows argument conversion for such paths, so native Windows python received a literal `/tmp/...` harness path and exited 2 before printing anything; the GNU-timeout probe branch made earlier fallback fixes unreachable. The runner now converts the harness path explicitly at every native invocation when `cygpath` exists (identity otherwise); POSIX existence checks and display keep the original path. Regression: `tests/test_flow_rules.sh` section N verifies the conversion contract against a stub converter mapping to a real file.
 
 ## [1.0.0] - 2026-10-24 — breaking release, owner-approved v1 contract
 - **BREAKING `skills/flow`:** Python 3 is required for product operations; `flow` refuses them with complete install guidance when Python is absent (help/`doctor` remain usable). Python floor, gates, skip/card behavior, stdlib constraint, and ADR identity preserved; runner Eval STOP bodies untouched.

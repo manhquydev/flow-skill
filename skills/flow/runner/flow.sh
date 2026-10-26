@@ -85,6 +85,20 @@ LOCK_DIR="$ROOT/flow/.lock.d"   # atomic claim dir (W5 guard); winner then write
 LOCK_CLAIM="$ROOT/flow/.lock.claim" # atomic set -C / O_EXCL claim guard
 HARNESS_PY="$SCRIPT_DIR/../harness/flow_harness.py"
 
+# Native-invocation path for the harness script (PR93 root cause, evidence-verified):
+# MSYS/Git Bash skip automatic POSIX->Windows argument conversion for arguments
+# containing shell metacharacters (e.g. scratch layouts with " [x]+(y)&"), so native
+# Windows python receives a literal /tmp/... path it cannot open (rc=2, isfile=False)
+# while identical plain-name layouts convert and pass. Convert explicitly at native
+# invocation sites when a converter exists; POSIX checks/display keep $HARNESS_PY.
+_harness_native() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$HARNESS_PY" 2>/dev/null || printf '%s' "$HARNESS_PY"
+  else
+    printf '%s' "$HARNESS_PY"
+  fi
+}
+
 # Attestations library (risk, receipts, auto policy) — optional-soft: missing file is fatal for v0.28+.
 # shellcheck source=attestations.sh
 . "$SCRIPT_DIR/attestations.sh"
@@ -466,7 +480,7 @@ _runtime_required() {
     echo "FAIL: required harness missing at $HARNESS_PY. Reinstall Flow; see docs/migration-v1.md." >&2
     return 1
   fi
-  _with_timeout "${FLOW_HARNESS_TIMEOUT:-20}" "$py" "$HARNESS_PY" --help >/dev/null 2>&1 || {
+  _with_timeout "${FLOW_HARNESS_TIMEOUT:-20}" "$py" "$(_harness_native)" --help >/dev/null 2>&1 || {
     echo "FAIL: required harness cannot start with $py. Reinstall Flow and run '/flow doctor'; see docs/migration-v1.md." >&2
     return 1
   }
@@ -492,7 +506,7 @@ _harness_run() {
   errf="$(mktemp 2>/dev/null || echo "$ROOT/.flow/.harness-err.$$")"
   mkdir -p "$ROOT/.flow" 2>/dev/null || true
   # capture rc without flipping the caller's set -e state
-  out="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" "$@" 2>"$errf")" || rc=$?
+  out="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" "$@" 2>"$errf")" || rc=$?
   _HARNESS_LAST_RC=$rc
   [ "$_emit" = 1 ] && [ -n "$out" ] && printf '%s\n' "$out"
   if [ "$_emit" = 1 ] && [ "$rc" -eq 3 ]; then rm -f "$errf" 2>/dev/null || true; return "$rc"; fi
@@ -593,7 +607,7 @@ harness_capture_checked() {
   local errf out rc=0
   errf="$(mktemp 2>/dev/null || echo "$ROOT/.flow/.harness-cap-err.$$")"
   out="$(_with_timeout "${FLOW_HARNESS_TIMEOUT:-20}" env FLOW_PROJECT_ROOT="$ROOT" \
-    "$py" "$HARNESS_PY" "$@" 2>"$errf")" || rc=$?
+    "$py" "$(_harness_native)" "$@" 2>"$errf")" || rc=$?
   if [ "$rc" = "124" ]; then
     printf 'flow-harness: call timed out (%ss)\n' "${FLOW_HARNESS_TIMEOUT:-20}" >&2
     rm -f "$errf" 2>/dev/null || true
@@ -630,7 +644,7 @@ harness_available() { # 0 = durable layer usable (python + harness present, not 
 
 harness_emit() { # run a harness subcommand and ECHO its stdout (best-effort; nothing if unavailable)
   harness_available || return 0
-  FLOW_PROJECT_ROOT="$ROOT" "$(_python)" "$HARNESS_PY" "$@" 2>/dev/null || true
+  FLOW_PROJECT_ROOT="$ROOT" "$(_python)" "$(_harness_native)" "$@" 2>/dev/null || true
 }
 
 # ---------- required graph ordering/checkpoint contract ----------
@@ -800,7 +814,7 @@ cmd_harness() {
     echo "FAIL: a working python was not found - durable layer needs python (stdlib sqlite3)."
     return 1
   fi
-  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" "$@"
+  FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" "$@"
 }
 
 seed_law_files() {
@@ -1415,7 +1429,7 @@ cmd_resume() {
       local decisions=""
       if harness_available; then
         local py; py="$(_python)"
-        decisions="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" decision query --story "$resume_card" 2>/dev/null || true)"
+        decisions="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" decision query --story "$resume_card" 2>/dev/null || true)"
       fi
       if [ -n "$decisions" ]; then
         printf '%s\n' "$decisions" | sed 's/^/  /'
@@ -3588,7 +3602,7 @@ cmd_promote() {
         return 0
       fi
       local py; py="$(_python)"
-      FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" promote-suggest
+      FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" promote-suggest
       return $?
       ;;
     *)
@@ -3906,7 +3920,7 @@ cmd_doctor() {
   # 9. harness
   if _run_check "harness"; then
     if [ -n "$py" ] && [ -f "$HARNESS_PY" ] && [ -z "${FLOW_HARNESS_DISABLE:-}" ] && \
-        _with_timeout "${FLOW_HARNESS_TIMEOUT:-20}" "$py" "$HARNESS_PY" --help >/dev/null 2>&1; then
+        _with_timeout "${FLOW_HARNESS_TIMEOUT:-20}" "$py" "$(_harness_native)" --help >/dev/null 2>&1; then
       [ "$opt_json" -eq 0 ] && echo "  harness:   usable ($HARNESS_PY)"
       _record "harness" "assets" "ok" "usable ($HARNESS_PY)"
     else
@@ -7266,15 +7280,15 @@ cmd_usage() {
   local py; py="$(_python)"
   if [ "${1:-}" = "--prune" ]; then          # flow usage --prune [--keep N] [--global]
     shift
-    FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" prune "$@"
+    FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" prune "$@"
     return 0
   fi
   # forward --global to the rollup step too, else `usage --global` queries a src that was
   # never ingested into the usage_event mirror and falsely reports "no events".
   local rollup_global=""
   case " $* " in *" --global "*) rollup_global="--global" ;; esac
-  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" rollup $rollup_global >/dev/null 2>&1 || true
-  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" usage "$@"
+  FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" rollup $rollup_global >/dev/null 2>&1 || true
+  FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" usage "$@"
   return 0
 }
 
