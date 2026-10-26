@@ -91,13 +91,14 @@ HARNESS_PY="$SCRIPT_DIR/../harness/flow_harness.py"
 # Windows python receives a literal /tmp/... path it cannot open (rc=2, isfile=False)
 # while identical plain-name layouts convert and pass. Convert explicitly at native
 # invocation sites when a converter exists; POSIX checks/display keep $HARNESS_PY.
-_harness_native() {
+_native_path() { # <posix-or-native path> -> Windows-native form for native consumers
   if command -v cygpath >/dev/null 2>&1; then
-    cygpath -m "$HARNESS_PY" 2>/dev/null || printf '%s' "$HARNESS_PY"
+    cygpath -m "$1" 2>/dev/null || printf '%s' "$1"
   else
-    printf '%s' "$HARNESS_PY"
+    printf '%s' "$1"
   fi
 }
+_harness_native() { _native_path "$HARNESS_PY"; }
 
 # Attestations library (risk, receipts, auto policy) — optional-soft: missing file is fatal for v0.28+.
 # shellcheck source=attestations.sh
@@ -686,7 +687,7 @@ _graph_planning_id() { # echo the planning execution id (kind=planning, ns='')
 
 _graph_stage_for_node() {
   # Read the trusted install's mapping; graph next has already verified its pin.
-  "$(_python)" - "$SCRIPT_DIR/../references/flow-topology.json" "$1" <<'PY'
+  "$(_python)" - "$(_native_path "$SCRIPT_DIR/../references/flow-topology.json")" "$1" <<'PY'
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as f:
     spec = json.load(f)["nodes"].get(sys.argv[2], {})
@@ -700,7 +701,7 @@ PY
 
 _graph_stage_preds_for_node() {
   # Topological predecessors mapped to stage names
-  "$(_python)" - "$SCRIPT_DIR/../references/flow-topology.json" "$1" <<'PY'
+  "$(_python)" - "$(_native_path "$SCRIPT_DIR/../references/flow-topology.json")" "$1" <<'PY'
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as f:
     topo = json.load(f)
@@ -748,7 +749,7 @@ _graph_next_node() { # eid -> node, or rc3 ONLY for a non-paused exhausted walk
 _graph_db_exists() {
   # CLI --no-create means no execution row, not no SQLite connection. Resolve
   # linked-worktree/override ownership without opening or migrating the database.
-  PYTHONDONTWRITEBYTECODE=1 FLOW_PROJECT_ROOT="$ROOT" "$(_python)" - "$SCRIPT_DIR/../harness" <<'PY'
+  PYTHONDONTWRITEBYTECODE=1 FLOW_PROJECT_ROOT="$ROOT" "$(_python)" - "$(_native_path "$SCRIPT_DIR/../harness")" <<'PY'
 import os, sys
 sys.path.insert(0, sys.argv[1])
 import _db
@@ -3283,7 +3284,7 @@ assess_scan() {
   # ranked surfaces: highest-leverage code first (symbols referenced most widely). Optional helper
   # (stdlib reference-count ranker); degrades to a note if python/helper absent - the flat scan stands.
   echo "ranked surfaces (most-referenced first - inspect these before planning):"
-  rmap="${HARNESS_PY%/*}/repo_map.py"
+  rmap="$(dirname "$(_harness_native)")/repo_map.py"
   py="$(_python)"
   if [ -n "$py" ] && [ -f "$rmap" ]; then
     rout="$("$py" "$rmap" "$ROOT" 10 2>/dev/null)"
@@ -3638,7 +3639,7 @@ cmd_doctor() {
   local opt_check=""
   local has_check=0
   local err_msg=""
-  local helper="$SCRIPT_DIR/doctor_helper.py"
+  local helper; helper="$(_native_path "$SCRIPT_DIR/doctor_helper.py")"
   local py; py="$(_python)"
 
   # Pre-scan arguments for --json so any error emits valid JSON if requested
