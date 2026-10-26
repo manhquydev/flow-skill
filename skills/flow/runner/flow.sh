@@ -7062,7 +7062,18 @@ This repository enforces Flow discipline:
         # whose quote removal strips the inner layer's path escapes (PR93: unquoted "("
         # in metacharacter install paths -> syntax error). A single-quoted wrapper is
         # deterministic: quote removal restores the program verbatim for the inner shell.
-        aider_command="bash -c '${aider_program//\'/\'\\\'\'}'"
+        # Escape each single quote as '\'' via a literal-concatenation loop: the inline
+        # ${aider_program//\'/\'\\\'\'} substitution has different quote-removal under
+        # Bash 3.2 and emitted malformed bytes (PR93 macOS: shlex "No closing quotation",
+        # bash -n rc=2). Same quoted-pattern construct as the template loop below.
+        local aider_escaped="" aider_rest="$aider_program"
+        local flow_sq="'" flow_bslq="'\\''"
+        while [[ "$aider_rest" == *"$flow_sq"* ]]; do
+          aider_escaped="${aider_escaped}${aider_rest%%"$flow_sq"*}${flow_bslq}"
+          aider_rest="${aider_rest#*"$flow_sq"}"
+        done
+        aider_escaped="${aider_escaped}${aider_rest}"
+        aider_command="bash -c '${aider_escaped}'"
         aider_command="$(_json_str "$aider_command")"
         token='@FLOW_AIDER_COMMAND@'
         replacement="$aider_command"
