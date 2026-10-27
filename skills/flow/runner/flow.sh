@@ -3299,7 +3299,7 @@ assess_scan() {
   rmap="$(dirname "$(_harness_native)")/repo_map.py"
   py="$(_python)"
   if [ -n "$py" ] && [ -f "$rmap" ]; then
-    rout="$("$py" "$rmap" "$ROOT" 10 2>/dev/null)"
+    rout="$("$py" "$rmap" "$(_native_path "$ROOT")" 10 2>/dev/null)"
     if [ -n "$rout" ]; then printf '%s\n' "$rout" | sed 's/^/  /'
     else echo "  (no rankable source symbols found)"; fi
   else
@@ -3945,7 +3945,7 @@ cmd_doctor() {
 
   # 10. timeout
   if _run_check "timeout"; then
-    if command -v timeout >/dev/null 2>&1 || command -v gtimeout >/dev/null 2>&1; then
+    if (command -v timeout >/dev/null 2>&1 && (timeout --version >/dev/null 2>&1 || timeout -s TERM 1 true >/dev/null 2>&1)) || command -v gtimeout >/dev/null 2>&1; then
       [ "$opt_json" -eq 0 ] && echo "  timeout:   full (timeout|gtimeout present)"
       _record "timeout" "tools" "ok" "full (timeout|gtimeout present)"
     else
@@ -3972,7 +3972,7 @@ cmd_doctor() {
     else
       local v_out=""
       if [ -n "$py" ] && "$py" --version >/dev/null 2>&1 && [ -f "$helper" ]; then
-        v_out="$("$py" "$helper" verify-receipt "$SCRIPT_DIR/.." "$mf" 2>/dev/null || echo "FAIL:execution error during integrity verification")"
+        v_out="$("$py" "$helper" verify-receipt "$(_native_path "$SCRIPT_DIR/..")" "$(_native_path "$mf")" 2>/dev/null || echo "FAIL:execution error during integrity verification")"
       else
         v_out="FAIL:working Python >=3.7 interpreter unavailable for receipt verification"
       fi

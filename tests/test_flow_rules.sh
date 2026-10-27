@@ -359,8 +359,8 @@ for layout in source global local; do
       # (d) Plain-path control: whole harness dir (sibling modules preserved).
       plaindir="$SCRATCH/plain_probe_harness"
       rm -rf "$plaindir"; cp -R "$RUNNER_DIR/../harness" "$plaindir" 2>/dev/null
-      "$py" "$plaindir/flow_harness.py" --help >/tmp/probe2.out 2>&1; printf "probe_plain_rc=%s\n" "$?" >&2
-      sed -n '1,8p' /tmp/probe2.out >&2
+      "$py" "$plaindir/flow_harness.py" --help >"$SCRATCH/probe2.out" 2>&1; printf "probe_plain_rc=%s\n" "$?" >&2
+      sed -n '1,8p' "$SCRATCH/probe2.out" >&2
     fi
   done
   if command -v sh >/dev/null 2>&1; then
@@ -570,27 +570,42 @@ TIMEOUT_PY="$(command -v "$PY")"
 if command -v cygpath >/dev/null 2>&1; then TIMEOUT_PY="$(cygpath -m "$TIMEOUT_PY")"; fi
 TIMEOUT_TARGET="$SCRATCH/timeout original [x].txt"
 printf x > "$TIMEOUT_TARGET"
-for converter in nonzero empty success missing; do
+for converter in nonzero empty success absent missing_target; do
   timeout_arg="$TIMEOUT_TARGET"
   timeout_expected="$timeout_arg"
   case "$converter" in
     success) timeout_expected="converted-path" ;;
-    missing)
+    absent)
+      # Absent converter: cygpath is not on PATH (command -v cygpath fails).
+      # The target exists, but without cygpath, _with_timeout preserves the original argv.
+      timeout_arg="$TIMEOUT_TARGET"
+      timeout_expected="$timeout_arg"
+      ;;
+    missing_target)
+      # Nonexistent target: converter is present, but target file does not exist.
+      # _with_timeout preserves nonexistent targets without converting.
       timeout_arg="$SCRATCH/missing-timeout-target"
       # MSYS translates POSIX argv when launching native Windows Python, even when
-      # the helper's cygpath probe is simulated as missing.
+      # the helper skips conversion for nonexistent files.
       if command -v cygpath >/dev/null 2>&1; then
         timeout_expected="$(cygpath -m "$timeout_arg")"
       else
         timeout_expected="$timeout_arg"
-      fi ;;
+      fi
+      ;;
   esac
   timeout_out="$(TIMEOUT_HELPER="$TIMEOUT_HELPER" TIMEOUT_PY="$TIMEOUT_PY" TIMEOUT_MODE="$converter" TIMEOUT_ARG="$timeout_arg" bash -c '
     eval "$TIMEOUT_HELPER"
     _python() { printf "%s" "$TIMEOUT_PY"; }
     command() {
       if [ "$1" = -v ]; then
-        case "$2" in timeout|gtimeout) return 1 ;; cygpath) return 0 ;; esac
+        case "$2" in
+          timeout|gtimeout) return 1 ;;
+          cygpath)
+            if [ "$TIMEOUT_MODE" = "absent" ]; then return 1; fi
+            return 0
+            ;;
+        esac
       fi
       builtin command "$@"
     }
@@ -599,7 +614,7 @@ for converter in nonzero empty success missing; do
       case "$TIMEOUT_MODE" in
         nonzero) return 1 ;;
         empty) return 0 ;;
-        success|missing) printf "%s" converted-path ;;
+        success|missing_target) printf "%s" converted-path ;;
       esac
     }
     _with_timeout 5 "$TIMEOUT_PY" -c "import sys; print(sys.argv[1])" "$TIMEOUT_ARG"

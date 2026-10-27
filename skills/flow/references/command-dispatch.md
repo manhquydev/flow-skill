@@ -51,7 +51,7 @@ is no fragment loader (ADR-0001).
 
 `agent-skills` is only for repositories with the canonical bundle checked into project-root `skills/flow`. `--write` refuses without both `skills/flow/SKILL.md` and `skills/flow/runner/flow.sh`, before creating directories or files. Global installs or `.claude/skills/flow` alone are insufficient; preview remains available and states this prerequisite.
 
-The eight harness-rule templates resolve runner commands when scaffolded: use `bash skills/flow/runner/flow.sh` when that file exists in the project; otherwise use the shell-escaped absolute path of the running install. Run commands from the project root (Git Bash or WSL on Windows). Roo's command regex and Aider's test command use the same resolved runner. Regenerate rules after relocating an install; existing files are never overwritten.
+The eight harness-rule templates resolve runner commands when scaffolded: use `bash skills/flow/runner/flow.sh` when that file exists in the project; otherwise use the shell-escaped absolute path of the running install. Run commands from the project root (Git Bash on Windows; WSL path mapping is not verified). Roo's command regex and Aider's test command use the same resolved runner. Regenerate rules after relocating an install; existing files are never overwritten, so remove stale scaffold files first before re-running with `--write`.
 
 ## verb-next
 
