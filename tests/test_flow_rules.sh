@@ -575,7 +575,15 @@ for converter in nonzero empty success missing; do
   timeout_expected="$timeout_arg"
   case "$converter" in
     success) timeout_expected="converted-path" ;;
-    missing) timeout_arg="$SCRATCH/missing-timeout-target"; timeout_expected="$timeout_arg" ;;
+    missing)
+      timeout_arg="$SCRATCH/missing-timeout-target"
+      # MSYS translates POSIX argv when launching native Windows Python, even when
+      # the helper's cygpath probe is simulated as missing.
+      if command -v cygpath >/dev/null 2>&1; then
+        timeout_expected="$(cygpath -m "$timeout_arg")"
+      else
+        timeout_expected="$timeout_arg"
+      fi ;;
   esac
   timeout_out="$(TIMEOUT_HELPER="$TIMEOUT_HELPER" TIMEOUT_PY="$TIMEOUT_PY" TIMEOUT_MODE="$converter" TIMEOUT_ARG="$timeout_arg" bash -c '
     eval "$TIMEOUT_HELPER"
