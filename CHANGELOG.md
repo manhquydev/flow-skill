@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 - fix(doctor): verify `timeout --version` or `-s` capability in doctor timeout check; avoid falsely reporting Windows System32 timeout as full GNU timeout.
-- fix(runner): convert project ROOT to Windows-native paths on MSYS for native Python invocations in ranking (`assess_scan`) and receipt verification (`verify-receipt`). Runner Eval STOP bodies (`_with_timeout` and `_eval_engine_run`) remain strictly untouched.
+- fix(runner): convert project ROOT to Windows-native paths on MSYS for the native Python ranking invocation (`assess_scan`), and the install root plus manifest path for receipt verification (`verify-receipt`). Runner Eval STOP bodies (`_with_timeout` and `_eval_engine_run`) remain strictly untouched.
 - test(rules): isolate diagnostic outputs under `$SCRATCH` rather than shared `/tmp/probe2.out`; align timeout fallback tests in `test_flow_rules.sh` to distinguish absent converter from nonexistent target.
 - docs(rules): clarify rule regeneration in `skills/flow/references/command-dispatch.md` when destination already exists (remove stale scaffold first) and qualify WSL reference to match runner output.
 - fix(rules): preserve timeout subprocess arguments when cygpath fails or returns empty output; cover failed, empty, successful and missing-target conversion through the Python fallback. Generated Windows instructions qualify Git Bash only; WSL path mapping is unverified.
