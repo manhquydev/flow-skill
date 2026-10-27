@@ -561,9 +561,21 @@ _with_timeout() { # seconds, argv (never a shell command string)
     _wt_argv=()
     for _wt_arg in "$@"; do
       case "$_wt_arg" in
-        /*) if [ -e "$_wt_arg" ]; then _wt_argv+=("$(cygpath -w "$_wt_arg")")
-            elif [ -e "$_wt_arg.exe" ]; then _wt_argv+=("$(cygpath -w "$_wt_arg.exe")")
-            else _wt_argv+=("$_wt_arg"); fi ;;
+        /*)
+          _wt_target=""
+          if [ -e "$_wt_arg" ]; then _wt_target="$_wt_arg"
+          elif [ -e "$_wt_arg.exe" ]; then _wt_target="$_wt_arg.exe"
+          fi
+          if [ -n "$_wt_target" ]; then
+            _wt_converted="$(cygpath -w "$_wt_target" 2>/dev/null)" || _wt_converted=""
+            if [ -n "$_wt_converted" ]; then
+              _wt_argv+=("$_wt_converted")
+            else
+              _wt_argv+=("$_wt_arg")
+            fi
+          else
+            _wt_argv+=("$_wt_arg")
+          fi ;;
         *) _wt_argv+=("$_wt_arg") ;;
       esac
     done
@@ -6903,7 +6915,7 @@ Implementation tasks are tracked in atomic markdown cards (`cards/C-NNN.md`):
 
 The Flow runner is the mechanical authority. Run from the repository root:
 - POSIX / Bash: `@FLOW_RUNNER@ <command>`
-- Windows shells: use Git Bash or WSL with the same runner command.
+- Windows shells: use Git Bash with the same runner command; WSL path mapping is not verified.
 
 Core commands:
 - `@FLOW_RUNNER@ status` — inspect active stage, in-flight cards, and blockers.

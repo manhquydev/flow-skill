@@ -256,7 +256,7 @@ has "$out_agents_md" "## Allowed files" "Allowed files marker present"
 has "$out_agents_md" "## Verify" "Verify marker present"
 has "$out_agents_md" "## Evidence" "Evidence marker present"
 has "$out_agents_md" "bash skills/flow/runner/flow.sh <command>" "bash runner command present"
-has "$out_agents_md" "Git Bash or WSL" "Windows Bash invocation documented"
+has "$out_agents_md" "Git Bash" "Windows Bash invocation documented"
 has "$out_agents_md" "status" "status command listed"
 has "$out_agents_md" "next" "next command listed"
 has "$out_agents_md" "check C-NNN" "check command listed"
@@ -562,6 +562,45 @@ ck 0 "$rc_reg2" "rules cursor succeeds when cygpath returns empty and pwd -W uns
 has "$out_reg2" "$REG_INSTALL/runner/flow.sh" "generated command targets fallback runner path when cygpath and pwd -W fail"
 no "$out_reg2" "bash /flow.sh" "generated command does not target /flow.sh when cygpath returns empty"
 has "$err_reg2" "WARN: cannot convert install path to Windows form" "degradation warning present when pwd -W unsupported"
+
+# P) Exercise the real Python fallback, including the child subprocess argv.
+echo "P) timeout fallback preserves argv when path conversion fails"
+TIMEOUT_HELPER="$(awk '/^_with_timeout\(\)/{f=1} f{print} f&&/^}$/{exit}' "$RUN")"
+TIMEOUT_PY="$(command -v "$PY")"
+if command -v cygpath >/dev/null 2>&1; then TIMEOUT_PY="$(cygpath -m "$TIMEOUT_PY")"; fi
+TIMEOUT_TARGET="$SCRATCH/timeout original [x].txt"
+printf x > "$TIMEOUT_TARGET"
+for converter in nonzero empty success missing; do
+  timeout_arg="$TIMEOUT_TARGET"
+  timeout_expected="$timeout_arg"
+  case "$converter" in
+    success) timeout_expected="converted-path" ;;
+    missing) timeout_arg="$SCRATCH/missing-timeout-target"; timeout_expected="$timeout_arg" ;;
+  esac
+  timeout_out="$(TIMEOUT_HELPER="$TIMEOUT_HELPER" TIMEOUT_PY="$TIMEOUT_PY" TIMEOUT_MODE="$converter" TIMEOUT_ARG="$timeout_arg" bash -c '
+    eval "$TIMEOUT_HELPER"
+    _python() { printf "%s" "$TIMEOUT_PY"; }
+    command() {
+      if [ "$1" = -v ]; then
+        case "$2" in timeout|gtimeout) return 1 ;; cygpath) return 0 ;; esac
+      fi
+      builtin command "$@"
+    }
+    cygpath() {
+      if [ "$2" = "$TIMEOUT_PY" ]; then printf "%s" "$2"; return 0; fi
+      case "$TIMEOUT_MODE" in
+        nonzero) return 1 ;;
+        empty) return 0 ;;
+        success|missing) printf "%s" converted-path ;;
+      esac
+    }
+    _with_timeout 5 "$TIMEOUT_PY" -c "import sys; print(sys.argv[1])" "$TIMEOUT_ARG"
+  ' 2>&1)"
+  timeout_rc=$?
+  ck 0 "$timeout_rc" "$converter converter fallback executes child"
+  ck "$timeout_expected" "$timeout_out" "$converter converter preserves expected subprocess argument"
+done
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
