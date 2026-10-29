@@ -6,22 +6,15 @@ Canonical runbook for shipping future versions. Release policy: [`docs/adr/0002-
 
 Skill product and npm installer share one SemVer, including installer-only and skill-only changes. The canonical source is `skills/flow/SKILL.md`; `npm-wrapper/package.json`, `.claude-plugin/plugin.json` and `portable-manifest.json` are release mirrors. `sync-release --check` requires equality. See the [owner decision](release-owner-decision-unified-version.md) and its [authoritative record](../plans/261025-0023-unified-version/decision.md).
 
-The existing field names, marketplace catalog and banner `flow-skill vX (ships skill vY)` remain compatible; X and Y now agree. Release intent records both versions. Historical releases, including npm 0.8.0 and skill tag `v1.0.0`, remain immutable. The first alignment is npm 1.0.0 with the already-versioned, unchanged skill 1.0.0.
+The existing field names, marketplace catalog and banner `flow-skill vX (ships skill vY)` remain compatible; X and Y now agree. Release intent records both versions. Historical releases, including npm 0.8.0 and skill tag `v1.0.0`, remain immutable. The initial alignment shipped as npm 1.0.0 with the already-versioned skill 1.0.0.
 
 Each release PR updates the common version, changelogs, synchronized docs and release intent. Loop ticks without a version/changelog change do not publish. Breaking compatibility or expanding security/service rights still requires a separate owner authorization in `docs/release-owner-authorization.json`; all provenance, CI and review gates remain fail-closed.
 
-## Flow v1 breaking release gate
+## Flow v1 breaking release gate — passed
 
-The owner-approved v1 contract is not satisfied by a version-number change or a default-flag
-flip alone. Before stable skill 1.0, the graph executor must actually own `/flow next`
-ordering, Python must be required at the measured floor, and `FLOW_HARNESS_DISABLE` must
-refuse product operations without weakening any gate. Require independent review, current
-exact-head cross-OS CI, docs/package coherence, and verified migration plus rollback evidence.
-The migration path must create and retain a SQLite-consistent pre-migration backup before DDL
-for an existing populated DB, refuse on backup failure, preserve linked-worktree DB ownership,
-and prove restore/readback. Any rollback must wait until writers are settled, preserve the
-newer database separately, and restore only from a named verified backup; reinstalling an old
-npm package alone does not undo database changes. No stable 1.0 promotion until all gates pass.
+The owner-approved v1 contract required more than a version-number change or a default-flag flip: the graph executor had to own `/flow next` ordering, Python had to be required at the measured floor, and `FLOW_HARNESS_DISABLE` had to refuse product operations without weakening any gate. Independent review, exact-head cross-OS CI, docs/package coherence, and verified migration plus rollback evidence were also required.
+
+The stable v1.0.0 release gate passed before publication. The [GitHub release](https://github.com/manhquydev/flow-skill/releases/tag/v1.0.0) was published 2026-10-24; npm [`1.0.0`](https://www.npmjs.com/package/@manhquy/flow-skill/v/1.0.0) followed on 2026-10-25 and became the `latest` package. The release changelog records acceptance and CI evidence. The migration contract requires a SQLite-consistent pre-migration backup before DDL for populated databases, refusal on backup failure, preserved linked-worktree DB ownership, and proven restore/readback. Rollback must wait until writers are settled, preserve the newer database separately, and restore only from a named verified backup. See the [v1 migration guide](migration-v1.md); reinstalling an older npm package alone does not undo database changes.
 
 ## Automatic release path
 

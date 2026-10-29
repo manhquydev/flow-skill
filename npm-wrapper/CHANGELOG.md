@@ -5,19 +5,20 @@ All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https:/
 ## [1.0.0] - 2026-10-25
 
 - Adopt one shared SemVer for the skill product and npm installer. npm advances from 0.8.0 to 1.0.0; the skill is already 1.0.0.
-- Breaking for upgrades from 0.7.x: Python 3 is required, `FLOW_HARNESS_DISABLE` refuses product operations, and the graph executor owns `/flow next` ordering. See the [v1 migration guide](../docs/migration-v1.md). This alignment leaves bundled skill content and immutable `v1.0.0` unchanged; release preparation is not a publication receipt.
+- Breaking for upgrades from 0.7.x: Python 3 is required, `FLOW_HARNESS_DISABLE` refuses product operations, and the graph executor owns `/flow next` ordering. See the [v1 migration guide](../docs/migration-v1.md). This alignment leaves the already-published skill v1.0.0 unchanged; npm 1.0.0 was published on 2026-10-25 and is the current `latest` package.
 
-## [0.8.0] - 2026-10-24 — skill v1.0.0 (breaking / pending publication)
-- **Bundled skill:** prepared for the v1.0.0 breaking release: Python 3 required for product operations, graph executor owns `/flow next` ordering, `FLOW_HARNESS_DISABLE` refuses product operations. Installer CLI surface is unchanged; the version bump carries the bundled skill content. See root `CHANGELOG.md` 1.0.0 and `docs/migration-v1.md`.
+## [0.8.0] - 2026-10-24 — skill v1.0.0 (published)
+- **Bundled skill:** Published on npm 2026-10-24 with the v1.0.0 breaking behavior: Python 3 required for product operations, graph executor owns `/flow next` ordering, and `FLOW_HARNESS_DISABLE` refuses product operations. Installer CLI surface is unchanged. See root `CHANGELOG.md` 1.0.0 and `docs/migration-v1.md`.
 - Rollback: reinstalling this package does not undo database changes; restore only from a named verified pre-migration backup.
 
-## [0.7.16] - 2026-10-22 — ships skill v0.34.9 (stable / latest)
+## [0.7.16] - 2026-10-22 — ships skill v0.34.9 (published)
 - **Bundled skill:** Includes additive `flow rules agents-md` safe preview/write targeting and static doctor remedy hints in human and JSON diagnostics; existing-file/symlink refusal and diagnostic outcomes remain unchanged.
-- **Compatibility:** Backwards-compatible patch with synchronized dual-axis metadata; no installer scope or security/service-rights expansion. Release preparation only, not a publication receipt.
+- **Compatibility:** Backwards-compatible patch with synchronized dual-axis metadata; no installer scope or security/service-rights expansion. Published on npm 2026-10-22.
+- **Published pair verified:** The npm `0.7.16` tarball's 133 bundled Flow skill files match the GitHub `v0.34.9` tag at commit `9ccda18d3da36b635d6d2f2a5b5096bfcb669e64`; see the [migration guide](../docs/migration-v1.md).
 
-## [0.7.15] - 2026-10-22 — ships skill v0.34.8 (stable / latest)
+## [0.7.15] - 2026-10-22 — ships skill v0.34.8 (published)
 - **Bundled skill:** Includes terminal retro guidance and additive Codex/Gemini project Agent Skills discovery/rules targeting, with the canonical project-bundle prerequisite; no claim of live Codex/Gemini activation or expanded npm installer project scope.
-- **Release guidance:** Includes aligned release preparation/preflight guidance and synchronized dual-axis metadata. Backwards-compatible; no security or service-rights expansion. Release preparation only, not a publication receipt.
+- **Release guidance:** Includes aligned release preparation/preflight guidance and synchronized dual-axis metadata. Backwards-compatible; no security or service-rights expansion. Published on npm 2026-10-22.
 
 ## [0.7.14] - 2026-10-21 — ships skill v0.34.7 (stable / latest)
 - **Skill Product v0.34.7 Parity:** Ships the brownfield status guidance fix: `/flow status` now directs users to `/flow assess` (not `/flow next`) while a brownfield assessment gate is dirty; the mechanical gate still blocks planning until the assessment is clean.

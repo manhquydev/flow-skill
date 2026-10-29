@@ -97,6 +97,8 @@ Sau khi cài đặt hoàn tất, hãy khởi động lại hoặc tải lại co
 | **Kho lưu trữ** | [GitHub: manhquydev/flow-skill](https://github.com/manhquydev/flow-skill) |
 | **Giấy phép** | MIT |
 
+Bản phát hành đã xác minh ngày 2026-10-30: GitHub phát hành skill v1.0.0 (2026-10-24) và npm installer 1.0.0 (2026-10-25); registry xác nhận `latest` là 1.0.0. Xem [hướng dẫn migration](https://github.com/manhquydev/flow-skill/blob/master/docs/migration-v1.md) để biết cặp rollback trước v1 đã xác minh.
+
 ---
 
 ## Xử lý sự cố & Câu hỏi thường gặp
