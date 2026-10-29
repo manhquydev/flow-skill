@@ -679,7 +679,142 @@ revision_oracle_ref: ${_ATT_W_revision_oracle_ref}
 revision_oracle_fingerprint: ${_ATT_W_revision_oracle_fingerprint}
 "
   fi
-  _att_atomic_write "$dest" "$body"
+  _att_atomic_write "$dest" "$body" || return 1
+  # Chain ledger is best-effort evidence: it must never fail a mint.
+  _att_chain_append "$dest" || echo "WARNING: receipt chain append failed for $dest (mint still valid)" >&2
+  return 0
+}
+
+# ---------- receipt chain (tamper-evident ledger, sidecar) ----------
+# The receipt schema (flow-attestation/v1) is untouched: the parser rejects
+# unknown keys, so chain data lives in a sidecar ledger, never in receipts.
+# Ledger: $(_att_dir)/chain.log, one line per minted receipt:
+#   v1 <seq> <prev_link> <link> <receipt_hash> <kind> <subject_type> <subject_id> <timestamp>
+# link = git hash-object --stdin of "prev_link\nreceipt_hash\nkind\nsubject_type\nsubject_id\ntimestamp".
+# receipt_hash = git hash-object --no-filters of the raw receipt file bytes:
+# filter-immune, so .gitattributes clean filters and CRLF normalization
+# cannot mask an edit (--stdin link hashes take no path, apply no filters).
+# Genesis prev_link is 40 zeroes. Chain verify (flow attest verify-chain)
+# recomputes every link and compares each path's latest entry against the
+# current receipt file, and reports receipts with no ledger entry.
+# Threat model, stated honestly: the chain detects silent edits and
+# reordering, and deletions only when a later entry remains or the receipt
+# still exists (UNTRACKED) — but NOT an attacker who consistently rewrites
+# ledger + receipts and holds no external copy of the ledger, or who deletes
+# a receipt together with its last ledger line — copy chain.log elsewhere
+# for independent audit.
+_att_chain_path() { printf '%s/chain.log' "$(_att_dir)"; }
+
+_att_chain_append() { # $1 dest receipt path — returns 1 on failure; caller warns, mint still succeeds
+  local dest="$1" ledger seq prev link rh kind st sid ts payload last
+  ledger="$(_att_chain_path)"
+  kind="$_ATT_W_kind"; st="$_ATT_W_subject_type"; sid="$_ATT_W_subject_id"
+  ts="$_ATT_W_timestamp"
+  rh="$(git -C "$ROOT" hash-object --no-filters "$dest" 2>/dev/null || true)"
+  [ -n "$rh" ] || return 1
+  _att_lock_acquire "chain" || return 1
+  seq=1; prev="0000000000000000000000000000000000000000"
+  if [ -f "$ledger" ]; then
+    last="$(tail -n 1 "$ledger" 2>/dev/null || true)"
+    if [ -n "$last" ]; then
+      set -- $last
+      # A corrupt tail line must never kill a mint (set -u arithmetic on a
+      # non-numeric or leading-zero seq would abort the shell): skip instead.
+      case "${1:-}" in v1) : ;; *) _att_lock_release "chain"; return 1 ;; esac
+      case "${2:-}" in ''|*[!0-9]*|0*) _att_lock_release "chain"; return 1 ;; esac
+      seq=$((${2:-0} + 1))
+      prev="${4:-$prev}"
+    fi
+  fi
+  payload="$(printf '%s\n%s\n%s\n%s\n%s\n%s' "$prev" "$rh" "$kind" "$st" "$sid" "$ts")"
+  link="$(printf '%s\n' "$payload" | git -C "$ROOT" hash-object --stdin 2>/dev/null || true)"
+  if [ -z "$link" ]; then _att_lock_release "chain"; return 1; fi
+  if ! printf 'v1 %s %s %s %s %s %s %s %s\n' "$seq" "$prev" "$link" "$rh" "$kind" "$st" "$sid" "$ts" >> "$ledger" 2>/dev/null; then
+    _att_lock_release "chain"; return 1
+  fi
+  _att_lock_release "chain"
+  return 0
+}
+
+_att_chain_verify() { # exit 0 OK, 1 BROKEN/MISMATCH/MISSING/UNTRACKED, 2 NO-LEDGER/EMPTY
+  local ledger seq prev prev_f link rh kind st sid ts payload expect n=0 bad=0
+  local line path cur
+  ledger="$(_att_chain_path)"
+  [ -f "$ledger" ] || { echo "chain: NO-LEDGER ($ledger not found)"; return 2; }
+  [ -s "$ledger" ] || { echo "chain: EMPTY ($ledger has no entries)"; return 2; }
+  prev="0000000000000000000000000000000000000000"
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ -z "$line" ]; then echo "chain: BROKEN at line $((n + 1)) (blank ledger line)"; bad=1; break; fi
+    n=$((n + 1))
+    set -- $line
+    [ "$#" -eq 9 ] || { echo "chain: BROKEN at line $n (expected 9 fields, got $#)"; bad=1; break; }
+    [ "${1:-}" = "v1" ] || { echo "chain: BROKEN at line $n (bad version)"; bad=1; break; }
+    seq="${2:-}"; prev_f="${3:-}"; link="${4:-}"; rh="${5:-}"
+    kind="${6:-}"; st="${7:-}"; sid="${8:-}"; ts="${9:-}"
+    [ "$seq" = "$n" ] || { echo "chain: BROKEN at line $n (seq $seq, expected $n)"; bad=1; break; }
+    [ "$prev_f" = "$prev" ] || { echo "chain: BROKEN at line $n (prev link mismatch)"; bad=1; break; }
+    payload="$(printf '%s\n%s\n%s\n%s\n%s\n%s' "$prev_f" "$rh" "$kind" "$st" "$sid" "$ts")"
+    expect="$(printf '%s\n' "$payload" | git -C "$ROOT" hash-object --stdin 2>/dev/null || true)"
+    [ "$expect" = "$link" ] || { echo "chain: BROKEN at line $n (link mismatch)"; bad=1; break; }
+    prev="$link"
+  done < "$ledger"
+  [ "$bad" -eq 0 ] || return 1
+  # Latest entry per receipt path must match the current file bytes.
+  # (Temp file, not a pipeline, so the mismatch flag survives in this shell.)
+  local tmpf mismatch=0
+  if ! tmpf="$(mktemp "${TMPDIR:-/tmp}/.att-chain.XXXXXX" 2>/dev/null)"; then
+    echo "chain: BROKEN (cannot create temp file for latest-entry index)"
+    return 1
+  fi
+  if ! awk '{k=$6"/"$7"/"$8; last[k]=$0} END {for (k in last) print last[k]}' "$ledger" > "$tmpf" 2>/dev/null; then
+    echo "chain: BROKEN (cannot build latest-entry index)"
+    rm -f "$tmpf" 2>/dev/null || true
+    return 1
+  fi
+  while IFS= read -r line || [ -n "$line" ]; do
+    [ -z "$line" ] && continue
+    set -- $line
+    rh="${5:-}"; kind="${6:-}"; st="${7:-}"; sid="${8:-}"
+    path="$(_att_receipt_path "$kind" "$st" "$sid" 2>/dev/null || true)"
+    if [ ! -f "$path" ]; then echo "chain: MISSING $path (ledger entry exists, receipt deleted)"; mismatch=1; break; fi
+    cur="$(git -C "$ROOT" hash-object --no-filters "$path" 2>/dev/null || true)"
+    if [ "$cur" != "$rh" ]; then echo "chain: MISMATCH $path (receipt changed after last chained mint)"; mismatch=1; break; fi
+  done < "$tmpf"
+  if [ "$mismatch" -eq 0 ]; then
+    # Receipts with no ledger entry are invisible to the pass above: enumerate
+    # receipt files and require a ledger entry for each.
+    local keysf untracked=0 rf rkind rname rst rsid rkey
+    if ! keysf="$(mktemp "${TMPDIR:-/tmp}/.att-chain-keys.XXXXXX" 2>/dev/null)"; then
+      echo "chain: BROKEN (cannot create temp file for ledger key index)"
+      rm -f "$tmpf" 2>/dev/null || true
+      return 1
+    fi
+    if ! awk '{print $6"/"$7"/"$8}' "$tmpf" > "$keysf" 2>/dev/null; then
+      echo "chain: BROKEN (cannot build ledger key index)"
+      rm -f "$tmpf" "$keysf" 2>/dev/null || true
+      return 1
+    fi
+    while IFS= read -r rf; do
+      [ -n "$rf" ] || continue
+      rkind="$(basename "$(dirname "$rf")")"
+      rname="$(basename "$rf" .receipt)"
+      case "$rname" in
+        stage-*) rst="stage"; rsid="${rname#stage-}" ;;
+        card-*) rst="card"; rsid="${rname#card-}" ;;
+        *) echo "chain: UNTRACKED $rf (unrecognized receipt name)"; untracked=1; break ;;
+      esac
+      rkey="$rkind/$rst/$rsid"
+      grep -qxF "$rkey" "$keysf" 2>/dev/null || { echo "chain: UNTRACKED $rf (receipt has no ledger entry)"; untracked=1; break; }
+    done <<EOF
+$(find "$(_att_dir)" -type f -name '*.receipt' 2>/dev/null)
+EOF
+    rm -f "$keysf" 2>/dev/null || true
+    [ "$untracked" -eq 0 ] || { rm -f "$tmpf" 2>/dev/null || true; return 1; }
+  fi
+  rm -f "$tmpf" 2>/dev/null || true
+  [ "$mismatch" -eq 0 ] || return 1
+  echo "chain: OK $n entries"
+  return 0
 }
 
 # ---------- process supervisor ----------
@@ -1364,6 +1499,10 @@ _att_enforce_card() {
 
 # ---------- cmd_attest ----------
 cmd_attest() {
+  case "$ROOT" in
+    /*) : ;;
+    *) ROOT="$(CDPATH= cd "$ROOT" 2>/dev/null && pwd)" || { echo "chain: BROKEN (cannot resolve project root)"; return 1; } ;;
+  esac
   local sub="${1:-}"; shift 2>/dev/null || true
   case "$sub" in
     semantic)
@@ -1438,8 +1577,11 @@ cmd_attest() {
       [ "${1:-}" = "--mark-failed" ] || { echo "usage: flow attest recover C-NNN --mark-failed"; return 2; }
       _att_recover_live "$id"; return $?
       ;;
+    verify-chain)
+      _att_chain_verify; return $?
+      ;;
     *)
-      echo "usage: flow attest semantic|live-verify|status|recover ..."
+      echo "usage: flow attest semantic|live-verify|status|recover|verify-chain ..."
       return 2
       ;;
   esac

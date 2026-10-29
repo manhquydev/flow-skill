@@ -7150,7 +7150,7 @@ usage: bash flow.sh <command> [args]
   loop-prep <card>  Plumbing for ck-loop: isolated worktree + numeric Verify command + param block (thin wrapper; ck-loop is the engine)
   loop-log <card>   Record a finished ck-loop run (iterations/start/end/outcome) into usage-log telemetry
   auto [stop]        Activate attested auto (risk + Stage 05 receipt) or stop
-  attest <verb>      Mint/status/recover attestation receipts (semantic|live-verify|status|recover)
+  attest <verb>      Mint/status/recover attestation receipts (semantic|live-verify|status|recover|verify-chain)
   recall            Read back prior knowledge (debt/retro/playbooks/prev-card/harness) before working
   unlock            Clear this project's concurrency lock (after a crashed/abandoned session)
   harness <args>    Passthrough to the durable layer CLI (intake/story/trace/decision/backlog/query)

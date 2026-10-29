@@ -2,10 +2,10 @@
 
 Canonical owner for **card risk**, **attestation receipts**, **subject
 fingerprints**, and **auto-active policy state**. Other docs link here; do not
-duplicate full schemas.
+duplicate schemas.
 
 Fingerprints detect **staleness** of a reviewed/verified subject. They do **not**
-authenticate a human or model. Actor/engine labels and unsigned receipt files
+authenticate a human or model. Actor/engine labels and unsigned receipts
 are forgeable by a filesystem/repository owner. This layer is workflow integrity,
 not a hostile-host or cryptographic identity boundary.
 
@@ -91,7 +91,7 @@ evidence_ref: none|repo:<relative-path>
 
 `pass` requires both counts zero. `override` is never producer output.
 
-Live revision oracle stdout: exactly one full repository-format OID equal to the
+Live revision oracle stdout: exactly one full repository-format OID matching the
 requested deployed revision.
 
 ## Receipt schema (`flow-attestation/v1`)
@@ -148,8 +148,37 @@ Parser rules:
 
 Atomic write: temp in destination dir → `chmod 600` best-effort → rename.
 Latest assessment wins: valid semantic `fail` and terminal live red replace
-older `pass`. Pre-spawn live attempt marker is fail-closed until dead-owner
-recovery or Must-ask `flow attest recover C-NNN --mark-failed`.
+older `pass`. Pre-spawn marker is fail-closed until dead-owner Must-ask
+recovery: `flow attest recover C-NNN --mark-failed`.
+
+### Receipt chain (tamper-evident ledger)
+
+Unsigned receipts detect staleness, not silent edits.
+The chain raises that bar, schema v1 unchanged.
+
+Ledger `<main-state-root>/.flow/attestations/chain.log`: one line per mint:
+
+```text
+v1 <seq> <prev_link> <link> <receipt_hash> <kind> <subject_type> <subject_id> <timestamp>
+```
+
+`receipt_hash` is `git hash-object --no-filters` of receipt bytes,
+so clean filters and CRLF never mask an edit;
+`link` hashes `prev_link`, `receipt_hash`, `kind`, `subject_type`,
+`subject_id`, `timestamp`, ordered, newline-separated, trailing newline,
+using `git hash-object --stdin`; `v1` is excluded. Genesis `prev`: 40 zeroes; later: previous `link`. Append failure warns, never fails a mint.
+
+`flow attest verify-chain` exits 0 with `OK <n> entries`, else non-zero:
+`BROKEN` (edited, reordered, wrong seq), `MISMATCH <path>` (receipt
+changed after mint), `MISSING <path>` (deleted), `UNTRACKED
+<path>` (no ledger entry), `NO-LEDGER` / `EMPTY` (no chain;
+exit 2).
+
+Limit: the chain detects silent edits and reordering; deletions escape
+detection when no later entry and receipt remain (whole
+`chain.log` reports only `NO-LEDGER`). It does NOT stop an attacker
+rewriting ledger plus receipts without an external copy —
+copy `chain.log` elsewhere. Tamper-evidence, not identity.
 
 ### Scalar grammar
 
@@ -171,13 +200,13 @@ recovery or Must-ask `flow attest recover C-NNN --mark-failed`.
 | Card semantic | `deps`, `implements`, risk fields, Scope, Allowed files, Verify, Done-evidence + base/head/tree OIDs |
 | Card live | Verify + Done-evidence + owner manifest + target + deployed revision + argv digest |
 
-Mutable `status` and `Evidence` are **excluded** from card semantic projection
-so CLI-owned completion updates do not invalidate a still-current review.
+Mutable `status`/`Evidence` are **excluded** from card semantic projection,
+so CLI-owned completion updates do not invalidate current reviews.
 
 Cleanliness for mint/consume (auto):
 
 - Fail closed on dirty tracked, index, or untracked files **except** skill-owned
-  `.flow/` run-state and CLI-owned card `status`/`Evidence` projection fields.
+  `.flow/` run-state and CLI-owned card `status`/`Evidence` fields.
 - Do **not** mutate `.gitignore` to achieve cleanliness.
 
 ### Stage fingerprint
@@ -196,13 +225,13 @@ Cleanliness for mint/consume (auto):
 
 Currentness after ancestry-preserving merge: reviewed revision is ancestor of
 integration HEAD; projection still matches; every reviewed changed path
-(except card md) has same object/mode at HEAD. Squash/rebase or code-path edit
+(except card md) matches object/mode at HEAD. Squash/rebase or code-path edit
 → stale.
 
 ### Live fingerprint
 
 Deployed revision + Verify/Done-evidence projection + owner/oracle object/mode
-+ target + argv digest. Oracle must return exact deployed OID before probe may
++ target + argv digest. Oracle must return exact deployed OID before probes
 pass.
 
 ## Auto-active state
@@ -221,7 +250,7 @@ risk_fingerprint: git-<sha1|sha256>:<object-id>
 contract_fingerprint: git-<sha1|sha256>:<object-id>
 ```
 
-Activation (`flow auto`) requires, atomically after full preflight:
+Activation (`flow auto`) requires, atomically after preflight:
 
 - Git repo; main worktree on attached integration branch (linked/detached refuse)
 - Reliable process-group supervisor capability (else refuse live auto)
@@ -283,7 +312,7 @@ streaming stdout/stderr independent + combined caps, TERM → grace → KILL →
 Capability probe: if reliable process-group supervisor unavailable, live
 verification and auto activation fail closed (never unbounded fallback).
 
-Usage/event logs for attestation record only subcommand, subject ID, result
+Usage/event logs record only subcommand, subject ID, result
 class, duration bucket — never argv after `--`, raw output, or secrets.
 
 ## Locks
@@ -298,10 +327,10 @@ Hard consumers hold locks from validation through irreversible side effects
 
 - Manual/teach/work without auto state: warnings only; pre-v0.28 exit codes.
 - Planning `next` never hard-enforced in v0.28.
-- Bash + Git floor; Python/SQLite optional and never required to parse receipts.
+- Bash + Git floor; Python/SQLite optional, never required to parse receipts.
 - Harness `risk_lane` remains separate advisory taxonomy (no silent sync).
 
 ## Rollback
 
-`flow auto stop`, then revert enforcement. Receipt files under `.flow/` are
+`flow auto stop`, then revert enforcement. Receipts under `.flow/` are
 run-state; remove for audit loss only — does not corrupt cards/DB.

@@ -43,7 +43,7 @@ is no fragment loader (ADR-0001).
 | `/flow workspace <verb>` | `bash <skill>/runner/flow.sh workspace add\|list\|enter\|remove\|check\|doctor\|port [...]` | Relay worktree isolation output; don't auto-`--force` a `remove`. `workspace port` allocates deterministic per-card port (`references/host-agnostic-parallel.md`). Advisory. |
 | `/flow auto` | `bash <skill>/runner/flow.sh auto [--parallel]` | Load `references/auto-run.md`. `--parallel` records the parallel policy (`parallel: true` in auto-state) and prints advisory waves; placement and waiting stay with the host. |
 | `/flow auto stop` | `bash <skill>/runner/flow.sh auto stop` | Clear auto policy; return to warning-only manual path. |
-| `/flow attest …` | `bash <skill>/runner/flow.sh attest semantic\|live-verify\|status\|recover …` | Mint/inspect receipts (`references/attestations.md`). Must-ask before mint/recover. |
+| `/flow attest …` | `bash <skill>/runner/flow.sh attest semantic\|live-verify\|status\|recover\|verify-chain …` | Mint/inspect receipts (`references/attestations.md`). Must-ask before mint/recover. |
 | `/flow recall` | `bash <skill>/runner/flow.sh recall` | Read back prior knowledge; apply at start of a stage/card. |
 | `/flow unlock` | `bash <skill>/runner/flow.sh unlock` | Clear lock after crashed session. Confirm the other session is gone first. |
 | `/flow retro` | `bash <skill>/runner/flow.sh retro` | Ask the 3 questions; operator writes RETRO.md (`law/RETRO.md`). |

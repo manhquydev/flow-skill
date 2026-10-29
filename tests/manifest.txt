@@ -60,6 +60,7 @@ test_flow_attestation_contract.sh
 test_flow_card_risk.sh
 test_flow_attestation_supervisor.sh
 test_flow_attestations.sh
+test_attest_chain.sh
 test_flow_auto_attestation_enforcement.sh
 test_flow_parallel_auto.sh
 test_flow_attestation_harden.sh

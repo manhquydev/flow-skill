@@ -1,6 +1,8 @@
 # Changelog
 
 ## [Unreleased]
+- fix(attest): `_att_chain_verify` temp files (latest-entry index and ledger key index) now call `mktemp` with an explicit `${TMPDIR:-/tmp}/.att-chain*` template, so BSD `mktemp` honors `TMPDIR` on macOS; an invalid/unwritable `TMPDIR` fails closed (`BROKEN`, never a false pass), while an unset `TMPDIR` defaults to `/tmp` and verification proceeds normally; `skills/flow/references/attestations.md` documents the exact six-field link hash order and trailing newline, excluding `v1`.
+- feat(attest): tamper-evident receipt chain ledger (`chain.log` sidecar, one line per minted receipt) and `flow attest verify-chain` (`OK`/`BROKEN`/`MISMATCH`/`MISSING`/`UNTRACKED`/`NO-LEDGER`/`EMPTY`); chain hashes are filter-immune (`git hash-object --no-filters` on raw receipt bytes), so clean filters and CRLF conversion cannot mask an edit. Receipt schema v1 unchanged; the chain stays warning-only, never gate authority.
 - fix(doctor): verify `timeout --version` or `-s` capability in doctor timeout check; avoid falsely reporting Windows System32 timeout as full GNU timeout.
 - fix(runner): convert project ROOT to Windows-native paths on MSYS for the native Python ranking invocation (`assess_scan`), and the install root plus manifest path for receipt verification (`verify-receipt`). Runner Eval STOP bodies (`_with_timeout` and `_eval_engine_run`) remain strictly untouched.
 - test(rules): isolate diagnostic outputs under `$SCRATCH` rather than shared `/tmp/probe2.out`; align timeout fallback tests in `test_flow_rules.sh` to distinguish absent converter from nonexistent target.

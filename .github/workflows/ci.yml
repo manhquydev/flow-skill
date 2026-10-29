@@ -41,12 +41,18 @@ jobs:
             shard: 3/3
     runs-on: ${{ matrix.os }}
     # Ubuntu and Windows partition the C-sorted manifest across three isolated runners.
-    # Local Linux shards measured under 9m; retain Ubuntu 15m and Windows' 80m headroom.
+    # Local Linux shards measured under 9m; retain Ubuntu 15m and Windows' 100m headroom.
     # macOS measured 14m51s suite (TOTAL wall_s=891) plus post-job cleanup, exceeding 15m;
     # raised to 30m: run 40069912151 killed macos-full at 25m18s mid-suite with steady
     # progress while the identical tree passed master 40063546827 in 22m44s (variance).
-    # macOS keeps 30m headroom against that variance.
-    timeout-minutes: ${{ matrix.os == 'windows-latest' && 80 || (matrix.os == 'macos-latest' && 30 || 15) }}
+    # macOS keeps 40m headroom against that variance.
+    # 261028: PR92 adds test_attest_chain.sh (79 suites); the C-sorted round-robin then
+    # shifts test_sync_release.sh into windows 3/3. Run 40584693774 (head cf36428) was
+    # killed deterministically at the same boundary on both attempts: macos-full at 30m
+    # twice, windows 3/3 at 80m15s (22:42:12→00:02:27Z). Master 40513460418: macos-full
+    # 22m41s at 78 suites; the windows shard carrying test_sync_release ran 61m.
+    # Raised windows 80m→100m and macos 30m→40m for the 79-suite manifest.
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 100 || (matrix.os == 'macos-latest' && 40 || 15) }}
     steps:
       - uses: actions/checkout@v7
 
