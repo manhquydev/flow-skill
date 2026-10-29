@@ -1,6 +1,6 @@
 # Migration guide — flow v1 (graph executor)
 
-**Status: released as skill 1.0.0.** The breaking behavior was accepted on master (`794fd026141e23a29b5c79af072e7f4fd0bdc165`); the [GitHub `v1.0.0` release](https://github.com/manhquydev/flow-skill/releases/tag/v1.0.0) and [npm installer `1.0.0`](https://www.npmjs.com/package/@manhquy/flow-skill/v/1.0.0) are published, with npm `latest` at `1.0.0`.
+**Status: released as skill 1.0.0.** The breaking behavior was accepted on master (`794fd026141e23a29b5c79af072e7f4fd0bdc165`); the [GitHub `v1.0.0` release](https://github.com/manhquydev/flow-skill/releases/tag/v1.0.0) was published 2026-10-24 and [npm installer `1.0.0`](https://www.npmjs.com/package/@manhquy/flow-skill/v/1.0.0) on 2026-10-25. npm `latest` was verified at `1.0.0` on 2026-10-30.
 
 ## What changes at v1
 
@@ -45,13 +45,15 @@ hash. Finish or fork in-flight runs before upgrading if you care about their jou
 ## Rollback
 
 The last published pre-v1 pair is npm `0.7.16` (published 2026-10-22) with skill
-`0.34.9`. To restore that pair, invoke the installer with its exact package pin, for example:
-`npx @manhquy/flow-skill@0.7.16 --yes`; `npm install` alone does not copy or
-replace installed skill files. Restart/reload the agent and run `flow doctor` to
-verify the installed bundle. Confirm the release record for the exact
-package-to-skill mapping before choosing a pin; do not infer skill version from
-the npm package version. This restores the installer and bundled skill only; it
-does not reverse database migrations.
+`0.34.9`. A 2026-10-30 read of the registry package tarball verified that its 133
+bundled Flow skill files match the GitHub `v0.34.9` release tag at commit
+`9ccda18d3da36b635d6d2f2a5b5096bfcb669e64`. To restore that pair, invoke the installer
+with its exact package pin, for example `npx --yes @manhquy/flow-skill@0.7.16`;
+`npm install` alone does not copy or replace installed skill files. Restart/reload the
+agent and run `flow doctor` to verify the installed bundle. Confirm the release record for
+the exact package-to-skill mapping before choosing a pin; do not infer skill version from
+the npm package version. This restores the installer and bundled skill only; it does not
+reverse database migrations.
 
 The published v1 release passed the database backup and restore acceptance gate
 before promotion; the [release changelog](../CHANGELOG.md) records the migration,

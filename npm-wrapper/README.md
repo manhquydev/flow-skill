@@ -97,6 +97,8 @@ After installation completes, restart or reload your coding agent. Codex CLI use
 | **Repository** | [GitHub: manhquydev/flow-skill](https://github.com/manhquydev/flow-skill) |
 | **License** | MIT |
 
+Publication status verified 2026-10-30: GitHub skill release v1.0.0 (2026-10-24) and npm installer 1.0.0 (2026-10-25); registry `latest` is 1.0.0. See the [migration guide](https://github.com/manhquydev/flow-skill/blob/master/docs/migration-v1.md) for the verified pre-v1 rollback pair.
+
 ---
 
 ## Troubleshooting & FAQ

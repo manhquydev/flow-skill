@@ -12,18 +12,9 @@ Each release PR updates the common version, changelogs, synchronized docs and re
 
 ## Flow v1 breaking release gate — passed
 
-The owner-approved v1 contract required more than a version-number change or a default-flag
-flip: the graph executor had to own `/flow next` ordering, Python had to be required at the
-measured floor, and `FLOW_HARNESS_DISABLE` had to refuse product operations without
-weakening any gate. Independent review, exact-head cross-OS CI, docs/package coherence, and
-verified migration plus rollback evidence were also required. These gates passed before the
-stable v1.0.0 release; the [release changelog](../CHANGELOG.md) records the
-acceptance and CI evidence. The migration contract requires a SQLite-consistent
-pre-migration backup before DDL for populated databases, refusal on backup failure,
-preserved linked-worktree DB ownership, and proven restore/readback. Rollback must wait
-until writers are settled, preserve the newer database separately, and restore only from
-a named verified backup. See the [v1 migration guide](migration-v1.md); reinstalling an
-older npm package alone does not undo database changes.
+The owner-approved v1 contract required more than a version-number change or a default-flag flip: the graph executor had to own `/flow next` ordering, Python had to be required at the measured floor, and `FLOW_HARNESS_DISABLE` had to refuse product operations without weakening any gate. Independent review, exact-head cross-OS CI, docs/package coherence, and verified migration plus rollback evidence were also required.
+
+The stable v1.0.0 release gate passed before publication. The [GitHub release](https://github.com/manhquydev/flow-skill/releases/tag/v1.0.0) was published 2026-10-24; npm [`1.0.0`](https://www.npmjs.com/package/@manhquy/flow-skill/v/1.0.0) followed on 2026-10-25 and became the `latest` package. The release changelog records acceptance and CI evidence. The migration contract requires a SQLite-consistent pre-migration backup before DDL for populated databases, refusal on backup failure, preserved linked-worktree DB ownership, and proven restore/readback. Rollback must wait until writers are settled, preserve the newer database separately, and restore only from a named verified backup. See the [v1 migration guide](migration-v1.md); reinstalling an older npm package alone does not undo database changes.
 
 ## Automatic release path
 

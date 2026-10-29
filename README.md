@@ -32,6 +32,8 @@ required.
 | **Tests / CI** | [`tests/manifest.txt`](tests/manifest.txt) · Ubuntu · macOS · Windows |
 | **License** | MIT |
 
+Publication status verified 2026-10-30: GitHub skill release v1.0.0 (2026-10-24) and npm installer 1.0.0 (2026-10-25); registry `latest` is 1.0.0. See the [migration guide](docs/migration-v1.md) for the verified pre-v1 rollback pair.
+
 ## Docs
 
 [English](https://flowskill.io.vn/) ·
@@ -41,7 +43,7 @@ required.
 
 ## Install
 
-**Requirements:** [Node.js](https://nodejs.org/) **≥ 22.14** for installation; Flow v1 product operations require Python **≥ 3.7** (stdlib only). This is a pre-release target until the v1 implementation passes its acceptance gates.
+**Requirements:** [Node.js](https://nodejs.org/) **≥ 22.14** for installation; Flow v1 product operations require Python **≥ 3.7** (stdlib only).
 
 ```bash
 npx @manhquy/flow-skill@latest
