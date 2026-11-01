@@ -5087,15 +5087,15 @@ _eval_heading_pattern() {
 # '## ' heading, or EOF. Prints nothing on a bad stage/missing file - caller MUST assert
 # non-empty before any billable call (a silent empty extraction would judge against
 # no rule at all).
-_eval_extract_section() { # $1 = stage (00|01|02|05|card)
-  local pat src
+_eval_extract_section() { # $1 = stage (00|01|02|05|card), $2 = optional references dir (snapshot)
+  local pat src refdir="${2:-$SCRIPT_DIR/../references}"
   pat="$(_eval_heading_pattern "$1")" || return 1
   case "$1" in
-    00)   src="$SCRIPT_DIR/../references/gate-00.md" ;;
-    01)   src="$SCRIPT_DIR/../references/gate-01.md" ;;
-    02)   src="$SCRIPT_DIR/../references/gate-02.md" ;;
-    05)   src="$SCRIPT_DIR/../references/gate-05.md" ;;
-    card) src="$SCRIPT_DIR/../references/gate-card.md" ;;
+    00)   src="$refdir/gate-00.md" ;;
+    01)   src="$refdir/gate-01.md" ;;
+    02)   src="$refdir/gate-02.md" ;;
+    05)   src="$refdir/gate-05.md" ;;
+    card) src="$refdir/gate-card.md" ;;
     *)    return 1 ;;
   esac
   [ -f "$src" ] || return 1
@@ -5160,15 +5160,16 @@ _eval_isolated_run() {
 
 # Build the judge prompt for one fixture. The challenge block is the extract output
 # (already the judge bytes; `_eval_gate_rules_sha` is not stdin). Returns 1 if empty.
-_eval_build_prompt() { # $1=outfile $2=stage $3=artifact-file $4=nonce
+_eval_build_prompt() { # $1=outfile $2=stage $3=artifact-file $4=nonce $5=optional references dir (snapshot)
   local outfile="$1" stage="$2" artifact="$3" nonce="$4" section shared
-  section="$(_eval_extract_section "$stage")" || return 1
+  local refdir="${5:-$SCRIPT_DIR/../references}"
+  section="$(_eval_extract_section "$stage" "$refdir")" || return 1
   [ -n "$section" ] || return 1
   # Shared OD/authority lives in 02/03/05 challenges. Extract maps 00/01/02/05/card;
   # append shared onto 02 only. 05 extract may mention gate-shared.md; do not cat it
   # (shared OD on 05 false-FLAGs f05a — PASS fixture states bearer auth without an ADR).
   if [ "$stage" = "02" ]; then
-    shared="$SCRIPT_DIR/../references/gate-shared.md"
+    shared="$refdir/gate-shared.md"
     [ -f "$shared" ] && section="$section
 $(cat "$shared")"
   fi
@@ -5253,24 +5254,61 @@ _eval_nonce_epoch() { # $1=run_id -> epoch seconds (or empty)
 # CRLF-normalized hash of the explicit gate-rules corpus (index + shared + 11
 # section files). Never glob `gate-*.md` (would pull gate-eval.md + gate-examples.md).
 # A raw-byte hash would differ per checkout line-endings (git autocrlf).
+# The corpus file list lives in `_eval_gate_rules_files` so the batch snapshot
+# hash (`_eval_grader_hash_for`) can never drift from this recipe.
+_eval_gate_rules_files() { # $1 = references dir -> one path per line, fixed order
+  local refdir="$1"
+  printf '%s\n' \
+    "$refdir/gate-rules.md" "$refdir/gate-shared.md" "$refdir/gate-assess.md" \
+    "$refdir/gate-00.md" "$refdir/gate-01.md" "$refdir/gate-02.md" \
+    "$refdir/gate-03.md" "$refdir/gate-04.md" "$refdir/gate-05.md" \
+    "$refdir/gate-card.md" "$refdir/gate-consistency.md" \
+    "$refdir/gate-constitution.md" "$refdir/gate-debt.md"
+}
 _eval_gate_rules_sha() {
-  local ref="$SCRIPT_DIR/../references"
+  local ref="$SCRIPT_DIR/../references" f
   [ -f "$ref/gate-rules.md" ] || { printf 'unknown'; return; }
   {
-    cat "$ref/gate-rules.md"
-    [ -f "$ref/gate-shared.md" ] && cat "$ref/gate-shared.md"
-    [ -f "$ref/gate-assess.md" ] && cat "$ref/gate-assess.md"
-    [ -f "$ref/gate-00.md" ] && cat "$ref/gate-00.md"
-    [ -f "$ref/gate-01.md" ] && cat "$ref/gate-01.md"
-    [ -f "$ref/gate-02.md" ] && cat "$ref/gate-02.md"
-    [ -f "$ref/gate-03.md" ] && cat "$ref/gate-03.md"
-    [ -f "$ref/gate-04.md" ] && cat "$ref/gate-04.md"
-    [ -f "$ref/gate-05.md" ] && cat "$ref/gate-05.md"
-    [ -f "$ref/gate-card.md" ] && cat "$ref/gate-card.md"
-    [ -f "$ref/gate-consistency.md" ] && cat "$ref/gate-consistency.md"
-    [ -f "$ref/gate-constitution.md" ] && cat "$ref/gate-constitution.md"
-    [ -f "$ref/gate-debt.md" ] && cat "$ref/gate-debt.md"
+    while IFS= read -r f; do cat "$f" 2>/dev/null || true; done < <(_eval_gate_rules_files "$ref")
   } | tr -d '\r' | cksum | awk '{print $1}'
+}
+
+# Grader-input isolation (live `eval` batches only). The batch hash below covers
+# EVERYTHING a live vote is judged against: the gate-rules corpus (same recipe
+# as `_eval_gate_rules_sha`), the manifest, and every fixture artifact in
+# manifest order. A missing file contributes an explicit ABSENT sentinel so its
+# later creation is detected too. CRLF-normalized, one `cksum`, no new deps.
+# Called from inside the manifest `while read` loop: every read below takes an
+# explicit file/pipe source and never touches the loop's stdin (the manifest
+# truncation gotcha documented at `_eval_cli_version`).
+_eval_grader_hash_for() { # $1=references dir $2=manifest $3=fixtures dir -> cksum
+  local refdir="$1" manifest="$2" fixturesdir="$3" f fid rel art
+  {
+    while IFS= read -r f; do
+      printf '== %s ==\n' "${f##*/}"
+      if [ -f "$f" ]; then cat "$f"; else printf 'ABSENT\n'; fi
+    done < <(_eval_gate_rules_files "$refdir")
+    printf '== manifest.tsv ==\n'
+    if [ -f "$manifest" ]; then cat "$manifest"; else printf 'ABSENT\n'; fi
+    awk -F'\t' 'NR>1 && $1!="" && $3!="" { gsub(/\r/,"",$1); gsub(/\r/,"",$3); print $1 "\t" $3 }' "$manifest" 2>/dev/null | while IFS=$'\t' read -r fid rel || [ -n "${fid:-}" ]; do
+      [ -n "$fid" ] && [ -n "$rel" ] || continue
+      art="$fixturesdir/$fid/$rel"
+      printf '== fixtures/%s/%s ==\n' "$fid" "$rel"
+      if [ -f "$art" ]; then cat "$art"; else printf 'ABSENT\n'; fi
+    done
+  } | tr -d '\r' | cksum | awk '{print $1}'
+}
+
+# Copy the frozen grader inputs into $1 (an existing empty temp dir, outside the
+# working tree). Fails loudly on any copy error so a partial snapshot can never
+# masquerade as frozen inputs. Layout mirrors the live tree so the hash helper
+# and prompt builder can run unchanged against either root.
+_eval_grader_snapshot() { # $1=dest dir -> 0/1
+  local dest="$1" refdir="$SCRIPT_DIR/../references" f
+  mkdir -p "$dest/references" "$dest/fixtures" || return 1
+  while IFS= read -r f; do cp "$f" "$dest/references/" || return 1; done < <(_eval_gate_rules_files "$refdir")
+  cp "$EVAL_MANIFEST" "$dest/manifest.tsv" || return 1
+  cp -R "$EVAL_DIR/fixtures/." "$dest/fixtures/" || return 1
 }
 
 # CRLF-normalized assembler-output hash (same recipe as _eval_gate_rules_sha). Covers
@@ -6525,6 +6563,25 @@ function cmd_eval {
         return 0 ;;
     esac
     nonce="$(_eval_nonce)"
+    # Grader-input isolation: freeze the inputs this batch will judge (gate
+    # rules + manifest + fixture artifacts) into a temp copy outside the
+    # working tree, and judge from that copy. `batch_grsha` below is still
+    # the live-corpus hash at batch start; the per-fixture re-hash in the
+    # loop is what catches any drift after this point. Snapshot cleanup
+    # rides the existing EXIT-trap tempdir list (`_register_td`).
+    local grader_snapshot grader_hash
+    grader_snapshot="$(mktemp -d 2>/dev/null)"
+    if [ -z "$grader_snapshot" ] || [ ! -d "$grader_snapshot" ]; then
+      echo "eval: FAIL - could not create grader snapshot dir"
+      return 1
+    fi
+    _register_td "$grader_snapshot"
+    if ! _eval_grader_snapshot "$grader_snapshot"; then
+      echo "eval: FAIL - could not snapshot grader inputs"
+      return 1
+    fi
+    grader_hash="$(_eval_grader_hash_for "$grader_snapshot/references" "$grader_snapshot/manifest.tsv" "$grader_snapshot/fixtures")"
+    echo "eval: grader snapshot $grader_hash (frozen inputs for this batch)"
     batch_cliv="$(_eval_cli_version)"; batch_flowv="$(_flow_version)"; batch_grsha="$(_eval_gate_rules_sha)"
   fi
   echo "eval: batch $nonce (N=$n per fixture, timeout=${timeout}s)"
@@ -6587,9 +6644,34 @@ function cmd_eval {
     [ -n "$stage_filter" ] && [ "$fstage_short" != "$stage_filter" ] && continue
     [ -n "$fixture_filter" ] && [ "$fid" != "$fixture_filter" ] && continue
 
+    # Grader-input isolation: re-hash the LIVE inputs before every fixture.
+    # A change since the snapshot means later votes would judge different
+    # rules/artifacts than earlier ones, while result rows still carry the
+    # batch-start hash. Abort loudly, before any further billable call, with
+    # no `done` trailer (torn-batch semantics: `--report` excludes the run).
+    # A change DURING one fixture's votes cannot alter its prompt, which was
+    # built once from the snapshot before any engine call. Replay batches
+    # have no snapshot (`grader_snapshot` unset) and keep their own
+    # staleness hard-fail; this check is live-only.
+    if [ -n "${grader_snapshot:-}" ]; then
+      local live_grader_hash
+      live_grader_hash="$(_eval_grader_hash_for "$SCRIPT_DIR/../references" "$EVAL_MANIFEST" "$EVAL_DIR/fixtures")"
+      if [ "$live_grader_hash" != "$grader_hash" ]; then
+        echo "eval: FAIL - grader inputs changed during batch (snapshot=$grader_hash live=$live_grader_hash); aborting before further judge calls - no done trailer written"
+        trap - INT TERM
+        return 1
+      fi
+    fi
+
     # v1 trust-boundary invariant: ONLY manifest-listed shipped fixtures, resolved beneath
-    # EVAL_DIR - never a caller-supplied path (red-team finding #9).
-    local artifact_path="$EVAL_DIR/fixtures/$fid/$fartifact"
+    # EVAL_DIR - never a caller-supplied path (red-team finding #9). In a live
+    # batch the artifact is read from the frozen snapshot copy, never live.
+    local artifact_path
+    if [ -n "${grader_snapshot:-}" ]; then
+      artifact_path="$grader_snapshot/fixtures/$fid/$fartifact"
+    else
+      artifact_path="$EVAL_DIR/fixtures/$fid/$fartifact"
+    fi
     if [ ! -f "$artifact_path" ]; then
       echo "  $fid: FAIL - declared artifact '$fartifact' not found at $artifact_path"
       total_mismatch=$((total_mismatch + 1))
@@ -6605,7 +6687,7 @@ function cmd_eval {
     _register_td "$rundir"
 
     local promptfile="$rundir/prompt.txt"
-    if ! _eval_build_prompt "$promptfile" "$fstage_short" "$artifact_path" "$nonce"; then
+    if ! _eval_build_prompt "$promptfile" "$fstage_short" "$artifact_path" "$nonce" "${grader_snapshot:+$grader_snapshot/references}"; then
       if [ "$replay_mode" -eq 1 ]; then
         echo "  $fid: SKIP - no heading-mapped section (artifact-replay scope is 00|01|02|05|card)"
         rm -rf "$rundir" 2>/dev/null
