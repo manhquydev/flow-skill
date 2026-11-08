@@ -12,6 +12,9 @@ import {
 } from 'node:fs';
 import { createHash, randomBytes } from 'node:crypto';
 import { dirname, isAbsolute, join, parse, resolve, sep } from 'node:path';
+import { homedir } from 'node:os';
+
+import { RULES_POINTER_LINE } from './constants.mjs';
 
 export const RECEIPT_NAME = 'manifest-hashes.json';
 
@@ -874,4 +877,66 @@ export function installAntigravity({ sourceDir, dests, dryRun = false }) {
     }
   }
   return { success: true, dests, attempts, warnings: [] };
+}
+
+// WidelCode extras (T1) — places the generated rules file + AGENTS.md pointer
+// line for the widelai target. Runs BEFORE the skill install (fail fast): a
+// rules-file conflict aborts before the skill tree is touched, and a
+// skill-install failure afterwards leaves only a harmless, idempotent rules
+// file behind. Never overwrites user content: an existing rules file with
+// differing bytes is a hard refusal (no --force exists by design); an
+// existing AGENTS.md is only appended to, never rewritten. The pointer line
+// is a discoverability aid — WidelCode already reads `.widelai/rules/*.md`
+// natively (vendor docs), so the line's absence would not hide the rules.
+export function installWidelaiExtras({ pkgRoot, home = homedir() }) {
+  const rulesSrc = join(pkgRoot, '.widelai', 'rules', 'flowskill.md');
+  if (!existsSync(rulesSrc)) {
+    throw new Error(
+      `generated WidelCode rules file missing: ${rulesSrc} (run 'npm run sync' from the repo root, or reinstall from a complete package)`
+    );
+  }
+  const rulesDest = join(home, '.widelai', 'rules', 'flowskill.md');
+  const agentsPath = join(home, '.widelai', 'AGENTS.md');
+
+  // Refuse symlinks at the destination paths (same discipline as install()).
+  for (const p of [rulesDest, agentsPath]) {
+    try {
+      const st = lstatSync(p);
+      if (st.isSymbolicLink()) throw new Error(`destination is a symlink: ${p}`);
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
+    }
+  }
+  assertNoAncestorSymlinks(rulesDest, 'widelai rules destination');
+  assertNoAncestorSymlinks(agentsPath, 'widelai AGENTS.md destination');
+
+  const generated = readFileSync(rulesSrc);
+  let rulesWritten = false;
+  if (existsSync(rulesDest)) {
+    if (Buffer.compare(readFileSync(rulesDest), generated) !== 0) {
+      throw new Error(
+        `widelai rules file exists with different content (user-edited?): ${rulesDest} — refusing to overwrite; resolve manually`
+      );
+    }
+  } else {
+    mkdirSync(dirname(rulesDest), { recursive: true });
+    writeFileSync(rulesDest, generated);
+    rulesWritten = true;
+  }
+
+  let pointerAppended = false;
+  if (existsSync(agentsPath)) {
+    const current = readFileSync(agentsPath, 'utf8');
+    if (!current.split('\n').includes(RULES_POINTER_LINE)) {
+      const nl = current.length > 0 && !current.endsWith('\n') ? '\n' : '';
+      writeFileSync(agentsPath, current + nl + RULES_POINTER_LINE + '\n');
+      pointerAppended = true;
+    }
+  } else {
+    mkdirSync(dirname(agentsPath), { recursive: true });
+    writeFileSync(agentsPath, RULES_POINTER_LINE + '\n');
+    pointerAppended = true;
+  }
+
+  return { rulesDest, rulesWritten, agentsPath, pointerAppended };
 }

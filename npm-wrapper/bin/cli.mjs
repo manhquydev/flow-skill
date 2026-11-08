@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { join, resolve } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 
 import { TARGETS, TARGET_NAMES, PKG_VERSION, SKILL_VERSION } from '../src/constants.mjs';
 import { defaultSelection, detectAll } from '../src/detect.mjs';
 import { renderHelp } from '../src/help.mjs';
-import { install, installAntigravity } from '../src/installer.mjs';
+import { install, installAntigravity, installWidelaiExtras } from '../src/installer.mjs';
 import { isInteractive } from '../src/tty.mjs';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -134,6 +134,10 @@ function humanPlan(plan, scope, dir) {
   for (const step of plan) {
     lines.push(`  - ${step.target.padEnd(12)} ${step.label}`);
     for (const d of step.dests) lines.push(`      -> ${d}`);
+    // WidelCode also gets the generated rules file (placed by installWidelaiExtras).
+    if (step.target === 'widelai' && step.dests.length) {
+      lines.push(`      rules -> ${join(dirname(dirname(step.dests[0])), 'rules', 'flowskill.md')}`);
+    }
   }
   return lines.join('\n');
 }
@@ -164,6 +168,7 @@ const RESTART_HINTS = {
   // that the Agent panel picks it up. See README's "After install" section for the caveat.
   cursor: 'Cursor: restart/reload Cursor to load the new skill, then check the Agent panel for flow',
   omp: 'OMP: restart/reload the runtime to load the new skill, then invoke flow',
+  widelai: 'WidelCode: restart/reload WidelCode to load the new skill, then invoke flow',
 };
 
 function doneLine(targets) {
@@ -325,6 +330,36 @@ async function main() {
       { event: 'install:start', target: step.target, dests: step.dests },
       opts.json
     );
+
+    // WidelCode extras first (fail fast): a rules-file conflict aborts before
+    // the skill tree is touched. See installWidelaiExtras (installer.mjs).
+    if (step.target === 'widelai') {
+      let extras;
+      try {
+        extras = installWidelaiExtras({ pkgRoot });
+      } catch (err) {
+        errorExit(`widelai extras failed: ${err.message}`, 1, opts.json);
+      }
+      emit(
+        {
+          event: 'widelai:extras',
+          target: step.target,
+          rulesDest: extras.rulesDest,
+          rulesWritten: extras.rulesWritten,
+          agentsPath: extras.agentsPath,
+          pointerAppended: extras.pointerAppended,
+        },
+        opts.json
+      );
+      log(
+        `  rules -> ${extras.rulesDest}${extras.rulesWritten ? '' : ' (unchanged)'}`,
+        opts.json
+      );
+      log(
+        `  pointer -> ${extras.agentsPath}${extras.pointerAppended ? '' : ' (already present)'}`,
+        opts.json
+      );
+    }
 
     let result;
     if (step.target === 'antigravity') {

@@ -7,7 +7,11 @@
 #                                                      ~/.gemini/config/skills/flow          (IDE)
 #                                                  + OMP home              (if ~/.omp/agent/skills exists):
 #                                                      ~/.omp/agent/skills/flow
-#   pwsh install.ps1 global claude|codex|agents|antigravity|omp -> only that one harness
+#                                                  + WidelCode home        (if ~/.widelai/skills exists):
+#                                                      ~/.widelai/skills/flow
+#                                                      + generated rules -> ~/.widelai/rules/flowskill.md
+#                                                      + pointer line in ~/.widelai/AGENTS.md
+#   pwsh install.ps1 global claude|codex|agents|antigravity|omp|cursor|widelai -> only that one harness
 #   pwsh install.ps1 project [dir]              -> <dir|cwd>/.claude/skills/flow
 #
 # Safe transactional installation:
@@ -82,6 +86,50 @@ function Test-SourceTree([string]$sourceRoot) {
       throw "source tree contains symlink/reparse point which is refused: $($item.FullName)"
     }
   }
+}
+
+function Install-WidelaiExtras {
+  # WidelCode extras (T1): place the generated rules file + AGENTS.md pointer line.
+  # Runs BEFORE Install-To (fail fast). Never overwrites user content: an existing
+  # rules file with differing bytes is a hard refusal; AGENTS.md is only appended
+  # to, never rewritten. A missing generated file (checkout without `npm run sync`)
+  # warns loudly and continues with the skill install only.
+  $rulesSrc = Join-Path $Here 'npm-wrapper/.widelai/rules/flowskill.md'
+  $rulesDest = Join-Path $UserHome '.widelai/rules/flowskill.md'
+  $agentsFile = Join-Path $UserHome '.widelai/AGENTS.md'
+  $pointer = 'FlowSkill rules: see .widelai/rules/flowskill.md'
+  if (-not (Test-Path -LiteralPath $rulesSrc)) {
+    Write-Host "WARNING: generated WidelCode rules file missing at $rulesSrc (run 'npm run sync' from the repo root); skill installed without rules file."
+    return
+  }
+  if (Test-Path -LiteralPath $rulesDest) {
+    $srcHash = (Get-FileHash -LiteralPath $rulesSrc -Algorithm SHA256).Hash
+    $dstHash = (Get-FileHash -LiteralPath $rulesDest -Algorithm SHA256).Hash
+    if ($srcHash -ne $dstHash) {
+      Write-Error "$rulesDest exists with different content (user-edited?); refusing to overwrite. Resolve manually."
+      exit 1
+    }
+  } else {
+    $parent = Split-Path -Parent $rulesDest
+    if (-not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+    Copy-Item -LiteralPath $rulesSrc -Destination $rulesDest
+  }
+  Write-Host "installed WidelCode rules -> $rulesDest"
+  if (Test-Path -LiteralPath $agentsFile) {
+    $content = Get-Content -LiteralPath $agentsFile -Raw -ErrorAction SilentlyContinue
+    if ($null -eq $content) { $content = '' }
+    $lines = $content -split "`n" | ForEach-Object { $_.TrimEnd("`r") }
+    if ($lines -notcontains $pointer) {
+      $sep = ''
+      if ($content.Length -gt 0 -and -not $content.EndsWith("`n")) { $sep = "`n" }
+      [System.IO.File]::AppendAllText($agentsFile, $sep + $pointer + "`n")
+    }
+  } else {
+    $parent = Split-Path -Parent $agentsFile
+    if (-not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+    [System.IO.File]::WriteAllText($agentsFile, $pointer + "`n")
+  }
+  Write-Host "pointer line ensured in $agentsFile"
 }
 
 function Install-To([string]$dest) {
@@ -205,6 +253,7 @@ $RestartHints = @{
   agents      = 'Agents home / Zed (~/.agents/skills/): restart your tool (or Zed Agent Panel) to auto-detect flow'
   omp         = 'OMP: restart/reload your agent to load the new skill, then invoke flow'
   cursor      = 'Cursor: restart/reload Cursor to load the new skill, then check the Agent panel for flow'
+  widelai     = 'WidelCode: restart/reload WidelCode to load the new skill, then invoke flow'
 }
 function Get-DoneLine([string[]]$installed) {
   $hints = $installed | ForEach-Object { $RestartHints[$_] } | Where-Object { $_ }
@@ -246,7 +295,14 @@ if ($Mode -eq 'global') {
     $last = Install-To (Join-Path $UserHome '.cursor/skills/flow')
     $installed += 'cursor'
   }
-  if (-not $last) { Write-Error "unknown target '$target' (use claude|codex|agents|antigravity|omp|cursor|all)"; exit 1 }
+  # widelai: explicit target or autodetected when ~/.widelai/skills exists
+  # (never bare ~/.widelai — it holds credentials.json for every WidelCode user)
+  if ($target -eq 'widelai' -or ($target -eq 'all' -and (Test-Path (Join-Path $UserHome '.widelai/skills')))) {
+    Install-WidelaiExtras
+    $last = Install-To (Join-Path $UserHome '.widelai/skills/flow')
+    $installed += 'widelai'
+  }
+  if (-not $last) { Write-Error "unknown target '$target' (use claude|codex|agents|antigravity|omp|cursor|widelai|all)"; exit 1 }
 } else {
   $dir = if ($Arg2 -ne '') { $Arg2 } else { (Get-Location).Path }
   $last = Install-To (Join-Path $dir '.claude/skills/flow')
