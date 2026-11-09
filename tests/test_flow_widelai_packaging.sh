@@ -204,12 +204,14 @@ out="$(HOME="$CLI_HOME_DIR" USERPROFILE="$(to_native_path "$CLI_HOME_DIR")" node
 [ "$rc" -ne 0 ] && ck yes yes "CLI refuses a directory at the rules destination (rc=$rc)" || ck yes no "CLI refuses a directory at the rules destination (rc=$rc)"
 
 # Two concurrent extras updates serialize: exactly one pointer, no lost data.
-# The generated .mjs embeds $ROOT as a path: on Windows it must be the
-# mixed form (C:/...), because Node resolves a Git Bash /d/... import to
-# C:\d\... and fails with ERR_MODULE_NOT_FOUND.
+# The generated .mjs embeds $ROOT as a path: on Windows a bare drive path
+# (D:/...) is NOT a valid ESM import specifier — Node parses it as a URL
+# with scheme 'd:' and throws ERR_UNSUPPORTED_ESM_URL_SCHEME. Import through
+# pathToFileURL so the specifier is a proper file:// URL on every platform.
 ROOT_JS="$(to_json_path "$ROOT")"
 cat > "$SCRATCH/run-extras.mjs" <<EOF
-import { installWidelaiExtras } from '$ROOT_JS/npm-wrapper/src/installer.mjs';
+import { pathToFileURL } from 'node:url';
+const { installWidelaiExtras } = await import(pathToFileURL('$ROOT_JS/npm-wrapper/src/installer.mjs').href);
 installWidelaiExtras({ pkgRoot: '$ROOT_JS/npm-wrapper', home: process.argv[2] });
 EOF
 CLI_HOME_CONC="$SCRATCH/fake_home_conc"
