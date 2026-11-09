@@ -34,6 +34,43 @@ ck() {
   fi
 }
 
+# Windows path forms for Node: Node's homedir() on Windows reads USERPROFILE
+# (libuv: USERPROFILE first, HOMEDRIVE+HOMEPATH only as fallback), ignoring
+# HOME — so a fake HOME alone never redirects the Node installer there. And
+# a Git Bash (MSYS) path such as /c/Users/... must reach Node in Windows
+# form: path.join('/c/...') yields a drive-relative \c\... (D:\c\... on the
+# runner) instead of C:\.... to_native_path (cygpath -w) is for env vars and
+# argv; to_json_path (cygpath -m, forward slashes) is for paths embedded in
+# generated .mjs source, where backslashes would be JS escape sequences.
+# Both fall back to the input unchanged where cygpath is absent
+# (Linux/macOS), mirroring tests/test_flow_host_hooks.sh.
+to_native_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+to_json_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+# MSYS2 Git Bash deep-copies `ln -s` targets by default
+# (winsymlinks:deepcopy), so a "symlink" fixture would be a regular file
+# and the installer would rightly accept it. Prefer a native symlink; if
+# the runner cannot make one, the caller skips the refusal checks (the
+# refusal logic itself is covered on Linux/macOS).
+make_symlink() {
+  ln -s "$1" "$2" 2>/dev/null
+  if [ -L "$2" ]; then return 0; fi
+  rm -f "$2"
+  MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null
+  [ -L "$2" ]
+}
+
 SCRATCH="$(cd "$(mktemp -d)" && pwd -P)"
 cleanup() { rm -rf "$SCRATCH"; }
 trap cleanup EXIT
@@ -102,8 +139,11 @@ grep -q $'\r' "$CRLF_RULES" && ck no yes "generated rules file has no CR bytes" 
 echo "=== 4. Node CLI installer idempotency (--target widelai) ==="
 CLI_HOME="$SCRATCH/fake_home_cli"
 mkdir -p "$CLI_HOME"
-out="$(HOME="$CLI_HOME" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
+out="$(HOME="$CLI_HOME" USERPROFILE="$(to_native_path "$CLI_HOME")" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
 ck 0 "$rc" "CLI --target widelai exits 0 (got $rc: $out)"
+# Fail fast on a wrong home instead of cascading: the CLI must name the fake
+# home (Windows form) in its output, not the operator's real home.
+printf '%s\n' "$out" | grep -Fq "$(to_native_path "$CLI_HOME")" && ck yes yes "CLI output names the fake home" || ck yes no "CLI output names the fake home"
 [ -f "$CLI_HOME/.widelai/skills/flow/SKILL.md" ] && ck yes yes "CLI installs skill to ~/.widelai/skills/flow" || ck yes no "CLI installs skill to ~/.widelai/skills/flow"
 [ -f "$CLI_HOME/.widelai/skills/flow/manifest-hashes.json" ] && ck yes yes "CLI install carries the skill receipt" || ck yes no "CLI install carries the skill receipt"
 [ -f "$CLI_HOME/.widelai/rules/flowskill.md" ] && ck yes yes "CLI places the rules file" || ck yes no "CLI places the rules file"
@@ -114,13 +154,13 @@ printf '%s\n' "$out" | grep -q 'WidelCode' && ck yes yes "Done line mentions Wid
 cp "$CLI_HOME/.widelai/rules/flowskill.md" "$SCRATCH/cli-rules-before.md"
 cp "$CLI_HOME/.widelai/AGENTS.md" "$SCRATCH/cli-agents-before.md"
 cp "$CLI_HOME/.widelai/skills/flow/SKILL.md" "$SCRATCH/cli-skill-before.md"
-out="$(HOME="$CLI_HOME" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
+out="$(HOME="$CLI_HOME" USERPROFILE="$(to_native_path "$CLI_HOME")" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
 ck 0 "$rc" "CLI re-install exits 0"
 cmp -s "$CLI_HOME/.widelai/rules/flowskill.md" "$SCRATCH/cli-rules-before.md" && ck yes yes "rules file unchanged on re-install" || ck yes no "rules file unchanged on re-install"
 cmp -s "$CLI_HOME/.widelai/AGENTS.md" "$SCRATCH/cli-agents-before.md" && ck yes yes "AGENTS.md unchanged on re-install" || ck yes no "AGENTS.md unchanged on re-install"
 cmp -s "$CLI_HOME/.widelai/skills/flow/SKILL.md" "$SCRATCH/cli-skill-before.md" && ck yes yes "skill unchanged on re-install" || ck yes no "skill unchanged on re-install"
 printf '\nuser edit\n' >> "$CLI_HOME/.widelai/rules/flowskill.md"
-out="$(HOME="$CLI_HOME" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
+out="$(HOME="$CLI_HOME" USERPROFILE="$(to_native_path "$CLI_HOME")" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
 [ "$rc" -ne 0 ] && ck yes yes "user-edited rules file refuses install (rc=$rc)" || ck yes no "user-edited rules file refuses install (rc=$rc)"
 printf '%s\n' "$out" | grep -q 'refusing to overwrite' && ck yes yes "refusal names the overwrite guard" || ck yes no "refusal names the overwrite guard"
 grep -q 'user edit' "$CLI_HOME/.widelai/rules/flowskill.md" && ck yes yes "user-edited rules file left untouched" || ck yes no "user-edited rules file left untouched"
@@ -130,7 +170,7 @@ echo "=== 4b. Node CLI: CRLF pointer, symlink/directory refusal, concurrent extr
 # (Restore the rules file first: §4 left it user-edited to test the refusal.)
 cp "$SCRATCH/cli-rules-before.md" "$CLI_HOME/.widelai/rules/flowskill.md"
 awk '{ sub(/\r$/, ""); printf "%s\r\n", $0 }' "$CLI_HOME/.widelai/AGENTS.md" > "$SCRATCH/agents-crlf.md" && mv "$SCRATCH/agents-crlf.md" "$CLI_HOME/.widelai/AGENTS.md"
-out="$(HOME="$CLI_HOME" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
+out="$(HOME="$CLI_HOME" USERPROFILE="$(to_native_path "$CLI_HOME")" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
 ck 0 "$rc" "CLI re-install over CRLF AGENTS.md exits 0 (got $rc)"
 ptr="$(tr -d '\r' < "$CLI_HOME/.widelai/AGENTS.md" | grep -c -Fx 'FlowSkill rules: see .widelai/rules/flowskill.md')"
 ck 1 "$ptr" "CRLF pointer still appears exactly once"
@@ -139,33 +179,43 @@ ck 1 "$ptr" "CRLF pointer still appears exactly once"
 CLI_HOME_SYM="$SCRATCH/fake_home_sym"
 mkdir -p "$CLI_HOME_SYM/.widelai/rules"
 printf 'do not touch\n' > "$SCRATCH/sym-target.txt"
-ln -s "$SCRATCH/sym-target.txt" "$CLI_HOME_SYM/.widelai/rules/flowskill.md"
-out="$(HOME="$CLI_HOME_SYM" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
+if make_symlink "$SCRATCH/sym-target.txt" "$CLI_HOME_SYM/.widelai/rules/flowskill.md"; then
+out="$(HOME="$CLI_HOME_SYM" USERPROFILE="$(to_native_path "$CLI_HOME_SYM")" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
 [ "$rc" -ne 0 ] && ck yes yes "CLI refuses a symlinked rules destination (rc=$rc)" || ck yes no "CLI refuses a symlinked rules destination (rc=$rc)"
 if grep -q 'do not touch' "$SCRATCH/sym-target.txt" && ! grep -q 'FlowSkill rules' "$SCRATCH/sym-target.txt"; then ck yes yes "CLI symlink target left untouched"; else ck yes no "CLI symlink target left untouched"; fi
+else
+echo "  skip [CLI refuses a symlinked rules destination — no native symlink on this runner]"
+fi
 
 CLI_HOME_SYM2="$SCRATCH/fake_home_sym2"
 mkdir -p "$CLI_HOME_SYM2/.widelai/rules"
 cp "$RULES_SRC" "$CLI_HOME_SYM2/.widelai/rules/flowskill.md"
-ln -s "$SCRATCH/sym-target.txt" "$CLI_HOME_SYM2/.widelai/AGENTS.md"
-out="$(HOME="$CLI_HOME_SYM2" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
+if make_symlink "$SCRATCH/sym-target.txt" "$CLI_HOME_SYM2/.widelai/AGENTS.md"; then
+out="$(HOME="$CLI_HOME_SYM2" USERPROFILE="$(to_native_path "$CLI_HOME_SYM2")" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
 [ "$rc" -ne 0 ] && ck yes yes "CLI refuses a symlinked AGENTS.md (rc=$rc)" || ck yes no "CLI refuses a symlinked AGENTS.md (rc=$rc)"
+else
+echo "  skip [CLI refuses a symlinked AGENTS.md — no native symlink on this runner]"
+fi
 
 # A directory at the rules destination is refused (not a nested copy).
 CLI_HOME_DIR="$SCRATCH/fake_home_dir"
 mkdir -p "$CLI_HOME_DIR/.widelai/rules/flowskill.md"
-out="$(HOME="$CLI_HOME_DIR" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
+out="$(HOME="$CLI_HOME_DIR" USERPROFILE="$(to_native_path "$CLI_HOME_DIR")" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
 [ "$rc" -ne 0 ] && ck yes yes "CLI refuses a directory at the rules destination (rc=$rc)" || ck yes no "CLI refuses a directory at the rules destination (rc=$rc)"
 
 # Two concurrent extras updates serialize: exactly one pointer, no lost data.
+# The generated .mjs embeds $ROOT as a path: on Windows it must be the
+# mixed form (C:/...), because Node resolves a Git Bash /d/... import to
+# C:\d\... and fails with ERR_MODULE_NOT_FOUND.
+ROOT_JS="$(to_json_path "$ROOT")"
 cat > "$SCRATCH/run-extras.mjs" <<EOF
-import { installWidelaiExtras } from '$ROOT/npm-wrapper/src/installer.mjs';
-installWidelaiExtras({ pkgRoot: '$ROOT/npm-wrapper', home: process.argv[2] });
+import { installWidelaiExtras } from '$ROOT_JS/npm-wrapper/src/installer.mjs';
+installWidelaiExtras({ pkgRoot: '$ROOT_JS/npm-wrapper', home: process.argv[2] });
 EOF
 CLI_HOME_CONC="$SCRATCH/fake_home_conc"
 mkdir -p "$CLI_HOME_CONC"
-node "$SCRATCH/run-extras.mjs" "$CLI_HOME_CONC" & pid1=$!
-node "$SCRATCH/run-extras.mjs" "$CLI_HOME_CONC" & pid2=$!
+node "$SCRATCH/run-extras.mjs" "$(to_native_path "$CLI_HOME_CONC")" & pid1=$!
+node "$SCRATCH/run-extras.mjs" "$(to_native_path "$CLI_HOME_CONC")" & pid2=$!
 wait $pid1; rc1=$?
 wait $pid2; rc2=$?
 ck 0 "$rc1" "concurrent extras run 1 exits 0 (got $rc1)"
@@ -214,17 +264,23 @@ ck 1 "$ptr" "install.sh CRLF pointer still appears exactly once"
 # Symlinked destinations are refused, never followed.
 SH_HOME_SYM="$SCRATCH/fake_home_sh_sym"
 mkdir -p "$SH_HOME_SYM/.widelai/rules"
-ln -s "$SCRATCH/sym-target.txt" "$SH_HOME_SYM/.widelai/rules/flowskill.md"
+if make_symlink "$SCRATCH/sym-target.txt" "$SH_HOME_SYM/.widelai/rules/flowskill.md"; then
 out="$(HOME="$SH_HOME_SYM" bash "$TEST_REPO/install.sh" global widelai 2>&1)"; rc=$?
 [ "$rc" -ne 0 ] && ck yes yes "install.sh refuses a symlinked rules destination (rc=$rc)" || ck yes no "install.sh refuses a symlinked rules destination (rc=$rc)"
 if grep -q 'do not touch' "$SCRATCH/sym-target.txt" && ! grep -q 'FlowSkill rules' "$SCRATCH/sym-target.txt"; then ck yes yes "install.sh symlink target left untouched"; else ck yes no "install.sh symlink target left untouched"; fi
+else
+echo "  skip [install.sh refuses a symlinked rules destination — no native symlink on this runner]"
+fi
 
 SH_HOME_SYM2="$SCRATCH/fake_home_sh_sym2"
 mkdir -p "$SH_HOME_SYM2/.widelai/rules"
 cp "$RULES_SRC" "$SH_HOME_SYM2/.widelai/rules/flowskill.md"
-ln -s "$SCRATCH/sym-target.txt" "$SH_HOME_SYM2/.widelai/AGENTS.md"
+if make_symlink "$SCRATCH/sym-target.txt" "$SH_HOME_SYM2/.widelai/AGENTS.md"; then
 out="$(HOME="$SH_HOME_SYM2" bash "$TEST_REPO/install.sh" global widelai 2>&1)"; rc=$?
 [ "$rc" -ne 0 ] && ck yes yes "install.sh refuses a symlinked AGENTS.md (rc=$rc)" || ck yes no "install.sh refuses a symlinked AGENTS.md (rc=$rc)"
+else
+echo "  skip [install.sh refuses a symlinked AGENTS.md — no native symlink on this runner]"
+fi
 
 # A directory at the rules destination is refused (not a nested copy).
 SH_HOME_DIR="$SCRATCH/fake_home_sh_dir"
