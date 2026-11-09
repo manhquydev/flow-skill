@@ -5,11 +5,18 @@
 #   2. Frontmatter name equals the skill directory name
 #   3. Rules-file generation (sync.mjs): exists, header, homed rules, no
 #      "Both must agree", no flow-cost/v1, word budget, byte-identical re-run
+#   3b. Rules generation on a CRLF checkout (Windows): sync succeeds, verdict
+#      line present, generated file byte-identical to the LF one, no CR bytes
 #   4. Node CLI installer idempotency for --target widelai (fake HOME, two runs,
 #      pointer line exactly once, user-edited rules conflict refused)
+#   4b. Node CLI: CRLF AGENTS.md (no duplicate pointer), symlinked/directory
+#      destinations refused, two concurrent extras updates serialize
 #   5. install.sh widelai (explicit target, autodetect on ~/.widelai/skills,
 #      bare ~/.widelai does NOT install)
-#   6. bash 3.2 run: bash -n + install.sh -h; npm pack lists the rules file
+#   5b. install.sh: CRLF AGENTS.md (no duplicate pointer), symlinked/directory
+#      destinations refused
+#   6. bash 3.2 run: bash -n + install.sh -h; npm pack --json lists the exact
+#      rules-file entry (not the prepack log line)
 # Run: bash tests/test_flow_widelai_packaging.sh
 set -u
 
@@ -35,7 +42,8 @@ SKILL="$ROOT/skills/flow/SKILL.md"
 RULES_SRC="$ROOT/npm-wrapper/.widelai/rules/flowskill.md"
 
 echo "=== 1. SKILL.md frontmatter validity ==="
-fm="$(sed -n '2,/^---$/p' "$SKILL" | head -n -1)"
+# Portable: `head -n -1` is a GNU extension BSD head rejects (macOS CI).
+fm="$(sed -n '2,/^---$/p' "$SKILL" | sed '$d')"
 has_key() {
   printf '%s\n' "$fm" | grep -q "^$1:" && echo yes || echo no
 }
@@ -45,8 +53,8 @@ ck yes "$(has_key license)" "frontmatter has license"
 ck yes "$(has_key compatibility)" "frontmatter has compatibility"
 ck yes "$(has_key metadata)" "frontmatter has metadata"
 grep -q '^name: flow$' "$SKILL" && ck yes yes "name is flow" || ck yes no "name is flow"
-grep -q '^compatibility: bash 3.2+, no runtime dependencies$' "$SKILL" && ck yes yes "compatibility line exact" || ck yes no "compatibility line exact"
-grep -q '^  receipts: \[flow-attestation/v1\]$' "$SKILL" && ck yes yes "receipts lists flow-attestation/v1 only" || ck yes no "receipts lists flow-attestation/v1 only"
+grep -q '^compatibility: bash 3.2+, Python 3.7+ (stdlib sqlite3) for product commands$' "$SKILL" && ck yes yes "compatibility line exact" || ck yes no "compatibility line exact"
+grep -q '^  receipts: flow-attestation/v1$' "$SKILL" && ck yes yes "receipts lists flow-attestation/v1 only" || ck yes no "receipts lists flow-attestation/v1 only"
 grep -q 'flow-cost' "$SKILL" && ck no yes "no flow-cost/v1 in SKILL.md" || ck no no "no flow-cost/v1 in SKILL.md"
 grep -q '^  version: "1.0.0"$' "$SKILL" && ck yes yes "version stays unified 1.0.0" || ck yes no "version stays unified 1.0.0"
 printf '%s\n' "$fm" | grep -q "$(printf '\t')" && ck no yes "frontmatter has no tabs" || ck no no "frontmatter has no tabs"
@@ -75,6 +83,22 @@ cp "$RULES_SRC" "$SCRATCH/rules-first.md"
 out="$(node "$ROOT/npm-wrapper/scripts/sync.mjs" 2>&1)" || { echo "FAIL: sync.mjs re-run failed: $out"; fail=$((fail + 1)); }
 cmp -s "$RULES_SRC" "$SCRATCH/rules-first.md" && ck yes yes "regeneration is byte-identical" || ck yes no "regeneration is byte-identical"
 
+echo "=== 3b. Rules generation on a CRLF checkout (Windows) ==="
+CRLF_REPO="$SCRATCH/crlf-repo"
+mkdir -p "$CRLF_REPO"
+cp -R "$ROOT/." "$CRLF_REPO/"
+rm -rf "$CRLF_REPO/plans" "$CRLF_REPO/.git"
+for f in AGENTS.md CONTRIBUTING.md skills/flow/law/CLAUDE.md skills/flow/references/attestations.md skills/flow/runner/flow.sh; do
+  awk '{ sub(/\r$/, ""); printf "%s\r\n", $0 }' "$CRLF_REPO/$f" > "$CRLF_REPO/$f.crlf" && mv "$CRLF_REPO/$f.crlf" "$CRLF_REPO/$f"
+done
+out="$(node "$CRLF_REPO/npm-wrapper/scripts/sync.mjs" 2>&1)"; rc=$?
+ck 0 "$rc" "sync.mjs succeeds on a CRLF tree (got $rc: $out)"
+CRLF_RULES="$CRLF_REPO/npm-wrapper/.widelai/rules/flowskill.md"
+[ -f "$CRLF_RULES" ] && ck yes yes "CRLF tree still generates the rules file" || ck yes no "CRLF tree still generates the rules file"
+grep -q 'verdict `pass|fail|override` only' "$CRLF_RULES" && ck yes yes "CRLF tree rules file has the verdict line" || ck yes no "CRLF tree rules file has the verdict line"
+cmp -s "$CRLF_RULES" "$RULES_SRC" && ck yes yes "CRLF rules file is byte-identical to the LF one" || ck yes no "CRLF rules file is byte-identical to the LF one"
+grep -q $'\r' "$CRLF_RULES" && ck no yes "generated rules file has no CR bytes" || ck no no "generated rules file has no CR bytes"
+
 echo "=== 4. Node CLI installer idempotency (--target widelai) ==="
 CLI_HOME="$SCRATCH/fake_home_cli"
 mkdir -p "$CLI_HOME"
@@ -100,6 +124,55 @@ out="$(HOME="$CLI_HOME" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>
 [ "$rc" -ne 0 ] && ck yes yes "user-edited rules file refuses install (rc=$rc)" || ck yes no "user-edited rules file refuses install (rc=$rc)"
 printf '%s\n' "$out" | grep -q 'refusing to overwrite' && ck yes yes "refusal names the overwrite guard" || ck yes no "refusal names the overwrite guard"
 grep -q 'user edit' "$CLI_HOME/.widelai/rules/flowskill.md" && ck yes yes "user-edited rules file left untouched" || ck yes no "user-edited rules file left untouched"
+
+echo "=== 4b. Node CLI: CRLF pointer, symlink/directory refusal, concurrent extras ==="
+# CRLF AGENTS.md: reinstall must recognize the pointer, not duplicate it.
+# (Restore the rules file first: §4 left it user-edited to test the refusal.)
+cp "$SCRATCH/cli-rules-before.md" "$CLI_HOME/.widelai/rules/flowskill.md"
+awk '{ sub(/\r$/, ""); printf "%s\r\n", $0 }' "$CLI_HOME/.widelai/AGENTS.md" > "$SCRATCH/agents-crlf.md" && mv "$SCRATCH/agents-crlf.md" "$CLI_HOME/.widelai/AGENTS.md"
+out="$(HOME="$CLI_HOME" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
+ck 0 "$rc" "CLI re-install over CRLF AGENTS.md exits 0 (got $rc)"
+ptr="$(tr -d '\r' < "$CLI_HOME/.widelai/AGENTS.md" | grep -c -Fx 'FlowSkill rules: see .widelai/rules/flowskill.md')"
+ck 1 "$ptr" "CRLF pointer still appears exactly once"
+
+# Symlinked destinations are refused, never followed.
+CLI_HOME_SYM="$SCRATCH/fake_home_sym"
+mkdir -p "$CLI_HOME_SYM/.widelai/rules"
+printf 'do not touch\n' > "$SCRATCH/sym-target.txt"
+ln -s "$SCRATCH/sym-target.txt" "$CLI_HOME_SYM/.widelai/rules/flowskill.md"
+out="$(HOME="$CLI_HOME_SYM" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
+[ "$rc" -ne 0 ] && ck yes yes "CLI refuses a symlinked rules destination (rc=$rc)" || ck yes no "CLI refuses a symlinked rules destination (rc=$rc)"
+if grep -q 'do not touch' "$SCRATCH/sym-target.txt" && ! grep -q 'FlowSkill rules' "$SCRATCH/sym-target.txt"; then ck yes yes "CLI symlink target left untouched"; else ck yes no "CLI symlink target left untouched"; fi
+
+CLI_HOME_SYM2="$SCRATCH/fake_home_sym2"
+mkdir -p "$CLI_HOME_SYM2/.widelai/rules"
+cp "$RULES_SRC" "$CLI_HOME_SYM2/.widelai/rules/flowskill.md"
+ln -s "$SCRATCH/sym-target.txt" "$CLI_HOME_SYM2/.widelai/AGENTS.md"
+out="$(HOME="$CLI_HOME_SYM2" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
+[ "$rc" -ne 0 ] && ck yes yes "CLI refuses a symlinked AGENTS.md (rc=$rc)" || ck yes no "CLI refuses a symlinked AGENTS.md (rc=$rc)"
+
+# A directory at the rules destination is refused (not a nested copy).
+CLI_HOME_DIR="$SCRATCH/fake_home_dir"
+mkdir -p "$CLI_HOME_DIR/.widelai/rules/flowskill.md"
+out="$(HOME="$CLI_HOME_DIR" node "$ROOT/npm-wrapper/bin/cli.mjs" --yes -t widelai 2>&1)"; rc=$?
+[ "$rc" -ne 0 ] && ck yes yes "CLI refuses a directory at the rules destination (rc=$rc)" || ck yes no "CLI refuses a directory at the rules destination (rc=$rc)"
+
+# Two concurrent extras updates serialize: exactly one pointer, no lost data.
+cat > "$SCRATCH/run-extras.mjs" <<EOF
+import { installWidelaiExtras } from '$ROOT/npm-wrapper/src/installer.mjs';
+installWidelaiExtras({ pkgRoot: '$ROOT/npm-wrapper', home: process.argv[2] });
+EOF
+CLI_HOME_CONC="$SCRATCH/fake_home_conc"
+mkdir -p "$CLI_HOME_CONC"
+node "$SCRATCH/run-extras.mjs" "$CLI_HOME_CONC" & pid1=$!
+node "$SCRATCH/run-extras.mjs" "$CLI_HOME_CONC" & pid2=$!
+wait $pid1; rc1=$?
+wait $pid2; rc2=$?
+ck 0 "$rc1" "concurrent extras run 1 exits 0 (got $rc1)"
+ck 0 "$rc2" "concurrent extras run 2 exits 0 (got $rc2)"
+ptr="$(grep -c -Fx 'FlowSkill rules: see .widelai/rules/flowskill.md' "$CLI_HOME_CONC/.widelai/AGENTS.md" 2>/dev/null || true)"
+ck 1 "$ptr" "concurrent extras append the pointer exactly once"
+cmp -s "$CLI_HOME_CONC/.widelai/rules/flowskill.md" "$RULES_SRC" && ck yes yes "concurrent extras rules file is byte-identical" || ck yes no "concurrent extras rules file is byte-identical"
 
 echo "=== 5. install.sh widelai ==="
 TEST_REPO="$SCRATCH/test_repo"
@@ -130,13 +203,45 @@ out="$(HOME="$SH_HOME3" bash "$TEST_REPO/install.sh" global all 2>&1)"; rc=$?
 ck 0 "$rc" "install.sh global all exits 0 with bare ~/.widelai"
 [ -d "$SH_HOME3/.widelai/skills/flow" ] && ck no yes "bare ~/.widelai does NOT install widelai" || ck no no "bare ~/.widelai does NOT install widelai"
 
+echo "=== 5b. install.sh: CRLF pointer, symlink/directory refusal ==="
+# CRLF AGENTS.md: reinstall must recognize the pointer, not duplicate it.
+awk '{ sub(/\r$/, ""); printf "%s\r\n", $0 }' "$SH_HOME/.widelai/AGENTS.md" > "$SCRATCH/sh-agents-crlf.md" && mv "$SCRATCH/sh-agents-crlf.md" "$SH_HOME/.widelai/AGENTS.md"
+out="$(HOME="$SH_HOME" bash "$TEST_REPO/install.sh" global widelai 2>&1)"; rc=$?
+ck 0 "$rc" "install.sh re-install over CRLF AGENTS.md exits 0 (got $rc)"
+ptr="$(tr -d '\r' < "$SH_HOME/.widelai/AGENTS.md" | grep -c -Fx 'FlowSkill rules: see .widelai/rules/flowskill.md')"
+ck 1 "$ptr" "install.sh CRLF pointer still appears exactly once"
+
+# Symlinked destinations are refused, never followed.
+SH_HOME_SYM="$SCRATCH/fake_home_sh_sym"
+mkdir -p "$SH_HOME_SYM/.widelai/rules"
+ln -s "$SCRATCH/sym-target.txt" "$SH_HOME_SYM/.widelai/rules/flowskill.md"
+out="$(HOME="$SH_HOME_SYM" bash "$TEST_REPO/install.sh" global widelai 2>&1)"; rc=$?
+[ "$rc" -ne 0 ] && ck yes yes "install.sh refuses a symlinked rules destination (rc=$rc)" || ck yes no "install.sh refuses a symlinked rules destination (rc=$rc)"
+if grep -q 'do not touch' "$SCRATCH/sym-target.txt" && ! grep -q 'FlowSkill rules' "$SCRATCH/sym-target.txt"; then ck yes yes "install.sh symlink target left untouched"; else ck yes no "install.sh symlink target left untouched"; fi
+
+SH_HOME_SYM2="$SCRATCH/fake_home_sh_sym2"
+mkdir -p "$SH_HOME_SYM2/.widelai/rules"
+cp "$RULES_SRC" "$SH_HOME_SYM2/.widelai/rules/flowskill.md"
+ln -s "$SCRATCH/sym-target.txt" "$SH_HOME_SYM2/.widelai/AGENTS.md"
+out="$(HOME="$SH_HOME_SYM2" bash "$TEST_REPO/install.sh" global widelai 2>&1)"; rc=$?
+[ "$rc" -ne 0 ] && ck yes yes "install.sh refuses a symlinked AGENTS.md (rc=$rc)" || ck yes no "install.sh refuses a symlinked AGENTS.md (rc=$rc)"
+
+# A directory at the rules destination is refused (not a nested copy).
+SH_HOME_DIR="$SCRATCH/fake_home_sh_dir"
+mkdir -p "$SH_HOME_DIR/.widelai/rules/flowskill.md"
+out="$(HOME="$SH_HOME_DIR" bash "$TEST_REPO/install.sh" global widelai 2>&1)"; rc=$?
+[ "$rc" -ne 0 ] && ck yes yes "install.sh refuses a directory at the rules destination (rc=$rc)" || ck yes no "install.sh refuses a directory at the rules destination (rc=$rc)"
+
 echo "=== 6. bash 3.2 run + tarball ==="
 bash -n "$ROOT/install.sh" 2>/dev/null; rc=$?
 ck 0 "$rc" "bash -n install.sh passes"
 bash "$ROOT/install.sh" -h >/dev/null 2>&1; rc=$?
 ck 0 "$rc" "install.sh -h exits 0"
-pack_list="$(cd "$ROOT/npm-wrapper" && npm pack --dry-run 2>/dev/null)"
-printf '%s\n' "$pack_list" | grep -q 'widelai/rules/flowskill.md' && ck yes yes "npm pack lists .widelai/rules/flowskill.md" || ck yes no "npm pack lists .widelai/rules/flowskill.md"
+# Parse the --json listing and assert the exact files entry: grepping the
+# plain listing can match the prepack sync log instead of the shipped file.
+pack_json="$(cd "$ROOT/npm-wrapper" && npm pack --dry-run --ignore-scripts --json 2>/dev/null)"
+printf '%s' "$pack_json" | node -e "let s='';process.stdin.on('data',d=>{s+=d}).on('end',()=>{try{const j=JSON.parse(s);const files=((j[0]||{}).files||[]).map(f=>f.path);process.exit(files.includes('.widelai/rules/flowskill.md')?0:1)}catch(e){process.exit(2)}})"; rc=$?
+ck 0 "$rc" "npm pack --json lists the exact .widelai/rules/flowskill.md entry (got $rc)"
 
 echo "=== Summary ==="
 echo "Pass: $pass, Fail: $fail"

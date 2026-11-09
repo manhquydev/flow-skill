@@ -6,12 +6,12 @@ when_to_use: "User wants to build a real product end-to-end with discipline (ide
 argument-hint: "[ resume | next | card | check C-NNN | project-type web|cli|library|skill | mode teach|work | skip <stage> | ready [--json] | workspace add|list|enter|remove|check|doctor | auto [--parallel] [stop] | attest semantic|live-verify|status|recover|verify-chain | doctor | retro | eval | clarify | converge | or just say what you want in plain language ]"
 keywords: [flow, buildflow, gate, build, ship, scope, prd, contract, card, deploy, vertical-slice, cli, library, skill, worktree, parallel-agents, workspace, multi-agent]
 license: MIT
-compatibility: bash 3.2+, no runtime dependencies
+compatibility: bash 3.2+, Python 3.7+ (stdlib sqlite3) for product commands
 metadata:
   author: flow-skill
   version: "1.0.0"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); durable-layer ancestry and improve-ritual spirit from repository-harness (protocol v1 EOL — flow-owned fork); agent patterns from claudekit-engineer, BMAD-METHOD. v0.22 concierge from BMAD bmad-help; forge-idea from bmad-forge-idea (MIT, BMad Code LLC)."
-  receipts: [flow-attestation/v1]
+  receipts: flow-attestation/v1
 ---
 
 # /flow — buildflow gated build harness

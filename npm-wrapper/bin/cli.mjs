@@ -338,7 +338,34 @@ async function main() {
       try {
         extras = installWidelaiExtras({ pkgRoot });
       } catch (err) {
-        errorExit(`widelai extras failed: ${err.message}`, 1, opts.json);
+        // Record the extras failure as a failed result and leave through the
+        // normal summary path: exiting here would skip `install:done` and the
+        // final summary, hiding the completed targets from --json consumers.
+        const failed = { success: false, error: `widelai extras failed: ${err.message}` };
+        results.push({ ...failed, target: step.target, dests: step.dests });
+        emit(
+          {
+            event: 'install:done',
+            target: step.target,
+            dests: step.dests,
+            result: 'failed',
+            error: failed.error,
+            code: null,
+            recoveryPath: null,
+            failedCandidatePath: null,
+            partialState: null,
+            preserved: [],
+            retiredRemoved: [],
+            retiredPreserved: [],
+            warnings: [],
+          },
+          opts.json
+        );
+        log(humanResult(step.target, { ...failed, dests: step.dests }), opts.json);
+        // Human mode: the refusal reason also belongs on stderr (the summary
+        // path alone only prints it on stdout via humanResult).
+        warn(`Error: ${failed.error}`, opts.json);
+        break; // fail-fast, same as a failed install() below
       }
       emit(
         {

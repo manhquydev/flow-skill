@@ -206,29 +206,48 @@ install_widelai_extras() {
   agents_file="${HOME}/.widelai/AGENTS.md"
   pointer="FlowSkill rules: see .widelai/rules/flowskill.md"
   if [ ! -f "$rules_src" ]; then
-    echo "WARNING: generated WidelCode rules file missing at $rules_src (run 'npm run sync' from the repo root); skill installed without rules file."
+    echo "WARNING: generated WidelCode rules file missing at $rules_src (run 'npm run sync' inside npm-wrapper/); skill installed without rules file."
     return 0
+  fi
+  # Refuse symlinked destinations (and ancestors) before any write: the rest
+  # of this installer rejects symlinks, and cp/>> would follow them.
+  validate_path_no_symlinks "$rules_dest" "rules destination"
+  validate_path_no_symlinks "$agents_file" "AGENTS.md"
+  # An existing directory (or other non-regular entry) at either destination
+  # must fail loudly: cp into a directory "succeeds" by nesting the file,
+  # and appending to a directory is not a pointer line.
+  if [ -e "$rules_dest" ] && [ ! -f "$rules_dest" ]; then
+    echo "FAIL: $rules_dest exists and is not a regular file; refusing to overwrite."
+    return 1
+  fi
+  if [ -e "$agents_file" ] && [ ! -f "$agents_file" ]; then
+    echo "FAIL: $agents_file exists and is not a regular file; refusing to write."
+    return 1
   fi
   if [ -f "$rules_dest" ] && ! cmp -s "$rules_src" "$rules_dest"; then
     echo "FAIL: $rules_dest exists with different content (user-edited?); refusing to overwrite. Resolve manually."
     return 1
   fi
-  mkdir -p "$(dirname "$rules_dest")"
-  cp "$rules_src" "$rules_dest"
+  # This function runs in a `||` list (call site: `install_widelai_extras ||
+  # exit 1`), which disables errexit inside it — so every required write
+  # checks its own failure explicitly instead of relying on `set -e`.
+  mkdir -p "$(dirname "$rules_dest")" || return 1
+  cp "$rules_src" "$rules_dest" || return 1
   echo "installed WidelCode rules -> $rules_dest"
   if [ -f "$agents_file" ]; then
-    if grep -Fxq "$pointer" "$agents_file"; then
+    # Strip CR so a CRLF pointer is recognized (no duplicate append).
+    if tr -d '\r' < "$agents_file" | grep -Fxq "$pointer"; then
       :
     else
       # Preserve the last line: append a newline first if the file lacks one.
       if [ -s "$agents_file" ] && [ -n "$(tail -c 1 "$agents_file")" ]; then
-        printf '\n' >> "$agents_file"
+        printf '\n' >> "$agents_file" || return 1
       fi
-      printf '%s\n' "$pointer" >> "$agents_file"
+      printf '%s\n' "$pointer" >> "$agents_file" || return 1
     fi
   else
-    mkdir -p "$(dirname "$agents_file")"
-    printf '%s\n' "$pointer" > "$agents_file"
+    mkdir -p "$(dirname "$agents_file")" || return 1
+    printf '%s\n' "$pointer" > "$agents_file" || return 1
   fi
   echo "pointer line ensured in $agents_file"
 }

@@ -249,6 +249,17 @@ writeFileSync(
 // fixtures, do not carry AGENTS.md/CONTRIBUTING.md). A file that EXISTS but
 // no longer contains the pattern still fails loudly, so a stale rules file
 // can never ship silently.
+//
+// Lines are matched after stripping a trailing carriage return, so
+// `$`-anchored patterns also match on Windows (CRLF) checkouts; the returned
+// text is the clean line, so generated output never carries CR bytes.
+//
+// @param {string} repoRoot - Repository root holding the source file.
+// @param {string} relPath - Source path relative to repoRoot.
+// @param {RegExp} pattern - Pattern the source line must match.
+// @param {string} label - Human-readable source name for the loud failure.
+// @returns {{ file: string, line: number, text: string } | null} The matched
+//   line (1-based), or null when the source file is missing.
 function findRulesSourceLine(repoRoot, relPath, pattern, label) {
   let text;
   try {
@@ -259,18 +270,45 @@ function findRulesSourceLine(repoRoot, relPath, pattern, label) {
   }
   const lines = text.split('\n');
   for (let i = 0; i < lines.length; i++) {
-    if (pattern.test(lines[i])) return { file: relPath, line: i + 1, text: lines[i].trim() };
+    // Strip a trailing CR so `$`-anchored patterns match CRLF checkouts
+    // (Windows `core.autocrlf`); the returned text is the clean line.
+    const line = lines[i].replace(/\r$/, '');
+    if (pattern.test(line)) return { file: relPath, line: i + 1, text: line.trim() };
   }
   console.error(`FAIL: widelai rules source not found: ${label} (pattern ${pattern} in ${relPath})`);
   process.exit(1);
 }
 
+/**
+ * Strip a leading list marker (`-`, `*`, `1.`) and a trailing colon from a
+ * quoted source line, so the generated rules file reads as prose.
+ *
+ * @param {string} text - Raw source line.
+ * @returns {string} The line without its list marker or trailing colon.
+ */
 function stripListMarker(text) {
   return text.replace(/^\s*(?:[-*]|\d+\.)\s*/, '').replace(/:\s*$/, '').trim();
 }
 
+/**
+ * Generate the WidelCode rules file (`.widelai/rules/flowskill.md`) from the
+ * multi-home rule sources (root AGENTS.md, CONTRIBUTING.md, law/CLAUDE.md,
+ * attestations.md, flow.sh). Runs at pack time, the only point with all
+ * sources on disk. Returns the generated path, or null (with a loud warning)
+ * when a source file is missing — partial trees skip generation instead of
+ * shipping rules whose homes cannot be verified. In the skip case any
+ * previously generated file is removed first, so a stale rules file can
+ * never ship from a tree that lacks its sources.
+ *
+ * @returns {string | null} Path of the generated rules file, or null when skipped.
+ */
 function generateWidelaiRules() {
-  const repoRoot = resolve(pkgRoot, '..');
+  // Rule homes live in the repo that owns the skill source: honor the
+  // FLOW_SKILL_SRC override (out-of-tree dev checkouts and CI matrix), so an
+  // out-of-tree sync never pairs an overridden skill with this repo's rules.
+  const repoRoot = process.env.FLOW_SKILL_SRC
+    ? resolve(src, '..', '..')
+    : resolve(pkgRoot, '..');
   const conventions = findRulesSourceLine(repoRoot, 'AGENTS.md', /bash 3\.2-safe/, 'AGENTS.md conventions (bash 3.2-safe / zero new runtime deps)');
   const bashCompat = findRulesSourceLine(repoRoot, 'CONTRIBUTING.md', /Bash 3\.2 compatibility/, 'CONTRIBUTING.md bash 3.2 compatibility');
   const forkBranch = findRulesSourceLine(repoRoot, 'CONTRIBUTING.md', /Fork and branch/, 'CONTRIBUTING.md fork and branch');
@@ -280,10 +318,14 @@ function generateWidelaiRules() {
   const chain = findRulesSourceLine(repoRoot, 'skills/flow/references/attestations.md', /^### Receipt chain/, 'attestations receipt chain section');
   const warnOnly = findRulesSourceLine(repoRoot, 'skills/flow/runner/flow.sh', /warning-only stage semantic receipt/, 'flow.sh warning-only next');
   const sources = [conventions, bashCompat, forkBranch, branchPerCard, oneWorktree, verdict, chain, warnOnly];
+  const dest = join(pkgRoot, '.widelai', 'rules', 'flowskill.md');
   if (sources.some((s) => s === null)) {
     // Partial tree (no AGENTS.md/CONTRIBUTING.md on disk): the release
     // fixtures and any subtree copy hit this. Skip, loudly — the full repo
     // always has all eight sources, so a skip here is never a silent loss.
+    // Remove any previously generated file first: a stale rules file must
+    // never ship from a tree that lacks its sources.
+    rmSync(dest, { force: true });
     console.warn('WARN: widelai rules skipped: a rules source file is missing from this tree (partial tree?); re-run `npm run sync` in the full repo to generate .widelai/rules/flowskill.md');
     return null;
   }
@@ -303,7 +345,6 @@ function generateWidelaiRules() {
     'Not in this file (deliberately): maker/verifier separation, denied-action verdict mapping, and a deploy rule have no home in this repo, so they are not stated here. See the T1 PR description.',
     '',
   ].join('\n');
-  const dest = join(pkgRoot, '.widelai', 'rules', 'flowskill.md');
   mkdirSync(dirname(dest), { recursive: true });
   writeFileSync(dest, out);
   return dest;

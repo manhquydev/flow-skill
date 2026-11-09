@@ -99,8 +99,26 @@ function Install-WidelaiExtras {
   $agentsFile = Join-Path $UserHome '.widelai/AGENTS.md'
   $pointer = 'FlowSkill rules: see .widelai/rules/flowskill.md'
   if (-not (Test-Path -LiteralPath $rulesSrc)) {
-    Write-Host "WARNING: generated WidelCode rules file missing at $rulesSrc (run 'npm run sync' from the repo root); skill installed without rules file."
+    Write-Host "WARNING: generated WidelCode rules file missing at $rulesSrc (run 'npm run sync' inside npm-wrapper/); skill installed without rules file."
     return
+  }
+  # Refuse symlinked destinations (and ancestors) before any write: the rest
+  # of this installer rejects symlinks/reparse points, and Copy-Item/append
+  # would follow them. An existing directory at either destination is also
+  # refused: Copy-Item into a directory "succeeds" by nesting the file.
+  Test-SafePath $rulesDest "rules destination"
+  Test-SafePath $agentsFile "AGENTS.md"
+  if (Test-Path -LiteralPath $rulesDest) {
+    $destItem = Get-Item -LiteralPath $rulesDest -Force
+    if ($destItem.PSIsContainer) {
+      throw "$rulesDest exists and is not a regular file; refusing to overwrite."
+    }
+  }
+  if (Test-Path -LiteralPath $agentsFile) {
+    $agentsItem = Get-Item -LiteralPath $agentsFile -Force
+    if ($agentsItem.PSIsContainer) {
+      throw "$agentsFile exists and is not a regular file; refusing to write."
+    }
   }
   if (Test-Path -LiteralPath $rulesDest) {
     $srcHash = (Get-FileHash -LiteralPath $rulesSrc -Algorithm SHA256).Hash
@@ -119,10 +137,21 @@ function Install-WidelaiExtras {
     $content = Get-Content -LiteralPath $agentsFile -Raw -ErrorAction SilentlyContinue
     if ($null -eq $content) { $content = '' }
     $lines = $content -split "`n" | ForEach-Object { $_.TrimEnd("`r") }
-    if ($lines -notcontains $pointer) {
+    # Case-sensitive match: -contains is case-insensitive, so a differently
+    # cased line would wrongly suppress the canonical pointer.
+    if ($lines -cnotcontains $pointer) {
       $sep = ''
       if ($content.Length -gt 0 -and -not $content.EndsWith("`n")) { $sep = "`n" }
-      [System.IO.File]::AppendAllText($agentsFile, $sep + $pointer + "`n")
+      # Preserve an existing UTF-16 file's encoding: AppendAllText defaults
+      # to UTF-8, which would mix encodings in a PowerShell-created file.
+      $encoding = [System.Text.UTF8Encoding]::new($false)
+      $bom = [System.IO.File]::ReadAllBytes($agentsFile)
+      if ($bom.Length -ge 2 -and $bom[0] -eq 0xFF -and $bom[1] -eq 0xFE) {
+        $encoding = [System.Text.Encoding]::Unicode
+      } elseif ($bom.Length -ge 2 -and $bom[0] -eq 0xFE -and $bom[1] -eq 0xFF) {
+        $encoding = [System.Text.Encoding]::BigEndianUnicode
+      }
+      [System.IO.File]::AppendAllText($agentsFile, $sep + $pointer + "`n", $encoding)
     }
   } else {
     $parent = Split-Path -Parent $agentsFile
