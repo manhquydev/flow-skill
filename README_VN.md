@@ -31,6 +31,8 @@ stage tiến. Kill tại một cổng là kết quả hợp lệ, được tôn 
 | **Test / CI** | [`tests/manifest.txt`](tests/manifest.txt) · Ubuntu · macOS · Windows |
 | **License** | MIT |
 
+Bản phát hành đã xác minh ngày 2026-10-30: GitHub phát hành skill v1.0.0 (2026-10-24) và npm installer 1.0.0 (2026-10-25); registry xác nhận `latest` là 1.0.0. Xem [hướng dẫn migration](docs/migration-v1.md) để biết cặp rollback trước v1 đã xác minh.
+
 ## Tài liệu
 
 [English](https://flowskill.io.vn/) ·
@@ -40,7 +42,7 @@ stage tiến. Kill tại một cổng là kết quả hợp lệ, được tôn 
 
 ## Cài đặt
 
-**Yêu cầu:** [Node.js](https://nodejs.org/) **≥ 22.14** để cài đặt; thao tác sản phẩm Flow v1 yêu cầu Python **≥ 3.7** (chỉ thư viện chuẩn). Đây là yêu cầu mục tiêu trước phát hành cho đến khi triển khai v1 vượt qua các cổng nghiệm thu.
+**Yêu cầu:** [Node.js](https://nodejs.org/) **≥ 22.14** để cài đặt; thao tác sản phẩm Flow v1 yêu cầu Python **≥ 3.7** (chỉ thư viện chuẩn).
 
 ```bash
 npx @manhquy/flow-skill@latest
