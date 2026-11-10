@@ -93,7 +93,8 @@ grep -q '^name: flow$' "$SKILL" && ck yes yes "name is flow" || ck yes no "name 
 grep -q '^compatibility: bash 3.2+, Python 3.7+ (stdlib sqlite3) for product commands$' "$SKILL" && ck yes yes "compatibility line exact" || ck yes no "compatibility line exact"
 grep -q '^  receipts: flow-attestation/v1$' "$SKILL" && ck yes yes "receipts lists flow-attestation/v1 only" || ck yes no "receipts lists flow-attestation/v1 only"
 grep -q 'flow-cost' "$SKILL" && ck no yes "no flow-cost/v1 in SKILL.md" || ck no no "no flow-cost/v1 in SKILL.md"
-grep -q '^  version: "1.0.0"$' "$SKILL" && ck yes yes "version stays unified 1.0.0" || ck yes no "version stays unified 1.0.0"
+pkg_ver="$(node -e "console.log(JSON.parse(require('fs').readFileSync('$ROOT/npm-wrapper/package.json','utf8')).version)")"
+grep -q "^  version: \"$pkg_ver\"\$" "$SKILL" && ck yes yes "version matches npm-wrapper ($pkg_ver)" || ck yes no "version matches npm-wrapper ($pkg_ver)"
 printf '%s\n' "$fm" | grep -q "$(printf '\t')" && ck no yes "frontmatter has no tabs" || ck no no "frontmatter has no tabs"
 
 echo "=== 2. Frontmatter name equals the skill directory name ==="
