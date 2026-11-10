@@ -1,6 +1,7 @@
 # Changelog
 
 ## [Unreleased]
+- feat(eval): live batches judge from a frozen snapshot of grader inputs (gate-rules corpus + manifest + fixture tree, copied to a temp dir outside the working tree at batch start); a mid-batch change to any grader input aborts loudly before further judge calls, with no `done` trailer. Replay staleness hard-fail unchanged; no new dependency; Eval STOP bodies untouched.
 - fix(attest): `_att_chain_verify` temp files (latest-entry index and ledger key index) now call `mktemp` with an explicit `${TMPDIR:-/tmp}/.att-chain*` template, so BSD `mktemp` honors `TMPDIR` on macOS; an invalid/unwritable `TMPDIR` fails closed (`BROKEN`, never a false pass), while an unset `TMPDIR` defaults to `/tmp` and verification proceeds normally; `skills/flow/references/attestations.md` documents the exact six-field link hash order and trailing newline, excluding `v1`.
 - feat(attest): tamper-evident receipt chain ledger (`chain.log` sidecar, one line per minted receipt) and `flow attest verify-chain` (`OK`/`BROKEN`/`MISMATCH`/`MISSING`/`UNTRACKED`/`NO-LEDGER`/`EMPTY`); chain hashes are filter-immune (`git hash-object --no-filters` on raw receipt bytes), so clean filters and CRLF conversion cannot mask an edit. Receipt schema v1 unchanged; the chain stays warning-only, never gate authority.
 - fix(doctor): verify `timeout --version` or `-s` capability in doctor timeout check; avoid falsely reporting Windows System32 timeout as full GNU timeout.
