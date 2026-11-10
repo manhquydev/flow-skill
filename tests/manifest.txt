@@ -39,6 +39,7 @@ test_flow_schema_migration.sh
 test_flow_tool_registry.sh
 test_flow_loop.sh
 test_flow_eval.sh
+test_flow_eval_grader_isolation.sh
 test_eval_fixture_lint.sh
 test_flow_resume.sh
 test_flow_status_legibility.sh

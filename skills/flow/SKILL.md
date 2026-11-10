@@ -9,7 +9,7 @@ license: MIT
 compatibility: bash 3.2+, Python 3.7+ (stdlib sqlite3) for product commands
 metadata:
   author: flow-skill
-  version: "1.0.0"
+  version: "1.0.1"
   attribution: "Methodology from ai20k-build-phase/buildflow (Tony, arealisticdreamer.com); durable-layer ancestry and improve-ritual spirit from repository-harness (protocol v1 EOL — flow-owned fork); agent patterns from claudekit-engineer, BMAD-METHOD. v0.22 concierge from BMAD bmad-help; forge-idea from bmad-forge-idea (MIT, BMad Code LLC)."
   receipts: flow-attestation/v1
 ---
