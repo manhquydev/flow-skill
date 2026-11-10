@@ -168,7 +168,7 @@ recipe above, and a change landing *during* one fixture's votes cannot alter tha
 fixture's prompt (built once, before any engine call). Replay keeps its own
 staleness hard-fail and `--report` stays offline; neither snapshots. No new
 dependency (`cp`/`cksum`/`mktemp` only), no shipped-fixture change (the corpus
-stays at 15 rows), no STOP-zone touch.
+stays at 17 rows), no STOP-zone touch.
 
 ## Modes
 
