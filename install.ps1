@@ -326,7 +326,7 @@ if ($Mode -eq 'global') {
   }
   # widelai: explicit target or autodetected when ~/.widelai/skills exists
   # (never bare ~/.widelai — it holds credentials.json for every WidelCode user)
-  if ($target -eq 'widelai' -or ($target -eq 'all' -and (Test-Path (Join-Path $UserHome '.widelai/skills')))) {
+  if ($target -eq 'widelai' -or ($target -eq 'all' -and (Test-Path (Join-Path $UserHome '.widelai/skills') -PathType Container))) {
     Install-WidelaiExtras
     $last = Install-To (Join-Path $UserHome '.widelai/skills/flow')
     $installed += 'widelai'

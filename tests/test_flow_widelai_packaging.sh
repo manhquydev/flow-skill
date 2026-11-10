@@ -255,6 +255,14 @@ out="$(HOME="$SH_HOME3" bash "$TEST_REPO/install.sh" global all 2>&1)"; rc=$?
 ck 0 "$rc" "install.sh global all exits 0 with bare ~/.widelai"
 [ -d "$SH_HOME3/.widelai/skills/flow" ] && ck no yes "bare ~/.widelai does NOT install widelai" || ck no no "bare ~/.widelai does NOT install widelai"
 
+SH_HOME4="$SCRATCH/fake_home_sh4"
+mkdir -p "$SH_HOME4/.widelai"
+printf 'regular file, not a container\n' > "$SH_HOME4/.widelai/skills"
+out="$(HOME="$SH_HOME4" bash "$TEST_REPO/install.sh" global all 2>&1)"; rc=$?
+ck 0 "$rc" "install.sh global all exits 0 with regular-file marker"
+[ -d "$SH_HOME4/.widelai/skills/flow" ] && ck no yes "regular-file ~/.widelai/skills does NOT install widelai" || ck no no "regular-file ~/.widelai/skills does NOT install widelai"
+[ -f "$SH_HOME4/.widelai/skills" ] && ck yes yes "regular-file ~/.widelai/skills marker left untouched" || ck yes no "regular-file ~/.widelai/skills marker left untouched"
+
 echo "=== 5b. install.sh: CRLF pointer, symlink/directory refusal ==="
 # CRLF AGENTS.md: reinstall must recognize the pointer, not duplicate it.
 awk '{ sub(/\r$/, ""); printf "%s\r\n", $0 }' "$SH_HOME/.widelai/AGENTS.md" > "$SCRATCH/sh-agents-crlf.md" && mv "$SCRATCH/sh-agents-crlf.md" "$SH_HOME/.widelai/AGENTS.md"
