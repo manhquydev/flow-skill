@@ -93,7 +93,8 @@ grep -q '^name: flow$' "$SKILL" && ck yes yes "name is flow" || ck yes no "name 
 grep -q '^compatibility: bash 3.2+, Python 3.7+ (stdlib sqlite3) for product commands$' "$SKILL" && ck yes yes "compatibility line exact" || ck yes no "compatibility line exact"
 grep -q '^  receipts: flow-attestation/v1$' "$SKILL" && ck yes yes "receipts lists flow-attestation/v1 only" || ck yes no "receipts lists flow-attestation/v1 only"
 grep -q 'flow-cost' "$SKILL" && ck no yes "no flow-cost/v1 in SKILL.md" || ck no no "no flow-cost/v1 in SKILL.md"
-pkg_ver="$(node -e "console.log(JSON.parse(require('fs').readFileSync('$ROOT/npm-wrapper/package.json','utf8')).version)")"
+# shellcheck disable=SC2016
+pkg_ver="$(sed -n 's/^  "version": "\([^"]*\)",$/\1/p' "$ROOT/npm-wrapper/package.json" | head -1)"
 grep -q "^  version: \"$pkg_ver\"\$" "$SKILL" && ck yes yes "version matches npm-wrapper ($pkg_ver)" || ck yes no "version matches npm-wrapper ($pkg_ver)"
 printf '%s\n' "$fm" | grep -q "$(printf '\t')" && ck no yes "frontmatter has no tabs" || ck no no "frontmatter has no tabs"
 
