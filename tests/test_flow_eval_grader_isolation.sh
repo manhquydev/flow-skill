@@ -29,6 +29,7 @@ _cleanup_case() {
   [ -n "${CASE:-}" ] && rm -rf "$CASE" 2>/dev/null
   [ -n "${SB:-}" ] && rm -rf "$SB" 2>/dev/null
   [ -n "${MOCKBIN:-}" ] && rm -rf "$MOCKBIN" 2>/dev/null
+  [ -n "${MOCK_STATE:-}" ] && rm -rf "$MOCK_STATE" 2>/dev/null
 }
 trap _cleanup_case EXIT
 
@@ -37,6 +38,7 @@ trap _cleanup_case EXIT
 # and installs an env-driven mock `claude`. mutate_target_relpath is relative to
 # the skill-tree copy root (e.g. references/gate-02.md); "-" disables mutation.
 setup_case() {
+  _cleanup_case
   local mutate_on="$1" mutate_target_rel="$2" verdicts_csv="$3"
   CASE="$(mktemp -d)"
   SB="$(mktemp -d)"
