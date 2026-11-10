@@ -39,10 +39,28 @@ try {
   New-Item -ItemType Directory -Path (Join-Path $TestRepo "skills/flow") | Out-Null
   Copy-Item -LiteralPath $InstallScript -Destination $TestRepo -Force
   Get-ChildItem -LiteralPath (Join-Path $RepoRoot "skills/flow") -Force | Copy-Item -Destination (Join-Path $TestRepo "skills/flow") -Recurse -Force
-  if (Test-Path -LiteralPath (Join-Path $RepoRoot "npm-wrapper/.widelai")) {
-    $testWidelai = Join-Path $TestRepo "npm-wrapper/.widelai"
-    New-Item -ItemType Directory -Path (Split-Path -Parent $testWidelai) -Force | Out-Null
-    Copy-Item -LiteralPath (Join-Path $RepoRoot "npm-wrapper/.widelai") -Destination (Join-Path $TestRepo "npm-wrapper") -Recurse -Force
+  # The generated rules file is gitignored (npm-wrapper/.widelai/), so a fresh CI
+  # checkout never has it. Generate it the same way the bash suite does: copy the
+  # sync toolchain + the repo-root sources sync.mjs reads, then run sync.mjs.
+  # Fall back to a local pre-generated copy only when node is unavailable.
+  New-Item -ItemType Directory -Path (Join-Path $TestRepo "npm-wrapper/scripts") -Force | Out-Null
+  foreach ($f in @('AGENTS.md', 'CONTRIBUTING.md', 'portable-manifest.json')) {
+    Copy-Item -LiteralPath (Join-Path $RepoRoot $f) -Destination $TestRepo -Force
+  }
+  Copy-Item -LiteralPath (Join-Path $RepoRoot "npm-wrapper/scripts/sync.mjs") -Destination (Join-Path $TestRepo "npm-wrapper/scripts/sync.mjs") -Force
+  Push-Location $TestRepo
+  try {
+    & node (Join-Path $TestRepo "npm-wrapper/scripts/sync.mjs") *>$null
+  } catch {
+    Write-Host "WARN: node sync failed in test repo; falling back to local .widelai copy"
+  }
+  Pop-Location
+  if (-not (Test-Path -LiteralPath (Join-Path $TestRepo "npm-wrapper/.widelai/rules/flowskill.md"))) {
+    if (Test-Path -LiteralPath (Join-Path $RepoRoot "npm-wrapper/.widelai")) {
+      $testWidelai = Join-Path $TestRepo "npm-wrapper/.widelai"
+      New-Item -ItemType Directory -Path (Split-Path -Parent $testWidelai) -Force | Out-Null
+      Copy-Item -LiteralPath (Join-Path $RepoRoot "npm-wrapper/.widelai") -Destination (Join-Path $TestRepo "npm-wrapper") -Recurse -Force
+    }
   }
   $TestInstallScript = Join-Path $TestRepo 'install.ps1'
 
