@@ -148,6 +148,27 @@ print("model", d.get("model"))
 Success signal: `cache_creation_input_tokens` collapses from ~50–60K toward the inlined
 judge prompt size; `total_cost_usd` drops well below $0.30.
 
+### Grader-input isolation (live batches)
+
+A live batch judges every fixture against the same frozen grader inputs. At batch
+start (after the probe, before the `start` marker) the runner copies the grader
+corpus (the 13 files behind `_eval_gate_rules_sha`), `manifest.tsv`, and the whole
+fixture tree into a temp dir outside the working tree, hashes that copy
+(CRLF-normalized `cksum`, same recipe family, `ABSENT` sentinel for a missing
+file), and builds every judge prompt from the copy. Before each fixture it
+re-hashes the live inputs; any drift aborts the batch loudly, before any further
+billable call, with no `done` trailer — `--report` excludes the torn run, and rows
+already written keep describing only fixtures judged before the change. The batch
+prints its snapshot hash (`eval: grader snapshot <hash>`) so a postmortem can tell
+which frozen inputs a batch actually judged.
+
+Scope, stated plainly: this closes the "rules changed mid-batch" hole. It is not
+an OS sandbox — the judge's filesystem reach is still governed by the isolated-cwd
+recipe above, and a change landing *during* one fixture's votes cannot alter that
+fixture's prompt (built once, before any engine call). Replay keeps its own
+staleness hard-fail and `--report` stays offline; neither snapshots. No new
+dependency (`cp`/`cksum`/`mktemp` only), no shipped-fixture change (the corpus
+stays at 17 rows), no STOP-zone touch.
 
 ## Modes
 
