@@ -286,7 +286,7 @@ newsb
 EVAL_DIR="$HERE/../skills/flow/eval"
 SCRIPT_DIR="$HERE/../skills/flow/runner"
 # Load only read-only prompt/hash helpers, not dispatch or either eval STOP body.
-for helper in _eval_heading_pattern _eval_extract_section _eval_build_prompt _eval_gate_rules_sha; do
+for helper in _eval_heading_pattern _eval_extract_section _eval_build_prompt _eval_gate_rules_files _eval_gate_rules_sha; do
   eval "$(sed -n "/^${helper}()/,/^}/p" "$RUN")"
 done
 rows="$(awk -F '\t' '$2 == "00-inspect" { n++ } END { print n+0 }' "$EVAL_DIR/manifest.tsv")"

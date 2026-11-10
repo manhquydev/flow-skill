@@ -2,6 +2,10 @@
 
 All notable changes to `@manhquy/flow-skill`. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [1.0.1] - 2026-11-10
+
+- Bundled skill updated to 1.0.1: eval-grader isolation (live batches judge from a frozen snapshot of grader inputs; mid-batch grader-input changes abort loudly) and runner hash re-pinned after the merge.
+
 ## [1.0.0] - 2026-10-25
 
 - Adopt one shared SemVer for the skill product and npm installer. npm advances from 0.8.0 to 1.0.0; the skill is already 1.0.0.
