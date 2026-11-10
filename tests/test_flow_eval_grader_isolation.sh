@@ -80,7 +80,7 @@ MOCKEOF
 
 # run_batch [extra flow.sh args...] -> sets OUT and RC globals.
 run_batch() {
-  OUT="$(PATH="$MOCKBIN:$PATH" FLOW_PROJECT_ROOT="$SB" FLOW_EVAL_MANIFEST="$CASE/manifest.tsv" FLOW_LOG_DISABLE=1 bash "$RUN_COPY" eval --n 1 --timeout 20 "$@" 2>&1)"
+  OUT="$(PATH="$MOCKBIN:$PATH" FLOW_PROJECT_ROOT="$SB" FLOW_EVAL_MANIFEST="$CASE/manifest.tsv" FLOW_EVAL_UNBOUNDED=1 FLOW_LOG_DISABLE=1 bash "$RUN_COPY" eval --n 1 --timeout 20 "$@" 2>&1)"
   RC=$?
 }
 
@@ -123,7 +123,7 @@ echo "D) no temp-dir residue after a normal batch"
 setup_case 0 - "PASS"
 priv_tmp="$(mktemp -d)"
 before="$(find "$priv_tmp" -mindepth 1 -print 2>/dev/null | wc -l | tr -d ' ')"
-OUT="$(TMPDIR="$priv_tmp" PATH="$MOCKBIN:$PATH" FLOW_PROJECT_ROOT="$SB" FLOW_EVAL_MANIFEST="$CASE/manifest.tsv" FLOW_LOG_DISABLE=1 bash "$RUN_COPY" eval --fixture fcda --n 1 --timeout 20 2>&1)"
+OUT="$(TMPDIR="$priv_tmp" PATH="$MOCKBIN:$PATH" FLOW_PROJECT_ROOT="$SB" FLOW_EVAL_MANIFEST="$CASE/manifest.tsv" FLOW_EVAL_UNBOUNDED=1 FLOW_LOG_DISABLE=1 bash "$RUN_COPY" eval --fixture fcda --n 1 --timeout 20 2>&1)"
 RC=$?
 after="$(find "$priv_tmp" -mindepth 1 -print 2>/dev/null | wc -l | tr -d ' ')"
 ck 0 "$RC" "single-fixture batch exits 0"
