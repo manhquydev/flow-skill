@@ -29,7 +29,8 @@ Check "skills/flow source exists" (Test-Path -LiteralPath (Join-Path $Src 'SKILL
 $origHome = $env:HOME
 $origUserProfile = $env:USERPROFILE
 
-$Scratch = Join-Path $env:TEMP ("flow-ps1-test-" + [System.Guid]::NewGuid().ToString('N'))
+$tempBase = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { [System.IO.Path]::GetTempPath() }
+$Scratch = Join-Path $tempBase ("flow-ps1-test-" + [System.Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $Scratch | Out-Null
 
 try {
@@ -38,6 +39,29 @@ try {
   New-Item -ItemType Directory -Path (Join-Path $TestRepo "skills/flow") | Out-Null
   Copy-Item -LiteralPath $InstallScript -Destination $TestRepo -Force
   Get-ChildItem -LiteralPath (Join-Path $RepoRoot "skills/flow") -Force | Copy-Item -Destination (Join-Path $TestRepo "skills/flow") -Recurse -Force
+  # The generated rules file is gitignored (npm-wrapper/.widelai/), so a fresh CI
+  # checkout never has it. Generate it the same way the bash suite does: copy the
+  # sync toolchain + the repo-root sources sync.mjs reads, then run sync.mjs.
+  # Fall back to a local pre-generated copy only when node is unavailable.
+  New-Item -ItemType Directory -Path (Join-Path $TestRepo "npm-wrapper/scripts") -Force | Out-Null
+  foreach ($f in @('AGENTS.md', 'CONTRIBUTING.md', 'portable-manifest.json')) {
+    Copy-Item -LiteralPath (Join-Path $RepoRoot $f) -Destination $TestRepo -Force
+  }
+  Copy-Item -LiteralPath (Join-Path $RepoRoot "npm-wrapper/scripts/sync.mjs") -Destination (Join-Path $TestRepo "npm-wrapper/scripts/sync.mjs") -Force
+  Push-Location $TestRepo
+  try {
+    & node (Join-Path $TestRepo "npm-wrapper/scripts/sync.mjs") *>$null
+  } catch {
+    Write-Host "WARN: node sync failed in test repo; falling back to local .widelai copy"
+  }
+  Pop-Location
+  if (-not (Test-Path -LiteralPath (Join-Path $TestRepo "npm-wrapper/.widelai/rules/flowskill.md"))) {
+    if (Test-Path -LiteralPath (Join-Path $RepoRoot "npm-wrapper/.widelai")) {
+      $testWidelai = Join-Path $TestRepo "npm-wrapper/.widelai"
+      New-Item -ItemType Directory -Path (Split-Path -Parent $testWidelai) -Force | Out-Null
+      Copy-Item -LiteralPath (Join-Path $RepoRoot "npm-wrapper/.widelai") -Destination (Join-Path $TestRepo "npm-wrapper") -Recurse -Force
+    }
+  }
   $TestInstallScript = Join-Path $TestRepo 'install.ps1'
 
   # Fake home: MUST set BOTH $env:HOME and $env:USERPROFILE so install.ps1 never touches the real user home
@@ -94,6 +118,86 @@ try {
   $env:USERPROFILE = $FakeHome3
   & pwsh -File $TestInstallScript global all >$null 2>&1
   Check "bare ~/.omp without agent/skills is NOT installed" (-not (Test-Path -LiteralPath (Join-Path $FakeHome3 ".omp/agent/skills/flow")))
+
+  # 3.4 WidelCode explicit target installs skill and extras
+  $FakeHomeWidelai = Join-Path $Scratch "home_widelai"
+  New-Item -ItemType Directory -Path $FakeHomeWidelai | Out-Null
+  $env:HOME = $FakeHomeWidelai
+  $env:USERPROFILE = $FakeHomeWidelai
+  $outWidelai = & pwsh -File $TestInstallScript global widelai 2>&1
+  Check "explicit global widelai installs cleanly (exit 0)" ($LASTEXITCODE -eq 0) "exitCode=$LASTEXITCODE"
+  Check "widelai destination contains SKILL.md" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/skills/flow/SKILL.md"))
+  Check "widelai places rules file" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/rules/flowskill.md"))
+  Check "widelai AGENTS.md contains pointer" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/AGENTS.md"))
+
+  # 3.5 WidelCode autodetect: ~/.widelai/skills directory autodetects and installs skill and extras
+  $FakeHomeWidelai2 = Join-Path $Scratch "home_widelai2"
+  New-Item -ItemType Directory -Path (Join-Path $FakeHomeWidelai2 ".widelai/skills") | Out-Null
+  $env:HOME = $FakeHomeWidelai2
+  $env:USERPROFILE = $FakeHomeWidelai2
+  & pwsh -File $TestInstallScript global all >$null 2>&1
+  Check "widelai autodetects ~/.widelai/skills directory" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai2 ".widelai/skills/flow/SKILL.md"))
+  Check "widelai autodetect places rules file" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai2 ".widelai/rules/flowskill.md"))
+
+  # 3.6 Bare ~/.widelai without skills directory must NOT install widelai
+  $FakeHomeWidelai3 = Join-Path $Scratch "home_widelai3"
+  New-Item -ItemType Directory -Path (Join-Path $FakeHomeWidelai3 ".widelai") | Out-Null
+  Set-Content -LiteralPath (Join-Path $FakeHomeWidelai3 ".widelai/credentials.json") -Value "{}"
+  $env:HOME = $FakeHomeWidelai3
+  $env:USERPROFILE = $FakeHomeWidelai3
+  & pwsh -File $TestInstallScript global all >$null 2>&1
+  Check "bare ~/.widelai all-target run exits 0" ($LASTEXITCODE -eq 0) "exitCode=$LASTEXITCODE"
+  Check "bare ~/.widelai without skills is NOT installed" (-not (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai3 ".widelai/skills/flow")))
+  Check "bare ~/.widelai does NOT place rules file" (-not (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai3 ".widelai/rules/flowskill.md")))
+
+  # 3.7 Marker path that is a regular FILE (not a container) must NOT trigger widelai autodetect —
+  # install.ps1 needs -PathType Container to match install.sh [ -d ].
+  # Collision check: marker regular file must be left untouched/unmodified, no extras written, exit 0 for global all.
+  $FakeHomeWidelai4 = Join-Path $Scratch "home_widelai4"
+  New-Item -ItemType Directory -Path (Join-Path $FakeHomeWidelai4 ".widelai") | Out-Null
+  $markerFile4 = Join-Path $FakeHomeWidelai4 ".widelai/skills"
+  Set-Content -LiteralPath $markerFile4 -Value "regular file marker content"
+  $env:HOME = $FakeHomeWidelai4
+  $env:USERPROFILE = $FakeHomeWidelai4
+  & pwsh -File $TestInstallScript global all >$null 2>&1
+  Check "regular-file widelai marker run exits 0" ($LASTEXITCODE -eq 0) "exitCode=$LASTEXITCODE"
+  Check "regular-file ~/.widelai/skills does NOT trigger autodetect" (-not (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai4 ".widelai/skills/flow")))
+  Check "regular-file ~/.widelai/skills does NOT write extras rules" (-not (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai4 ".widelai/rules/flowskill.md")))
+  Check "regular-file ~/.widelai/skills does NOT write AGENTS.md" (-not (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai4 ".widelai/AGENTS.md")))
+  Check "regular-file marker content is preserved byte-identical" ((Get-Content -LiteralPath $markerFile4 -Raw).Trim() -eq "regular file marker content")
+  Check "regular-file marker home still installs claude" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai4 ".claude/skills/flow/SKILL.md"))
+
+  # 3.8 Explicit global widelai with regular-FILE marker at destination parent must fail loudly, not overwrite
+  $FakeHomeWidelai5 = Join-Path $Scratch "home_widelai5"
+  New-Item -ItemType Directory -Path (Join-Path $FakeHomeWidelai5 ".widelai") | Out-Null
+  $markerFile5 = Join-Path $FakeHomeWidelai5 ".widelai/skills"
+  Set-Content -LiteralPath $markerFile5 -Value "do not overwrite me"
+  $env:HOME = $FakeHomeWidelai5
+  $env:USERPROFILE = $FakeHomeWidelai5
+  $outWidelaiFail = & pwsh -File $TestInstallScript global widelai 2>&1
+  $widelaiExit = $LASTEXITCODE
+  Check "explicit widelai with regular-file marker fails loudly (exit non-zero)" ($widelaiExit -ne 0) "exitCode=$widelaiExit"
+  Check "regular-file marker left untouched on collision abort" ((Get-Content -LiteralPath $markerFile5 -Raw).Trim() -eq "do not overwrite me")
+
+  # 3.9 Explicit global widelai when destination path itself is a regular FILE must fail loudly, not overwrite
+  $FakeHomeWidelai6 = Join-Path $Scratch "home_widelai6"
+  New-Item -ItemType Directory -Path (Join-Path $FakeHomeWidelai6 ".widelai/skills") | Out-Null
+  $destFile6 = Join-Path $FakeHomeWidelai6 ".widelai/skills/flow"
+  Set-Content -LiteralPath $destFile6 -Value "existing destination file collision"
+  $env:HOME = $FakeHomeWidelai6
+  $env:USERPROFILE = $FakeHomeWidelai6
+  $outDestFail = & pwsh -File $TestInstallScript global widelai 2>&1
+  Check "destination path regular-file collision fails loudly (exit non-zero)" ($LASTEXITCODE -ne 0)
+  Check "destination regular file is NOT overwritten on collision" ((Get-Content -LiteralPath $destFile6 -Raw).Trim() -eq "existing destination file collision")
+
+  # 3.10 Extras destination collision check: directory at rules destination fails loudly and refuses to overwrite
+  $FakeHomeWidelai7 = Join-Path $Scratch "home_widelai7"
+  New-Item -ItemType Directory -Path (Join-Path $FakeHomeWidelai7 ".widelai/rules/flowskill.md") | Out-Null
+  $env:HOME = $FakeHomeWidelai7
+  $env:USERPROFILE = $FakeHomeWidelai7
+  $outRulesDirFail = & pwsh -File $TestInstallScript global widelai 2>&1
+  Check "directory at rules destination fails loudly (exit non-zero)" ($LASTEXITCODE -ne 0)
+  Check "directory at rules destination is preserved (not overwritten)" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai7 ".widelai/rules/flowskill.md") -PathType Container)
 
   $env:HOME = $FakeHome
   $env:USERPROFILE = $FakeHome
@@ -187,7 +291,7 @@ try {
   }
   Check "promotion failure triggers exception" $promoFailed
   Check "empty destination restored intact and empty" ((Test-Path -LiteralPath $emptyDest1) -and ((Get-ChildItem -LiteralPath $emptyDest1 -Force).Count -eq 0))
-  $leftoverBackup = Get-ChildItem -LiteralPath $Scratch -Filter ".flow-skill-backup-*"
+  $leftoverBackup = Get-ChildItem -LiteralPath $Scratch -Filter ".flow-skill-backup-*" -Force
   Check "backup slot removed on successful rollback" ($null -eq $leftoverBackup -or $leftoverBackup.Count -eq 0)
 
   # 7.2 Promotion failure with failed rollback -> backup preserved, location reported
@@ -216,7 +320,7 @@ try {
   }
   Check "rollback failure triggers exception" ($null -ne $rollbackError)
   Check "error message reports preserved backup location" ($rollbackError -match "original destination preserved at '.*\.flow-skill-backup-")
-  $preservedBackup = Get-ChildItem -LiteralPath $Scratch -Filter ".flow-skill-backup-*"
+  $preservedBackup = Get-ChildItem -LiteralPath $Scratch -Filter ".flow-skill-backup-*" -Force
   Check "backup directory is strictly PRESERVED on rollback failure and remains empty" ($null -ne $preservedBackup -and $preservedBackup.Count -gt 0 -and ((Get-ChildItem -LiteralPath $preservedBackup[0].FullName -Force).Count -eq 0))
 
   # Restore standard Move-Item

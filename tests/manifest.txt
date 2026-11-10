@@ -81,3 +81,4 @@ test_release_dispatch_response.sh
 test_release_provenance.sh
 test_verify_attestation_with_gh.sh
 test_release_run_artifact.sh
+test_flow_widelai_packaging.sh

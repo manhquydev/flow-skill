@@ -1,4 +1,5 @@
 import {
+  appendFileSync,
   chmodSync,
   existsSync,
   lstatSync,
@@ -12,6 +13,9 @@ import {
 } from 'node:fs';
 import { createHash, randomBytes } from 'node:crypto';
 import { dirname, isAbsolute, join, parse, resolve, sep } from 'node:path';
+import { homedir } from 'node:os';
+
+import { RULES_POINTER_LINE } from './constants.mjs';
 
 export const RECEIPT_NAME = 'manifest-hashes.json';
 
@@ -874,4 +878,159 @@ export function installAntigravity({ sourceDir, dests, dryRun = false }) {
     }
   }
   return { success: true, dests, attempts, warnings: [] };
+}
+
+// WidelCode extras (T1) — places the generated rules file + AGENTS.md pointer
+// line for the widelai target. Runs BEFORE the skill install (fail fast): a
+// rules-file conflict aborts before the skill tree is touched, and a
+// skill-install failure afterwards leaves only a harmless, idempotent rules
+// file behind. Never overwrites user content: an existing rules file with
+// differing bytes is a hard refusal (no --force exists by design); an
+// existing AGENTS.md is only appended to, never rewritten. The pointer line
+// is a discoverability aid — WidelCode already reads `.widelai/rules/*.md`
+// natively (vendor docs), so the line's absence would not hide the rules.
+//
+// Concurrency: extras updates are serialized with an advisory lock under
+// ~/.widelai (same acquireLock discipline as install()). The pointer is
+// appended with a single appendFileSync, never read-modify-write, so a
+// concurrent editor's changes cannot be lost between a read and a write.
+// Destinations must be regular files: symlinks, directories and FIFOs are
+// refused (a FIFO would hang the read below).
+//
+// @param {object} opts
+// @param {string} opts.pkgRoot - npm-wrapper root holding `.widelai/rules/`.
+// @param {string} [opts.home=homedir()] - User home owning `~/.widelai`.
+// @returns {{ rulesDest: string, rulesWritten: boolean, agentsPath: string, pointerAppended: boolean }}
+//   Paths written and whether this run wrote the rules file / appended the pointer.
+export function installWidelaiExtras({ pkgRoot, home = homedir() }) {
+  const rulesSrc = join(pkgRoot, '.widelai', 'rules', 'flowskill.md');
+  // The generated file must be a regular file: a package-provided symlink
+  // would copy arbitrary local bytes into WidelCode's rules file.
+  let srcStat;
+  try {
+    srcStat = lstatSync(rulesSrc);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      throw new Error(
+        `generated WidelCode rules file missing: ${rulesSrc} (run 'npm run sync' inside npm-wrapper/, or reinstall from a complete package)`
+      );
+    }
+    throw err;
+  }
+  if (!srcStat.isFile()) {
+    throw new Error(`generated WidelCode rules file is not a regular file: ${rulesSrc}`);
+  }
+  const rulesDest = join(home, '.widelai', 'rules', 'flowskill.md');
+  const agentsPath = join(home, '.widelai', 'AGENTS.md');
+
+  // Serialize concurrent extras updates: the check-then-append sequence is
+  // not atomic on its own, so two processes could both observe "pointer
+  // missing" and append a duplicate. Wait boundedly for a live holder, then
+  // fail loudly instead of proceeding unserialized.
+  const extrasLockPath = join(home, '.widelai', '.flow-skill.widelai-extras.lock');
+  let lock = acquireLock(extrasLockPath);
+  let waited = 0;
+  while (lock.held && waited < 50) {
+    // 100 ms sleep — same Atomics.wait technique as withRetry.
+    const sab = new SharedArrayBuffer(4);
+    Atomics.wait(new Int32Array(sab), 0, 0, 100);
+    waited += 1;
+    lock = acquireLock(extrasLockPath);
+  }
+  if (lock.held) {
+    throw new Error(
+      `another WidelCode extras update in progress (pid ${lock.pid ?? 'unknown'}); retry the install`
+    );
+  }
+  try {
+    return installWidelaiExtrasLocked({ rulesSrc, rulesDest, agentsPath });
+  } finally {
+    releaseLock(extrasLockPath);
+  }
+}
+
+/**
+ * Locked body of installWidelaiExtras: destination checks and writes, run
+ * while the caller holds the extras lock. Kept separate so the lock
+ * acquire/release stays visible in installWidelaiExtras.
+ *
+ * @param {object} opts
+ * @param {string} opts.rulesSrc - Generated rules file inside the package.
+ * @param {string} opts.rulesDest - Destination `~/.widelai/rules/flowskill.md`.
+ * @param {string} opts.agentsPath - Destination `~/.widelai/AGENTS.md`.
+ * @returns {{ rulesDest: string, rulesWritten: boolean, agentsPath: string, pointerAppended: boolean }}
+ */
+function installWidelaiExtrasLocked({ rulesSrc, rulesDest, agentsPath }) {
+  // Refuse symlinks at the destination paths (same discipline as install()),
+  // and require existing destinations to be regular files.
+  for (const p of [rulesDest, agentsPath]) {
+    let st;
+    try {
+      st = lstatSync(p);
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
+      continue;
+    }
+    if (st.isSymbolicLink()) throw new Error(`destination is a symlink: ${p}`);
+    if (!st.isFile()) throw new Error(`destination is not a regular file: ${p}`);
+  }
+  assertNoAncestorSymlinks(rulesDest, 'widelai rules destination');
+  assertNoAncestorSymlinks(agentsPath, 'widelai AGENTS.md destination');
+
+  const generated = readFileSync(rulesSrc);
+  let rulesWritten = false;
+  if (existsSync(rulesDest)) {
+    if (Buffer.compare(readFileSync(rulesDest), generated) !== 0) {
+      throw new Error(
+        `widelai rules file exists with different content (user-edited?): ${rulesDest} — refusing to overwrite; resolve manually`
+      );
+    }
+  } else {
+    mkdirSync(dirname(rulesDest), { recursive: true });
+    try {
+      // Exclusive create: a concurrent installer creating the file between
+      // the check above and this write must not have its bytes overwritten.
+      writeFileSync(rulesDest, generated, { flag: 'wx' });
+      rulesWritten = true;
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+      // Created concurrently after our check: accept byte-identical content,
+      // refuse anything else — same guard as the existsSync branch.
+      if (Buffer.compare(readFileSync(rulesDest), generated) !== 0) {
+        throw new Error(
+          `widelai rules file exists with different content (user-edited?): ${rulesDest} — refusing to overwrite; resolve manually`
+        );
+      }
+    }
+  }
+
+  let pointerAppended = false;
+  if (existsSync(agentsPath)) {
+    const current = readFileSync(agentsPath, 'utf8');
+    // Split on /\r?\n/ so a CRLF pointer is recognized (no duplicate append).
+    if (!current.split(/\r?\n/).includes(RULES_POINTER_LINE)) {
+      const nl = current.length > 0 && !current.endsWith('\n') ? '\n' : '';
+      appendFileSync(agentsPath, nl + RULES_POINTER_LINE + '\n');
+      pointerAppended = true;
+    }
+  } else {
+    mkdirSync(dirname(agentsPath), { recursive: true });
+    try {
+      // Exclusive create: never truncate a file created concurrently.
+      writeFileSync(agentsPath, RULES_POINTER_LINE + '\n', { flag: 'wx' });
+      pointerAppended = true;
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+      // Created concurrently after our check: append the pointer if it is
+      // still missing (the lock makes this a rare fallback, not the norm).
+      const current = readFileSync(agentsPath, 'utf8');
+      if (!current.split(/\r?\n/).includes(RULES_POINTER_LINE)) {
+        const nl = current.length > 0 && !current.endsWith('\n') ? '\n' : '';
+        appendFileSync(agentsPath, nl + RULES_POINTER_LINE + '\n');
+        pointerAppended = true;
+      }
+    }
+  }
+
+  return { rulesDest, rulesWritten, agentsPath, pointerAppended };
 }

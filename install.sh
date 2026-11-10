@@ -8,7 +8,11 @@
 #                                                       ~/.gemini/config/skills/flow          (IDE)
 #                                                   + OMP home              (if ~/.omp/agent/skills exists):
 #                                                       ~/.omp/agent/skills/flow
-#   bash install.sh global claude|codex|agents|antigravity|omp -> only that one harness
+#                                                   + WidelCode home        (if ~/.widelai/skills exists):
+#                                                       ~/.widelai/skills/flow
+#                                                       + generated rules -> ~/.widelai/rules/flowskill.md
+#                                                       + pointer line in ~/.widelai/AGENTS.md
+#   bash install.sh global claude|codex|agents|antigravity|omp|cursor|widelai -> only that one harness
 #   bash install.sh project [dir]                -> <dir|cwd>/.claude/skills/flow
 #
 # Safe transactional installation:
@@ -190,6 +194,64 @@ posix_fresh_install() {
   LAST="$dest"
 }
 
+# WidelCode extras (T1): place the generated rules file + AGENTS.md pointer line.
+# Runs BEFORE install_to (fail fast): a rules-file conflict aborts before the
+# skill tree is touched. A missing generated file (checkout without `npm run
+# sync`) warns loudly and continues with the skill install only.
+# Never overwrites user content: an existing rules file with differing bytes
+# is a hard refusal; AGENTS.md is only appended to, never rewritten.
+install_widelai_extras() {
+  rules_src="$HERE/npm-wrapper/.widelai/rules/flowskill.md"
+  rules_dest="${HOME}/.widelai/rules/flowskill.md"
+  agents_file="${HOME}/.widelai/AGENTS.md"
+  pointer="FlowSkill rules: see .widelai/rules/flowskill.md"
+  if [ ! -f "$rules_src" ]; then
+    echo "WARNING: generated WidelCode rules file missing at $rules_src (run 'npm run sync' inside npm-wrapper/); skill installed without rules file."
+    return 0
+  fi
+  # Refuse symlinked destinations (and ancestors) before any write: the rest
+  # of this installer rejects symlinks, and cp/>> would follow them.
+  validate_path_no_symlinks "$rules_dest" "rules destination"
+  validate_path_no_symlinks "$agents_file" "AGENTS.md"
+  # An existing directory (or other non-regular entry) at either destination
+  # must fail loudly: cp into a directory "succeeds" by nesting the file,
+  # and appending to a directory is not a pointer line.
+  if [ -e "$rules_dest" ] && [ ! -f "$rules_dest" ]; then
+    echo "FAIL: $rules_dest exists and is not a regular file; refusing to overwrite."
+    return 1
+  fi
+  if [ -e "$agents_file" ] && [ ! -f "$agents_file" ]; then
+    echo "FAIL: $agents_file exists and is not a regular file; refusing to write."
+    return 1
+  fi
+  if [ -f "$rules_dest" ] && ! cmp -s "$rules_src" "$rules_dest"; then
+    echo "FAIL: $rules_dest exists with different content (user-edited?); refusing to overwrite. Resolve manually."
+    return 1
+  fi
+  # This function runs in a `||` list (call site: `install_widelai_extras ||
+  # exit 1`), which disables errexit inside it — so every required write
+  # checks its own failure explicitly instead of relying on `set -e`.
+  mkdir -p "$(dirname "$rules_dest")" || return 1
+  cp "$rules_src" "$rules_dest" || return 1
+  echo "installed WidelCode rules -> $rules_dest"
+  if [ -f "$agents_file" ]; then
+    # Strip CR so a CRLF pointer is recognized (no duplicate append).
+    if tr -d '\r' < "$agents_file" | grep -Fxq "$pointer"; then
+      :
+    else
+      # Preserve the last line: append a newline first if the file lacks one.
+      if [ -s "$agents_file" ] && [ -n "$(tail -c 1 "$agents_file")" ]; then
+        printf '\n' >> "$agents_file" || return 1
+      fi
+      printf '%s\n' "$pointer" >> "$agents_file" || return 1
+    fi
+  else
+    mkdir -p "$(dirname "$agents_file")" || return 1
+    printf '%s\n' "$pointer" > "$agents_file" || return 1
+  fi
+  echo "pointer line ensured in $agents_file"
+}
+
 install_to() {
   dest="$1"
   # Validate raw path before ANY directory creation or helper invocation
@@ -241,7 +303,7 @@ install_to() {
 }
 
 usage() {
-  echo "usage: bash install.sh [global [claude|codex|agents|antigravity|omp|cursor|all] | project [dir]]" >&2
+  echo "usage: bash install.sh [global [claude|codex|agents|antigravity|omp|cursor|widelai|all] | project [dir]]" >&2
 }
 
 INSTALLED=""
@@ -255,6 +317,7 @@ done_line() {
       agents)      out="$out Agents home / Zed (~/.agents/skills/): restart your tool (or Zed Agent Panel) to auto-detect flow |" ;;
       omp)         out="$out OMP: restart/reload your agent to load the new skill, then invoke flow |" ;;
       cursor)      out="$out Cursor: restart/reload Cursor to load the new skill, then check the Agent panel for flow |" ;;
+      widelai)     out="$out WidelCode: restart/reload WidelCode to load the new skill, then invoke flow |" ;;
     esac
   done
   echo "${out% |}"
@@ -294,6 +357,13 @@ case "$MODE" in
     if [ "$TARGET" = "cursor" ] || { [ "$TARGET" = "all" ] && [ -d "${HOME}/.cursor/skills" ]; }; then
       install_to "${HOME}/.cursor/skills/flow"
       INSTALLED="$INSTALLED cursor"
+    fi
+    # widelai: install when explicitly targeted, or when ~/.widelai/skills exists
+    # (never bare ~/.widelai — it holds credentials.json for every WidelCode user)
+    if [ "$TARGET" = "widelai" ] || { [ "$TARGET" = "all" ] && [ -d "${HOME}/.widelai/skills" ]; }; then
+      install_widelai_extras || exit 1
+      install_to "${HOME}/.widelai/skills/flow"
+      INSTALLED="$INSTALLED widelai"
     fi
     [ -n "$LAST" ] || { echo "FAIL: unknown target '$TARGET'"; usage; exit 1; }
     ;;
