@@ -6,11 +6,20 @@
 #     match statements, or PEP 604 / builtin-generics annotations unless the
 #     file opts in via `from __future__ import annotations` (then only walrus
 #     and match stay forbidden).
+#   - Python checks are AST-exact (python3 stdlib `ast`): any `match` subject
+#     form, any builtin-generic subscript regardless of spacing (`set [int]`),
+#     any PEP 604 union regardless of spacing (`int|float`), and `from
+#     __future__ import annotations` is honored only as a real top-level
+#     import statement (comments/docstrings never count).
 # Run: bash tests/test_flow_floor_guards.sh
 #
 # Known limitations:
-#   - Comments are stripped; strings/heredocs are NOT. A construct quoted
-#     inside a string can be flagged; refine only if a false positive lands.
+#   - Strings/heredocs are NOT parsed. A construct quoted inside a string can
+#     be flagged; refine only if a false positive lands.
+#   - Inline `# comment` text is stripped ONLY on lines without quote
+#     characters; a construct inside a quoted string on such a line can still
+#     be flagged (quote-aware stripping needs a tokenizer — refused here to
+#     keep the guard dependency-free).
 #   - `|&` is matched only when preceded by whitespace, so unspaced `cmd|&`
 #     is missed — accepted to avoid flagging regex strings like '(a|&&)'.
 set -u
@@ -22,7 +31,18 @@ viol() { echo "  FAIL [$1:$2 $3]"; fail=$((fail + 1)); }
 ok() { echo "  ok   [$1]"; pass=$((pass + 1)); }
 
 # Emit "LINENO:content" for non-comment lines, original numbering preserved.
-body() { awk '$0 !~ /^[[:space:]]*#/ { print NR ":" $0 }' "$1"; }
+# Whole-line comments are always dropped; on lines WITHOUT quote characters a
+# trailing inline `# comment` is dropped too (no quotes = nothing to protect),
+# so harmless prose comments can never fail the bash floor. Lines containing
+# quotes are kept intact (a real bash-4 construct inside a quoted string is
+# data, but flagging it is the safer false positive, per known limitation 1).
+body() { awk -v sq="'" -v dq='"' '
+  {
+    l = $0
+    if (l ~ /^[[:space:]]*#/) next
+    if (index(l, sq) == 0 && index(l, dq) == 0) sub(/[[:space:]]*#.*$/, "", l)
+    print NR ":" l
+  }' "$1"; }
 
 # Bash-4 pattern assembled from pieces so this suite's own source stays free
 # of the constructs it forbids (no literal '&>>' or spaced '|&' appears here).
@@ -43,56 +63,97 @@ HITS
   fi
 }
 
-# py_floor <file> <relname> <has_future:yes|no>
-# Builtin generics (any common builtin subscript) and PEP 604 unions in
-# either direction; lowercase-start keeps `os.O_WRONLY | os.O_CREAT`
-# (bitwise OR of UPPER_CASE constants) out of scope.
-PYANN='[[:alnum:]_.]*\b(list|dict|tuple|set|frozenset|type)\[|[a-z][A-Za-z0-9_]* \| [A-Za-z_]|(None|True|False) \| [A-Za-z_]'
-py_floor() {
-  f=$1
-  rel=$2
-  hits=$(body "$f" | grep -E ':=')
+# AST-exact python floor checker (python3 stdlib only). Input: file path via
+# argv. Output: one "lineno:reason" line per violation; exit 0 even when
+# violations are found (bash decides pass/fail); nonzero only on crash.
+#   - always forbidden: walrus (NamedExpr), match statements (ast.Match)
+#   - forbidden WITHOUT `from __future__ import annotations` at module level:
+#     builtin-generic subscripts (list/dict/tuple/set/frozenset/type) and
+#     PEP 604 BitOr unions inside annotations
+#   - honored: real top-level `from __future__ import annotations` (an
+#     ImportFrom node — comments/docstrings can never create one)
+PYCHECK='
+import ast, sys
+path = sys.argv[1]
+with open(path, encoding="utf-8") as f:
+    src = f.read()
+try:
+    tree = ast.parse(src, filename=path)
+except SyntaxError as e:
+    line = e.lineno or 1
+    print("%d:syntax not parseable on the py3.7 floor" % line)
+    sys.exit(0)
+has_future = any(
+    isinstance(n, ast.ImportFrom) and n.module == "__future__"
+    and any(a.name == "annotations" for a in n.names)
+    for n in tree.body
+)
+GEN = {"list", "dict", "tuple", "set", "frozenset", "type"}
+match_cls = getattr(ast, "Match", None)
+
+def annotations_of(node):
+    out = []
+    if isinstance(node, ast.AnnAssign):
+        out.append(node.annotation)
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if node.returns:
+            out.append(node.returns)
+        a = node.args
+        out += [x.annotation for x in a.posonlyargs + a.args + a.kwonlyargs if x.annotation]
+        if a.vararg:
+            out.append(a.vararg.annotation)
+        if a.kwarg:
+            out.append(a.kwarg.annotation)
+    return out
+
+def bad_annotation(ann):
+    for sub in ast.walk(ann):
+        if isinstance(sub, ast.Subscript) and isinstance(sub.value, ast.Name) \
+                and sub.value.id in GEN:
+            return True
+        if isinstance(sub, ast.BinOp) and isinstance(sub.op, ast.BitOr):
+            return True
+    return False
+
+for n in ast.walk(tree):
+    if isinstance(n, ast.NamedExpr):
+        print("%d:walrus := operator" % n.lineno)
+    elif match_cls is not None and isinstance(n, match_cls):
+        print("%d:match statement" % n.lineno)
+    if not has_future:
+        for ann in annotations_of(n):
+            if ann is None:
+                continue
+            if bad_annotation(ann):
+                line = getattr(ann, "lineno", getattr(n, "lineno", 1))
+                print("%d:modern annotation (builtin generic / PEP 604 union) without __future__" % line)
+'
+
+# py_floor <file> <relname> — AST-exact; infrastructure failure (rc != 0) is
+# fail-closed so a broken checker can never pass the floor vacuously.
+py_floor() { # <file> <relname>
+  local f=$1 rel=$2 hits rc
+  if ! hits=$(python3 -c "$PYCHECK" "$f"); then
+    viol "$rel" "0" "python3 floor checker infrastructure failure"
+    return 1
+  fi
   if [ -n "$hits" ]; then
     while IFS= read -r row; do
       ln=${row%%:*}
-      viol "$rel" "$ln" "walrus :="
+      viol "$rel" "$ln" "${row#*:}"
     done <<HITS
 $hits
 HITS
-  fi
-  hits=$(body "$f" | grep -E '^[0-9]+:[[:space:]]*match[[:space:]]+[A-Za-z_]+')
-  if [ -n "$hits" ]; then
-    while IFS= read -r row; do
-      ln=${row%%:*}
-      viol "$rel" "$ln" "match statement"
-    done <<HITS
-$hits
-HITS
-  fi
-  if [ "$3" = no ]; then
-    hits=$(body "$f" | grep -E "$PYANN")
-    if [ -n "$hits" ]; then
-      while IFS= read -r row; do
-        ln=${row%%:*}
-        viol "$rel" "$ln" "modern annotation without __future__"
-      done <<HITS
-$hits
-HITS
-    fi
   fi
 }
 
-echo "A) Python 3.7 floor: skills/flow/harness/*.py"
+echo "A) Python 3.7 floor: skills/flow/harness/*.py (AST-exact)"
 npy=0
 for f in "$ROOT"/skills/flow/harness/*.py; do
   [ -f "$f" ] || continue
   npy=$((npy + 1))
   rel=${f#"$ROOT"/}
-  if grep -q 'from __future__ import annotations' "$f"; then
-    py_floor "$f" "$rel" yes
-  else
-    py_floor "$f" "$rel" no
-  fi
+  py_floor "$f" "$rel"
 done
 ok "harness/*.py scanned ($npy files)"
 
@@ -105,7 +166,7 @@ for f in "$ROOT"/skills/flow/runner/*.sh "$ROOT"/tests/*.sh; do
 done
 ok "runner/*.sh + tests/*.sh scanned ($nsh files)"
 
-echo "C) fixtures: expanded annotations must fail (synthetic)"
+echo "C) AST detector fixtures: each thread-reported bypass must be flagged"
 fixck() {
   if [ "$1" = "$2" ]; then
     ok "$3"
@@ -115,10 +176,10 @@ fixck() {
   fi
 }
 tmpf=$(mktemp -d)
-cat > "$tmpf/bad.py" <<PYF
-def f() -> set[int]:
+cat > "$tmpf/bad.py" <<'PYF'
+def f() -> set [int]:
     return None
-def g() -> int | float:
+def g() -> int|float:
     return None
 def h() -> type[int]:
     return None
@@ -127,19 +188,28 @@ def k() -> frozenset[int] | None:
 def w():
     if (n := 1):
         pass
+match (subject):
+    case [1, 2]:
+        pass
 PYF
-cat > "$tmpf/good.py" <<PYF
+cat > "$tmpf/future-comment.py" <<'PYF'
+# from __future__ import annotations
+def s(x: set [int]) -> int|float:
+    return 0
+PYF
+cat > "$tmpf/good.py" <<'PYF'
 import os
+from typing import Optional, Union
 FLAGS = os.O_WRONLY | os.O_CREAT
-def m(x):
+def m(x: Optional[int]) -> Union[str, bytes]:
     return x
 PYF
-nbad_ann=$(body "$tmpf/bad.py" | grep -cE "$PYANN")
-nbad_wal=$(body "$tmpf/bad.py" | grep -cE ':=')
-ngood=$(body "$tmpf/good.py" | grep -cE "$PYANN")
-fixck 4 "$nbad_ann" "bad fixture flags 4 annotation lines (set[/type[/frozenset[ and unions)"
-fixck 1 "$nbad_wal" "bad fixture flags the walrus line"
-fixck 0 "$ngood" "good fixture: UPPER_CASE bitwise OR is NOT flagged"
+nbad="$(python3 -c "$PYCHECK" "$tmpf/bad.py" | wc -l)"
+nfc="$(python3 -c "$PYCHECK" "$tmpf/future-comment.py" | wc -l)"
+ngood="$(python3 -c "$PYCHECK" "$tmpf/good.py" | wc -l)"
+fixck 6 "$nbad" "bad fixture: all 6 violation lines flagged (spaced bracket, unspaced union, frozenset/None union, type[int], walrus, match (subject))"
+fixck 2 "$nfc" "comment-only future import is NOT honored (2 lines still flagged)"
+fixck 0 "$ngood" "good fixture: typing.Optional/Union and UPPER_CASE OR stay clean"
 rm -rf "$tmpf"
 
 echo
