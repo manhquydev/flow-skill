@@ -275,6 +275,18 @@ ck "no" "$s_rf" "refused install writes no rules file"
 [ -f "$SH_HOME4/.widelai/AGENTS.md" ] && s_ag="yes" || s_ag="no"
 ck "no" "$s_ag" "refused install writes no AGENTS.md"
 
+# Explicit `global widelai` with the same regular-file marker must fail loudly
+# (skill placement is attempted first, so refusal precedes any extras bytes).
+SH_HOME4B="$SCRATCH/fake_home_sh4b"
+mkdir -p "$SH_HOME4B/.widelai"
+printf 'regular file, not a container\n' > "$SH_HOME4B/.widelai/skills"
+out="$(HOME="$SH_HOME4B" bash "$TEST_REPO/install.sh" global widelai 2>&1)"; rc=$?
+[ "$rc" -ne 0 ] && ck yes yes "explicit widelai with regular-file marker fails loudly (rc=$rc)" || ck yes no "explicit widelai with regular-file marker fails loudly (rc=$rc)"
+[ -f "$SH_HOME4B/.widelai/rules/flowskill.md" ] && s_rf2="yes" || s_rf2="no"
+ck "no" "$s_rf2" "explicit widelai refusal writes no rules file"
+[ -f "$SH_HOME4B/.widelai/AGENTS.md" ] && s_ag2="yes" || s_ag2="no"
+ck "no" "$s_ag2" "explicit widelai refusal writes no AGENTS.md"
+
 echo "=== 5b. install.sh: CRLF pointer, symlink/directory refusal ==="
 # CRLF AGENTS.md: reinstall must recognize the pointer, not duplicate it.
 awk '{ sub(/\r$/, ""); printf "%s\r\n", $0 }' "$SH_HOME/.widelai/AGENTS.md" > "$SCRATCH/sh-agents-crlf.md" && mv "$SCRATCH/sh-agents-crlf.md" "$SH_HOME/.widelai/AGENTS.md"

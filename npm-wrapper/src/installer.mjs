@@ -981,8 +981,10 @@ function installWidelaiExtrasLocked({ rulesSrc, rulesDest, agentsPath }) {
     if (st.isSymbolicLink()) throw new Error(`destination is a symlink: ${p}`);
     if (!st.isFile()) throw new Error(`destination is not a regular file: ${p}`);
   }
-  // Ancestor symlinks were already refused before the lock was taken
-  // (installWidelaiExtras), so nothing here can create redirected paths.
+  // Pre-lock checks are a snapshot: re-refuse ancestor symlinks under the
+  // lock so a path swapped in between check and write is rejected too.
+  assertNoAncestorSymlinks(rulesDest, 'widelai rules destination');
+  assertNoAncestorSymlinks(agentsPath, 'widelai AGENTS.md destination');
 
   const generated = readFileSync(rulesSrc);
   let rulesWritten = false;

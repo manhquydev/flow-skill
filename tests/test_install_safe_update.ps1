@@ -72,6 +72,20 @@ try {
       Copy-Item -LiteralPath (Join-Path $RepoRoot "npm-wrapper/.widelai") -Destination (Join-Path $TestRepo "npm-wrapper") -Recurse -Force
     }
   }
+  # Distinguish "extras runnable" from "skip": without Node there is no way to
+  # generate the rules file, and the pre-generated copy is not tracked in git,
+  # so widelai extras assertions cannot run from a clean checkout.
+  $HaveWidelaiRules = Test-Path -LiteralPath (Join-Path $TestRepo "npm-wrapper/.widelai/rules/flowskill.md")
+  if (-not $HaveWidelaiRules) {
+    Write-Host "SKIP: node unavailable and no pre-generated .widelai copy; skipping widelai extras assertions"
+  }
+  # Gate: rules-dependent widelai assertions only run when a rules file exists
+  # (node-generated, or a pre-generated copy). Without node on a clean checkout
+  # neither is available, and the suite must skip instead of aborting.
+  $widelaiRulesAvailable = Test-Path -LiteralPath (Join-Path $TestRepo "npm-wrapper/.widelai/rules/flowskill.md")
+  if (-not $widelaiRulesAvailable) {
+    Write-Host "  skip [widelai rules-dependent assertions: no node and no pre-generated .widelai copy]"
+  }
   $TestInstallScript = Join-Path $TestRepo 'install.ps1'
 
   # Fake home: MUST set BOTH $env:HOME and $env:USERPROFILE so install.ps1 never touches the real user home
@@ -130,6 +144,7 @@ try {
   Check "bare ~/.omp without agent/skills is NOT installed" (-not (Test-Path -LiteralPath (Join-Path $FakeHome3 ".omp/agent/skills/flow")))
 
   # 3.4 WidelCode explicit target installs skill and extras
+  if ($HaveWidelaiRules) {
   $FakeHomeWidelai = Join-Path $Scratch "home_widelai"
   New-Item -ItemType Directory -Path $FakeHomeWidelai | Out-Null
   $env:HOME = $FakeHomeWidelai
@@ -138,7 +153,7 @@ try {
   Check "explicit global widelai installs cleanly (exit 0)" ($LASTEXITCODE -eq 0) "exitCode=$LASTEXITCODE"
   Check "widelai destination contains SKILL.md" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/skills/flow/SKILL.md"))
   Check "widelai places rules file" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/rules/flowskill.md"))
-  Check "widelai AGENTS.md contains pointer" ((Get-Content -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/AGENTS.md") -Raw) -match '(?m)^FlowSkill rules: see \.widelai/rules/flowskill\.md\r?$')
+  Check "widelai AGENTS.md contains pointer" ((Get-Content -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/AGENTS.md") -Raw) -cmatch '(?m)^FlowSkill rules: see \.widelai/rules/flowskill\.md\r?$')
 
   # 3.5 WidelCode autodetect: ~/.widelai/skills directory autodetects and installs skill and extras
   $FakeHomeWidelai2 = Join-Path $Scratch "home_widelai2"
@@ -148,6 +163,9 @@ try {
   & pwsh -File $TestInstallScript global all >$null 2>&1
   Check "widelai autodetects ~/.widelai/skills directory" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai2 ".widelai/skills/flow/SKILL.md"))
   Check "widelai autodetect places rules file" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai2 ".widelai/rules/flowskill.md"))
+  } else {
+    Write-Host "  skip [widelai explicit/autodetect install needs a generated rules file]"
+  }
 
   # 3.6 Bare ~/.widelai without skills directory must NOT install widelai
   $FakeHomeWidelai3 = Join-Path $Scratch "home_widelai3"
