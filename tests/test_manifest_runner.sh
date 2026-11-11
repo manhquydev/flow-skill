@@ -214,6 +214,13 @@ unset FLOW_SUITE_TEST_LOG
 
 rm -f "$listed"
 
+echo "=== doc suite-count drift guard ==="
+doc_count="$(grep -oE '[0-9]+ suite scripts' "$HERE/../docs/codebase-summary.md" | grep -oE '[0-9]+')"
+manifest_count="$(grep -cE '^test_' "$MANIFEST")"
+ck "$manifest_count" "$doc_count" "codebase-summary suite scripts count matches manifest ($manifest_count)"
+
+rm -f "$listed"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
