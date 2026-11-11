@@ -22,6 +22,7 @@ import {
   assertNoSymlinks,
   install,
   installAntigravity,
+  installWidelaiExtras,
   releaseLock,
   withRetry,
 } from '../src/installer.mjs';
@@ -522,6 +523,30 @@ test('injected quarantine rename failure → candidate stays at dest, backup kep
     '# guide\n'
   );
   assert.equal(readFileSync(join(dest, RECEIPT_NAME), 'utf8'), '{"schema_version":1,"files":{}}\n');
+});
+
+test('widelai extras: symlinked home → ancestor refusal before any .widelai creation', () => {
+  // Pre-lock ordering regression: acquireLock() mkdirs ~/.widelai under `home`,
+  // so a symlinked home must be refused BEFORE that mkdir — the rejected
+  // install must be side-effect-free (no .widelai in the real target).
+  const tmp = scratch('widelai-link-home');
+  const realHome = join(tmp, 'real-home');
+  mkdirSync(realHome, { recursive: true });
+  const linkHome = join(tmp, 'link-home');
+  symlinkSync(realHome, linkHome);
+  const pkgRoot = join(tmp, 'pkg');
+  mkdirSync(join(pkgRoot, '.widelai', 'rules'), { recursive: true });
+  writeFileSync(join(pkgRoot, '.widelai', 'rules', 'flowskill.md'), 'rules\n');
+
+  assert.throws(
+    () => installWidelaiExtras({ pkgRoot, home: linkHome }),
+    /widelai rules destination ancestor symlink refused/
+  );
+  assert.equal(
+    existsSync(join(realHome, '.widelai')),
+    false,
+    'no .widelai may be created in the symlink target on refusal'
+  );
 });
 
 test('fresh install promote failure → no destination remains, no residue', () => {

@@ -361,8 +361,10 @@ case "$MODE" in
     # widelai: install when explicitly targeted, or when ~/.widelai/skills exists
     # (never bare ~/.widelai — it holds credentials.json for every WidelCode user)
     if [ "$TARGET" = "widelai" ] || { [ "$TARGET" = "all" ] && [ -d "${HOME}/.widelai/skills" ]; }; then
-      install_widelai_extras || exit 1
+      # Skill placement first: a loud refusal (marker/directory collision) must
+      # happen before any extras bytes are written.
       install_to "${HOME}/.widelai/skills/flow"
+      install_widelai_extras || exit 1
       INSTALLED="$INSTALLED widelai"
     fi
     [ -n "$LAST" ] || { echo "FAIL: unknown target '$TARGET'"; usage; exit 1; }

@@ -72,6 +72,13 @@ try {
       Copy-Item -LiteralPath (Join-Path $RepoRoot "npm-wrapper/.widelai") -Destination (Join-Path $TestRepo "npm-wrapper") -Recurse -Force
     }
   }
+  # Rules-dependent widelai assertions only run when a rules file exists
+  # (node-generated, or a pre-generated copy). On a clean checkout without
+  # node, neither is available and the suite must skip instead of abort.
+  $widelaiRulesAvailable = Test-Path -LiteralPath (Join-Path $TestRepo "npm-wrapper/.widelai/rules/flowskill.md")
+  if (-not $widelaiRulesAvailable) {
+    Write-Host "  skip [widelai rules-dependent assertions: no node and no pre-generated .widelai copy]"
+  }
   $TestInstallScript = Join-Path $TestRepo 'install.ps1'
 
   # Fake home: MUST set BOTH $env:HOME and $env:USERPROFILE so install.ps1 never touches the real user home
@@ -129,7 +136,8 @@ try {
   & pwsh -File $TestInstallScript global all >$null 2>&1
   Check "bare ~/.omp without agent/skills is NOT installed" (-not (Test-Path -LiteralPath (Join-Path $FakeHome3 ".omp/agent/skills/flow")))
 
-  # 3.4 WidelCode explicit target installs skill and extras
+  # 3.4 WidelCode explicit target installs skill and extras (rules-dependent)
+  if ($widelaiRulesAvailable) {
   $FakeHomeWidelai = Join-Path $Scratch "home_widelai"
   New-Item -ItemType Directory -Path $FakeHomeWidelai | Out-Null
   $env:HOME = $FakeHomeWidelai
@@ -138,9 +146,13 @@ try {
   Check "explicit global widelai installs cleanly (exit 0)" ($LASTEXITCODE -eq 0) "exitCode=$LASTEXITCODE"
   Check "widelai destination contains SKILL.md" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/skills/flow/SKILL.md"))
   Check "widelai places rules file" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/rules/flowskill.md"))
-  Check "widelai AGENTS.md contains pointer" ((Get-Content -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/AGENTS.md") -Raw) -match '(?m)^FlowSkill rules: see \.widelai/rules/flowskill\.md\r?$')
+  Check "widelai AGENTS.md contains pointer" ((Get-Content -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/AGENTS.md") -Raw) -cmatch '(?m)^FlowSkill rules: see \.widelai/rules/flowskill\.md\r?$')
+  } else {
+    Write-Host "  skip [3.4 widelai explicit target assertions: rules file unavailable]"
+  }
 
-  # 3.5 WidelCode autodetect: ~/.widelai/skills directory autodetects and installs skill and extras
+  # 3.5 WidelCode autodetect: ~/.widelai/skills directory autodetects and installs skill and extras (rules-dependent)
+  if ($widelaiRulesAvailable) {
   $FakeHomeWidelai2 = Join-Path $Scratch "home_widelai2"
   New-Item -ItemType Directory -Path (Join-Path $FakeHomeWidelai2 ".widelai/skills") | Out-Null
   $env:HOME = $FakeHomeWidelai2
@@ -148,6 +160,9 @@ try {
   & pwsh -File $TestInstallScript global all >$null 2>&1
   Check "widelai autodetects ~/.widelai/skills directory" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai2 ".widelai/skills/flow/SKILL.md"))
   Check "widelai autodetect places rules file" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai2 ".widelai/rules/flowskill.md"))
+  } else {
+    Write-Host "  skip [3.5 widelai autodetect assertions: rules file unavailable]"
+  }
 
   # 3.6 Bare ~/.widelai without skills directory must NOT install widelai
   $FakeHomeWidelai3 = Join-Path $Scratch "home_widelai3"
@@ -200,7 +215,8 @@ try {
   Check "destination path regular-file collision fails loudly (exit non-zero)" ($LASTEXITCODE -ne 0)
   Check "destination regular file is NOT overwritten on collision" ((Get-Content -LiteralPath $destFile6 -Raw).Trim() -eq "existing destination file collision")
 
-  # 3.10 Extras destination collision check: directory at rules destination fails loudly and refuses to overwrite
+  # 3.10 Extras destination collision check: directory at rules destination fails loudly and refuses to overwrite (rules-dependent)
+  if ($widelaiRulesAvailable) {
   $FakeHomeWidelai7 = Join-Path $Scratch "home_widelai7"
   New-Item -ItemType Directory -Path (Join-Path $FakeHomeWidelai7 ".widelai/rules/flowskill.md") | Out-Null
   $env:HOME = $FakeHomeWidelai7
@@ -208,6 +224,9 @@ try {
   $outRulesDirFail = & pwsh -File $TestInstallScript global widelai 2>&1
   Check "directory at rules destination fails loudly (exit non-zero)" ($LASTEXITCODE -ne 0)
   Check "directory at rules destination is preserved (not overwritten)" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai7 ".widelai/rules/flowskill.md") -PathType Container)
+  } else {
+    Write-Host "  skip [3.10 rules-destination collision assertions: rules file unavailable]"
+  }
 
   $env:HOME = $FakeHome
   $env:USERPROFILE = $FakeHome
