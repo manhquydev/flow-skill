@@ -7,13 +7,13 @@ Release process for future bumps: [`docs/release-process.md`](release-process.md
 
 ## npm-wrapper v1.0.1 + skill v1.0.1 — eval-grader isolation + runner hash re-pin (2026-11-10)
 
-Current pairing (stable). Notes live in [`npm-wrapper/CHANGELOG.md`](../npm-wrapper/CHANGELOG.md) (1.0.1). Dist-tag **`latest`** after `npm@1.0.1` publish.
+Pending publication (release target). Notes live in [`npm-wrapper/CHANGELOG.md`](../npm-wrapper/CHANGELOG.md) (1.0.1). Dist-tag **`latest`** moves to this pairing only after the `npm@1.0.1` publish receipt; until then `latest` remains 1.0.0.
 
 | Axis | Value | Notes |
 |---|---|---|
-| **npm package** | 1.0.1 | ships skill v1.0.1; install `npx @manhquy/flow-skill@latest` |
-| **Skill product in tarball** | 1.0.1 | SKILL.md / plugin / portable-manifest |
-| **Stable dist-tag** | `latest` | workflow on non-prerelease `npm@1.0.1` |
+| **npm package** | 1.0.1 | ships skill v1.0.1; install `npx @manhquy/flow-skill@latest` after publish |
+| **Skill product in tarball** | 1.0.1 | SKILL.md / skills-manifest.json / manifest-hashes.json |
+| **Stable dist-tag** | `latest` = 1.0.0 (pending) | moves to this pairing on non-prerelease `npm@1.0.1` publish |
 
 ## npm-wrapper v0.7.8 + skill v0.34.1 — transactional installer + Windows containment (2026-10-14)
 
