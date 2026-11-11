@@ -45,12 +45,14 @@ hash. Finish or fork in-flight runs before upgrading if you care about their jou
 ## Rollback
 
 The last published pre-v1 pair is npm `0.7.16` (published 2026-10-22) with skill
-`0.34.9`. A 2026-10-30 read of the registry package tarball verified that its 133
-bundled Flow skill files match the GitHub `v0.34.9` release tag at commit
+`0.34.9`. A 2026-10-30 read of the [registry package tarball](https://registry.npmjs.org/@manhquy/flow-skill/-/flow-skill-0.7.16.tgz)
+verified that its 133 bundled Flow skill files match the GitHub `v0.34.9` release tag at commit
 `9ccda18d3da36b635d6d2f2a5b5096bfcb669e64`. To restore that pair, invoke the installer
-with its exact package pin, for example `npx --yes @manhquy/flow-skill@0.7.16`;
+with its exact package pin, for example `npx @manhquy/flow-skill@0.7.16 --yes`;
 `npm install` alone does not copy or replace installed skill files. Restart/reload the
-agent and run `flow doctor` to verify the installed bundle. Confirm the release record for
+agent, then run `flow doctor`: its `bundled_tree_integrity` check verifies the installed
+tree against the ownership receipt shipped by the `0.7.16` pin, which is the proof that
+the rollback actually landed. Confirm the release record for
 the exact package-to-skill mapping before choosing a pin; do not infer skill version from
 the npm package version. This restores the installer and bundled skill only; it does not
 reverse database migrations.
