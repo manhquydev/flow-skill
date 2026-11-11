@@ -1371,26 +1371,154 @@ _redact_secrets() {
     -e 's/(([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Aa][Pp][Ii]_[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn])[[:space:]]*[:=][[:space:]]*)[^[:space:]]{8,}/\1[REDACTED:credential]/g'
 }
 
+_json_str_multiline() {
+  printf '%s' "${1:-}" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\r' ' ' | awk '{
+    if (NR > 1) { printf "\\n" }
+    printf "%s", $0
+  }' | tr -d '\000-\011\013-\037'
+}
+
+_emit_card_handoff_json() {
+  local resume_card="$1"
+  local card_file="$2"
+  local card_st="$3"
+  local ROOT="$4"
+
+  local first_h1; first_h1="$(grep -m1 -E '^#[[:space:]]' "$card_file" 2>/dev/null | tr -d '\r')"
+  local raw_title=""
+  if [ -n "$first_h1" ]; then
+    raw_title="$(printf '%s\n' "$first_h1" | sed -E -e 's/^#[[:space:]]*[Cc]-[0-9]+([[:space:]]*[-—:][[:space:]]*|[[:space:]]+)?//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  fi
+  [ -n "$raw_title" ] || raw_title="$resume_card"
+
+  local scope; scope="$(awk '/^## Scope/{flag=1; next} /^## /{flag=0} flag' "$card_file" | sed -e '1{/^[[:space:]]*$/d;}' -e '${/^[[:space:]]*$/d;}')"
+  local raw_scope; raw_scope="$(printf '%s\n' "$scope" | _redact_secrets)"
+  local scope_json; scope_json="$(_json_str_multiline "$raw_scope")"
+
+  local raw_allowed; raw_allowed="$(awk '/^## Allowed files/{flag=1; next} /^## /{flag=0} flag' "$card_file" | sed -e '1{/^[[:space:]]*$/d;}' -e '${/^[[:space:]]*$/d;}')"
+  local allowed_json=""
+  local first=1
+  local item
+  while IFS= read -r item || [ -n "$item" ]; do
+    item="$(printf '%s' "$item" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    [ -n "$item" ] || continue
+    item="$(printf '%s' "$item" | _redact_secrets)"
+    if [ "$first" -eq 1 ]; then
+      allowed_json="\"$(_json_str "$item")\""
+      first=0
+    else
+      allowed_json="$allowed_json,\"$(_json_str "$item")\""
+    fi
+  done < <(printf '%s\n' "$raw_allowed" | tr ',' '\n')
+
+  local raw_verify; raw_verify="$(awk '/^## Verify/{flag=1; next} /^## /{flag=0} flag' "$card_file" | sed -e '1{/^[[:space:]]*$/d;}' -e '${/^[[:space:]]*$/d;}')"
+  local verify_json=""
+  first=1
+  while IFS= read -r item || [ -n "$item" ]; do
+    item="$(printf '%s' "$item" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    [ -n "$item" ] || continue
+    item="$(printf '%s' "$item" | sed -E 's/^[-*][[:space:]]*(\[[ xX]\][[:space:]]*)?//')"
+    item="$(printf '%s' "$item" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    [ -n "$item" ] || continue
+    item="$(printf '%s' "$item" | _redact_secrets)"
+    if [ "$first" -eq 1 ]; then
+      verify_json="\"$(_json_str "$item")\""
+      first=0
+    else
+      verify_json="$verify_json,\"$(_json_str "$item")\""
+    fi
+  done < <(printf '%s\n' "$raw_verify")
+
+  local decisions=""
+  if harness_available; then
+    local py; py="$(_python)"
+    decisions="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" decision query --story "$resume_card" 2>/dev/null || true)"
+  fi
+  local decisions_json=""
+  first=1
+  if [ -n "$decisions" ]; then
+    while IFS= read -r item || [ -n "$item" ]; do
+      item="$(printf '%s' "$item" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+      [ -n "$item" ] || continue
+      case "$item" in
+        none\ recorded*|\(no\ decisions\)) continue ;;
+      esac
+      item="$(printf '%s' "$item" | _redact_secrets)"
+      if [ "$first" -eq 1 ]; then
+        decisions_json="\"$(_json_str "$item")\""
+        first=0
+      else
+        decisions_json="$decisions_json,\"$(_json_str "$item")\""
+      fi
+    done < <(printf '%s\n' "$decisions")
+  fi
+
+  local git_commit=""
+  local git_clean=false
+  if command -v git >/dev/null 2>&1 && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git_commit="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null | tr -d '\r')"
+    local git_st=""
+    git_st="$(git -C "$ROOT" status --porcelain 2>/dev/null)"
+    if [ -z "$git_st" ]; then
+      git_clean=true
+    fi
+  fi
+
+  local raw_risk; raw_risk="$(grep -m1 -E '^risk:' "$card_file" 2>/dev/null | sed -e 's/^risk:[[:space:]]*//' -e 's/[[:space:]]*$//' | tr -d '\r')"
+  [ -n "$raw_risk" ] || raw_risk="unknown"
+
+  printf '{"schema_version":1,"kind":"card.handoff","card_id":"%s","title":"%s","status":"%s","scope":"%s","allowed_files":[%s],"verify_commands":[%s],"linked_decisions":[%s],"git_baseline":{"commit":"%s","clean":%s},"risk":"%s"}\n' \
+    "$(_json_str "$resume_card")" \
+    "$(_json_str "$raw_title")" \
+    "$(_json_str "${card_st:-unknown}")" \
+    "$scope_json" \
+    "$allowed_json" \
+    "$verify_json" \
+    "$decisions_json" \
+    "$(_json_str "$git_commit")" \
+    "$git_clean" \
+    "$(_json_str "$raw_risk")"
+}
 
 cmd_resume() {
   local budget=0
   local resume_card=""
-  if [ "${1:-}" = "--json" ]; then
-    if [ -n "${2:-}" ]; then usage; exit 2; fi
+  local opt_json=0
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json)
+        opt_json=1
+        ;;
+      --budget)
+        budget=1
+        ;;
+      --card)
+        if [ $# -lt 2 ] || [ -z "$2" ]; then
+          usage; exit 2
+        fi
+        resume_card="$2"
+        shift
+        ;;
+      --card=*)
+        resume_card="${1#--card=}"
+        ;;
+      *)
+        usage; exit 2
+        ;;
+    esac
+    shift
+  done
+
+  if [ "$budget" -eq 1 ]; then
+    if [ "$opt_json" -eq 1 ] || [ -n "$resume_card" ]; then
+      usage; exit 2
+    fi
+  fi
+
+  if [ "$opt_json" -eq 1 ] && [ -z "$resume_card" ]; then
     _emit_context_json
     return 0
-  elif [ "${1:-}" = "--budget" ]; then
-    if [ -n "${2:-}" ]; then usage; exit 2; fi
-    budget=1
-  elif [ "${1:-}" = "--card" ]; then
-    if [ -z "${2:-}" ] || [ -n "${3:-}" ]; then usage; exit 2; fi
-    resume_card="$2"
-  elif case "${1:-}" in --card=*) true ;; *) false ;; esac; then
-    if [ -n "${2:-}" ]; then usage; exit 2; fi
-    resume_card="${1#--card=}"
-  elif [ -n "${1:-}" ]; then
-    usage
-    exit 2
   fi
 
   if [ -n "$resume_card" ]; then
@@ -1404,6 +1532,10 @@ cmd_resume() {
       exit 1
     fi
     local card_st; card_st="$(grep -E '^status:' "$card_file" 2>/dev/null | head -1 | awk '{print $2}')"
+    if [ "$opt_json" -eq 1 ]; then
+      _emit_card_handoff_json "$resume_card" "$card_file" "$card_st" "$ROOT"
+      return 0
+    fi
     if [ "$card_st" = "done" ]; then
       echo "card $resume_card is already done - see 'flow recall'"
       echo "NEXT_VERB=card"
