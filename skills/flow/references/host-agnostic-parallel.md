@@ -44,6 +44,39 @@ Mixing them auto-answers a payments card or auto-halts a yes/no prompt.
 The **HOST waits** (Task join / human / the mux's own wait). `flow.sh` **never waits on or polls** another agent. Fan-in is world-state: re-invoke `check` in
 the card worktree after the host's wait returns.
 
+## Wave re-derive
+
+When the host loses a worker mid-wave, the recovery is not a retry of the dead
+worker's command — it is a **re-derive from `ready --json`**. The envelope is
+the single source of truth for which cards are actionable; a card whose
+`check` already passed will not reappear in `buildable[]`, so completed work
+is never re-run. `flow.sh` remains read-only for this protocol: the host owns
+every spawn and every join.
+
+```text
+loop:
+  groups = flow ready --json | .groups          # source of truth, re-callable (groups: [["C-001", ...], ...])
+  if groups empty: break                        # nothing actionable
+  for g in groups:                              # each wave g is an array of card IDs
+    n = min(N, |g|)                             # N = host's concurrency cap
+    spawn n workers, one per card in g          # host-owned placement
+    join                                        # host waits per wave before next wave (file-is-the-wait)
+  # worker death mid-wave: the join may return with fewer completions than
+  # spawns — that is fine. The loop re-calls ready --json and the fresh
+  # buildable[] reflects only cards whose deps are still unmet. Done cards
+  # never reappear. Blocked cards stay in blocked[] with their reason.
+```
+
+Rules:
+- Each iteration is a **fresh derivation**, never a resume of the previous
+  spawn set. The dead worker's card is either back in `buildable[]` (work
+  incomplete → re-derive it) or absent (check already passed → skip).
+- `blocked[]` cards are **not retried** by the host; they carry their
+  `ready-blocked` reason (deps unmet or allowed-files overlap) and wait for
+  the dependency to change the envelope.
+- `flow.sh` never tracks worker PIDs, never counts live workers, and never
+  owns a worker registry — the host's join is the only completion signal.
+
 ## Forbidden (ADR-0001; not a nit)
 
 `flow.sh` must not exec host control CLIs (`herdr agent start`, `herdr agent wait`, `herdr agent prompt`, `herdr server stop`, `tmux send-keys`, and equivalents).
