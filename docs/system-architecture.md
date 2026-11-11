@@ -93,7 +93,7 @@ On-disk artifacts (in the project being built):
 | `skills/flow/harness/` | durable layer (Python CLI + sqlite + Rust toggle) |
 | `skills/flow/_templates/` | the 7 gated artifacts (verbatim buildflow) |
 | `skills/flow/law/` | CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md |
-| `skills/flow/references/` | 24 semantic playbooks (gates, agents, loop, design, auto, v0.22 concierge/native-rituals/forge-idea, v0.29 clarify/converge/artifact-lifecycle) |
+| `skills/flow/references/` | semantic playbooks (gates, agents, loop, design, auto, v0.22 concierge/native-rituals/forge-idea, v0.29 clarify/converge/artifact-lifecycle) — count is owned by [`docs/codebase-summary.md`](codebase-summary.md), which mirrors the `references/` tree |
 | `skills/flow/eval/` | behavioral-eval fixtures: artifact-vs-gate + v0.22 routing judge (`fixtures/routing/`) + v0.29 converge repo-state gap judge (`fixtures/converge/`) |
 | `skills/flow/playbooks/` | paid-for stack knowledge (read before, harvest after) |
 | `tests/` | Suites listed in `tests/manifest.txt` (runner / harness / scenarios / loop / eval / resume / status-legibility / concierge / native-rituals / forge-idea / harness trust-align / graph executor / doc budgets). GitHub Actions `bash-suite` job (ubuntu+macos+windows) is the source of truth. |
