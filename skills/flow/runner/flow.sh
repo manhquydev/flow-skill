@@ -7234,6 +7234,7 @@ usage: bash flow.sh <command> [args]
   auto [stop]        Activate attested auto (risk + Stage 05 receipt) or stop
   attest <verb>      Mint/status/recover attestation receipts (semantic|live-verify|status|recover|verify-chain)
   recall            Read back prior knowledge (debt/retro/playbooks/prev-card/harness) before working
+  rules [agent-skills|agents-md|cursor|windsurf|roo|cline|aider|openhands|copilot|list]  Preview/emit harness rule templates (--write materializes)
   unlock            Clear this project's concurrency lock (after a crashed/abandoned session)
   harness <args>    Passthrough to the durable layer CLI (intake/story/trace/decision/backlog/query)
   debt add|list     Record/list deliberate gate-skips in DEBT.md (security-class = operator-only)
@@ -7295,9 +7296,17 @@ _flow_version() {
   [ -n "$v" ] && printf '%s' "$v" || printf 'unknown'
 }
 
-_log_is_readonly() { # $1 = command -> true|false (does it mutate the flow plan?)
+_log_is_readonly() { # $1 = command, $2 = raw args -> true|false (does it mutate the flow plan?)
   case "$1" in
     status|resume|recall|ready|usage|tokens|coherence|consistency|contract|constitution|clarify|doctor|design|gate|help|-h|--help|"") echo true ;;
+    rules)
+      # `rules`, `rules list`, and `rules <harness>` only preview templates
+      # (read-only); an explicit --write materializes files.
+      case "${2:-}" in
+        *--write*) echo false ;;
+        *) echo true ;;
+      esac
+      ;;
     *) echo false ;;
   esac
 }
@@ -7338,7 +7347,7 @@ _log_event() {
   now="$(_now)"; ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo '')"
   dur=$(( now - ${FLOW_LOG_START:-$now} )); [ "$dur" -lt 0 ] && dur=0
   case "$FLOW_LOG_CMD" in next|check) [ "$ec" -eq 0 ] && gp=true || gp=false ;; *) gp=null ;; esac
-  ro="$(_log_is_readonly "$FLOW_LOG_CMD")"
+  ro="$(_log_is_readonly "$FLOW_LOG_CMD" "$FLOW_LOG_ARGS")"
   ver="$(_flow_version)"; proj="$(basename "$ROOT" 2>/dev/null || echo '?')"
   host="$(uname -n 2>/dev/null | cut -c1-16 || echo host)"
   cyc="$(cat "$CYCLE_FILE" 2>/dev/null | tr -d '\r\n' || echo '')"

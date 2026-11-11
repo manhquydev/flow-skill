@@ -624,6 +624,21 @@ for converter in nonzero empty success absent missing_target; do
   ck "$timeout_expected" "$timeout_out" "$converter converter preserves expected subprocess argument"
 done
 
+echo "P) help documents rules; telemetry classifies preview read-only vs --write mutating"
+has "$(bash "$RUN" help 2>&1)" "rules \[agent-skills" "usage help lists the rules verb"
+TSB="$SCRATCH/tele-root"; THOME="$SCRATCH/tele-home"
+mkdir -p "$TSB" "$THOME"
+FLOW_PROJECT_ROOT="$TSB" HOME="$THOME" bash "$RUN" rules list >/dev/null 2>&1
+ck 0 $? "rules list exits 0 in sandbox"
+ev="$(tail -1 "$TSB/.flow/events.jsonl" 2>/dev/null)"
+has "$ev" '"command":"rules"' "rules list self-records a usage event"
+has "$ev" '"read_only":true' "rules list (preview) logged read_only:true"
+FLOW_PROJECT_ROOT="$TSB" HOME="$THOME" bash "$RUN" rules cursor --write >/dev/null 2>&1 || true
+ev2="$(tail -1 "$TSB/.flow/events.jsonl" 2>/dev/null)"
+has "$ev2" '"command":"rules"' "rules --write self-records a usage event"
+has "$ev2" '"read_only":false' "rules <harness> --write logged read_only:false"
+rm -rf "$TSB" "$THOME"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
