@@ -29,7 +29,10 @@ for g in 'Ingestion Check' 'Invocation Check' 'Gate-Stop Check' 'State Integrity
   grep -q "$g" "$SOP" && ck 0 0 "SOP names gate: $g" || ck 0 1 "SOP names gate: $g"
 done
 grep -q '\[FILL\]' "$SOP" && ck 0 0 "SOP mandates [FILL] force-failure fixture" || ck 0 1 "SOP mandates [FILL] force-failure fixture"
-grep -q '\- \[ \]' "$SOP" && ck 0 0 "SOP mandates open-checklist force-failure fixture" || ck 0 1 "SOP mandates open-checklist force-failure fixture"
+# Section-scoped check: Gate 3's own Test Setup must mandate the open-checklist breach,
+# so removing it fails even when unrelated audit checkboxes exist elsewhere in the SOP.
+gate3_section="$(sed -n '/^### Gate 3:/,/^### Gate 4:/p' "$SOP")"
+printf '%s' "$gate3_section" | grep -Fn '(`- [ ]`)' && ck 0 0 "Gate 3 audit section mandates open-checklist force-failure fixture" || ck 0 1 "Gate 3 audit section mandates open-checklist force-failure fixture"
 for g in 'Gate 1' 'Gate 2' 'Gate 3' 'Gate 4'; do
   grep -q "### $g:" "$SOP" && ck 0 0 "SOP has audit section: $g" || ck 0 1 "SOP has audit section: $g"
 done
@@ -54,10 +57,17 @@ printf '%s' "$out" | grep -q 'FILL' && ck 0 0 "gate-stop diagnostic names the [F
 # Repaired artifact advances (mechanical pass, exit 0).
 stage_clean "Idea" "$SB/flow/00-idea.md"
 bash "$RUN" next >/dev/null 2>&1; ck 0 $? "clean stage 00 advances (exit 0)"
+# Isolated open-checklist fixture: unchecked gate box only, NO [FILL] markers -
+# proves the checklist gate stops on its own (cubic review: fixture independence).
+printf '#Idea\n## Gate\n- [ ] open checklist item\n\nreal content.\n' > "$SB/flow/00-idea.md"
+out="$(bash "$RUN" next 2>&1)"; rc=$?
+ck 1 "$rc" "unchecked gate box alone (no [FILL]) -> gate-stop exit 1"
+printf '%s' "$out" | grep -q 'unchecked gate boxes' && ck 0 0 "gate-stop diagnostic names the open-checklist breach" || ck 0 1 "gate-stop diagnostic names the open-checklist breach"
 # State integrity: next wrote and reads back progression from disk (01 unlocked).
 [ -f "$SB/flow/01-research.md" ] && ck 0 0 "stage progression artifact 01-research.md unlocked on disk" || ck 0 1 "stage progression artifact 01-research.md unlocked on disk"
-out="$(bash "$RUN" status 2>&1)"
-printf '%s' "$out" | grep -q '01' && ck 0 0 "fresh flow status readback reflects disk state" || ck 0 1 "fresh flow status readback reflects disk state"
+out="$(bash "$RUN" status 2>&1)"; rc=$?
+ck 0 "$rc" "fresh flow status exits clean"
+printf '%s' "$out" | grep -q 'planning: at stage 01-research' && ck 0 0 "fresh flow status readback reports the current stage" || ck 0 1 "fresh flow status readback reports the current stage"
 rm -rf "$SB"
 
 echo "E) categorization taxonomy: honest four-category disclosure present"
