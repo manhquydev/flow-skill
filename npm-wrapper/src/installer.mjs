@@ -927,6 +927,13 @@ export function installWidelaiExtras({ pkgRoot, home = homedir() }) {
   // not atomic on its own, so two processes could both observe "pointer
   // missing" and append a duplicate. Wait boundedly for a live holder, then
   // fail loudly instead of proceeding unserialized.
+  //
+  // Validate destination ancestors BEFORE acquireLock(): the lock file lives
+  // under ~/.widelai and acquireLock() mkdirs that path, so a symlinked home
+  // or .widelai would get the redirected directory created before the
+  // promised symlink refusal. Rejected installs must stay side-effect-free.
+  assertNoAncestorSymlinks(rulesDest, 'widelai rules destination');
+  assertNoAncestorSymlinks(agentsPath, 'widelai AGENTS.md destination');
   const extrasLockPath = join(home, '.widelai', '.flow-skill.widelai-extras.lock');
   let lock = acquireLock(extrasLockPath);
   let waited = 0;
@@ -974,8 +981,8 @@ function installWidelaiExtrasLocked({ rulesSrc, rulesDest, agentsPath }) {
     if (st.isSymbolicLink()) throw new Error(`destination is a symlink: ${p}`);
     if (!st.isFile()) throw new Error(`destination is not a regular file: ${p}`);
   }
-  assertNoAncestorSymlinks(rulesDest, 'widelai rules destination');
-  assertNoAncestorSymlinks(agentsPath, 'widelai AGENTS.md destination');
+  // Ancestor symlinks were already refused before the lock was taken
+  // (installWidelaiExtras), so nothing here can create redirected paths.
 
   const generated = readFileSync(rulesSrc);
   let rulesWritten = false;

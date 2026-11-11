@@ -95,7 +95,7 @@ grep -q '^  receipts: flow-attestation/v1$' "$SKILL" && ck yes yes "receipts lis
 grep -q 'flow-cost' "$SKILL" && ck no yes "no flow-cost/v1 in SKILL.md" || ck no no "no flow-cost/v1 in SKILL.md"
 # shellcheck disable=SC2016
 pkg_ver="$(sed -n 's/^  "version": "\([^"]*\)",$/\1/p' "$ROOT/npm-wrapper/package.json" | head -1)"
-grep -q "^  version: \"$pkg_ver\"\$" "$SKILL" && ck yes yes "version matches npm-wrapper ($pkg_ver)" || ck yes no "version matches npm-wrapper ($pkg_ver)"
+grep -Fqx "  version: \"$pkg_ver\"" "$SKILL" && ck yes yes "version matches npm-wrapper ($pkg_ver)" || ck yes no "version matches npm-wrapper ($pkg_ver)"
 printf '%s\n' "$fm" | grep -q "$(printf '\t')" && ck no yes "frontmatter has no tabs" || ck no no "frontmatter has no tabs"
 
 echo "=== 2. Frontmatter name equals the skill directory name ==="
@@ -126,7 +126,7 @@ echo "=== 3b. Rules generation on a CRLF checkout (Windows) ==="
 CRLF_REPO="$SCRATCH/crlf-repo"
 mkdir -p "$CRLF_REPO"
 cp -R "$ROOT/." "$CRLF_REPO/"
-rm -rf "$CRLF_REPO/plans" "$CRLF_REPO/.git"
+rm -rf "$CRLF_REPO/plans" "$CRLF_REPO/.git" "$CRLF_REPO/npm-wrapper/.widelai" "$CRLF_REPO/npm-wrapper/node_modules"
 for f in AGENTS.md CONTRIBUTING.md skills/flow/law/CLAUDE.md skills/flow/references/attestations.md skills/flow/runner/flow.sh; do
   awk '{ sub(/\r$/, ""); printf "%s\r\n", $0 }' "$CRLF_REPO/$f" > "$CRLF_REPO/$f.crlf" && mv "$CRLF_REPO/$f.crlf" "$CRLF_REPO/$f"
 done
@@ -264,6 +264,16 @@ out="$(HOME="$SH_HOME4" bash "$TEST_REPO/install.sh" global all 2>&1)"; rc=$?
 ck 0 "$rc" "install.sh global all exits 0 with regular-file marker"
 [ -d "$SH_HOME4/.widelai/skills/flow" ] && ck no yes "regular-file ~/.widelai/skills does NOT install widelai" || ck no no "regular-file ~/.widelai/skills does NOT install widelai"
 [ -f "$SH_HOME4/.widelai/skills" ] && ck yes yes "regular-file ~/.widelai/skills marker left untouched" || ck yes no "regular-file ~/.widelai/skills marker left untouched"
+# The marker bytes must survive byte-identical, it must not be swapped for a
+# symlink, and a refused install must not write WidelCode extras at all.
+printf 'regular file, not a container\n' > "$SCRATCH/marker-expected"
+cmp -s "$SCRATCH/marker-expected" "$SH_HOME4/.widelai/skills" && ck yes yes "regular-file marker bytes byte-identical" || ck yes no "regular-file marker bytes byte-identical"
+[ -L "$SH_HOME4/.widelai/skills" ] && s_lnk="yes" || s_lnk="no"
+ck "no" "$s_lnk" "regular-file marker not replaced by symlink"
+[ -f "$SH_HOME4/.widelai/rules/flowskill.md" ] && s_rf="yes" || s_rf="no"
+ck "no" "$s_rf" "refused install writes no rules file"
+[ -f "$SH_HOME4/.widelai/AGENTS.md" ] && s_ag="yes" || s_ag="no"
+ck "no" "$s_ag" "refused install writes no AGENTS.md"
 
 echo "=== 5b. install.sh: CRLF pointer, symlink/directory refusal ==="
 # CRLF AGENTS.md: reinstall must recognize the pointer, not duplicate it.

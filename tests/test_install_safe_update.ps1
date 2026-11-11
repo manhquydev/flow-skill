@@ -50,11 +50,21 @@ try {
   Copy-Item -LiteralPath (Join-Path $RepoRoot "npm-wrapper/scripts/sync.mjs") -Destination (Join-Path $TestRepo "npm-wrapper/scripts/sync.mjs") -Force
   Push-Location $TestRepo
   try {
-    & node (Join-Path $TestRepo "npm-wrapper/scripts/sync.mjs") *>$null
-  } catch {
-    Write-Host "WARN: node sync failed in test repo; falling back to local .widelai copy"
+    # Distinguish "node unavailable" (fall back to the local pre-generated
+    # copy) from "sync.mjs ran and failed" (a failed sync must fail the fixture
+    # setup instead of silently using a stale rules copy).
+    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    if ($null -eq $nodeCmd) {
+      Write-Host "WARN: node not available in test repo; falling back to local .widelai copy"
+    } else {
+      & node (Join-Path $TestRepo "npm-wrapper/scripts/sync.mjs") *>$null
+      if ($LASTEXITCODE -ne 0) {
+        throw "sync.mjs failed in test repo (exit $LASTEXITCODE); refusing to fall back to a stale .widelai copy"
+      }
+    }
+  } finally {
+    Pop-Location
   }
-  Pop-Location
   if (-not (Test-Path -LiteralPath (Join-Path $TestRepo "npm-wrapper/.widelai/rules/flowskill.md"))) {
     if (Test-Path -LiteralPath (Join-Path $RepoRoot "npm-wrapper/.widelai")) {
       $testWidelai = Join-Path $TestRepo "npm-wrapper/.widelai"
@@ -128,7 +138,7 @@ try {
   Check "explicit global widelai installs cleanly (exit 0)" ($LASTEXITCODE -eq 0) "exitCode=$LASTEXITCODE"
   Check "widelai destination contains SKILL.md" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/skills/flow/SKILL.md"))
   Check "widelai places rules file" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/rules/flowskill.md"))
-  Check "widelai AGENTS.md contains pointer" (Test-Path -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/AGENTS.md"))
+  Check "widelai AGENTS.md contains pointer" ((Get-Content -LiteralPath (Join-Path $FakeHomeWidelai ".widelai/AGENTS.md") -Raw) -match '(?m)^FlowSkill rules: see \.widelai/rules/flowskill\.md\r?$')
 
   # 3.5 WidelCode autodetect: ~/.widelai/skills directory autodetects and installs skill and extras
   $FakeHomeWidelai2 = Join-Path $Scratch "home_widelai2"
