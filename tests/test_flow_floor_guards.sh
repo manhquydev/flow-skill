@@ -3,23 +3,23 @@
 #   - bash 3.2-safe (AGENTS.md): runner + tests must not use bash 4+ constructs
 #     (mapfile, readarray, declare -A, &>>, |&).
 #   - Python 3.7 floor (skills/flow/harness): harness/*.py must not use walrus,
-#     match statements, or PEP 604 / builtin-generics annotations unless the
-#     file opts in via `from __future__ import annotations` (then only walrus
-#     and match stay forbidden).
-#   - Python checks are AST-exact (python3 stdlib `ast`): any `match` subject
-#     form, any builtin-generic subscript regardless of spacing (`set [int]`),
-#     any PEP 604 union regardless of spacing (`int|float`), and `from
-#     __future__ import annotations` is honored only as a real top-level
-#     import statement (comments/docstrings never count).
+#     match statements, positional-only params, or PEP 604 / builtin-generics
+#     annotations unless the file opts in via `from __future__ import annotations`
+#     (then only walrus, match, and runtime generic assignments stay forbidden).
+#   - Python checks are AST-exact (python3 stdlib `ast`): safe across Python
+#     3.7-3.14 runtimes, any `match` subject form, positional-only parameters,
+#     any builtin-generic subscript regardless of spacing (`set [int]`), any
+#     PEP 604 union regardless of spacing (`int|float`), runtime generic
+#     assignments (`Alias = list[int]`), and `from __future__ import annotations`
+#     is honored only as a real top-level import statement.
 # Run: bash tests/test_flow_floor_guards.sh
 #
 # Known limitations:
 #   - Strings/heredocs are NOT parsed. A construct quoted inside a string can
 #     be flagged; refine only if a false positive lands.
-#   - Inline `# comment` text is stripped ONLY on lines without quote
-#     characters; a construct inside a quoted string on such a line can still
-#     be flagged (quote-aware stripping needs a tokenizer — refused here to
-#     keep the guard dependency-free).
+#   - Inline `# comment` text is stripped ONLY on lines without quote or
+#     backslash characters; a construct inside a quoted or backslash-escaped
+#     string is kept intact to prevent eating actual code.
 #   - `|&` is matched only when preceded by whitespace, so unspaced `cmd|&`
 #     is missed — accepted to avoid flagging regex strings like '(a|&&)'.
 set -u
@@ -31,16 +31,15 @@ viol() { echo "  FAIL [$1:$2 $3]"; fail=$((fail + 1)); }
 ok() { echo "  ok   [$1]"; pass=$((pass + 1)); }
 
 # Emit "LINENO:content" for non-comment lines, original numbering preserved.
-# Whole-line comments are always dropped; on lines WITHOUT quote characters a
-# trailing inline `# comment` is dropped too (no quotes = nothing to protect),
-# so harmless prose comments can never fail the bash floor. Lines containing
-# quotes are kept intact (a real bash-4 construct inside a quoted string is
-# data, but flagging it is the safer false positive, per known limitation 1).
-body() { awk -v sq="'" -v dq='"' '
+# Whole-line comments are always dropped; on lines WITHOUT quote or backslash
+# characters a trailing inline `# comment` is dropped too, so harmless prose
+# comments cannot fail the bash floor. Lines with quotes or backslashes are
+# kept intact to avoid stripping escaped `#` (e.g. `echo \# &>> output`).
+body() { awk -v sq="'" -v dq='"' -v bs='\\' '
   {
     l = $0
     if (l ~ /^[[:space:]]*#/) next
-    if (index(l, sq) == 0 && index(l, dq) == 0) sub(/[[:space:]]*#.*$/, "", l)
+    if (index(l, sq) == 0 && index(l, dq) == 0 && index(l, bs) == 0) sub(/[[:space:]]+#.*$/, "", l)
     print NR ":" l
   }' "$1"; }
 
@@ -63,15 +62,8 @@ HITS
   fi
 }
 
-# AST-exact python floor checker (python3 stdlib only). Input: file path via
-# argv. Output: one "lineno:reason" line per violation; exit 0 even when
-# violations are found (bash decides pass/fail); nonzero only on crash.
-#   - always forbidden: walrus (NamedExpr), match statements (ast.Match)
-#   - forbidden WITHOUT `from __future__ import annotations` at module level:
-#     builtin-generic subscripts (list/dict/tuple/set/frozenset/type) and
-#     PEP 604 BitOr unions inside annotations
-#   - honored: real top-level `from __future__ import annotations` (an
-#     ImportFrom node — comments/docstrings can never create one)
+# AST-exact python floor checker (python3 stdlib only, runnable on py3.7-py3.14).
+# Input: file path via argv. Output: one "lineno:reason" line per violation.
 PYCHECK='
 import ast, sys
 path = sys.argv[1]
@@ -83,6 +75,7 @@ except SyntaxError as e:
     line = e.lineno or 1
     print("%d:syntax not parseable on the py3.7 floor" % line)
     sys.exit(0)
+
 has_future = any(
     isinstance(n, ast.ImportFrom) and n.module == "__future__"
     and any(a.name == "annotations" for a in n.names)
@@ -90,6 +83,7 @@ has_future = any(
 )
 GEN = {"list", "dict", "tuple", "set", "frozenset", "type"}
 match_cls = getattr(ast, "Match", None)
+named_expr_cls = getattr(ast, "NamedExpr", None)
 
 def annotations_of(node):
     out = []
@@ -99,10 +93,11 @@ def annotations_of(node):
         if node.returns:
             out.append(node.returns)
         a = node.args
-        out += [x.annotation for x in a.posonlyargs + a.args + a.kwonlyargs if x.annotation]
-        if a.vararg:
+        posonly = getattr(a, "posonlyargs", [])
+        out += [x.annotation for x in posonly + a.args + a.kwonlyargs if getattr(x, "annotation", None)]
+        if getattr(a, "vararg", None) and getattr(a.vararg, "annotation", None):
             out.append(a.vararg.annotation)
-        if a.kwarg:
+        if getattr(a, "kwarg", None) and getattr(a.kwarg, "annotation", None):
             out.append(a.kwarg.annotation)
     return out
 
@@ -116,10 +111,17 @@ def bad_annotation(ann):
     return False
 
 for n in ast.walk(tree):
-    if isinstance(n, ast.NamedExpr):
+    if named_expr_cls is not None and isinstance(n, named_expr_cls):
         print("%d:walrus := operator" % n.lineno)
     elif match_cls is not None and isinstance(n, match_cls):
         print("%d:match statement" % n.lineno)
+    elif isinstance(n, ast.arguments) and getattr(n, "posonlyargs", []):
+        first = n.posonlyargs[0]
+        print("%d:positional-only parameters" % getattr(first, "lineno", 1))
+    elif isinstance(n, ast.Assign):
+        for sub in ast.walk(n.value):
+            if isinstance(sub, ast.Subscript) and isinstance(sub.value, ast.Name) and sub.value.id in GEN:
+                print("%d:runtime builtin generic subscript (fails py3.7 even with __future__)" % getattr(sub, "lineno", n.lineno))
     if not has_future:
         for ann in annotations_of(n):
             if ann is None:
@@ -166,7 +168,7 @@ for f in "$ROOT"/skills/flow/runner/*.sh "$ROOT"/tests/*.sh; do
 done
 ok "runner/*.sh + tests/*.sh scanned ($nsh files)"
 
-echo "C) AST detector fixtures: each thread-reported bypass must be flagged"
+echo "C) AST detector fixtures: feature-isolated test cases"
 fixck() {
   if [ "$1" = "$2" ]; then
     ok "$3"
@@ -176,7 +178,9 @@ fixck() {
   fi
 }
 tmpf=$(mktemp -d)
-cat > "$tmpf/bad.py" <<'PYF'
+
+# 1. Annotations and runtime generic assignment (syntactically valid on Python 3.7+)
+cat > "$tmpf/bad-ann.py" <<'PYF'
 def f() -> set [int]:
     return None
 def g() -> int|float:
@@ -185,18 +189,37 @@ def h() -> type[int]:
     return None
 def k() -> frozenset[int] | None:
     return None
+Alias = list[int]
+PYF
+
+# 2. Walrus operator (AST check on py3.8+, SyntaxError on py3.7) -> exactly 1 line
+cat > "$tmpf/bad-walrus.py" <<'PYF'
 def w():
     if (n := 1):
         pass
+PYF
+
+# 3. Match statement (AST check on py3.10+, SyntaxError on py3.9-) -> exactly 1 line
+cat > "$tmpf/bad-match.py" <<'PYF'
 match (subject):
     case [1, 2]:
         pass
 PYF
+
+# 4. Positional-only parameter (AST check on py3.8+, SyntaxError on py3.7) -> exactly 1 line
+cat > "$tmpf/bad-posonly.py" <<'PYF'
+def f(x, /):
+    return x
+PYF
+
+# 5. Comment-only future import is not honored -> exactly 2 lines
 cat > "$tmpf/future-comment.py" <<'PYF'
 # from __future__ import annotations
 def s(x: set [int]) -> int|float:
     return 0
 PYF
+
+# 6. Valid Python 3.7 constructs -> 0 lines
 cat > "$tmpf/good.py" <<'PYF'
 import os
 from typing import Optional, Union
@@ -204,12 +227,20 @@ FLAGS = os.O_WRONLY | os.O_CREAT
 def m(x: Optional[int]) -> Union[str, bytes]:
     return x
 PYF
-nbad="$(python3 -c "$PYCHECK" "$tmpf/bad.py" | wc -l)"
-nfc="$(python3 -c "$PYCHECK" "$tmpf/future-comment.py" | wc -l)"
-ngood="$(python3 -c "$PYCHECK" "$tmpf/good.py" | wc -l)"
-fixck 6 "$nbad" "bad fixture: all 6 violation lines flagged (spaced bracket, unspaced union, frozenset/None union, type[int], walrus, match (subject))"
-fixck 2 "$nfc" "comment-only future import is NOT honored (2 lines still flagged)"
-fixck 0 "$ngood" "good fixture: typing.Optional/Union and UPPER_CASE OR stay clean"
+
+n_ann="$(python3 -c "$PYCHECK" "$tmpf/bad-ann.py" | wc -l)"
+n_wal="$(python3 -c "$PYCHECK" "$tmpf/bad-walrus.py" | wc -l)"
+n_match="$(python3 -c "$PYCHECK" "$tmpf/bad-match.py" | wc -l)"
+n_pos="$(python3 -c "$PYCHECK" "$tmpf/bad-posonly.py" | wc -l)"
+n_fc="$(python3 -c "$PYCHECK" "$tmpf/future-comment.py" | wc -l)"
+n_good="$(python3 -c "$PYCHECK" "$tmpf/good.py" | wc -l)"
+
+fixck 5 "$n_ann" "bad-ann fixture: all 5 modern annotations + runtime alias flagged"
+fixck 1 "$n_wal" "bad-walrus fixture: walrus flagged across all python versions"
+fixck 1 "$n_match" "bad-match fixture: match statement flagged across all python versions"
+fixck 1 "$n_pos" "bad-posonly fixture: positional-only params flagged across all python versions"
+fixck 2 "$n_fc" "comment-only future import is NOT honored (2 lines still flagged)"
+fixck 0 "$n_good" "good fixture: typing.Optional/Union and UPPER_CASE OR stay clean"
 rm -rf "$tmpf"
 
 echo
