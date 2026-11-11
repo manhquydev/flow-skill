@@ -895,6 +895,19 @@ def cmd_rollup(con, a):
                 cursor_advance = n
                 continue
             row = _coerce_event(o)
+            if o.get("kind") == "verify-receipt":
+                # verify-receipt events carry a different column set (schema 015);
+                # they roll up into verify_receipt, not usage_event. Cursor and
+                # UNIQUE(src,line_no) idempotency are shared with the usage path.
+                vr = [src, n, o.get("card"), o.get("cmd"), o.get("sha256"), o.get("exit_code")]
+                c2 = con.execute(
+                    "INSERT OR IGNORE INTO verify_receipt (src,line_no,card,cmd,sha256,exit_code) VALUES (?,?,?,?,?,?)",
+                    vr,
+                )
+                if c2.rowcount and c2.rowcount > 0:
+                    rolled += 1
+                cursor_advance = n
+                continue
             vals = [src, n] + [row[c] for c in USAGE_COLS]
             c2 = con.execute(f"INSERT OR IGNORE INTO usage_event ({','.join(cols)}) VALUES ({ph})", vals)
             if c2.rowcount and c2.rowcount > 0:
