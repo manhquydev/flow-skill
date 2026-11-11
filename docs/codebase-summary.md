@@ -18,10 +18,10 @@ flow-skill/
 │   │   └── README.md
 │   ├── _templates/              # 00-idea..05-contract + card (verbatim buildflow)
 │   ├── law/                     # CLAUDE.md, DESIGN.md, RETRO.md
-│   ├── references/              # 24 semantic playbooks (gates, state machine, agents,
+│   ├── references/              # 42 semantic playbooks (gates, state machine, agents,
 │   │                            #   mode-work, auto-run, loop principles, ground-truth,
 │   │                            #   adversarial, debt-and-halts, design checklist, ui-tcr,
-│   │                            #   concierge, native-rituals, forge-idea — v0.22)
+│   │                            #   concierge, native-rituals, forge-idea)
 │   ├── eval/                    # behavioral-eval fixtures: artifact-vs-gate + v0.22 routing + v0.29 converge judge
 │   └── playbooks/               # 3 stack playbooks + README (read before / harvest after)
 ├── npm-wrapper/                 # npm channel (cross-OS Node installer)
@@ -30,9 +30,9 @@ flow-skill/
 │   ├── scripts/sync.mjs         # skills/flow → bundle for tarball
 │   ├── scripts/smoke.mjs        # registry smoke (empty cwd required)
 │   ├── RELEASE_CHECKLIST.md     # OIDC + dist-tag token ops
-│   └── test/                    # 41 node:test cases
+│   └── test/                    # 93 node:test cases
 ├── .github/workflows/           # ci · publish-npm-wrapper · nightly-registry-health
-├── tests/                       # run_all.sh (wall_s timing) + 33 suite scripts
+├── tests/                       # run_all.sh (wall_s timing) + 81 suite scripts
 ├── install.sh / install.ps1     # global or per-project install + doctor
 ├── portable-manifest.json       # skill product version (with SKILL.md, plugin.json)
 ├── docs/                        # architecture, quality-metrics, release-process, journals
