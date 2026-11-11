@@ -45,12 +45,22 @@ hash. Finish or fork in-flight runs before upgrading if you care about their jou
 ## Rollback
 
 The last published pre-v1 pair is npm `0.7.16` (published 2026-10-22) with skill
-`0.34.9`. A 2026-10-30 read of the registry package tarball verified that its 133
-bundled Flow skill files match the GitHub `v0.34.9` release tag at commit
+`0.34.9`. A 2026-10-30 read of the [registry package tarball](https://registry.npmjs.org/@manhquy/flow-skill/-/flow-skill-0.7.16.tgz)
+verified that its 133 bundled Flow skill files match the GitHub `v0.34.9` release tag at commit
 `9ccda18d3da36b635d6d2f2a5b5096bfcb669e64`. To restore that pair, invoke the installer
 with its exact package pin, for example `npx --yes @manhquy/flow-skill@0.7.16`;
 `npm install` alone does not copy or replace installed skill files. Restart/reload the
-agent and run `flow doctor` to verify the installed bundle. Confirm the release record for
+agent. Find the active skill directory, then run
+`bash <active-skill-dir>/runner/flow.sh doctor --check bundled_tree_integrity`
+from a shell: its `bundled_tree_integrity` check verifies the installed
+tree against the ownership receipt shipped by the `0.7.16` pin. Require the result
+`bundled tree integrity: ok`; `skipped` or `FAIL` does not confirm integrity. Note that this check is
+an integrity check only — it hashes files against a local receipt and does not identify
+the package version, so an intact pre-rollback installation could also pass it. It is
+not by itself proof that the rollback landed. After running it, confirm the rollback by
+checking the active install path (the copy the agent actually loads, which may be a
+project-local install rather than the global one the installer updated) and confirming
+its bundled skill version is `0.34.9`. Confirm the release record for
 the exact package-to-skill mapping before choosing a pin; do not infer skill version from
 the npm package version. This restores the installer and bundled skill only; it does not
 reverse database migrations.
