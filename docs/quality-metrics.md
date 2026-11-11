@@ -7,7 +7,7 @@ Release process for future bumps: [`docs/release-process.md`](release-process.md
 
 ## npm-wrapper v1.0.1 + skill v1.0.1 — eval-grader isolation + runner hash re-pin (2026-11-10)
 
-Pending publication (release target). Notes live in [`npm-wrapper/CHANGELOG.md`](../npm-wrapper/CHANGELOG.md) (1.0.1). Dist-tag **`latest`** moves to this pairing only after the `npm@1.0.1` publish receipt; until then `latest` remains 1.0.0.
+Pending publication (release target). Notes live in [`npm-wrapper/CHANGELOG.md`](../npm-wrapper/CHANGELOG.md) (1.0.1). Dist-tag **`latest`** moves to this pairing upon non-prerelease `npm@1.0.1` publish; the `npm@1.0.1` receipt is verified post-publish as release evidence, not as a prerequisite for dist-tag assignment.
 
 | Axis | Value | Notes |
 |---|---|---|
