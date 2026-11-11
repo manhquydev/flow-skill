@@ -29,11 +29,11 @@ Publisher dispatch defaults to `dry-run`. Live mode requires `FLOW_AUTOPUBLISH_E
 | Job | Typical duration | Timeout budget |
 |---|---|---|
 | bash-suite ubuntu | ~8 min | **25m** |
-| bash-suite macOS | ~11–15 min typical suite; PR88 run 40069912151 killed at 25m18s mid-suite with steady progress (67 suites passed; graph parity 94s on macOS) while the identical tree passed master run 40063546827 in 22m44s — marginal headroom, budget raised with that evidence; 261110: macos-full cancelled at 40m19s (job 129876035964) against earlier green 37m40s/39m29s | **60m** |
-| bash-suite Windows | Serial baseline ~54–60 min; three-shard timings not yet measured | **100m / shard** |
+| bash-suite macOS | full-suite runs ~22–40 min (22m44s–22m41s green on master; killed at 25m18s mid-suite with steady progress on PR88 run 40069912151, and at 40m19s on job 129876035964 on 2026-11-10, both against earlier green 37m40s/39m29s) — marginal headroom, budget raised with that evidence | **60m** |
+| bash-suite Windows | Serial baseline ~54–60 min; a historical shard ran 61m and another reached 80m15s before cancellation | **100m / shard** |
 | npm-wrapper matrix | ~15–40s / cell | 10m |
 
-`tests/run_all.sh` prints `wall_s` per suite + `TOTAL wall_s` for timeout forensics. Windows runs three isolated matrix cells with `FLOW_SUITE_SHARD=1/3`, `2/3`, `3/3`. The runner sorts the current manifest with `LC_ALL=C` and assigns suites round-robin; no suite count or names are hardcoded. Unset the variable for the unchanged full serial manifest-order run (Ubuntu, macOS and local default). Invalid specifications and empty shards fail closed. The manifest-runner fixture proves exact-once coverage and rejects omissions/duplicates. `all-checks-passed` depends on every shard and rejects any non-success; PowerShell installer tests run once on Windows shard 1. Parallelism is intended to reduce walltime, but measured speedup is not yet claimed.
+`tests/run_all.sh` prints `wall_s` per suite + `TOTAL wall_s` for timeout forensics. Ubuntu and Windows each run three isolated matrix cells with `FLOW_SUITE_SHARD=1/3`, `2/3`, `3/3`. The runner sorts the current manifest with `LC_ALL=C` and assigns suites round-robin; no suite count or names are hardcoded. Unset the variable for the unchanged full serial manifest-order run (macOS and the local default). Invalid specifications and empty shards fail closed. The manifest-runner fixture proves exact-once coverage and rejects omissions/duplicates. `all-checks-passed` depends on every shard and rejects any non-success; PowerShell installer tests run once on Windows shard 1. Parallelism is intended to reduce walltime, but measured speedup is not yet claimed.
 
 ## Phase 1: release preparation PR
 
@@ -99,7 +99,7 @@ The smoke runs against the public registry from a clean temporary working direct
 | Expect `npm dist-tag add` in GHA OIDC | E401; stable releases publish directly to latest; no separate dist-tag mutation |
 | Relabel changed skill content with an existing version | Existing skill tags may be reused only when their `skills/` tree equals HEAD; otherwise bump the common version |
 | `npm i` alone for end users | No postinstall; must **run** the CLI |
-| Assume Windows bash shard < 15m | Serial baseline ~54–64m; shard timings unmeasured, budget remains 80m each |
+| Assume Windows bash shard < 15m | Serial baseline ~54–64m; a historical shard ran 61m and another reached 80m15s before cancellation, budget remains 100m each (see the CI timing table above) |
 | Re-add `NODE_AUTH_TOKEN must be empty` CI guard | Breaks setup-node OIDC |
 | Tag `v*` expecting npm publish | Tags never authorize npm publication |
 
