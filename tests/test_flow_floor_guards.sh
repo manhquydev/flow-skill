@@ -44,6 +44,10 @@ HITS
 }
 
 # py_floor <file> <relname> <has_future:yes|no>
+# Builtin generics (any common builtin subscript) and PEP 604 unions in
+# either direction; lowercase-start keeps `os.O_WRONLY | os.O_CREAT`
+# (bitwise OR of UPPER_CASE constants) out of scope.
+PYANN='[[:alnum:]_.]*\b(list|dict|tuple|set|frozenset|type)\[|[a-z][A-Za-z0-9_]* \| [A-Za-z_]|(None|True|False) \| [A-Za-z_]'
 py_floor() {
   f=$1
   rel=$2
@@ -66,7 +70,7 @@ $hits
 HITS
   fi
   if [ "$3" = no ]; then
-    hits=$(body "$f" | grep -E 'list\[|dict\[|tuple\[|[[:space:]]\|[[:space:]](None|str)')
+    hits=$(body "$f" | grep -E "$PYANN")
     if [ -n "$hits" ]; then
       while IFS= read -r row; do
         ln=${row%%:*}
@@ -100,6 +104,43 @@ for f in "$ROOT"/skills/flow/runner/*.sh "$ROOT"/tests/*.sh; do
   bash_floor "$f" "${f#"$ROOT"/}"
 done
 ok "runner/*.sh + tests/*.sh scanned ($nsh files)"
+
+echo "C) fixtures: expanded annotations must fail (synthetic)"
+fixck() {
+  if [ "$1" = "$2" ]; then
+    ok "$3"
+  else
+    echo "  FAIL [$3] expected=$1 got=$2"
+    fail=$((fail + 1))
+  fi
+}
+tmpf=$(mktemp -d)
+cat > "$tmpf/bad.py" <<PYF
+def f() -> set[int]:
+    return None
+def g() -> int | float:
+    return None
+def h() -> type[int]:
+    return None
+def k() -> frozenset[int] | None:
+    return None
+def w():
+    if (n := 1):
+        pass
+PYF
+cat > "$tmpf/good.py" <<PYF
+import os
+FLAGS = os.O_WRONLY | os.O_CREAT
+def m(x):
+    return x
+PYF
+nbad_ann=$(body "$tmpf/bad.py" | grep -cE "$PYANN")
+nbad_wal=$(body "$tmpf/bad.py" | grep -cE ':=')
+ngood=$(body "$tmpf/good.py" | grep -cE "$PYANN")
+fixck 4 "$nbad_ann" "bad fixture flags 4 annotation lines (set[/type[/frozenset[ and unions)"
+fixck 1 "$nbad_wal" "bad fixture flags the walrus line"
+fixck 0 "$ngood" "good fixture: UPPER_CASE bitwise OR is NOT flagged"
+rm -rf "$tmpf"
 
 echo
 echo "RESULT: $pass passed, $fail failed"
