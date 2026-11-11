@@ -238,7 +238,8 @@ test('real install --target widelai: skill + generated rules + pointer line; ide
   assert.match(rules, /verify-chain/);
   assert.match(rules, /warning-only/);
   assert.doesNotMatch(rules, /Both must agree/);
-  assert.doesNotMatch(rules, /flow-cost\/v1/);
+  assert.match(rules, /flow-cost\/v1/);
+  assert.match(rules, /warn-only/);
 
   const agentsPath = join(home, '.widelai', 'AGENTS.md');
   assert.ok(existsSync(agentsPath), 'AGENTS.md pointer file missing');

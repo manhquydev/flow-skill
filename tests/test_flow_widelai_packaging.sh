@@ -4,7 +4,7 @@
 #   1. SKILL.md frontmatter validity (name, compatibility, receipts attestation-only)
 #   2. Frontmatter name equals the skill directory name
 #   3. Rules-file generation (sync.mjs): exists, header, homed rules, no
-#      "Both must agree", no flow-cost/v1, word budget, byte-identical re-run
+#      "Both must agree", flow-cost/v1 documented (warn-only), word budget, byte-identical re-run
 #   3b. Rules generation on a CRLF checkout (Windows): sync succeeds, verdict
 #      line present, generated file byte-identical to the LF one, no CR bytes
 #   4. Node CLI installer idempotency for --target widelai (fake HOME, two runs,
@@ -91,8 +91,8 @@ ck yes "$(has_key compatibility)" "frontmatter has compatibility"
 ck yes "$(has_key metadata)" "frontmatter has metadata"
 grep -q '^name: flow$' "$SKILL" && ck yes yes "name is flow" || ck yes no "name is flow"
 grep -q '^compatibility: bash 3.2+, Python 3.7+ (stdlib sqlite3) for product commands$' "$SKILL" && ck yes yes "compatibility line exact" || ck yes no "compatibility line exact"
-grep -q '^  receipts: flow-attestation/v1$' "$SKILL" && ck yes yes "receipts lists flow-attestation/v1 only" || ck yes no "receipts lists flow-attestation/v1 only"
-grep -q 'flow-cost' "$SKILL" && ck no yes "no flow-cost/v1 in SKILL.md" || ck no no "no flow-cost/v1 in SKILL.md"
+grep -q '^  receipts: flow-attestation/v1, flow-cost/v1$' "$SKILL" && ck yes yes "receipts lists flow-attestation/v1 + flow-cost/v1" || ck yes no "receipts lists flow-attestation/v1 + flow-cost/v1"
+grep -q 'flow-cost' "$SKILL" && ck yes yes "SKILL.md documents flow-cost/v1" || ck yes no "SKILL.md documents flow-cost/v1"
 # shellcheck disable=SC2016
 pkg_ver="$(sed -n 's/^  "version": "\([^"]*\)",$/\1/p' "$ROOT/npm-wrapper/package.json" | head -1)"
 grep -Fqx "  version: \"$pkg_ver\"" "$SKILL" && ck yes yes "version matches npm-wrapper ($pkg_ver)" || ck yes no "version matches npm-wrapper ($pkg_ver)"
@@ -114,7 +114,7 @@ grep -q 'flow-attestation/v1' "$RULES_SRC" && ck yes yes "rules file points at f
 grep -q 'verify-chain' "$RULES_SRC" && ck yes yes "rules file points at verify-chain" || ck yes no "rules file points at verify-chain"
 grep -q 'warning-only' "$RULES_SRC" && ck yes yes "rules file states warning-only next" || ck yes no "rules file states warning-only next"
 grep -q 'Both must agree' "$RULES_SRC" && ck no yes "rules file never copies Both must agree" || ck no no "rules file never copies Both must agree"
-grep -q 'flow-cost' "$RULES_SRC" && ck no yes "rules file never lists flow-cost/v1" || ck no no "rules file never lists flow-cost/v1"
+grep -q 'flow-cost' "$RULES_SRC" && ck yes yes "rules file lists flow-cost/v1 (warn-only)" || ck yes no "rules file lists flow-cost/v1 (warn-only)"
 grep -q 'BLOCKED' "$RULES_SRC" && ck no yes "rules file states no BLOCKED verdict" || ck no no "rules file states no BLOCKED verdict"
 words="$(wc -w < "$RULES_SRC" | tr -d ' ')"
 [ "$words" -le 400 ] && ck yes yes "rules file under 400 words ($words)" || ck yes no "rules file under 400 words ($words)"

@@ -1,0 +1,16 @@
+schema: flow-cost/v1
+run_id: run-20261112-000001
+stage: 05-contract
+subject_fingerprint: git-sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+attestation_ref: none
+model_id: claude-sonnet-5.5
+input_tokens: 12000
+output_tokens: 3000
+token_count_source: reported
+price_table_version: widelai-2026-11-12
+input_price_mcr_per_1k: 400
+output_price_mcr_per_1k: 2000
+cost_mcredits: 10800
+budget_cap_mcredits: 50000
+budget_status: within
+timestamp: 2026-11-12T00:00:00Z

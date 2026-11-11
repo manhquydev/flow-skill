@@ -1614,6 +1614,10 @@ cmd_next() {
           *) echo "WARNING: stage $_cur_stage semantic receipt is $_st (auto will require a current pass; see references/attestations.md)" ;;
         esac
       fi
+      # Cost receipt: warn-only accounting evidence, never a gate (see
+      # references/cost-receipts.md). Prints to stderr only when there is
+      # something to warn about; always returns 0.
+      _att_cost_warn "$_cur_stage" || true
     fi
   fi
   local idx; idx="$(current_stage_idx)"

@@ -104,7 +104,10 @@ Path layout under main state root:
   semantic_gate/card-C-001.receipt
   live_verify/card-C-001.receipt
   live_verify/card-C-001.attempt
+  cost/stage-05-contract.receipt
 ```
+
+Cost receipts (`flow-cost/v1`) are per-stage model/spend evidence; see `references/cost-receipts.md`.
 
 Required keys, **canonical order**, single-line `key: value`:
 
@@ -294,6 +297,7 @@ flow attest semantic --card <id> --base <rev> --revision <rev> --owner <manifest
 flow attest live-verify <id> --revision <rev> --owner <manifest>
 flow attest status [<stage|card>]
 flow attest recover <C-NNN> --mark-failed
+flow attest cost record|status --stage <stage> [options]
 flow auto
 flow auto stop
 ```
