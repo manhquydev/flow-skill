@@ -75,6 +75,7 @@ test_manifest_runner.sh
 test_doc_budgets.sh
 test_flow_four_point_compat.sh
 test_i18n_pairs.sh
+test_flow_ready_report_schema.sh
 test_install_safe_update.sh
 test_flow_windows_lifecycle.sh
 test_release_eligibility.sh

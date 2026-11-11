@@ -44,6 +44,45 @@ Mixing them auto-answers a payments card or auto-halts a yes/no prompt.
 The **HOST waits** (Task join / human / the mux's own wait). `flow.sh` **never waits on or polls** another agent. Fan-in is world-state: re-invoke `check` in
 the card worktree after the host's wait returns.
 
+## Machine contract (ready.report)
+
+`flow ready --json` emits a single `ready.report` envelope (schema_version 1) that is the
+machine-readable source of truth for host-side wave dispatch. The primary consumer is the
+lab dispatch bridge (`plans/261101-0002-flowskill-agent-lab/lab-ready-dispatch.py`), which
+keys on `EXPECTED_READY_REPORT_KEYS` and validates via `validate_ready_report()`. The test
+suite `tests/test_flow_ready_report_schema.sh` pins the key-set and must be updated in the
+same change as any runner change to the envelope.
+
+**Top-level key-set (pinned, non-negotiable):**
+`schema_version`, `kind`, `planning_complete`, `note`, `buildable`, `blocked`, `warnings`,
+`groups`, `auto`, `parallel_policy`.
+
+**`buildable[]` item sub-key-set:** `id`, `deps`, `allowed_files`, `wave`.
+
+**`groups`:** array-of-arrays of card-id strings (each inner array is a parallel-safe wave).
+
+**Not a stability promise.** The key-set is tested but the project has not adopted a formal
+backward-compatibility guarantee for it. When changing the runner's `_ready_json` output,
+sync both the test (`test_flow_ready_report_schema.sh`) and the lab validator
+(`lab-ready-dispatch.py`) in the same change; a key-set drift that lands without the test
+failing is a bug, not a feature.
+
+**Host-side wave re-derive (pseudo-code).** The host owns every spawn and join; `flow.sh`
+is read-only for this protocol:
+
+```text
+loop:
+  envelope = flow ready --json        # source of truth, re-callable
+  groups   = envelope.groups
+  if groups empty: break
+  for wave in groups:
+    n = min(N, |wave|)                # N = host concurrency cap
+    spawn n workers, one per card
+  join                                # host waits
+  # worker death mid-wave is fine: re-call ready --json; done cards never
+  # reappear in buildable[] (their check already passed).
+```
+
 ## Forbidden (ADR-0001; not a nit)
 
 `flow.sh` must not exec host control CLIs (`herdr agent start`, `herdr agent wait`, `herdr agent prompt`, `herdr server stop`, `tmux send-keys`, and equivalents).
