@@ -29,7 +29,7 @@ Publisher dispatch defaults to `dry-run`. Live mode requires `FLOW_AUTOPUBLISH_E
 | Job | Typical duration | Timeout budget |
 |---|---|---|
 | bash-suite ubuntu | ~8 min | **25m** |
-| bash-suite macOS | full-suite runs ~22–40 min (22m44s–22m41s green on master; killed at 25m18s mid-suite with steady progress on PR88 run 40069912151, and at 40m19s on job 129876035964 on 2026-11-10, both against earlier green 37m40s/39m29s) — marginal headroom, budget raised with that evidence | **60m** |
+| bash-suite macOS | Observed full-suite attempts span ~22–40 min (22m41s–22m44s green on master; PR88 run 40069912151 was killed at 25m18s mid-suite with steady progress while the identical tree passed master run 40063546827 in 22m44s; 2026-11-10 job 129876035964 was cancelled at 40m19s against earlier green 37m40s/39m29s) — marginal headroom, budget raised with that evidence | **60m** |
 | bash-suite Windows | Serial baseline ~54–60 min; a historical shard ran 61m and another reached 80m15s before cancellation | **100m / shard** |
 | npm-wrapper matrix | ~15–40s / cell | 10m |
 
