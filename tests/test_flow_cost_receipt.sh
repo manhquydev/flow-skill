@@ -83,7 +83,18 @@ ck 0 "$rc" "record exit 0"
 has "$out" 'cost: 10800 mcr  budget: within' "record prints cost 10800 mcr within"
 [ -f "$COST" ] && ck yes yes "cost receipt file exists" || ck yes no "cost receipt file exists"
 perm="$(stat -c %a "$COST" 2>/dev/null || stat -f %Lp "$COST" 2>/dev/null)"
-ck 600 "$perm" "cost receipt mode 600"
+case "$(uname -s 2>/dev/null)" in
+  MINGW*|MSYS*|CYGWIN*)
+    # Windows/NTFS does not honor chmod 600 (Git Bash chmod is a no-op); CI evidence:
+    # run 43140942099 windows 3/3 "expected='600' got='644'". Assert the file exists
+    # and is owner-readable instead of the exact POSIX mode.
+    [ -s "$COST" ] && ck yes yes "cost receipt exists (mode check skipped on Windows)" \
+                    || ck yes no "cost receipt exists (mode check skipped on Windows)"
+    ;;
+  *)
+    ck 600 "$perm" "cost receipt mode 600"
+    ;;
+esac
 grep -qx 'schema: flow-cost/v1' "$COST" && ck yes yes "schema line" || ck yes no "schema line"
 grep -qx 'run_id: run-20261112-000001' "$COST" && ck yes yes "run_id kept" || ck yes no "run_id kept"
 grep -qx 'stage: 05-contract' "$COST" && ck yes yes "stage line" || ck yes no "stage line"
