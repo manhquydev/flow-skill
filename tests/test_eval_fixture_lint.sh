@@ -212,6 +212,16 @@ else
 fi
 rm -rf "$TMPCORPUS"
 
+echo "I) doc count pin: 'shipped fixtures' number in gate-eval.md matches manifest.tsv"
+GE_DOC="$HERE/../skills/flow/references/gate-eval.md"
+doc_n="$(sed -nE 's/.*\b([A-Za-z]+|[0-9]+) shipped fixtures.*/\1/p' "$GE_DOC" | head -1 | tr 'A-Z' 'a-z')"
+case "$doc_n" in
+  [0-9]*) : ;;
+  *) doc_n="$(printf '%s' "$doc_n" | sed -e 's/^fifteen$/15/' -e 's/^sixteen$/16/' -e 's/^seventeen$/17/' -e 's/^eighteen$/18/' -e 's/^nineteen$/19/' -e 's/^thirteen$/13/' -e 's/^fourteen$/14/' -e 's/^twenty$/20/' -e 's/^twelve$/12/' -e 's/^eleven$/11/' -e 's/^ten$/10/' -e 's/^nine$/9/' -e 's/^eight$/8/' -e 's/^seven$/7/' -e 's/^six$/6/' -e 's/^five$/5/' -e 's/^four$/4/' -e 's/^three$/3/' -e 's/^two$/2/' -e 's/^one$/1/')" ;;
+esac
+data_rows="$(awk -F'\t' '$1 != "" && $1 != "id"' "$MANIFEST" | wc -l | tr -d ' ')"
+ck "$data_rows" "$doc_n" "gate-eval.md 'N shipped fixtures' equals manifest.tsv data rows ($data_rows)"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
