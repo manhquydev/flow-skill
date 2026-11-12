@@ -1,4 +1,4 @@
--- Harness schema - migration 015 (flow-owned).
+-- Harness schema - migration 016 (flow-owned).
 -- Verify-command receipt mirror. The append-only JSONL sink (.flow/events.jsonl,
 -- kind:"verify-receipt") is the source of truth; this table is a derived, queryable
 -- rollup written by cmd_rollup. Idempotency rests on UNIQUE(src, line_no): re-rolling
@@ -17,4 +17,4 @@ CREATE TABLE verify_receipt (
 
 CREATE INDEX idx_verify_receipt_card ON verify_receipt(card);
 
-INSERT INTO schema_version (version) VALUES (15);
+INSERT INTO schema_version (version) VALUES (16);

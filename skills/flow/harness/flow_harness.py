@@ -896,7 +896,7 @@ def cmd_rollup(con, a):
                 continue
             row = _coerce_event(o)
             if o.get("kind") == "verify-receipt":
-                # verify-receipt events carry a different column set (schema 015);
+                # verify-receipt events carry a different column set (schema 016);
                 # they roll up into verify_receipt, not usage_event. Cursor and
                 # UNIQUE(src,line_no) idempotency are shared with the usage path.
                 vr = [src, n, o.get("card"), o.get("cmd"), o.get("sha256"), o.get("exit_code")]
