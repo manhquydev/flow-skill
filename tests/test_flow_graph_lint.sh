@@ -147,6 +147,47 @@ EOF
 FLOW_PROJECT_ROOT="$SB" "$PY" "$H" graph next --execution "$EOLD" --topology "$SB/tfix.json" >/dev/null 2>&1
 ck 2 $? "--topology without FLOW_GRAPH_TOPOLOGY_FIXTURE=1 refused (trust-model gate)"
 
+echo "E2) force fork preserves ancestry; paused executions refuse even force"
+FORK="$(FLOW_PROJECT_ROOT="$SB" "$PY" - "$H" "$SB/.flow/harness.db" <<'EOF'
+import json, sqlite3, subprocess, sys
+h, db = sys.argv[1:]
+def run(*args):
+    return subprocess.run([sys.executable, h, 'graph', *args], capture_output=True, text=True)
+eid = run('run', '--kind', 'planning', '--topology-hash', 'old-hash').stdout.strip()
+ck = run('record', '--execution', eid, '--node', 'stage-00', '--gate-exit', '0').stdout.strip()
+c = sqlite3.connect(db)
+# Deterministic future head models clock regression without sleeps or clock edits.
+ck = 'f000000000000000000001'
+c.execute('UPDATE graph_checkpoint SET checkpoint_id=? WHERE execution_id=?', (ck, eid)); c.commit()
+before = c.execute('SELECT * FROM graph_checkpoint WHERE execution_id=?', (eid,)).fetchall()
+assert run('next', '--execution', eid).returncode == 1
+assert c.execute('SELECT * FROM graph_checkpoint WHERE execution_id=?', (eid,)).fetchall() == before
+result = run('next', '--execution', eid, '--force-retopology')
+assert result.returncode == 0 and result.stdout.strip() == 'stage-01'
+rows = c.execute('SELECT checkpoint_id,parent_checkpoint_id,node,manifest,meta FROM graph_checkpoint '
+                 'WHERE execution_id=? ORDER BY checkpoint_id', (eid,)).fetchall()
+assert len(rows) == 2 and rows[1][1] == ck and rows[0][0] == ck
+assert rows[1][2:4] == rows[0][2:4] and json.loads(rows[1][4])['source'] == 'fork'
+assert rows[1][0] > ck
+status = json.loads(run('status', '--execution', eid).stdout)
+assert status['latest'][0]['checkpoint_id'] == rows[1][0]
+next_ck = run('record', '--execution', eid, '--node', 'stage-01', '--gate-exit', '0', '--parent', rows[1][0]).stdout.strip()
+meta = c.execute('SELECT parent_checkpoint_id,meta FROM graph_checkpoint WHERE checkpoint_id=?', (next_ck,)).fetchone()
+assert next_ck > rows[1][0] and meta[0] == rows[1][0]
+assert json.loads(meta[1])['step'] == json.loads(rows[1][4])['step'] + 1
+assert run('record', '--execution', eid, '--node', 'stage-01', '--interrupt').returncode == 3
+c.execute("UPDATE graph_execution SET topology_hash='paused-old' WHERE id=?", (eid,)); c.commit()
+before = c.execute('SELECT * FROM graph_checkpoint WHERE execution_id=?', (eid,)).fetchall()
+assert run('next', '--execution', eid, '--force-retopology').returncode == 3
+assert c.execute('SELECT * FROM graph_checkpoint WHERE execution_id=?', (eid,)).fetchall() == before
+assert c.execute('SELECT topology_hash FROM graph_execution WHERE id=?', (eid,)).fetchone()[0] == 'paused-old'
+print('fork ancestry intact; mismatch and paused force do not advance')
+c.close()
+EOF
+)"
+ck 0 $? "fork ancestry and paused-force assertions complete"
+has "$FORK" "fork ancestry intact" "fork preserves parent/evidence; pause blocks repinning"
+
 echo "F) shipped topology through the executor: default path + debt-skip substitution"
 E2="$(FLOW_PROJECT_ROOT="$SB" "$PY" "$H" graph run --kind planning)"
 mkdir -p "$SB/flow"; printf '03-prd\n' > "$SB/flow/.skipped"

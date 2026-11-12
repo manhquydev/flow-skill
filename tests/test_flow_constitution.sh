@@ -105,7 +105,7 @@ has "$(grep -A2 '^  constitution)' "$RUN")" "cmd_constitution" "constitution IS 
 
 echo "I) recall surfaces the project constitution when present"
 newsb; clean_table
-out="$(FLOW_PROJECT_ROOT="$SB" FLOW_HARNESS_DISABLE=1 bash "$RUN" recall 2>&1)"
+out="$(FLOW_PROJECT_ROOT="$SB" bash "$RUN" recall 2>&1)"
 has "$out" "PROJECT CONSTITUTION" "recall shows the constitution section"
 has "$out" "INV-1" "recall lists the invariant"
 rm -rf "$SB"

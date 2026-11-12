@@ -6,6 +6,7 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 RUN="$HERE/../skills/flow/runner/flow.sh"
 EVAL_DIR="$HERE/../skills/flow/eval"
+. "$HERE/fixture_path_lib.sh"
 pass=0; fail=0
 ck()  { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected='$1' got='$2'"; fail=$((fail+1)); fi; }
 has() { if printf '%s' "$1" | grep -q -- "$2"; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] (missing: $2)"; fail=$((fail+1)); fi; }
@@ -25,7 +26,8 @@ _portable_timeout() { # $1 = seconds, rest = command
 newsb() {
   SB="$(mktemp -d)"
   mkdir -p "$SB/flow" "$SB/cards"
-  export FLOW_PROJECT_ROOT="$SB" FLOW_HARNESS_DISABLE=1 FLOW_LOG_DISABLE=1
+  export FLOW_PROJECT_ROOT="$SB" FLOW_LOG_DISABLE=1
+  unset FLOW_HARNESS_DISABLE
 }
 
 clean() { rm -rf "$SB" 2>/dev/null; unset FLOW_PROJECT_ROOT FLOW_SESSION_ID; }
@@ -48,6 +50,8 @@ hide_claude_bin() {
       [ -e "$fakebin/$b" ] || ln -s "$f" "$fakebin/$b" 2>/dev/null || cp "$f" "$fakebin/$b" 2>/dev/null
     done
   done
+  fixture_add_python "$fakebin" python3 || return 1
+  fixture_add_python "$fakebin" python || return 1
   printf '%s' "$fakebin"
 }
 

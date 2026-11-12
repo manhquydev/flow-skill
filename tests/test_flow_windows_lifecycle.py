@@ -191,6 +191,35 @@ def test_surplus_output_drain():
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
+def test_nonzero_runner_diagnostics_do_not_echo_child_output():
+    if os.name != 'nt':
+        skip("nonzero runner diagnostic privacy test")
+        return
+    tmp = tempfile.mkdtemp(prefix="flow_win_test_")
+    try:
+        proj = mk_proj(tmp, "p_nonzero")
+        runner_dir = os.path.join(tmp, "fake_runner", "runner")
+        os.makedirs(runner_dir, exist_ok=True)
+        runner_sh = os.path.join(runner_dir, "flow.sh")
+        with open(runner_sh, "w") as f:
+            f.write("#!/bin/sh\nprintf '%s\\n' 'FLOW_STDOUT_SENTINEL_6f283a'\n"
+                    "printf '%s\\n' 'FLOW_STDERR_SENTINEL_b9501d' >&2\nexit 7\n")
+        os.chmod(runner_sh, 0o755)
+        env = dict(os.environ)
+        env["FLOW_SKILL_DIR"] = os.path.join(tmp, "fake_runner")
+        payload = json.dumps({"hook_event_name": "SessionStart", "cwd": proj}).encode("utf-8")
+        proc = subprocess.run([sys.executable, HANDLER_PY], input=payload,
+                              capture_output=True, env=env, timeout=10)
+        check("nonzero runner diagnostic: handler fails open", proc.returncode == 0)
+        check("nonzero runner diagnostic: runner exit and byte counts observed",
+              b"run_flow exit 7, captured stdout=28 bytes, captured stderr=28 bytes" in proc.stderr)
+        check("nonzero runner diagnostic: stdout sentinel suppressed",
+              b"FLOW_STDOUT_SENTINEL_6f283a" not in proc.stdout + proc.stderr)
+        check("nonzero runner diagnostic: stderr sentinel suppressed",
+              b"FLOW_STDERR_SENTINEL_b9501d" not in proc.stdout + proc.stderr)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
 def test_root_exit_descendant_held_pipe():
     tmp = tempfile.mkdtemp(prefix="flow_win_test_")
     try:
@@ -304,6 +333,7 @@ def main():
     test_silent_held_stdin()
     test_oversized_stdin()
     test_surplus_output_drain()
+    test_nonzero_runner_diagnostics_do_not_echo_child_output()
     test_root_exit_descendant_held_pipe()
 
     print("\nRESULT: %d passed, %d failed, %d skipped" % (passed, failed, skipped))

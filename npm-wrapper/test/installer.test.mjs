@@ -295,6 +295,31 @@ test('ancestor symlink in dest path → refused before any filesystem change', (
   assert.match(r.error, /ancestor symlink refused/);
 });
 
+test('ancestor symlink in dest path: symlink refused, physical (pwd -P / realpath) dest accepted', () => {
+  const tmp = scratch('ancestor-physical');
+  const src = makeSource(join(tmp, 'src'));
+  const realDir = join(tmp, 'real');
+  mkdirSync(realDir, { recursive: true });
+  const linkDir = join(tmp, 'link');
+  try {
+    symlinkSync(realDir, linkDir);
+  } catch (err) {
+    if (err.code === 'EPERM' || err.code === 'ENOSYS') return;
+    throw err;
+  }
+  // Symlink-spelled dest: real install throws destination ancestor symlink refused
+  const symlinkDest = join(linkDir, 'skills', 'flow');
+  const r1 = install({ sourceDir: src, destDir: symlinkDest });
+  assert.equal(r1.success, false);
+  assert.match(r1.error, /destination ancestor symlink refused/);
+
+  // Physical path (pwd -P / realpathSync) does not have a symlink ancestor and succeeds
+  const physicalDest = join(realpathSync(linkDir), 'skills', 'flow');
+  const r2 = install({ sourceDir: src, destDir: physicalDest });
+  assert.equal(r2.success, true);
+  assert.equal(r2.error, undefined);
+});
+
 test('ancestor symlink with .. in dest path (e.g. link/../real/dest) → refused before any write', () => {
   const tmp = scratch('ancestor-dotdot-dest');
   const src = makeSource(join(tmp, 'src'));

@@ -1,17 +1,16 @@
 # Migration guide — flow v1 (graph executor)
 
-**Status: not released.** This guide describes the breaking changes a future `v1.0.0`
-will carry, written while the implementation is fresh. The current release still runs
-with the graph executor **off by default** and still degrades gracefully without python.
+**Status: released as skill 1.0.0.** The breaking behavior was accepted on master (`794fd026141e23a29b5c79af072e7f4fd0bdc165`); the [GitHub `v1.0.0` release](https://github.com/manhquydev/flow-skill/releases/tag/v1.0.0) was published 2026-10-24 and [npm installer `1.0.0`](https://www.npmjs.com/package/@manhquy/flow-skill/v/1.0.0) on 2026-10-25. npm `latest` was verified at `1.0.0` on 2026-10-30.
 
 ## What changes at v1
 
 ### 1. Python becomes required
 
-The durable layer and the graph executor are python (stdlib only — no third-party
-packages, ever). Today a project without python still runs the mechanical engine; at v1
-the executor becomes the ordering authority, so a missing interpreter is a hard stop
-rather than a silent downgrade.
+The durable layer and graph executor use Python's standard library only; no third-party
+packages are required. At v1, Python is required for Flow product operations because the
+graph executor owns ordering. Missing or too-old Python is an actionable refusal, never a
+silent fallback to the legacy stage ladder. `flow doctor` remains available to diagnose
+the missing prerequisite.
 
 - **Measured floor: Python 3.7.** Not asserted — measured: the harness uses
   `subprocess.run(capture_output=…, text=…)` (3.7+) and nothing newer (no walrus, no
@@ -22,10 +21,10 @@ rather than a silent downgrade.
 
 ### 2. `FLOW_HARNESS_DISABLE` stops being an escape hatch
 
-It currently disables all durable writes while the engine keeps running. Once the
-executor owns ordering, "run but do not record" is a split-brain state, so the variable
-becomes a startup error naming this guide. If you set it in a shell profile or CI, unset
-it before upgrading.
+`FLOW_HARNESS_DISABLE` is not supported for product operations in v1. The runner refuses
+startup and points to this guide rather than running without durable ordering/checkpoints.
+Remove the variable from shell profiles and CI before upgrading. Help and doctor remain
+available so the operator can identify the problem.
 
 ### 3. Paused executions and topology upgrades
 
@@ -45,9 +44,35 @@ hash. Finish or fork in-flight runs before upgrading if you care about their jou
 
 ## Rollback
 
-Pin the previous major (`npm i -g @manhquy/flow-skill@0.x`, or check out the prior skill
-tag). The schema is additive — a downgraded install ignores the graph tables, and no
-existing row is modified — so a rollback loses executor journals but nothing else.
+The last published pre-v1 pair is npm `0.7.16` (published 2026-10-22) with skill
+`0.34.9`. A 2026-10-30 read of the [registry package tarball](https://registry.npmjs.org/@manhquy/flow-skill/-/flow-skill-0.7.16.tgz)
+verified that its 133 bundled Flow skill files match the GitHub `v0.34.9` release tag at commit
+`9ccda18d3da36b635d6d2f2a5b5096bfcb669e64`. To restore that pair, invoke the installer
+with its exact package pin, for example `npx --yes @manhquy/flow-skill@0.7.16`;
+`npm install` alone does not copy or replace installed skill files. Restart/reload the
+agent. Find the active skill directory, then run
+`bash <active-skill-dir>/runner/flow.sh doctor --check bundled_tree_integrity`
+from a shell: its `bundled_tree_integrity` check verifies the installed
+tree against the ownership receipt shipped by the `0.7.16` pin. Require the result
+`bundled tree integrity: ok`; `skipped` or `FAIL` does not confirm integrity. Note that this check is
+an integrity check only — it hashes files against a local receipt and does not identify
+the package version, so an intact pre-rollback installation could also pass it. It is
+not by itself proof that the rollback landed. After running it, confirm the rollback by
+checking the active install path (the copy the agent actually loads, which may be a
+project-local install rather than the global one the installer updated) and confirming
+its bundled skill version is `0.34.9`. Confirm the release record for
+the exact package-to-skill mapping before choosing a pin; do not infer skill version from
+the npm package version. This restores the installer and bundled skill only; it does not
+reverse database migrations.
+
+The published v1 release passed the database backup and restore acceptance gate
+before promotion; the [release changelog](../CHANGELOG.md) records the migration,
+rollback, and CI evidence.
+Schema additions alone do not prove rollback safety. Back up SQLite consistently
+(including WAL state), retain the backup, stop active Flow workers before restoring, and
+verify the restored database and project files. Do not overwrite newer user data blindly.
+If a tested migration-specific restore is required, follow the exact released guide rather
+than assuming reinstalling old installer bytes reverses database changes.
 
 ## Durable-state locations
 

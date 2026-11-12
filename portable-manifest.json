@@ -1,6 +1,6 @@
 {
   "name": "flow",
-  "version": "0.34.4",
+  "version": "1.0.1",
   "description": "buildflow gated build harness: idea to real done-evidence through honest gates (web|cli|library|skill), with a durable harness layer, a chat-first concierge front-door, and standalone-native gate rituals (ck: + BMAD remain optional enrichment, not requirements). Cross-vendor agent orchestration (ck: + bmad + Codex second engine + Antigravity/Gemini-3 third engine) still portable across Claude Code (/flow), Codex CLI ($flow), and Antigravity (agy CLI / IDE).",
   "type": "skill",
   "plugin": ".claude-plugin/plugin.json",
@@ -10,7 +10,7 @@
   "runner_windows": "skills/flow/runner/flow.cmd (PowerShell/cmd/Codex launcher -> Git Bash; avoids WSL path failures)",
   "runtime": {
     "bash": "required (gate runner; Git Bash on Windows)",
-    "python": "optional (durable harness layer; stdlib sqlite3, no pip install)",
+    "python": "required (durable harness layer + graph ordering; stdlib sqlite3, no pip install)",
     "cargo": "not required (FLOW_HARNESS_BACKEND=rust seam is frozen + compat-guarded; refuses flow-lineage DBs)"
   },
   "install": {
@@ -85,6 +85,6 @@
     "principles": "research-report-agent-orchestration-2026.md"
   },
   "hashes": {
-    "skills/flow/runner/flow.sh": "a4fcdf1a52c499765d88c700fd038e1d5bba902bad544905b22c9070216e6d61"
+    "skills/flow/runner/flow.sh": "f8e51a67797c4b896b6f4cbc6e1e56f13133f431cb29ba83f02067d6e70cf0a2"
   }
 }

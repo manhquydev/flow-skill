@@ -18,6 +18,8 @@ only: no stack, no runtime.
    NEVER "works correctly", "handles edge case", or "unit tests pass".
    - Good: `GET /healthz returns 200 {ok:true} when the process is up`
    - Bad: `health check works correctly`
+   - Advisory: select targeted test suites by changed subsystem via
+     [`references/test-impact.md`](../references/test-impact.md).
 
 4. **No empty catch.** NEVER swallow with an empty `catch` / `except`. If
    the body is empty, MUST name what it swallows and why nothing else can

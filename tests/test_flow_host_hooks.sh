@@ -3,8 +3,9 @@
 # (skills/flow/adapter-hooks/, ADR-0001 Addendum 2026-10-13).
 # Covers the risks that warrant permanence: snapshot persistence contract, strict
 # payload parsing, ownership/mode/symlink refusals, output bounds, timeout process-group
-# kill (with orphan-scenario evidence), and the no-side-effect guarantees (no telemetry,
-# no .flow creation, inherited FLOW_PROJECT_ROOT shielded). NOT a source-text echo suite.
+# kill (with orphan-scenario evidence), nearest-root discovery (24 physical ancestors,
+# strict ancestor signatures, local-root precedence), and no-side-effect guarantees
+# (no telemetry, no .flow creation, inherited FLOW_PROJECT_ROOT shielded).
 # Run: bash tests/test_flow_host_hooks.sh   (exit 0 = pass)
 
 set -u
@@ -85,6 +86,179 @@ else
   te "snapshot cited as reference only" "$out" 'pre-compact snapshot: valid'
 fi
 tne "no stale mislabel on fresh path" "$out" 'STALE SOURCE'
+tne "missing source does not claim compaction" "$out" 'post-compaction'
+for source in startup resume clear fork compact unknown; do
+  out=$("$HANDLER" <<EOF
+{"hook_event_name":"SessionStart","cwd":"$(to_json_path "$P1")","source":"$source"}
+EOF
+  ); check "source $source exit 0" "$?" "0"
+  if [ "$source" = compact ]; then
+    te "compact source retains authority" "$out" 'post-compaction authoritative'
+  else
+    tne "$source does not claim compaction" "$out" 'post-compaction'
+    te "$source fresh handoff" "$out" '\[source: fresh'
+  fi
+done
+
+# Discovery uses real temporary homes and runners, never a fake os.name. On POSIX,
+# select ntpath.expanduser explicitly to simulate USERPROFILE resolution only;
+# native Windows process/launcher coverage remains a CI responsibility.
+DISC_HOME="$TMP/discovery-home"
+for target in .claude/skills/flow .codex/skills/flow .agents/skills/flow .omp/agent/skills/flow .cursor/skills/flow .gemini/antigravity-cli/skills/flow .gemini/config/skills/flow; do
+  mkdir -p "$DISC_HOME/$target/runner"
+  printf '#!/bin/sh\nprintf "discovered-home-marker\\n"\n' > "$DISC_HOME/$target/runner/flow.sh"
+  chmod +x "$DISC_HOME/$target/runner/flow.sh"
+  out=$(HOME="$(to_json_path "$DISC_HOME")" FLOW_SKILL_DIR= "$HANDLER" <<EOF
+{"hook_event_name":"SessionStart","cwd":"$(to_json_path "$P1")"}
+EOF
+  ); check "discover $target exit 0" "$?" "0"
+  te "discover $target handoff" "$out" 'discovered-home-marker'
+  if [ "$target" = .claude/skills/flow ]; then
+    out=$(
+      unset HOME FLOW_SKILL_DIR
+      export USERPROFILE="$(to_json_path "$DISC_HOME")"
+      "$PY_BIN" -c 'import ntpath, os, runpy, sys; os.path.expanduser = ntpath.expanduser; runpy.run_path(sys.argv[1], run_name="__main__")' "$(to_native_path "$REAL_SKILL/adapter-hooks/context_handler.py")" <<EOF
+{"hook_event_name":"SessionStart","cwd":"$(to_json_path "$P1")"}
+EOF
+    ); check "HOME unset USERPROFILE simulation exit 0" "$?" "0"
+    te "HOME unset expanded home handoff" "$out" 'discovered-home-marker'
+    out=$(HOME="$(to_json_path "$DISC_HOME")" "$HANDLER" <<EOF
+{"hook_event_name":"SessionStart","cwd":"$(to_json_path "$P1")"}
+EOF
+    ); check "explicit skill directory exit 0" "$?" "0"
+    te "explicit skill directory fresh handoff" "$out" '\[source: fresh'
+    tne "explicit skill directory wins over home" "$out" 'discovered-home-marker'
+  fi
+  rm -rf "$DISC_HOME/$target"
+done
+# --- Bounded nearest-root discovery --------------------------------------------
+# Keep every scanned ancestor inside our fixture even if TMPDIR is in a Flow repo.
+ROOT_BASE="$TMP/roots"
+i=0
+while [ "$i" -lt 24 ]; do ROOT_BASE="$ROOT_BASE/d"; i=$((i+1)); done
+mkdir -p "$ROOT_BASE" "$TMP/root-skill/runner"
+ROOT_LOG="$TMP/root-record.json"
+ROOT_RUNNER="$TMP/root-skill/runner/flow.sh"
+cat > "$ROOT_RUNNER" <<'SH'
+#!/usr/bin/env bash
+"$FLOW_TEST_PY" -c 'import json, os; json.dump({"root": os.environ["FLOW_PROJECT_ROOT"], "cwd": os.getcwd(), "log_disable": os.environ.get("FLOW_LOG_DISABLE")}, open(os.environ["FLOW_TEST_ROOT_LOG"], "w"))'
+printf 'root-context:%s\n' "$FLOW_PROJECT_ROOT"
+SH
+root_handoff() {
+  rm -f "$ROOT_LOG"
+  out=$(FLOW_TEST_PY="$PY_BIN" FLOW_TEST_ROOT_LOG="$(to_json_path "$ROOT_LOG")" \
+    FLOW_SKILL_DIR="$(to_json_path "$TMP/root-skill")" "$HANDLER" <<EOF
+{"hook_event_name":"SessionStart","cwd":"$(to_json_path "$1")","source":"startup"}
+EOF
+  ); rc=$?
+  check "$2 exit 0" "$rc" "0"
+}
+root_selected() {
+  "$PY_BIN" -c '
+import json, os, sys
+d = json.load(open(sys.argv[1]))
+physical = lambda p: os.path.normcase(os.path.realpath(p))
+assert physical(d["root"]) == physical(sys.argv[2]), d
+assert physical(d["cwd"]) == physical(sys.argv[2]), d
+assert d["log_disable"] == "1", d
+' "$(to_native_path "$ROOT_LOG")" "$(to_native_path "$1")" \
+    && ok "$2 runner root/cwd pinned, telemetry disabled" || bad "$2 runner root/cwd mismatch"
+  te "$2 context emitted" "$out" 'root-context:'
+  te "$2 fresh source labeled" "$out" '\[source: fresh'
+}
+root_refused() {
+  check "$1 stdout empty" "$out" ""
+  [ ! -e "$ROOT_LOG" ] && ok "$1 runner not invoked" || bad "$1 runner invoked"
+}
+
+# Only the stage artifact qualifies: no .flow run-state can mask discovery errors.
+MONO="$ROOT_BASE/monorepo"
+mkdir -p "$MONO/flow" "$MONO/packages/web"
+printf '# parent idea\n' > "$MONO/flow/00-idea.md"
+root_handoff "$MONO/packages/web" "monorepo child"
+root_selected "$MONO" "monorepo parent"
+te "monorepo startup label preserved" "$out" 'session startup authoritative'
+check "adoption leaves child empty" "$(find "$MONO/packages/web" -mindepth 1 -print)" ""
+
+NESTED="$MONO/packages/web"
+mkdir -p "$NESTED/flow" "$NESTED/src"
+printf '# nested inspect\n' > "$NESTED/flow/00-inspect.md"
+parent_before=$(find "$MONO/flow" -type f -exec cksum {} \;)
+root_handoff "$NESTED" "nested local project"
+root_selected "$NESTED" "nested local project wins"
+tne "nested project never emits parent root" "$out" "root-context:$(to_json_path "$MONO")$"
+root_handoff "$NESTED/src" "nearest ancestor project"
+root_selected "$NESTED" "nearest nested ancestor wins"
+check "parent state unchanged" "$(find "$MONO/flow" -type f -exec cksum {} \;)" "$parent_before"
+
+for signature in inspect state card; do
+  SIG="$ROOT_BASE/$signature"; mkdir -p "$SIG/child"
+  case "$signature" in
+    inspect) mkdir -p "$SIG/flow"; printf '# inspect\n' > "$SIG/flow/00-inspect.md" ;;
+    state) mkdir -p "$SIG/.flow" ;;
+    card) mkdir -p "$SIG/cards"; printf '# card\n' > "$SIG/cards/C-001.md" ;;
+  esac
+  root_handoff "$SIG/child" "$signature ancestor signature"
+  root_selected "$SIG" "$signature ancestor signature"
+done
+
+# Existing hook-local markers stay local, including bare dirs and MODE. Those
+# same bare dirs/MODE do not qualify for ancestor adoption (runner boundary).
+for marker in flow cards MODE; do
+  LOCAL="$MONO/local-$marker"; mkdir -p "$LOCAL"
+  if [ "$marker" = MODE ]; then printf 'build\n' > "$LOCAL/MODE"; else mkdir -p "$LOCAL/$marker"; fi
+  root_handoff "$LOCAL" "local $marker marker"
+  root_selected "$LOCAL" "local $marker precedence unchanged"
+  BARE="$ROOT_BASE/bare-$marker"; mkdir -p "$BARE/child"
+  if [ "$marker" = MODE ]; then printf 'build\n' > "$BARE/MODE"; else mkdir -p "$BARE/$marker"; fi
+  before=$(find "$BARE" | sort)
+  root_handoff "$BARE/child" "bare ancestor $marker"
+  root_refused "bare ancestor $marker"
+  check "bare ancestor $marker no auto-init" "$(find "$BARE" | sort)" "$before"
+done
+FALSE_CARDS="$ROOT_BASE/false-cards"
+mkdir -p "$FALSE_CARDS/cards/C-directory.md" "$FALSE_CARDS/child"
+printf '# not a card\n' > "$FALSE_CARDS/cards/notes.md"
+root_handoff "$FALSE_CARDS/child" "non-card ancestor"
+root_refused "non-card ancestor"
+
+BOUND="$ROOT_BASE/bounded"; mkdir -p "$BOUND/flow"
+printf '# bounded idea\n' > "$BOUND/flow/00-idea.md"
+DEEP="$BOUND"; i=0
+while [ "$i" -lt 24 ]; do DEEP="$DEEP/d"; i=$((i+1)); done
+mkdir -p "$DEEP/d"
+root_handoff "$DEEP" "24th ancestor"
+root_selected "$BOUND" "24th ancestor included"
+before=$(find "$BOUND" | sort)
+root_handoff "$DEEP/d" "no signature within 24 ancestors"
+root_refused "25th ancestor excluded"
+check "bounded miss no auto-init" "$(find "$BOUND" | sort)" "$before"
+
+# FLOW_PROJECT_ROOT is intentionally NOT a hook override: after cwd validation,
+# the hook replaces the inherited value with its selected physical project root.
+EXT_ROOT="$ROOT_BASE/explicit-other"; mkdir -p "$EXT_ROOT/flow"
+printf '# external idea\n' > "$EXT_ROOT/flow/00-idea.md"
+before=$(find "$EXT_ROOT" -type f -exec cksum {} \;)
+export FLOW_PROJECT_ROOT="$(to_json_path "$EXT_ROOT")"
+root_handoff "$NESTED/src" "inherited root with adopted project"
+root_selected "$NESTED" "inherited root cannot redirect adoption"
+root_handoff "$DEEP/d" "inherited root with no project in bound"
+root_refused "inherited root cannot bypass cwd validation"
+unset FLOW_PROJECT_ROOT
+check "explicit external root untouched" "$(find "$EXT_ROOT" -type f -exec cksum {} \;)" "$before"
+
+if [ "$IS_WINDOWS" -eq 0 ]; then
+  # The alias lives inside a project but points to a physical non-project subtree.
+  # Walking lexical parents would incorrectly adopt MONO and cross this boundary.
+  PHYSICAL="$ROOT_BASE/physical"; mkdir -p "$PHYSICAL/child"
+  ln -s "$PHYSICAL/child" "$MONO/alias"
+  root_handoff "$MONO/alias" "symlink lexical ancestor"
+  root_refused "symlink alias cannot adopt lexical parent"
+  ln -s "$NESTED/src" "$ROOT_BASE/valid-alias"
+  root_handoff "$ROOT_BASE/valid-alias" "symlink physical ancestor"
+  root_selected "$NESTED" "symlink uses nearest physical project"
+fi
+
 
 # --- Strict payload parsing ----------------------------------------------------
 printf 'not-json{{{' | "$HANDLER" >/dev/null 2>&1; check "malformed JSON fail-open" "$?" "0"

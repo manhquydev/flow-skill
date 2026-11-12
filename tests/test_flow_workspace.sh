@@ -8,8 +8,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 RUN="$HERE/../skills/flow/runner/flow.sh"
 pass=0; fail=0
 ck()  { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected '$1' got '$2'"; fail=$((fail+1)); fi; }
-has() { if printf '%s' "$1" | grep -q "$2"; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] (missing: $2)"; fail=$((fail+1)); fi; }
-no()  { if printf '%s' "$1" | grep -q "$2"; then echo "  FAIL [$3] (unexpected: $2)"; fail=$((fail+1)); else echo "  ok   [$3]"; pass=$((pass+1)); fi; }
+has() { if printf '%s' "$1" | grep -q -- "$2"; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] (missing: $2)"; fail=$((fail+1)); fi; }
+no()  { if printf '%s' "$1" | grep -q -- "$2"; then echo "  FAIL [$3] (unexpected: $2)"; fail=$((fail+1)); else echo "  ok   [$3]"; pass=$((pass+1)); fi; }
 
 # A real git repo with one commit (worktree add needs a HEAD). FLOW_SESSION_ID makes the lock strong.
 newsb() {
@@ -78,10 +78,15 @@ ck 1 "$rc" "enter on unknown branch exits 1"
 clean
 
 echo "F) git absent -> add/remove exit 1, read verbs exit 0 (graceful degrade)"
+# Git for Windows reconstructs native lookup paths; skip only the synthetic
+# Git-absent case, not workspace behavior with the platform's installed Git.
+case "$(uname -s 2>/dev/null):${RUNNER_OS:-}" in
+  MINGW*|MSYS*|CYGWIN*|*:Windows_NT|*:Windows)
+    echo '  SKIP [no-git simulation unavailable on Git for Windows; Git Bash reconstructs system PATH]' ;;
+  *)
 newsb
-# Symlink farm of the core bin dirs MINUS git, so flow.sh's coreutils run but 'command -v git' fails.
-# Bounded to /usr/bin + /bin (fast + present on all 3 OSes); git lives there on Linux/macOS so it is
-# explicitly excluded, and lives elsewhere on Git Bash so it is absent regardless.
+# Core utility shim PATH minus Git. Probe in a fresh Bash (not this shell):
+# Git Bash startup/executable lookup can expose git.exe despite a parent PATH.
 fakebin="$(mktemp -d)"
 for d in /usr/bin /bin; do
   [ -d "$d" ] || continue
@@ -92,16 +97,46 @@ for d in /usr/bin /bin; do
     [ -e "$fakebin/$b" ] || ln -s "$f" "$fakebin/$b" 2>/dev/null || cp "$f" "$fakebin/$b" 2>/dev/null
   done
 done
-if PATH="$fakebin" command -v git >/dev/null 2>&1; then
-  echo "  skip [git-absent] (platform still resolves git; cannot hide it here)"
-else
-  out="$(PATH="$fakebin" bash "$RUN" workspace add x 2>&1)"; rc=$?
-  ck 1 "$rc" "add exit 1 without git"
-  has "$out" "git not found" "add explains git missing"
-  out="$(PATH="$fakebin" bash "$RUN" workspace list 2>&1)"; rc=$?
-  ck 0 "$rc" "list exit 0 without git (read verb degrades)"
-fi
+# Keep an external native Python in its original install directory (DLL lookup
+# depends on it on Windows). The fresh-shell probe below also checks these dirs.
+no_git_path="$fakebin"
+for b in python3 python; do
+  f="$(command -v "$b" 2>/dev/null || true)"
+  [ -n "$f" ] || continue
+  d="$(dirname "$f")"
+  case "$d" in
+    /bin|/usr/bin) : ;; # already supplied by the core utility shim
+    *) no_git_path="$no_git_path:$d" ;;
+  esac
+done
+# Probe and dispatch in one fresh shell, so Windows startup cannot change PATH
+# between detection and the actual runner invocation. Require an absence marker.
+no_git_workspace() {
+  PATH="$no_git_path" "$BASH" -c '
+    runner="$1"; shift
+    hash -r
+    if command -v git >/dev/null 2>&1 || command -v git.exe >/dev/null 2>&1; then
+      printf "FLOW_TEST_GIT_PRESENT\n"; exit 77
+    fi
+    printf "FLOW_TEST_GIT_ABSENT\n"
+    . "$runner"
+  ' _ "$RUN" workspace "$@" 2>&1
+}
+out="$(no_git_workspace add x)"; rc=$?
+case "$out" in
+  FLOW_TEST_GIT_PRESENT*)
+    echo "  SKIP [git-absent workspace] (nested Bash still resolves git/git.exe)" ;;
+  FLOW_TEST_GIT_ABSENT*)
+    ck 1 "$rc" "add exit 1 without git"
+    has "$out" "git not found" "add explains git missing"
+    out="$(no_git_workspace list)"; rc=$?
+    has "$out" "FLOW_TEST_GIT_ABSENT" "list runs with verified Git absence"
+    ck 0 "$rc" "list exit 0 without git (read verb degrades)" ;;
+  *) ck 0 1 "missing-Git probe must actually start before testing workspace" ;;
+esac
 rm -rf "$fakebin"; clean
+    ;;
+esac
 
 echo "G) remove: dirty tree refused VERBATIM; --force removes + tombstones (C-003)"
 newsb
@@ -272,6 +307,18 @@ has "$out_oor" "FLOW_WORKSPACE_BASEPORT=70000 out of range (1..65535)" "out of r
 out_max="$(FLOW_WORKSPACE_BASEPORT=65535 bash "$RUN" workspace port C-001 2>&1)"; rc_max=$?
 ck 0 "$rc_max" "BASEPORT=65535 offset 0 exit 0"
 has "$out_max" "C-001 -> port 65535" "port 65535 assigned"
+clean
+
+echo "L) vendor claude: add and enter omit --worktree alternative (P2)"
+newsb
+out_add="$(bash "$RUN" workspace add feat-claude --vendor claude 2>&1)"; rc_add=$?
+ck 0 "$rc_add" "claude add exit 0"
+has "$out_add" "# launch in this dir: claude" "claude add prints dir launch hint"
+no "$out_add" "--worktree" "claude add omits --worktree alternative"
+out_enter="$(bash "$RUN" workspace enter feat-claude 2>&1)"; rc_enter=$?
+ck 0 "$rc_enter" "claude enter exit 0"
+has "$out_enter" "# launch in this dir: claude" "claude enter prints dir launch hint"
+no "$out_enter" "--worktree" "claude enter omits --worktree alternative"
 clean
 
 echo

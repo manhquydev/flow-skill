@@ -20,6 +20,12 @@ Contract:
                   only as a staleness reference - or as an explicitly STALE-labeled
                   fallback when fresh computation fails. Labels + body together never
                   exceed the configured byte cap; truncation respects UTF-8 boundaries.
+  Project root -> preserve local marker acceptance (flow/, cards/, .flow/, or MODE).
+                  Otherwise inspect at most 24 physical ancestors, nearest first,
+                  for flow/00-idea.md, flow/00-inspect.md, .flow/, or cards/C-*.md
+                  files. Bare ancestor flow/ or cards/ directories never qualify.
+                  No match -> skip, never auto-init. Inherited FLOW_PROJECT_ROOT
+                  cannot redirect the validated project used by the runner.
 
 Hardening: strict JSON parse (duplicate keys rejected) of a 64 KiB-capped stdin with a
 total deadline; strict UTF-8 (invalid/oversize input fully rejected); numeric env bounds
@@ -251,6 +257,19 @@ if kind not in ("SessionStart", "PreCompact"):
     fail_open("unsupported or missing event class - handles SessionStart and PreCompact "
               "only; ignoring")
 
+def _has_flow_signature(root):
+    """Use the runner's ancestor signatures, not bare planning/card directories."""
+    if (os.path.isfile(os.path.join(root, "flow", "00-idea.md"))
+            or os.path.isfile(os.path.join(root, "flow", "00-inspect.md"))
+            or os.path.isdir(os.path.join(root, ".flow"))):
+        return True
+    cards = os.path.join(root, "cards")
+    if os.path.isdir(cards):
+        with os.scandir(cards) as entries:
+            return any(entry.name.startswith("C-") and entry.name.endswith(".md")
+                       and entry.is_file() for entry in entries)
+    return False
+
 proj = _normalize_win_path(payload.get("cwd"))
 try:
     real = os.path.realpath(proj) if isinstance(proj, str) and proj else ""
@@ -260,6 +279,17 @@ try:
         or os.path.isdir(os.path.join(real, ".flow"))
         or os.path.isfile(os.path.join(real, "MODE"))
     )
+    if real and os.path.isdir(real) and not has_marker:
+        # Walk only the resolved physical ancestry: a symlink alias cannot redirect
+        # discovery to its lexical parents. Check exactly 24 parents, root at most once.
+        for _ in range(24):
+            parent = os.path.dirname(real)
+            if parent == real:
+                break
+            real = parent
+            if _has_flow_signature(real):
+                has_marker = True
+                break
 except (OSError, ValueError):
     has_marker = False
 if not has_marker:
@@ -270,12 +300,14 @@ PROJECT = real
 
 base = _normalize_win_path(os.environ.get("FLOW_SKILL_DIR") or "")
 if not base:
-    home = _normalize_win_path(os.environ.get("HOME", ""))
+    home = _normalize_win_path(os.environ.get("HOME") or os.path.expanduser("~"))
     for cand in (os.path.join(home, ".claude", "skills", "flow"),
                  os.path.join(home, ".codex", "skills", "flow"),
                  os.path.join(home, ".agents", "skills", "flow"),
                  os.path.join(home, ".omp", "agent", "skills", "flow"),
-                 os.path.join(home, ".cursor", "skills", "flow")):
+                 os.path.join(home, ".cursor", "skills", "flow"),
+                 os.path.join(home, ".gemini", "antigravity-cli", "skills", "flow"),
+                 os.path.join(home, ".gemini", "config", "skills", "flow")):
         if os.path.isfile(os.path.join(cand, "runner", "flow.sh")):
             base = cand
             break
@@ -641,7 +673,8 @@ def drain_capped(proc, cap, pgid, job_holder=None):
         res_out = bytes(out_buf)
         res_err = bytes(err_buf)
         if res_rc != 0:
-            note("DEBUG: run_flow exit %s, stdout=%r, stderr=%r" % (res_rc, res_out[:200], res_err[:200]))
+            note("DEBUG: run_flow exit %s, captured stdout=%d bytes, captured stderr=%d bytes" %
+                 (res_rc, len(res_out), len(res_err)))
         return res_rc, res_out, res_err
 WIN_GATE_SCRIPT = (
     "import sys, subprocess\n"
@@ -887,8 +920,19 @@ fresh_raw = out if rc == 0 else b""
 fresh = utf8_cut(fresh_raw, max(MAX_OUT - LABEL_BUDGET, 0)).decode("utf-8", "replace").strip()
 snap_body, snap_verdict = load_snapshot()
 if fresh:
+    source = payload.get("source")
+    # Only fixed labels reach stdout; unknown/malformed host data stays fail-open.
+    authority = "current session authoritative"
+    if isinstance(source, str):
+        authority = {
+            "compact": "post-compaction authoritative",
+            "startup": "session startup authoritative",
+            "resume": "resumed session authoritative",
+            "clear": "cleared session authoritative",
+            "fork": "forked session authoritative",
+        }.get(source, authority)
     lines = ["[flow context handoff - SessionStart - advisory, never a gate]",
-             '[source: fresh "flow.sh status" recomputed now - post-compaction authoritative]',
+             '[source: fresh "flow.sh status" recomputed now - %s]' % authority,
              fresh]
     if snap_verdict != "absent-or-untrusted" and snap_verdict != "absent":
         lines.append("[pre-compact snapshot: %s - reference only; the state above is current]"

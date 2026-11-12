@@ -37,10 +37,12 @@ diverge, so the python entrypoint **refuses** to forward in that case (exit 2, w
 message). Use the Python backend for flow projects. The seam stays in code as a compat-guarded
 power-path for non-flow DBs; flow does not build or ship the binary.
 
-Disable the durable layer entirely with `FLOW_HARNESS_DISABLE=1` (engine still runs).
-**Python floor: 3.7** (measured, not asserted — `subprocess.run(capture_output=, text=)`;
-no walrus/match/builtin generics). `scripts/release-preflight.sh` enforces it, and
-`docs/migration-v1.md` records what a python-mandatory v1 would change.
+For the **v1 target contract**, `FLOW_HARNESS_DISABLE` is refused for Flow product
+operations; it is not a v1 escape hatch. **Python floor: 3.7**, measured from the
+standard-library APIs used by this code and enforced by release preflight. These are
+implementation requirements, not claims that an unreleased v1 has shipped. See
+[`docs/migration-v1.md`](../../../docs/migration-v1.md); status remains unreleased until
+runtime, migration, rollback, CI and review acceptance are complete.
 
 **Topology pin.** `pins/flow-topology.sha256` pins the canonical-JSON sha256 of
 `references/flow-topology.json`; graph verbs refuse to run on a mismatch (topology is
@@ -119,7 +121,7 @@ Classification: 0-1 flags -> normal (or `--lane tiny`); 2-3 -> normal+stronger v
 A trace below its lane's required tier is flagged (advisory — never hard-fails the agent).
 Linking a trace to an unverified story prints a **pre-close gate** warning.
 
-## How `/flow` uses it (auto-wired in flow.sh, best-effort)
+## How `/flow` uses it (v1 target: graph ordering; required checkpoint writes fail closed)
 - `/flow next` past **stage 01 (research)** → seeds an `intake` row (lane=normal default; reclassify with risk flags if it touches auth/data/external/contracts).
 - `/flow next` past **stage 04 (ADR)** → reminds you to record each decision durably (`decision add`) — the ADR markdown is not a durable record.
 - `/flow card` creates a card → seeds a `story` row (tracking handle).
@@ -128,8 +130,10 @@ Linking a trace to an unverified story prints a **pre-close gate** warning.
 - `/flow recall` → reads the durable layer back (friction + backlog + audit health) into your working context — the capture→reuse loop.
 - `/flow retro` → surfaces `propose` (deterministic improvement proposals from repeated friction/interventions + audit drift) for you to commit.
 - `/flow harness <args>` exposes the full CLI directly.
-All wiring degrades gracefully: if python is absent or `FLOW_HARNESS_DISABLE=1`, the
-mechanical engine runs unchanged.
+For v1, Python and durable graph ordering are required for product operations; absence,
+below-floor interpreters, or `FLOW_HARNESS_DISABLE` must refuse progression rather than
+fall back to the legacy ladder. This is a pre-release target contract, not a statement that
+the unreleased implementation has already shipped.
 
 ## Usage signal: accessed_count (read-only, schema 009 — see Backends re-homing note above)
 `query decisions|friction|backlog` increment an `accessed_count` on every surfaced row and order

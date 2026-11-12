@@ -15,14 +15,14 @@ newsb() { SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/flow"
 clean_stage() { printf '#%s\n## Gate\n- [x] ok\n\nreal content.\n' "$1" > "$2"; }
 harness_ok() { local py; py="$(command -v python || command -v python3 || true)"; [ -n "$py" ] && "$py" --version >/dev/null 2>&1; }
 
-echo "B) durable hook is a clean no-op when the harness is disabled (graceful)"
+echo "B) disabled required harness refuses before gate advancement"
 newsb
 printf '#00\n## Gate\n- [x] ok\n## Pitch\nbuild a small thing.\n' > "$SB/flow/00-idea.md"
 clean_stage 01-research "$SB/flow/01-research.md"
 out="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" next 2>&1)"; rc=$?
-ck 0 "$rc" "next exit 0 with harness disabled"
-has "$out" "unlocked stage 2" "still advances 01->02 with harness disabled"
-no  "$out" "harness:" "no durable-hook output when the durable layer is off"
+ck 1 "$rc" "next refuses with harness disabled"
+has "$out" "Unset it; see docs/migration-v1.md" "startup refusal gives recovery guidance"
+ck no "$([ -f "$SB/flow/02-scope.md" ] && echo yes || echo no)" "disabled harness cannot scaffold stage 02"
 rm -rf "$SB"
 
 if ! harness_ok; then

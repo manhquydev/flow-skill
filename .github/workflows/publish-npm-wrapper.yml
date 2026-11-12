@@ -1,235 +1,150 @@
-name: Publish npm-wrapper to npm (trusted publishing)
+run-name: Publisher ${{ inputs.expected_sha }} ${{ inputs.expected_version }} ${{ inputs.dispatch_id }}
+name: Publish npm-wrapper to npm (policy-gated)
 
 on:
-  # Tag-triggered: push a tag shaped `npm@X.Y.Z` (or `npm@X.Y.Z-next.N`) to release.
-  push:
-    tags:
-      - 'npm@*'
-  # Manual dispatch is still supported for dry-run validation and out-of-band releases.
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to publish (must match npm-wrapper/package.json)'
+      mode:
+        description: Dry-run checks or release.sh-authorized publish
         required: true
-      dist_tag:
-        description: 'npm dist-tag'
+        default: dry-run
+        type: choice
+        options: [dry-run, publish]
+      expected_sha:
+        description: Exact master SHA approved by release.sh
         required: true
-        default: 'next'
-        type: choice
-        options: [next, latest]
-      dry_run:
-        description: 'If true, run npm publish --dry-run only'
-        required: false
-        default: 'false'
-        type: choice
-        options: ['true', 'false']
-      promote_to:
-        description: 'NOT automated — prints manual npm dist-tag add instructions and FAILS (OIDC cannot dist-tag). Leave "none" for a normal publish.'
-        required: false
-        default: 'none'
-        type: choice
-        options: ['none', 'latest', 'next']
+        type: string
+      expected_version:
+        description: npm-wrapper version selected by release.sh
+        required: true
+        type: string
+      dispatch_id:
+        description: Unique release.sh dispatch correlation ID
+        required: true
+        type: string
+      expected_actor_id:
+        description: Authenticated actor ID observed by release.sh
+        required: true
+        type: string
 
-permissions:
-  contents: write   # git tag push after publish
-  id-token: write   # npm OIDC provenance
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+permissions: {}
 
 jobs:
-  publish:
+  eligibility:
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment: npm-publish   # required-reviewer gate configured in repo Settings
-    defaults:
-      run:
-        working-directory: npm-wrapper
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      eligible: ${{ steps.gate.outputs.eligible }}
+      version: ${{ steps.gate.outputs.version }}
+      channel: ${{ steps.gate.outputs.channel }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          fetch-depth: 0
-
-      - name: Resolve version + dist-tag from trigger
-        id: meta
-        working-directory: ${{ github.workspace }}
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            # Tag shape: npm@<semver>. Extract the semver portion after the @.
-            version="${GITHUB_REF_NAME#npm@}"
-            case "$version" in
-              *"-"*) dist_tag=next; dry_run=false ;;
-              *)     dist_tag=latest; dry_run=false ;;
-            esac
-          else
-            version="${{ inputs.version }}"
-            dist_tag="${{ inputs.dist_tag }}"
-            dry_run="${{ inputs.dry_run }}"
-          fi
-          # Guard: pre-release semver (contains "-") must never publish to latest — protects users
-          # who install without a pin from getting an RC as their default.
-          case "$version" in
-            *"-"*)
-              if [ "$dist_tag" = "latest" ]; then
-                echo "FAIL: pre-release version '$version' cannot publish to dist-tag 'latest'" >&2
-                exit 1
-              fi
-              ;;
-          esac
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
-          echo "dry_run=$dry_run" >> "$GITHUB_OUTPUT"
-
-      # Early-exit BEFORE setup-node / npm ci / test — promote is not automated under OIDC.
-      # (Previously this step ran at the end after burning the full job.) Confirmed E401 on
-      # `npm dist-tag add` via OIDC: run 29556075144, 2026-07-17.
-      - name: Promote is manual-only (early exit — no install/test/publish)
-        if: github.event_name == 'workflow_dispatch' && inputs.promote_to != 'none' && inputs.promote_to != ''
-        working-directory: ${{ github.workspace }}
-        run: |
-          ver="${{ steps.meta.outputs.version }}"
-          tag="${{ inputs.promote_to }}"
-          echo "FAIL: promote_to=$tag cannot run via GitHub OIDC (npm dist-tag add → E401)." >&2
-          echo "" >&2
-          echo "This job exits early on purpose — no npm ci / test / publish ran." >&2
-          echo "" >&2
-          echo "Promote manually from a machine with a write-capable npm auth path:" >&2
-          echo "  npm dist-tag add @manhquy/flow-skill@${ver} ${tag}" >&2
-          echo "" >&2
-          echo "Then verify:" >&2
-          echo "  npm view @manhquy/flow-skill dist-tags --json" >&2
-          echo "" >&2
-          echo "See npm-wrapper/RELEASE_CHECKLIST.md (dist-tag section)." >&2
-          exit 1
-
-      - uses: actions/setup-node@v4
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          # Node 22 LTS is the floor because npm OIDC Trusted Publishing (the whole point of
-          # this workflow) requires npm >=11.5.1, which ships bundled with Node 22.14.0+.
-          # Node 20 bundles npm 10.x which lacks the OIDC handshake and fails with a
-          # misleading 404 at publish time. Ref: docs.npmjs.com/trusted-publishers (2026-07-12).
           node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
-          # DO NOT set `always-auth: true`. OIDC is auto-detected via `id-token: write`.
-
-      - name: Upgrade npm to a pinned known-good OIDC-capable range
-        working-directory: ${{ github.workspace }}
-        # F8 fix: pinning `npm@^11.5.1` (auto-follow patch + minor within the 11.x major)
-        # instead of `npm@latest` protects against a compromised or regressed `latest` briefly
-        # replacing the highest-privilege step in the publish pipeline. Bump the floor
-        # deliberately when a new npm major is desired; do not silently follow latest.
-        # Ref: 2026 supply-chain incidents surveyed in the plans/reports/research-260712-1006-
-        # npm-trusted-publisher-first-publish-edge-cases-report.md .
-        run: |
-          npm install -g "npm@^11.5.1"
-          npm_version="$(npm --version)"
-          echo "npm version: $npm_version"
-          case "$npm_version" in
-            11.5.*|11.[6-9].*|11.[1-9][0-9].*) ;;
-            *) echo "FAIL: npm $npm_version is below the OIDC floor 11.5.1" >&2; exit 1 ;;
-          esac
-
-      # No "NODE_AUTH_TOKEN must be empty" guard here. First real run (2026-07-17, run 29554226397)
-      # proved this assumption wrong: NODE_AUTH_TOKEN is unset right after `actions/checkout@v4`
-      # (confirmed: length 0) but becomes a real, non-empty value the instant `actions/setup-node@v4`
-      # runs with `registry-url` set — actions/setup-node's current (v4, moving tag) OIDC integration
-      # populates it itself as part of native npm Trusted Publishing, it is not a leaked static
-      # secret. Verified via a temporary diagnostic step: no repo secret, no `npm-publish`
-      # environment secret, no committed .npmrc, value differs from the ambient
-      # ACTIONS_ID_TOKEN_REQUEST_TOKEN. A guard asserting emptiness here would permanently block
-      # every legitimate OIDC publish through this action version.
-
-      - name: Verify npm-wrapper/package.json version matches trigger
-        run: |
-          pkg_version=$(node -p "require('./package.json').version")
-          expected="${{ steps.meta.outputs.version }}"
-          if [ "$pkg_version" != "$expected" ]; then
-            echo "FAIL: npm-wrapper/package.json version ($pkg_version) != trigger ($expected)" >&2
-            exit 1
-          fi
-
-      - name: Materialize skill content (monorepo sync — ../skills/flow → npm-wrapper/skills/flow)
-        run: npm run sync
-
-      - name: Verify skills-manifest.json file count matches synced tree
-        run: |
-          # manifest-hashes.json is a bundled-only C5 receipt written post-copy (see sync.mjs / compareTrees)
-          synced=$(find skills/flow -type f ! -name manifest-hashes.json | wc -l)
-          manifest=$(node -p "require('./skills-manifest.json').fileCount")
-          if [ "$synced" != "$manifest" ]; then
-            echo "FAIL: synced skills/ file count ($synced) != skills-manifest.json fileCount ($manifest)" >&2
-            exit 1
-          fi
-          if [ ! -f skills/flow/manifest-hashes.json ]; then
-            echo "FAIL: skills/flow/manifest-hashes.json receipt missing" >&2
-            exit 1
-          fi
-
-      - name: Guard — no child_process import in src or bin
-        run: |
-          # Any use of child_process requires importing the module. Checking imports is
-          # sufficient and avoids false-positives on identifiers like `RegExp.prototype.exec`
-          # or the string literal "exec bit" in code comments — the loose verb-based grep this
-          # replaced was rejecting legitimate JS.
-          if git grep -nE "from ['\"]node:child_process['\"]|require\(['\"]node:child_process['\"]|require\(['\"]child_process['\"]" -- 'src/' 'bin/' ; then
-            echo "FAIL: node:child_process import detected in src/ or bin/" >&2
-            exit 1
-          fi
-
-      - name: Install (no lifecycle scripts)
-        run: npm ci --ignore-scripts
-
-      - name: Test
-        run: npm test
-
-      - name: Tarball audit (< 1.5MB unpacked; no symlinks)
-        run: |
-          # --ignore-scripts is essential: `prepack` calls sync.mjs which writes a banner to
-          # stdout. Without --ignore-scripts the banner gets interleaved with `--json` output
-          # and JSON.parse on pack.json crashes. Sync already ran in the "Materialize" step.
-          npm pack --dry-run --ignore-scripts --json > pack.json
-          node -e "const p=require('./pack.json');const s=p[0].unpackedSize;if(s>1572864){console.error('unpacked > 1.5MB: '+s);process.exit(1)}"
-          # Symlink check — file entry with mode bit 0o120000 (symlink) is a supply-chain risk.
-          node -e "const p=require('./pack.json');const bad=(p[0].files||[]).filter(f=>f.mode && (f.mode & 0o170000)===0o120000);if(bad.length){console.error('symlink in tarball:',bad);process.exit(1)}"
-
-      - name: Publish (OIDC + provenance)
-        if: steps.meta.outputs.dry_run == 'false'
-        run: npm publish --provenance --access public --tag "${{ steps.meta.outputs.dist_tag }}"
-
-      - name: Publish dry-run
-        if: steps.meta.outputs.dry_run == 'true'
-        run: npm publish --dry-run --provenance --access public --tag "${{ steps.meta.outputs.dist_tag }}"
-
-      - name: Verify provenance visible from registry
-        if: steps.meta.outputs.dry_run == 'false'
-        run: |
-          # npm often takes 60-120s to propagate provenance metadata. Wide window so a slow
-          # registry doesn't fail the release after publish already succeeded.
-          for i in $(seq 1 10); do
-            sleep 20
-            if npm view "@manhquy/flow-skill@${{ steps.meta.outputs.version }}" dist.attestations.provenance 2>/dev/null | grep -q '.'; then
-              echo "provenance OK after $i attempt(s)"
-              exit 0
-            fi
-          done
-          echo "WARN: provenance not visible after 200s; publish already succeeded — check the npm dashboard manually." >&2
-          # Non-fatal: the package is already live; force a manual follow-up rather than a failed workflow.
-
-      - name: Create git tag (workflow_dispatch only — push-tag trigger already brought its own)
-        if: steps.meta.outputs.dry_run == 'false' && github.event_name == 'workflow_dispatch'
-        working-directory: ${{ github.workspace }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git rev-parse "npm@${{ steps.meta.outputs.version }}" >/dev/null 2>&1; then
-            echo "Tag npm@${{ steps.meta.outputs.version }} already exists; skipping tag creation"
-          else
-            git tag "npm@${{ steps.meta.outputs.version }}"
-            git push origin "npm@${{ steps.meta.outputs.version }}"
-          fi
-
-      - name: Trigger website rebuild
-        if: steps.meta.outputs.dry_run == 'false'
-        working-directory: ${{ github.workspace }}
-        run: |
-          gh api repos/${{ github.repository }}/dispatches \
-            -f event_type=npm-published
+      - name: Validate request and release eligibility
+        id: gate
         env:
-          GITHUB_TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.mode }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          WORKFLOW_REF: ${{ github.ref }}
+          ACTOR_ID: ${{ github.actor_id }}
+          DISPATCH_ID: ${{ inputs.dispatch_id }}
+          FLOW_AUTOPUBLISH_ENABLED: ${{ vars.FLOW_AUTOPUBLISH_ENABLED }}
+          EXPECTED_ACTOR_ID: ${{ inputs.expected_actor_id }}
+        run: node scripts/release-workflow.mjs eligibility
+
+  publish:
+    needs: eligibility
+    if: inputs.mode == 'publish' && vars.FLOW_AUTOPUBLISH_ENABLED == 'true' && needs.eligibility.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm-publish
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+      - name: Install npm with OIDC support
+        run: npm install --global npm@11.21.0
+      - name: Test and pack the exact package once
+        working-directory: npm-wrapper
+        env:
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+        run: |
+          npm ci --ignore-scripts
+          npm test
+          npm pack --pack-destination "$RUNNER_TEMP"
+          node ../scripts/release-workflow.mjs record-artifact "$RUNNER_TEMP" "$EXPECTED_VERSION"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: npm-package-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/*.tgz
+            ${{ runner.temp }}/release-artifact.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Recheck master, CI, intent and registry immediately before publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          FLOW_AUTOPUBLISH_ENABLED: ${{ vars.FLOW_AUTOPUBLISH_ENABLED }}
+          ARTIFACT_DIR: ${{ runner.temp }}
+          ACTOR_ID: ${{ github.actor_id }}
+          EXPECTED_ACTOR_ID: ${{ inputs.expected_actor_id }}
+          DISPATCH_ID: ${{ inputs.dispatch_id }}
+        run: node scripts/release-workflow.mjs prepublish
+      - name: Publish the exact packed archive with provenance
+        env:
+          DIST_TAG: ${{ needs.eligibility.outputs.channel }}
+        run: npm publish "$RUNNER_TEMP"/*.tgz --provenance --access public --tag "$DIST_TAG"
+      - name: Audit target-only npm signatures and export verified SLSA bundle
+        env:
+          VERSION: ${{ needs.eligibility.outputs.version }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          SOURCE_REF: refs/heads/master
+          AUDIT_REPORT: ${{ runner.temp }}/npm-audit-verified.json
+        run: node scripts/npm-attestation-audit.mjs "$VERSION" "$RUNNER_TEMP/release-artifact.json" "$EXPECTED_SHA" "$RUNNER_TEMP/slsa-bundle.json" "$SOURCE_REF" "$AUDIT_REPORT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: npm-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/npm-audit-verified.json
+            ${{ runner.temp }}/slsa-bundle.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Verify Sigstore trust root, Rekor inclusion, source and digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.eligibility.outputs.version }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: node scripts/verify-attestation-with-gh.mjs "$RUNNER_TEMP/manhquy-flow-skill-$VERSION.tgz" "$RUNNER_TEMP/slsa-bundle.json" manhquydev flow-skill .github/workflows/publish-npm-wrapper.yml refs/heads/master "$EXPECTED_SHA"
+      - name: Verify registry integrity and installed package
+        env:
+          VERSION: ${{ needs.eligibility.outputs.version }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          AUDIT_REPORT: ${{ runner.temp }}/npm-audit-verified.json
+        run: node scripts/release-workflow.mjs verify "$VERSION" "$EXPECTED_SHA" "$RUNNER_TEMP/release-artifact.json" "$AUDIT_REPORT" && node npm-wrapper/scripts/smoke.mjs "$VERSION"

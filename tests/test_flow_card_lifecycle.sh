@@ -2,11 +2,11 @@
 # Regression suite for the card-lifecycle verbs '/flow card start|done' + the in-flight line in
 # '/flow status'. The in-flight state is a PORTABLE side registry (cards/.inflight) that never
 # touches the gated 'status:' frontmatter; both verbs COEXIST with hand-edit + '/flow check'.
-# Harness disabled so the suite is python-independent. Run: bash tests/test_flow_card_lifecycle.sh
+# Uses the real required harness in isolated projects. Run: bash tests/test_flow_card_lifecycle.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 RUN="$HERE/../skills/flow/runner/flow.sh"
-export FLOW_HARNESS_DISABLE=1
+unset FLOW_HARNESS_DISABLE
 pass=0; fail=0
 ck()  { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected $1 got $2"; fail=$((fail+1)); fi; }
 has() { if printf '%s' "$1" | grep -q "$2"; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3]"; fail=$((fail+1)); fi; }
@@ -66,7 +66,7 @@ no "$out" "REVERTED" "does not print a misleading REVERTED line"
 rm -rf "$SB"
 
 echo "F) durable complete path with harness ON (AC7 trust-align)"
-# Sections A–E keep FLOW_HARNESS_DISABLE=1 for python-independence; this block needs the durable layer.
+# Sections A–F all use the required durable layer in fresh project sandboxes.
 if command -v python >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1; then
   SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/cards"
   unset FLOW_HARNESS_DISABLE
@@ -88,7 +88,7 @@ PY
 )"
   has "$row" "implemented" "durable story implemented after check"
   has "$row" "card_markdown_gate" "proof_source stamped"
-  export FLOW_HARNESS_DISABLE=1
+  unset FLOW_HARNESS_DISABLE
   rm -rf "$SB"
 else
   echo "  ok   [skip harness-on durable (no python)]"; pass=$((pass+1))

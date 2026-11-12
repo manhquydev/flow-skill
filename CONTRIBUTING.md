@@ -31,7 +31,7 @@ Our contributor standards prioritize stability across operating systems and agen
 - **Test suite registration:** Every new bash suite must add `tests/test_<name>.sh` **and** a corresponding entry in `tests/manifest.txt` in the exact same change.
 - **Doc budgets enforced:** Key markdown files are budgeted in `docs/doc-budgets.txt`. Verify with `bash scripts/check-doc-budgets.sh`.
 - **Dual versioning:** Skill product (`skills/flow/SKILL.md`) and npm installer (`npm-wrapper/package.json`) versions are managed on separate release axes. Contributors should **never** bump version fields in PRs (see [`docs/release-process.md`](docs/release-process.md)).
-- **Branch boundaries:** `website/` is managed on a dedicated branch (`feat/flow-website`). Never commit edits to `website/` on `master` PRs.
+- **Website repository:** Documentation and marketing site `flowskill.io.vn` is maintained in the standalone repository [`manhquydev/flowskill-website`](https://github.com/manhquydev/flowskill-website); do not commit website edits here.
 - **Evaluation STOP zones:** Never modify `_eval_engine_run` or `_run_with_timeout` in `skills/flow/runner/flow.sh`. If a task requires touching them, stop and discuss with maintainers first.
 - **Conventional commits:** Follow conventional commit prefixes mirroring our git log (`feat`, `fix`, `docs`, `test`, `chore`).
 
@@ -52,3 +52,7 @@ Our contributor standards prioritize stability across operating systems and agen
 ## Code of Conduct
 
 This project adheres to the Contributor Covenant. Please review [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before participating in our community.
+
+## GitHub maintenance
+
+Maintainers: see [the Vietnamese GitHub workflow guide](docs/github-maintenance.vi.md) for security triage, dependency updates, and the branch protection workflow.

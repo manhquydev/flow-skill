@@ -22,16 +22,29 @@ LAW_DIR="$SCRIPT_DIR/../law"
 PLAYBOOKS_DIR="$SCRIPT_DIR/../playbooks"
 GLOBAL_KB_DIR="${FLOW_GLOBAL_KB:-${HOME:-}/.claude/flow/playbooks}"   # cross-project knowledge tier (set -u safe if HOME unset)
 # Root resolution (monorepo dual-root guard). An explicit FLOW_PROJECT_ROOT always wins. Otherwise,
-# if the CWD is NOT itself a flow project (no flow/ planning dir and no cards/) but an ANCESTOR is,
-# adopt that ancestor — so running flow from a monorepo subdir (e.g. frontend/) does NOT silently
-# mint a SECOND, fragmented .flow root with its own cycle_id (the real C2-App-001 failure mode).
-# A subdir that has its own flow/ or cards/ is a deliberate sub-project and is left untouched.
+# if the CWD is NOT itself a flow project (no flow/ planning dir, no cards/, no .flow/ run-state) but
+# an ANCESTOR is, adopt that ancestor — so running flow from a monorepo subdir (e.g. frontend/) does
+# NOT silently mint a SECOND, fragmented .flow root with its own cycle_id (the real C2-App-001 failure
+# mode). A subdir that has its own flow/ or cards/ is a deliberate sub-project and is left untouched;
+# a dir holding only .flow/ run-state was itself used as a root and is likewise left alone.
 FLOW_ROOT_ADOPTED=""
+FLOW_ROOT_NEW=""
+# Invocation-local refusal state; never change the user's telemetry opt-out variables.
+FLOW_IGNORE_UNSAFE=0
+_reject_unsafe_root_newlines() {
+  case "$1" in *$'\n'*|*$'\r'*)
+    printf '[flow ignore] FAIL: root path contains CR/LF and cannot be represented safely in git info/exclude.\n' >&2
+    return 1 ;;
+  esac
+  return 0
+}
 if [ -n "${FLOW_PROJECT_ROOT:-}" ]; then
   ROOT="$FLOW_PROJECT_ROOT"
+  _reject_unsafe_root_newlines "$ROOT" || { FLOW_IGNORE_UNSAFE=1; exit 1; }
 else
   ROOT="$PWD"
-  if [ ! -d "$PWD/flow" ] && [ ! -d "$PWD/cards" ]; then
+  _reject_unsafe_root_newlines "$ROOT" || { FLOW_IGNORE_UNSAFE=1; exit 1; }
+  if [ ! -d "$PWD/flow" ] && [ ! -d "$PWD/cards" ] && [ ! -d "$PWD/.flow" ]; then
     _rd="$PWD"; _rn=0
     while [ "$_rn" -lt 24 ]; do
       _rp="$(dirname "$_rd")"; [ "$_rp" = "$_rd" ] && break    # reached filesystem root
@@ -44,10 +57,22 @@ else
         ROOT="$_rd"; FLOW_ROOT_ADOPTED="$_rd"; break
       fi
     done
+    if [ -z "$FLOW_ROOT_ADOPTED" ]; then
+      FLOW_ROOT_NEW=1    # no signature here or in ancestors: this CWD will become a NEW flow root
+    fi
     unset _rd _rp _rn
   fi
 fi
+# Validate physical aliases before any command/helper or EXIT logger can write.
+# Keep a sentinel until after substitution so a terminal LF is not silently removed.
+if _physical_root="$(cd "$ROOT" >/dev/null 2>&1 && pwd -P && printf '.')"; then
+  _physical_root="${_physical_root%$'\n'.}"
+  _reject_unsafe_root_newlines "$_physical_root" || { FLOW_IGNORE_UNSAFE=1; exit 1; }
+fi
+unset _physical_root
 [ -n "$FLOW_ROOT_ADOPTED" ] && printf 'note: using flow root %s (CWD is inside it; no flow/ here). Set FLOW_PROJECT_ROOT to override.\n' "$FLOW_ROOT_ADOPTED" >&2
+[ -n "${FLOW_ROOT_NEW:-}" ] && printf 'note: no Flow project found here or in ancestors - starting a new Flow project at %s (run /flow from your project root if you meant an existing one).\n' "$ROOT" >&2
+unset FLOW_ROOT_NEW
 FLOW_DIR="$ROOT/flow"
 CARDS_DIR="$ROOT/cards"
 MODE_FILE="$ROOT/MODE"
@@ -59,6 +84,21 @@ LOCK_FILE="$ROOT/flow/.lock"
 LOCK_DIR="$ROOT/flow/.lock.d"   # atomic claim dir (W5 guard); winner then writes $LOCK_FILE metadata
 LOCK_CLAIM="$ROOT/flow/.lock.claim" # atomic set -C / O_EXCL claim guard
 HARNESS_PY="$SCRIPT_DIR/../harness/flow_harness.py"
+
+# Native-invocation path for the harness script (PR93 root cause, evidence-verified):
+# MSYS/Git Bash skip automatic POSIX->Windows argument conversion for arguments
+# containing shell metacharacters (e.g. scratch layouts with " [x]+(y)&"), so native
+# Windows python receives a literal /tmp/... path it cannot open (rc=2, isfile=False)
+# while identical plain-name layouts convert and pass. Convert explicitly at native
+# invocation sites when a converter exists; POSIX checks/display keep $HARNESS_PY.
+_native_path() { # <posix-or-native path> -> Windows-native form for native consumers
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1" 2>/dev/null || printf '%s' "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+_harness_native() { _native_path "$HARNESS_PY"; }
 
 # Attestations library (risk, receipts, auto policy) — optional-soft: missing file is fatal for v0.28+.
 # shellcheck source=attestations.sh
@@ -122,14 +162,107 @@ _register_td()  { _CLEANUP_TDS+=("$1"); }
 # a real 3-OS CI run: ubuntu/windows ship bash >= 4.4, immune; macOS is not).
 _cleanup_tds()  { local d; if [ "${#_CLEANUP_TDS[@]}" -gt 0 ]; then for d in "${_CLEANUP_TDS[@]}"; do rm -rf "$d" 2>/dev/null; done; fi; _CLEANUP_TDS=(); }
 
-# Keep pure run-state (MODE / PROJECT_TYPE / .flow/) out of the host repo's git status.
-# Idempotent; only acts in a real git repo OR where a .gitignore already exists (so test
-# sandboxes and non-git dirs are untouched — no surprise file creation).
+# Keep pure run-state (MODE / PROJECT_TYPE / .flow/ telemetry, flow/.lock* machine state,
+# cards/.inflight) out of the host repo's git status. Design (gate-safe): patterns go to the
+# clone-local .git/info/exclude via `git rev-parse --git-path` — a tracked .gitignore is never
+# touched (no dirty-tracked-file bypass surface, no attest tolerance needed), the write is
+# upgrade-safe per pattern, and linked worktrees resolve their own exclude path. Non-git dirs
+# are untouched. Pre-validated: /tmp/aux-telemetry-analysis/experiment-1.md (novice `git add -A`
+# previously committed .flow/events.jsonl incl. session_id and flow/.lock/.lock.claim).
+_escape_gitignore_prefix() {
+  local value="$1" escaped='' char
+  case "$value" in
+    *$'\n'*|*$'\r'*)
+      printf '[flow ignore] FAIL: root path contains CR/LF and cannot be represented safely in git info/exclude.\n' >&2
+      return 1 ;;
+  esac
+  while [ -n "$value" ]; do
+    char="${value:0:1}"
+    value="${value:1}"
+    if [ "$char" = '\' ] || [ "$char" = '*' ] || [ "$char" = '?' ] || [ "$char" = '[' ] || [ "$char" = ']' ]; then
+      escaped="${escaped}\\${char}"
+    else
+      escaped="${escaped}${char}"
+    fi
+  done
+  printf '%s' "$escaped"
+}
+
+_canonical_git_path() {
+  local value="$1" native
+  if command -v cygpath >/dev/null 2>&1; then
+    native="$(cygpath -aw "$value" 2>/dev/null)" || {
+      [ "${FLOW_DEBUG_IGNORE_RUN_STATE:-0}" = 1 ] && printf '[flow ignore] cygpath -aw failed for: %s\n' "$value" >&2
+      return 1
+    }
+    cygpath -u "$native" 2>/dev/null || {
+      [ "${FLOW_DEBUG_IGNORE_RUN_STATE:-0}" = 1 ] && printf '[flow ignore] cygpath -u failed for: %s (native=%s)\n' "$value" "$native" >&2
+      return 1
+    }
+  else
+    # Without cygpath, a Windows drive-letter path (C:/...) cannot be safely
+    # canonicalized: joining it would create a stray "<ROOT>/C:/..." directory.
+    case "$value" in
+      [A-Za-z]:[\\/]*)
+        [ "${FLOW_DEBUG_IGNORE_RUN_STATE:-0}" = 1 ] && printf '[flow ignore] drive-letter path without cygpath: %s\n' "$value" >&2
+        return 1 ;;
+    esac
+    printf '%s\n' "$value"
+  fi
+}
 _ignore_run_state() {
-  { [ -d "$ROOT/.git" ] || [ -f "$ROOT/.gitignore" ]; } || return 0
-  local gi="$ROOT/.gitignore"
-  grep -q 'flow run-state' "$gi" 2>/dev/null && return 0
-  printf '\n# /flow run-state (generated; safe to ignore)\nMODE\nPROJECT_TYPE\n.flow/\n' >> "$gi"
+  local ex pat root_abs root_prefix escaped_prefix ex_dir ex_base git_top raw_ex raw_top
+  _reject_unsafe_root_newlines "$ROOT" || { FLOW_IGNORE_UNSAFE=1; return 1; }
+  # A sentinel keeps command substitution from stripping a terminal LF in the physical path.
+  root_abs="$(cd "$ROOT" >/dev/null 2>&1 && pwd -P && printf '.')" || return 0
+  root_abs="${root_abs%$'\n'.}"
+  _reject_unsafe_root_newlines "$root_abs" || { FLOW_IGNORE_UNSAFE=1; return 1; }
+  root_abs="$(_canonical_git_path "$root_abs")" || return 0
+  raw_ex="$(cd "$ROOT" 2>/dev/null && git rev-parse --git-path info/exclude 2>/dev/null)" || return 0
+  [ -n "$raw_ex" ] || return 0
+  case "$raw_ex" in /*|[A-Za-z]:[\\/]*) ;; *) raw_ex="$root_abs/$raw_ex" ;; esac
+  ex="$(_canonical_git_path "$raw_ex")" || return 0
+  if [ "${FLOW_DEBUG_IGNORE_RUN_STATE:-0}" = 1 ]; then
+    printf '[flow ignore] ROOT=%s root_abs=%s raw_ex=%s ex=%s\n' "$ROOT" "$root_abs" "$raw_ex" "$ex" >&2
+  fi
+  raw_top="$(cd "$ROOT" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null)" || return 0
+  git_top="$(cd "$raw_top" >/dev/null 2>&1 && pwd -P && printf '.')" || return 0
+  git_top="${git_top%$'\n'.}"
+  git_top="$(_canonical_git_path "$git_top")" || return 0
+  if [ "$root_abs" = "$git_top" ]; then
+    root_prefix=''
+  else
+    case "$root_abs/" in
+      "$git_top/"*) root_prefix="${root_abs#"$git_top"/}/" ;;
+      *) [ "${FLOW_DEBUG_IGNORE_RUN_STATE:-0}" = 1 ] && printf '[flow ignore] root escapes git_top: ROOT=%s root_abs=%s git_top=%s raw_top=%s\n' "$ROOT" "$root_abs" "$git_top" "$raw_top" >&2; return 0 ;;
+    esac
+  fi
+  case "$root_prefix" in
+    *$'\n'*|*$'\r'*)
+      printf '[flow ignore] FAIL: root path contains CR/LF and cannot be represented safely in git info/exclude.\n' >&2
+      return 1 ;;
+  esac
+  escaped_prefix="$(_escape_gitignore_prefix "$root_prefix")" || return 1
+  ex_dir="$(dirname "$ex")"
+  ex_base="$(basename "$ex")"
+  mkdir -p "$ex_dir" 2>/dev/null || return 0
+  ex_dir="$(cd "$ex_dir" 2>/dev/null && pwd -P)" || return 0
+  ex="$ex_dir/$ex_base"
+  if [ "${FLOW_DEBUG_IGNORE_RUN_STATE:-0}" = 1 ]; then
+    printf '[flow ignore] normalized ROOT=%s root_abs=%s raw_top=%s git_top=%s root_prefix=%s ex=%s\n' "$ROOT" "$root_abs" "$raw_top" "$git_top" "$root_prefix" "$ex" >&2
+  fi
+  if [ -s "$ex" ] && [ -n "$(tail -c 1 "$ex" 2>/dev/null)" ]; then
+    printf '\n' >> "$ex" || { printf '[flow ignore] FAIL: cannot write final newline to %s.\n' "$ex" >&2; return 1; }
+  fi
+  for pat in "/${escaped_prefix}.flow/" "/${escaped_prefix}flow/.lock*" "/${escaped_prefix}cards/.inflight" "/${escaped_prefix}MODE" "/${escaped_prefix}PROJECT_TYPE"; do
+    if grep -qxF "$pat" "$ex" 2>/dev/null; then
+      [ "${FLOW_DEBUG_IGNORE_RUN_STATE:-0}" = 1 ] && printf '[flow ignore] existing=%s\n' "$pat" >&2
+      continue
+    fi
+    printf '%s\n' "$pat" >> "$ex" || { printf '[flow ignore] FAIL: cannot append %s to %s.\n' "$pat" "$ex" >&2; return 1; }
+    [ "${FLOW_DEBUG_IGNORE_RUN_STATE:-0}" = 1 ] && printf '[flow ignore] appended=%s\n' "$pat" >&2
+  done
+  return 0
 }
 
 # Concurrency lock: seconds a lock stays "fresh"; older locks are stale and auto-reclaimed.
@@ -316,16 +449,42 @@ _scan_midtier() { # $1=file; prints [x] lines; return 1 if any hit
 }
 
 _python() {
-  # prefer python3, and only accept an interpreter that is actually Python 3.x (the harness +
-  # repo_map.py are py3-only — a py2 `python` must NOT be selected or it fails silently).
-  # Returns 0 + prints path when a valid interpreter is found; returns 1 (no output) when none.
-  local p
+  # Probe execution, not --version (Windows Store launchers can be stubs). Keep
+  # searching when python3 is old/broken but python is a usable interpreter.
+  local p probe
   for p in python3 python; do
-    if command -v "$p" >/dev/null 2>&1 && "$p" -c 'import sys; sys.exit(0 if sys.version_info[0]>=3 else 1)' >/dev/null 2>&1; then
-      command -v "$p"; return 0
-    fi
+    command -v "$p" >/dev/null 2>&1 || continue
+    probe="$("$p" -c 'import sys, sqlite3; print("flow-python-ok" if sys.version_info >= (3, 7) else "unsupported")' 2>/dev/null | tr -d '\r\n')" || continue
+    if [ "$probe" = "flow-python-ok" ]; then command -v "$p"; return 0; fi
   done
   return 1
+}
+
+_runtime_required() {
+  if [ -n "${FLOW_HARNESS_DISABLE:-}" ]; then
+    echo "FAIL: FLOW_HARNESS_DISABLE is no longer supported. Unset it; see docs/migration-v1.md." >&2
+    echo "Install if needed: apt install python3 / brew install python / python.org (Windows). Run 'flow doctor'." >&2
+    return 1
+  fi
+  if [ -n "${FLOW_GRAPH_EXECUTOR:-}" ] && [ "$FLOW_GRAPH_EXECUTOR" != 1 ]; then
+    echo "FAIL: graph ordering is required. Unset FLOW_GRAPH_EXECUTOR (or set 1); see docs/migration-v1.md." >&2
+    return 1
+  fi
+  local py; py="$(_python)"
+  if [ -z "$py" ]; then
+    echo "FAIL: Flow requires working Python >=3.7 with stdlib sqlite3 (python3 or python on PATH)." >&2
+    echo "Install: apt install python3 / brew install python / python.org (Windows)." >&2
+    echo "See docs/migration-v1.md and run 'flow doctor'; replace old or Store-stub launchers." >&2
+    return 1
+  fi
+  if [ ! -f "$HARNESS_PY" ]; then
+    echo "FAIL: required harness missing at $HARNESS_PY. Reinstall Flow; see docs/migration-v1.md." >&2
+    return 1
+  fi
+  _with_timeout "${FLOW_HARNESS_TIMEOUT:-20}" "$py" "$(_harness_native)" --help >/dev/null 2>&1 || {
+    echo "FAIL: required harness cannot start with $py. Reinstall Flow and run '/flow doctor'; see docs/migration-v1.md." >&2
+    return 1
+  }
 }
 
 # Durable write honesty (plan trust-align D5/D8):
@@ -348,7 +507,7 @@ _harness_run() {
   errf="$(mktemp 2>/dev/null || echo "$ROOT/.flow/.harness-err.$$")"
   mkdir -p "$ROOT/.flow" 2>/dev/null || true
   # capture rc without flipping the caller's set -e state
-  out="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" "$@" 2>"$errf")" || rc=$?
+  out="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" "$@" 2>"$errf")" || rc=$?
   _HARNESS_LAST_RC=$rc
   [ "$_emit" = 1 ] && [ -n "$out" ] && printf '%s\n' "$out"
   if [ "$_emit" = 1 ] && [ "$rc" -eq 3 ]; then rm -f "$errf" 2>/dev/null || true; return "$rc"; fi
@@ -388,30 +547,92 @@ harness_call_checked() {
   _harness_run "$@"
 }
 
-# Wrap a command in a wall-clock bound when `timeout` exists (GNU coreutils / Git Bash);
-# a missing timeout degrades to running unbounded, exactly as before.
-_with_timeout() { # $1 = seconds, rest = command
+# Required harness calls are bounded on every supported host. Python's stdlib
+# supplies the fallback when GNU timeout/gtimeout is not installed (e.g. macOS).
+_with_timeout() { # seconds, argv (never a shell command string)
   local secs="$1"; shift
-  if command -v timeout >/dev/null 2>&1; then timeout "$secs" "$@"; else "$@"; fi
+  # On MSYS/Windows, bare `timeout` resolves to System32 timeout.exe (wait-N-seconds
+  # semantics); accept it only when it is GNU coreutils timeout.
+  if command -v timeout >/dev/null 2>&1 && timeout --version >/dev/null 2>&1; then timeout "$secs" "$@"; return $?; fi
+  if command -v gtimeout >/dev/null 2>&1; then gtimeout "$secs" "$@"; return $?; fi
+  # The Python fallback below runs outside the MSYS path-translation layer: Windows
+  # Python cannot exec or open `/c/...` argv. Convert existing POSIX-absolute argv.
+  if command -v cygpath >/dev/null 2>&1; then
+    _wt_argv=()
+    for _wt_arg in "$@"; do
+      case "$_wt_arg" in
+        /*)
+          _wt_target=""
+          if [ -e "$_wt_arg" ]; then _wt_target="$_wt_arg"
+          elif [ -e "$_wt_arg.exe" ]; then _wt_target="$_wt_arg.exe"
+          fi
+          if [ -n "$_wt_target" ]; then
+            _wt_converted="$(cygpath -w "$_wt_target" 2>/dev/null)" || _wt_converted=""
+            if [ -n "$_wt_converted" ]; then
+              _wt_argv+=("$_wt_converted")
+            else
+              _wt_argv+=("$_wt_arg")
+            fi
+          else
+            _wt_argv+=("$_wt_arg")
+          fi ;;
+        *) _wt_argv+=("$_wt_arg") ;;
+      esac
+    done
+    set -- "${_wt_argv[@]}"
+  fi
+  local py; py="$(_python)"; [ -n "$py" ] || return 4
+  "$py" -c 'import os, signal, subprocess, sys
+secs = float(sys.argv[1])
+cmd = sys.argv[2:]
+fn = getattr(os, "setsid", None) or getattr(os, "setpgrp", None)
+p = subprocess.Popen(cmd, preexec_fn=fn)
+try:
+    p.wait(timeout=secs)
+    sys.exit(p.returncode)
+except subprocess.TimeoutExpired:
+    try:
+        if hasattr(os, "killpg") and hasattr(os, "getpgid"):
+            os.killpg(p.pid, signal.SIGKILL)
+        else:
+            p.kill()
+    except Exception:
+        try:
+            p.kill()
+        except Exception:
+            pass
+    try:
+        p.wait(timeout=5)
+    except Exception:
+        pass
+    sys.exit(124)
+' "$secs" "$@"
+  return $?
 }
 
 harness_capture_checked() {
   # VALUE-carrying variant for graph verbs: emits harness stdout and returns the
-  # real exit code, via _harness_run --emit-stdout so the availability triad,
-  # stderr redaction, and rc plumbing live in ONE place. Fail-closed contract:
-  # 0=value, 3=no-next/paused, 4=harness unavailable (DISABLE / file / python
-  # missing - the soft rc-0 ambiguity _harness_run keeps for durable writes is
-  # exactly what value calls must NOT inherit), 1/2=failure.
-  # No consumers yet; cmd_next delegates through this when FLOW_GRAPH_EXECUTOR lands.
+  # Real exit contract: 0=value, 3=no-next/paused, 4=unavailable, 1/2=failure.
+  # Unlike best-effort telemetry this must never fabricate success.
   [ -n "${FLOW_HARNESS_DISABLE:-}" ] && return 4
   [ -f "$HARNESS_PY" ] || return 4
   local py; py="$(_python)"; [ -n "$py" ] || return 4
-  # 20s: generous for a contended BEGIN IMMEDIATE (busy_timeout is 5s) yet bounded.
-  # rc 124 = timed out -> treated as "harness unavailable" by callers, never a hang.
-  local rc=0
-  _with_timeout "${FLOW_HARNESS_TIMEOUT:-20}" env FLOW_PROJECT_ROOT="$ROOT" \
-    "$(_python)" "$HARNESS_PY" "$@" || rc=$?
-  [ "$rc" = "124" ] && { printf 'flow-harness: call timed out (%ss)\n' "${FLOW_HARNESS_TIMEOUT:-20}" >&2; return 4; }
+  local errf out rc=0
+  errf="$(mktemp 2>/dev/null || echo "$ROOT/.flow/.harness-cap-err.$$")"
+  out="$(_with_timeout "${FLOW_HARNESS_TIMEOUT:-20}" env FLOW_PROJECT_ROOT="$ROOT" \
+    "$py" "$(_harness_native)" "$@" 2>"$errf")" || rc=$?
+  if [ "$rc" = "124" ]; then
+    printf 'flow-harness: call timed out (%ss)\n' "${FLOW_HARNESS_TIMEOUT:-20}" >&2
+    rm -f "$errf" 2>/dev/null || true
+    return 4
+  fi
+  if [ -s "$errf" ]; then
+    cat "$errf" >&2
+  fi
+  rm -f "$errf" 2>/dev/null || true
+  if [ -n "$out" ]; then
+    printf '%s\n' "$out" | sed 's/\r$//'
+  fi
   return "$rc"
 }
 
@@ -436,66 +657,165 @@ harness_available() { # 0 = durable layer usable (python + harness present, not 
 
 harness_emit() { # run a harness subcommand and ECHO its stdout (best-effort; nothing if unavailable)
   harness_available || return 0
-  FLOW_PROJECT_ROOT="$ROOT" "$(_python)" "$HARNESS_PY" "$@" 2>/dev/null || true
+  FLOW_PROJECT_ROOT="$ROOT" "$(_python)" "$(_harness_native)" "$@" 2>/dev/null || true
 }
 
-# ---------- graph-executor recording contract (dark until FLOW_GRAPH_EXECUTOR=1) ----------
-# The auto-run loop is agent-driven prose (auto-run.md), so boundaries are recorded by
-# instrumenting verbs the agent ALREADY calls: workspace add -> card-dispatch,
-# check -> card-build/review evidence, card done -> card-verify-live, workspace remove ->
-# merge proof (executor-computed) + worktree telemetry ingest. Everything here is
-# best-effort: a recording failure must never break the mechanical engine.
-_graph_on() { [ "${FLOW_GRAPH_EXECUTOR:-}" = "1" ] && harness_available; }
+# ---------- required graph ordering/checkpoint contract ----------
+# Graph computes ordering only. scan_gate owns verdicts; the host owns execution.
+# Usage/event rollups remain best-effort and are not ordering checkpoints.
+_graph_on() { harness_available; }
 
 # Execution IDENTITY must live beside the DB, and the DB path is the harness's own
 # decision (worktree translation, monorepo sub-projects, --separate-git-dir). Re-deriving
 # it here with a shell heuristic drifted on exactly those shapes and re-split the journal,
 # so ASK the resolver instead of guessing: `graph root` prints dirname(default_db_path()).
 _graph_exec_id() { # [--no-create] -> echo the project's running auto_run execution id
-  # The whole selection is ONE atomic harness call: the DB row IS the pin, and SQLite's
-  # write transaction is the arbitration point. A bash pin file needed a claim dir,
-  # corpse recovery, TOCTOU-free reclaim AND a liveness check to approximate this - and
-  # each of those was a defect (stolen claims forked the journal; an existence-only
-  # check adopted abandoned executions and blackholed every later record).
   _graph_on || return 1
-  local id
+  local id raw
   if [ "${1:-}" = "--no-create" ]; then
-    id="$(harness_capture_checked graph session --no-create 2>/dev/null | tr -d '\r\n')" || return 1
+    raw="$(harness_capture_checked graph session --no-create)" || return $?
   else
-    id="$(harness_capture_checked graph session 2>/dev/null | tr -d '\r\n')" || return 1
+    raw="$(harness_capture_checked graph session)" || return $?
   fi
-  [ -n "$id" ] || return 1
+  id="$(printf '%s' "$raw" | sed 's/\r$//' | tr -d '\n')"
+  case "$id" in
+    *[!0-9a-fA-F]*|"") echo "FAIL: invalid execution token from harness." >&2; return 1 ;;
+  esac
+  [ "${#id}" -eq 22 ] || { echo "FAIL: execution id length mismatch." >&2; return 1; }
   printf '%s' "$id"
 }
 
 _graph_planning_id() { # echo the planning execution id (kind=planning, ns='')
   _graph_on || return 1
-  local id
-  id="$(harness_capture_checked graph session --kind planning 2>/dev/null | tr -d '\r\n')" || return 1
-  [ -n "$id" ] || return 1
+  local id raw
+  raw="$(harness_capture_checked graph session --kind planning)" || return $?
+  id="$(printf '%s' "$raw" | sed 's/\r$//' | tr -d '\n')"
+  case "$id" in
+    *[!0-9a-fA-F]*|"") echo "FAIL: invalid execution token from harness." >&2; return 1 ;;
+  esac
+  [ "${#id}" -eq 22 ] || { echo "FAIL: execution id length mismatch." >&2; return 1; }
   printf '%s' "$id"
 }
 
-_graph_stage_record() { # $1 = stage just passed -> record the planning boundary (ns='')
-  _graph_on || return 0
-  local stage="$1" eid
-  eid="$(_graph_planning_id)" || return 0
-  local node="stage-${stage%%-*}"          # 03-prd -> stage-03 (topology node id)
-  harness_capture_checked graph record --execution "$eid" --ns "" --node "$node" \
-    --gate-exit 0 --gate-cmd "gate $stage" >/dev/null 2>&1 || true
-  return 0
+_graph_stage_for_node() {
+  # Read the trusted install's mapping; graph next has already verified its pin.
+  "$(_python)" - "$(_native_path "$SCRIPT_DIR/../references/flow-topology.json")" "$1" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    spec = json.load(f)["nodes"].get(sys.argv[2], {})
+stage = spec.get("stage", "")
+if spec.get("type") != "gate_check" or stage not in (
+        "00-idea", "01-research", "02-scope", "03-prd", "04-adr", "05-contract"):
+    sys.exit("flow-graph: unexpected planning node " + repr(sys.argv[2]))
+print(stage)
+PY
 }
 
-_graph_record() { # $1=card-id (REQUIRED for card-scoped nodes) $2=node ; rest passed through
-  _graph_on || return 0
+_graph_stage_preds_for_node() {
+  # Topological predecessors mapped to stage names
+  "$(_python)" - "$(_native_path "$SCRIPT_DIR/../references/flow-topology.json")" "$1" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    topo = json.load(f)
+preds = {}
+for e in topo.get("edges", []):
+    preds.setdefault(e.get("to"), []).append(e.get("from"))
+res = set()
+frontier = [sys.argv[2]]
+while frontier:
+    curr = frontier.pop(0)
+    for p in preds.get(curr, []):
+        if p not in res:
+            res.add(p)
+            frontier.append(p)
+nodes = topo.get("nodes", {})
+stages = [nodes[n]["stage"] for n in sorted(res) if "stage" in nodes.get(n, {})]
+print(" ".join(stages))
+PY
+}
+
+_graph_next_node() { # eid -> node, or rc3 ONLY for a non-paused exhausted walk
+  local node rc=0 status raw
+  raw="$(harness_capture_checked graph next --execution "$1" "${@:2}")" || rc=$?
+  node="$(printf '%s' "$raw" | sed 's/\r$//' | tr -d '\n')"
+  if [ "$rc" -eq 3 ]; then
+    status="$(harness_capture_checked graph status --execution "$1")" || return 1
+    printf '%s' "$status" | "$(_python)" -c 'import json,sys; s=json.load(sys.stdin); sys.exit(0 if s["execution"]["status"] == "running" and not s["open_interrupts"] else 1)' || {
+      echo "FAIL: graph execution is paused, interrupted, failed, abandoned, or terminal; resolve it explicitly with '/flow harness graph resume'." >&2
+      return 1
+    }
+    [ -z "$node" ] || return 1
+    return 3
+  fi
+  if [ "$rc" -ne 0 ] || [ -z "$node" ]; then
+    echo "FAIL: required graph next failed (rc=$rc); no progression." >&2
+    return 1
+  fi
+  case "$node" in
+    stage-[0-9][0-9]|card-*) : ;;
+    *) echo "FAIL: unexpected graph node format '$node'." >&2; return 1 ;;
+  esac
+  printf '%s' "$node"
+}
+
+_graph_db_exists() {
+  # CLI --no-create means no execution row, not no SQLite connection. Resolve
+  # linked-worktree/override ownership without opening or migrating the database.
+  PYTHONDONTWRITEBYTECODE=1 FLOW_PROJECT_ROOT="$ROOT" "$(_python)" - "$(_native_path "$SCRIPT_DIR/../harness")" <<'PY'
+import os, sys
+sys.path.insert(0, sys.argv[1])
+import _db
+sys.exit(0 if os.path.isfile(_db.default_db_path()) else 3)
+PY
+}
+
+_graph_planning_check() { # read existing session only; diagnostics must not mint one
+  # Read-only diagnostics (status/resume/ready) degrade without the durable layer:
+  # a missing harness file means the graph advisory is unavailable, not a fatal
+  # startup condition. Writing operations still refuse via their own paths.
+  harness_available || return 0
+  local db_rc=0
+  _graph_db_exists || db_rc=$?
+  [ "$db_rc" -eq 3 ] && return 0
+  [ "$db_rc" -eq 0 ] || return 1
+  local eid node rc=0
+  eid="$(harness_capture_checked graph session --kind planning --no-create 2>/dev/null)" || rc=$?
+  [ "$rc" -eq 3 ] && return 0
+  [ "$rc" -eq 0 ] && [ -n "$eid" ] || return 1
+  rc=0; node="$(_graph_next_node "$eid")" || rc=$?
+  [ "$rc" -eq 3 ] && return 0
+  [ "$rc" -eq 0 ] || return 1
+  _graph_stage_for_node "$node" >/dev/null
+}
+
+_graph_auto_check() { # read existing shipping session; no implicit execution mint
+  # Same read-only degradation as _graph_planning_check: diagnostics proceed
+  # without the durable layer; writers refuse elsewhere.
+  harness_available || return 0
+  local db_rc=0
+  _graph_db_exists || db_rc=$?
+  [ "$db_rc" -eq 3 ] && return 0
+  [ "$db_rc" -eq 0 ] || return 1
+  local eid rc=0
+  eid="$(_graph_exec_id --no-create 2>/dev/null)" || rc=$?
+  [ "$rc" -eq 3 ] && return 0
+  [ "$rc" -eq 0 ] && [ -n "$eid" ] || return 1
+  rc=0; _graph_next_node "$eid" >/dev/null || rc=$?
+  [ "$rc" -eq 0 ] || [ "$rc" -eq 3 ]
+}
+
+_graph_record() { # card-id (empty for card-less spikes), node, typed flags
   local card="$1" node="$2"; shift 2
-  # A card-scoped node with no card would land in the ROOT (stage) namespace and derail
-  # the planning walk - workspace add/remove are legitimately card-less for spikes.
   [ -n "$card" ] || return 0
-  local eid; eid="$(_graph_exec_id)" || return 0
-  harness_capture_checked graph record --execution "$eid" --ns "card:$card" --node "$node" "$@" \
-    >/dev/null 2>&1 || true
-  return 0
+  _graph_on || return 0
+  local eid; eid="$(_graph_exec_id)" || return 1
+  [ -n "$eid" ] || return 1
+  local next_rc=0
+  _graph_next_node "$eid" --ns "card:$card" >/dev/null || next_rc=$?
+  [ "$next_rc" -eq 0 ] || [ "$next_rc" -eq 3 ] || return 1
+  harness_capture_checked graph record --execution "$eid" --ns "card:$card" --node "$node" "$@" >/dev/null || {
+    echo "FAIL: required graph checkpoint failed; boundary is not complete." >&2; return 1;
+  }
 }
 
 cmd_harness() {
@@ -507,7 +827,7 @@ cmd_harness() {
     echo "FAIL: a working python was not found - durable layer needs python (stdlib sqlite3)."
     return 1
   fi
-  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" "$@"
+  FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" "$@"
 }
 
 seed_law_files() {
@@ -545,18 +865,29 @@ card_status() { # $1 = file
 }
 
 stage_skipped() { # $1 = stage name; 0 = yes (operator debt-skipped it)
+  [ "$1" = "05-contract" ] && return 1
   [ -f "$SKIPPED_FILE" ] && grep -qxF "$1" "$SKIPPED_FILE" 2>/dev/null
 }
 
-planning_complete() { # 0 = yes: each stage is clean, OR debt-skipped (a skipped stage may have no file)
+# An existing brownfield assessment remains a prerequisite even after planning starts.
+# Absence preserves greenfield behavior; explicit skips use the normal DEBT path.
+inspect_gate_clean() {
+  [ ! -f "$FLOW_DIR/00-inspect.md" ] || stage_skipped "00-inspect" ||
+    scan_gate "$FLOW_DIR/00-inspect.md" >/dev/null 2>&1
+}
+
+planning_complete() { # 0 = yes: each stage is clean, OR legitimately debt-skipped
   local s
+  inspect_gate_clean || return 1
   for s in $STAGES; do
-    if [ ! -f "$FLOW_DIR/$s.md" ]; then
-      stage_skipped "$s" || return 1
+    if stage_skipped "$s"; then
       continue
     fi
+    if [ ! -f "$FLOW_DIR/$s.md" ]; then
+      return 1
+    fi
     if ! scan_gate "$FLOW_DIR/$s.md" >/dev/null 2>&1; then
-      stage_skipped "$s" || return 1
+      return 1
     fi
   done
   return 0
@@ -639,6 +970,7 @@ _read_lock() {
   return 0
 }
 _write_lock() { # $1 = cmd label
+  _ignore_run_state || { echo "FAIL: cannot safely exclude Flow run-state for this root path; no lock change made." >&2; return 1; }
   mkdir -p "$FLOW_DIR" 2>/dev/null || true
   printf '%s|%s|%s|%s|%s\n' "$(_now)" "$(flow_lock_owner)" "$$" "$(uname -n 2>/dev/null || echo host)" "${1:-?}" \
     > "$LOCK_FILE" 2>/dev/null || true
@@ -649,6 +981,7 @@ _write_lock() { # $1 = cmd label
 # including systems where external mkdir binaries suffer from race bugs (uutils 0.10.0).
 # Winner also creates LOCK_DIR for backward compatibility with inspection/mtime tooling.
 _claim_lock() {
+  _reject_unsafe_root_newlines "$ROOT" || return 1
   ( set -C; : > "$LOCK_CLAIM" ) 2>/dev/null || return 1
   mkdir "$LOCK_DIR" 2>/dev/null || true
   return 0
@@ -662,6 +995,7 @@ _release_claim() {
 # Guard a MUTATING command. 0 = lock taken/refreshed (proceed); 1 = refused (caller aborts).
 lock_acquire() { # $1 = cmd label
   local me age; me="$(flow_lock_owner)"
+  _ignore_run_state || { echo "FAIL: cannot safely exclude Flow run-state for this root path; no lock or plan changes made." >&2; return 1; }
   # Ensure the lock's PARENT dir exists so the atomic claim test-and-set below can
   # succeed on a brand-new project (flow/ may not exist yet at stage-00 unlock / first run).
   mkdir -p "$FLOW_DIR" 2>/dev/null || true
@@ -859,7 +1193,11 @@ _gate_state_brief() { # $1 = current_stage_idx (caller already computed it), $2 
   local idx="$1" dwell="${2:-}"
   if [ "$idx" -lt 0 ]; then
     echo "planning: not started"
-    echo "  -> run '/flow next' to unlock stage 00 (idea)"
+    if ! inspect_gate_clean; then
+      echo "  -> run '/flow assess' to complete/recheck the brownfield assessment"
+    else
+      echo "  -> run '/flow next' to unlock stage 00 (idea)"
+    fi
   else
     local cur; cur="$(stage_name_at "$idx")"
     if [ -n "$dwell" ]; then
@@ -867,10 +1205,16 @@ _gate_state_brief() { # $1 = current_stage_idx (caller already computed it), $2 
     else
       echo "planning: at stage $cur"
     fi
-    if scan_gate "$FLOW_DIR/$cur.md" >/dev/null 2>&1; then
+    if ! inspect_gate_clean; then
+      echo "  gate: BLOCKED - run '/flow assess' to complete/recheck the brownfield assessment"
+    elif scan_gate "$FLOW_DIR/$cur.md" >/dev/null 2>&1; then
       if [ "$idx" -ge "$LAST_STAGE_IDX" ]; then
-        echo "  gate: PASS - planning complete. '/flow card' is unlocked."
-        prd_declares_fr && echo "        tip: '/flow consistency' checks FR->card->contract coverage."
+        if planning_complete; then
+          echo "  gate: PASS - planning complete. '/flow card' is unlocked."
+          prd_declares_fr && echo "        tip: '/flow consistency' checks FR->card->contract coverage."
+        else
+          echo "  gate: PASS for $cur, but an earlier stage is still BLOCKED; '/flow card' stays locked."
+        fi
       else
         echo "  gate: PASS - run '/flow next' to unlock the next stage."
       fi
@@ -914,6 +1258,7 @@ cmd_status() {
   local idx; idx="$(current_stage_idx)"
   echo "flow status"
   echo "  project: $ROOT"
+  [ -n "${FLOW_ROOT_ADOPTED:-}" ] && echo "  note: adopting flow root $FLOW_ROOT_ADOPTED from an ancestor (CWD is inside it)"
   echo "  mode:    $(cat "$MODE_FILE" 2>/dev/null | tr -d '\r' || echo teach) (default teach)"
   echo "  type:    $(get_project_type) (done = $(done_def_for_type "$(get_project_type)"))"
   local _ast; _ast="$(_att_auto_state_read 2>/dev/null || echo INACTIVE)"
@@ -1097,7 +1442,7 @@ cmd_resume() {
       local decisions=""
       if harness_available; then
         local py; py="$(_python)"
-        decisions="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" decision query --story "$resume_card" 2>/dev/null || true)"
+        decisions="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" decision query --story "$resume_card" 2>/dev/null || true)"
       fi
       if [ -n "$decisions" ]; then
         printf '%s\n' "$decisions" | sed 's/^/  /'
@@ -1247,6 +1592,14 @@ cmd_resume() {
 }
 
 cmd_next() {
+  local force_retopology=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --force-retopology) force_retopology=1 ;;
+      *) echo "FAIL: unknown next argument '$1'; use '/flow next [--force-retopology]'." >&2; return 2 ;;
+    esac
+    shift
+  done
   lock_acquire next || return 1
   # v0.28: warning-only stage semantic receipt guidance (never hard-blocks next)
   if _att_git_ok 2>/dev/null; then
@@ -1264,84 +1617,100 @@ cmd_next() {
     fi
   fi
   local idx; idx="$(current_stage_idx)"
-  if [ "$idx" -lt 0 ]; then
-    mkdir -p "$FLOW_DIR"
-    cp "$TEMPLATE_DIR/00-idea.md" "$FLOW_DIR/00-idea.md"
-    seed_law_files
-    # Cycle id (idempotent): reuse one already stamped by a prior assess so assess->plan is ONE cycle.
-    _ensure_cycle
-    FLOW_LOG_STAGE_TO="00-idea"
-    echo "PASS: unlocked stage 00 -> flow/00-idea.md"
-    echo "Fill it in, check its gate boxes, then run '/flow next'."
-    return 0
+  if ! inspect_gate_clean; then
+      echo "FAIL: brownfield assessment gate for flow/00-inspect.md is not clean."
+      scan_gate "$FLOW_DIR/00-inspect.md"
+      FLOW_LOG_STAGE_TO="00-inspect"
+      FLOW_LAST_GATE_FAIL="fill:$(grep -c '\[FILL' "$FLOW_DIR/00-inspect.md" 2>/dev/null || echo 0),unchecked:$(grep -cE '^[[:space:]]*- \[ \]' "$FLOW_DIR/00-inspect.md" 2>/dev/null || echo 0),midtier:${_MIDTIER_FAILS:-0}"
+      echo "Fix the above, then run '/flow assess' again. (Kill at a gate is also valid.)"
+      return 1
   fi
-  local cur; cur="$(stage_name_at "$idx")"
-  if ! scan_gate "$FLOW_DIR/$cur.md" >/dev/null 2>&1; then
-    echo "FAIL: gate for stage $cur is not clean."
-    scan_gate "$FLOW_DIR/$cur.md"
-    # attribute the failing event to THIS stage (so usage top-fail-stage + propose can see it)
-    # and record WHICH checks failed, so a chronically-failing stage is diagnosable.
-    FLOW_LOG_STAGE_TO="$cur"
-    FLOW_LAST_GATE_FAIL="fill:$(grep -c '\[FILL' "$FLOW_DIR/$cur.md" 2>/dev/null || echo 0),unchecked:$(grep -cE '^[[:space:]]*- \[ \]' "$FLOW_DIR/$cur.md" 2>/dev/null || echo 0),midtier:${_MIDTIER_FAILS:-0}"
-    echo
-    echo "Fix the above, then run '/flow next' again. (Kill at a gate is also valid.)"
-    return 1
-  fi
-  if [ "$idx" -ge "$LAST_STAGE_IDX" ]; then
-    FLOW_LOG_STAGE_FROM="$cur"
-    if planning_complete; then
-      # Record ONLY when the plan actually advanced. stage-05 is the terminal planning
-      # node, so recording it while an earlier stage is still blocked would make
-      # `graph next` answer "complete" for a project flow.sh itself calls BLOCKED.
-      _graph_stage_record "$cur"
-      echo "PASS: stage $cur gate clean. Planning is COMPLETE."
+  local eid node stage cur="" rc=0 visited=" " s nidx=0 preds p
+  # Recheck all materialized gates: a previously checkpointed stage may have been
+  # edited since it passed. Never journal completion over an earlier blocked gate.
+  for s in $STAGES; do
+    stage_skipped "$s" && continue
+    [ -f "$FLOW_DIR/$s.md" ] || continue
+    if ! scan_gate "$FLOW_DIR/$s.md" >/dev/null 2>&1; then
+      echo "FAIL: gate for stage $s is not clean; an earlier stage is still BLOCKED if later files exist."
+      scan_gate "$FLOW_DIR/$s.md"
+      FLOW_LOG_STAGE_TO="$s"
+      FLOW_LAST_GATE_FAIL="fill:$(grep -c '\[FILL' "$FLOW_DIR/$s.md" 2>/dev/null || echo 0),unchecked:$(grep -cE '^[[:space:]]*- \[ \]' "$FLOW_DIR/$s.md" 2>/dev/null || echo 0),midtier:${_MIDTIER_FAILS:-0}"
+      echo "Fix the above, then run '/flow next' again. (Kill at a gate is also valid.)"
+      return 1
+    fi
+  done
+  eid="$(_graph_planning_id)" || { echo "FAIL: required planning graph session failed; no progression." >&2; return 1; }
+  while :; do
+    rc=0
+    if [ "$force_retopology" -eq 1 ]; then
+      node="$(_graph_next_node "$eid" --force-retopology)" || rc=$?
+    else
+      node="$(_graph_next_node "$eid")" || rc=$?
+    fi
+    if [ "$rc" -eq 3 ]; then
+      if ! planning_complete; then
+        echo "FAIL: graph has no successor but planning gates are incomplete; reconcile the execution before progressing." >&2
+        return 1
+      fi
+      echo "PASS: stage ${cur:-05-contract} gate clean. Planning is COMPLETE."
       echo "All planning stages passed (or were debt-skipped). Run '/flow card' to create build cards."
       if prd_declares_fr; then
         echo "  tip: the PRD declares FR ids - run '/flow consistency' to check FR->card->contract coverage before building."
       fi
-    else
-      echo "PASS: stage $cur gate clean - but an earlier stage is still BLOCKED (and not debt-skipped)."
-      echo "Run '/flow' to see which. If it is a legitimate, debt-recorded skip, use"
-      echo "'/flow skip <stage> --reason ...'. '/flow card' stays blocked until then."
+      return 0
     fi
-    return 0
-  fi
-  local nxt; nxt="$(stage_name_at "$((idx + 1))")"
-  # Walk PAST every debt-skipped successor instead of stopping on one: cmd_skip already
-  # recorded the accepted exposure, so re-creating its file would resurrect a stage the
-  # DEBT line says is knowingly missing - but simply refusing to scaffold would wedge the
-  # project forever when the skipped stage's own successor is also absent (a failed
-  # scaffold in cmd_skip, or an operator deleting the file). Advance to the first stage
-  # that is neither present nor skipped; if that runs off the end, planning is complete.
-  local nidx=$((idx + 1)) skipped_over=""
-  while [ "$nidx" -le "$LAST_STAGE_IDX" ] && stage_skipped "$nxt"; do
-    skipped_over="$skipped_over $nxt"
-    nidx=$((nidx + 1))
-    [ "$nidx" -gt "$LAST_STAGE_IDX" ] && break
-    nxt="$(stage_name_at "$nidx")"
+    [ "$rc" -eq 0 ] || return 1
+    stage="$(_graph_stage_for_node "$node")" || return 1
+    case "$visited" in *" $node "*) echo "FAIL: graph repeated planning node $node; no progression." >&2; return 1 ;; esac
+    visited="$visited$node "
+    # Graph ordering owns stage trust: verify that every topological predecessor
+    # is either clean or legitimately debt-skipped before scaffolding or checkpointing.
+    preds="$(_graph_stage_preds_for_node "$node")" || return 1
+    for p in $preds; do
+      if stage_skipped "$p"; then
+        continue
+      fi
+      if [ ! -f "$FLOW_DIR/$p.md" ]; then
+        echo "FAIL: cannot advance to $stage; predecessor stage $p is missing (must exist or be debt-skipped)." >&2
+        return 1
+      fi
+      if ! scan_gate "$FLOW_DIR/$p.md" >/dev/null 2>&1; then
+        echo "FAIL: cannot advance to $stage; predecessor stage $p gate is not clean." >&2
+        scan_gate "$FLOW_DIR/$p.md"
+        return 1
+      fi
+    done
+    if [ ! -f "$FLOW_DIR/$stage.md" ]; then
+      # Only a verified graph successor can authorize a new artifact. No integer
+      # successor ladder and no execution of topology-provided commands.
+      mkdir -p "$FLOW_DIR" || return 1
+      cp "$TEMPLATE_DIR/$stage.md" "$FLOW_DIR/$stage.md" || return 1
+      FLOW_LOG_STAGE_FROM="$cur"; FLOW_LOG_STAGE_TO="$stage"
+      if [ "$idx" -lt 0 ]; then
+        seed_law_files
+        _ensure_cycle
+        if [ -n "${FLOW_ROOT_ADOPTED:-}" ]; then
+          echo "PASS: unlocked stage ${stage%%-*} -> $FLOW_DIR/$stage.md"
+        else
+          echo "PASS: unlocked stage ${stage%%-*} -> flow/$stage.md"
+        fi
+      else
+        nidx=0; for s in $STAGES; do [ "$s" = "$stage" ] && break; nidx=$((nidx + 1)); done
+        echo "PASS: stage $cur gate clean -> unlocked stage $nidx (flow/$stage.md)"
+      fi
+      echo "Fill it in, check its gate boxes, then run '/flow next'."
+      return 0
+    fi
+    # Existing files were checked above and are never overwritten. Record ONLY
+    # the executor-selected boundary, and require success before asking it again.
+    harness_capture_checked graph record --execution "$eid" --ns "" --node "$node" \
+      --gate-exit 0 --gate-cmd "gate $stage" >/dev/null || {
+      echo "FAIL: required planning checkpoint failed; no progression." >&2; return 1;
+    }
+    cur="$stage"; FLOW_LOG_STAGE_FROM="$cur"
+    gate_durable_hook "$cur"
   done
-  if [ "$nidx" -gt "$LAST_STAGE_IDX" ]; then
-    echo "PASS: stage $cur gate clean. Remaining stages are debt-skipped ($(printf '%s' "${skipped_over# }"))."
-    if planning_complete; then
-      _graph_stage_record "$cur"
-      echo "Planning is COMPLETE. Run '/flow card' to create build cards."
-    else
-      echo "An earlier stage is still BLOCKED (and not debt-skipped) - run '/flow' to see which."
-    fi
-    return 0
-  fi
-  if [ -f "$FLOW_DIR/$nxt.md" ]; then
-    echo "PASS: stage $cur gate clean. Stage $nidx ($nxt.md) already exists - not overwritten."
-    _graph_stage_record "$cur"
-    return 0
-  fi
-  cp "$TEMPLATE_DIR/$nxt.md" "$FLOW_DIR/$nxt.md"
-  FLOW_LOG_STAGE_FROM="$cur"; FLOW_LOG_STAGE_TO="$nxt"
-  echo "PASS: stage $cur gate clean -> unlocked stage $nidx (flow/$nxt.md)"
-  gate_durable_hook "$cur"
-  _graph_stage_record "$cur"
-  echo "  tip: '/flow recall' surfaces prior debt/retro/friction before you fill this stage."
-  return 0
 }
 
 # ---- card lifecycle: operator-marked start + CLI-owned done (legible-lifecycle layer) ----
@@ -1399,6 +1768,10 @@ inflight_display() { # emit a line per todo card still marked in flight (stale i
 # of existing state helpers; no side effects. Decision ladder, first match wins.
 _next_action() {
   local idx; idx="$(current_stage_idx)"
+  if ! inspect_gate_clean; then
+    echo "run '/flow assess' to complete/recheck the brownfield assessment"
+    return 0
+  fi
   if [ "$idx" -lt 0 ]; then
     echo "run '/flow next' to unlock stage 00"
     return 0
@@ -1410,7 +1783,7 @@ _next_action() {
   for s in $STAGES; do
     if [ ! -f "$FLOW_DIR/$s.md" ]; then
       stage_skipped "$s" && continue
-      break
+      blocked="$s"; break
     fi
     if ! scan_gate "$FLOW_DIR/$s.md" >/dev/null 2>&1; then
       stage_skipped "$s" && continue
@@ -1462,7 +1835,7 @@ _next_action() {
     echo "start next card: '/flow card start C-NNN'"
     return 0
   fi
-  echo "run '/flow check' then ship per stage 09"
+  echo "run '/flow retro' to capture lessons from the completed build cards"
 }
 
 # Closed advisory enum from _next_action prose only. Hosts must not auto-exec
@@ -1630,25 +2003,29 @@ cmd_card_done() { # CLI-owned flip to done, gated by the SAME done-rules as '/fl
     echo "FAIL: could not write status for $id"
     return 1
   fi
-  if cmd_check "$id"; then            # cmd_check enforces evidence/verify AND records the durable done-trace
+  if cmd_check --withhold-pass "$id"; then
+    if ! _graph_record "$id" card-verify-live --gate-exit 0 --card-status done; then
+      trap - INT TERM
+      [ "$enforce" = "1" ] && { _att_lock_release "$lname2"; _att_lock_release "$lname"; _att_auto_lock_release; }
+      _set_card_status "$file" todo
+      _harness_or_fail story update --id "$id" --status in_progress >/dev/null 2>&1 || true
+      return 1
+    fi
     trap - INT TERM
     [ "$enforce" = "1" ] && { _att_lock_release "$lname2"; _att_lock_release "$lname"; _att_auto_lock_release; }
     _inflight_clear "$id"
-    # card-verify-live: the done boundary is the EVIDENCE gate passing, not the merge
-    # (merge != shipped) - dependents unblock on card status, matching cmd_ready.
-    # The nested cmd_check already recorded card-review; this advances past it.
-    _graph_record "$id" card-verify-live --gate-exit 0 --card-status done
+    echo "PASS: $id is valid (status: done)."
     return 0
   fi
   trap - INT TERM
   [ "$enforce" = "1" ] && { _att_lock_release "$lname2"; _att_lock_release "$lname"; _att_auto_lock_release; }
   # Always force todo on gate fail (even if orig was hollow done) — never leave hollow done.
   _set_card_status "$file" todo
+  _harness_or_fail story update --id "$id" --status in_progress >/dev/null 2>&1 || true
   echo
   echo "REVERTED: $id left at status 'todo' — the done-gate above must pass first."
   return 1
 }
-
 cmd_card() {
   case "${1:-}" in
     start) shift 2>/dev/null || true; cmd_card_start "${1:-}"; return $? ;;
@@ -1815,6 +2192,11 @@ _card_done_evidence_ok() { # $1=card file
 }
 
 cmd_check() {
+  local withhold_pass=0
+  if [ "${1:-}" = "--withhold-pass" ]; then
+    withhold_pass=1
+    shift
+  fi
   local arg="${1:-}"
   if [ -z "$arg" ]; then echo "usage: /flow check C-NNN"; return 1; fi
   local file; file="$(resolve_card_file "$arg")"
@@ -1901,11 +2283,10 @@ cmd_check() {
   fi
 
   if [ "$found" -eq 0 ]; then
-    echo "PASS: $id is valid (status: $st)."
     # card-review boundary: the gate verdict IS the evidence the executor records
     # (green here is what unblocks card-merge in the topology).
     # Typed flags, never a bash-built JSON literal: $st is free text from the card file.
-    _graph_record "$id" card-review --gate-exit 0 --gate-cmd "check $id" --card-status "$st"
+    _graph_record "$id" card-review --gate-exit 0 --gate-cmd "check $id" --card-status "$st" || return 1
     case "$st" in
       todo) _harness_or_fail story update --id "$id" --status in_progress || return 1 ;;
       done)
@@ -1925,6 +2306,7 @@ cmd_check() {
                   --actions "check $id gate PASS" --files-changed "cards/$id.md" --friction none)"
             [ -n "$tr" ] && printf '%s\n' "$tr" | grep -iE 'tier|to reach' | sed 's/^/  harness: /' ;;
     esac
+    [ "$withhold_pass" -eq 0 ] && echo "PASS: $id is valid (status: $st)."
     return 0
   fi
   FLOW_LAST_GATE_FAIL="fill:$(grep -c '\[FILL' "$file" 2>/dev/null || echo 0),unchecked:$(grep -cE '^[[:space:]]*- \[ \]' "$file" 2>/dev/null || echo 0)"
@@ -1941,7 +2323,7 @@ cmd_mode() {
     return 0
   fi
   case "$arg" in
-    teach|work) printf '%s\n' "$arg" > "$MODE_FILE"; _ignore_run_state; echo "PASS: mode set to '$arg'."; return 0 ;;
+    teach|work) _ignore_run_state || return 1; printf '%s\n' "$arg" > "$MODE_FILE"; _ignore_run_state; echo "PASS: mode set to '$arg'."; return 0 ;;
     *) echo "FAIL: mode must be 'teach' or 'work'."; return 1 ;;
   esac
 }
@@ -1969,6 +2351,7 @@ cmd_project_type() {
           return 1
         fi
       fi
+      _ignore_run_state || return 1
       printf '%s\n' "$arg" > "$PROJECT_TYPE_FILE"; _ignore_run_state
       echo "PASS: project type set to '$arg'."
       echo "  done-evidence now means: $(done_def_for_type "$arg")"
@@ -1987,6 +2370,7 @@ cmd_skip() {
     return 1
   fi
   local known=0 s; for s in $STAGES; do [ "$s" = "$stage" ] && known=1; done
+  [ "$stage" = "00-inspect" ] && [ -f "$FLOW_DIR/00-inspect.md" ] && known=1
   if [ "$known" -eq 0 ]; then echo "FAIL: unknown stage '$stage' (one of: $STAGES)"; return 1; fi
   # PRIMARY guard (stage identity): the contract (05) is the seam - never skip it; adapt it
   # to the project type instead. This closes the worst case (skipping the auth-boundary stage).
@@ -2006,44 +2390,156 @@ cmd_skip() {
     echo "  /flow debt add \"skip $stage\" \"<the exposure>\" \"<close-before condition>\""
     return 1
   fi
+  _graph_planning_check || { echo "FAIL: graph unavailable; skip not recorded." >&2; return 1; }
   mkdir -p "$FLOW_DIR"
   stage_skipped "$stage" || printf '%s\n' "$stage" >> "$SKIPPED_FILE"
-  local i=0 found=-1; for s in $STAGES; do [ "$s" = "$stage" ] && found=$i; i=$((i + 1)); done
-  if [ "$found" -ge 0 ] && [ "$found" -lt "$LAST_STAGE_IDX" ]; then
-    local nxt; nxt="$(stage_name_at "$((found + 1))")"
-    [ -f "$FLOW_DIR/$nxt.md" ] || cp "$TEMPLATE_DIR/$nxt.md" "$FLOW_DIR/$nxt.md"
-    echo "PASS: stage $stage debt-skipped (logged) -> $nxt available. planning_complete now tolerates it."
-  else
+  # Only ladder stages hand scaffolding to the graph consumer; the brownfield
+  # 00-inspect transition records the skip and leaves 'next' as the user's move.
+  local known_ladder=0; for s in $STAGES; do [ "$s" = "$stage" ] && known_ladder=1; done
+  if [ "$known_ladder" -eq 0 ]; then
     echo "PASS: stage $stage debt-skipped (logged). planning_complete now tolerates it."
+    return 0
   fi
-  return 0
+  echo "Stage $stage debt-skipped (logged). planning_complete now tolerates it."
+  # The graph, not the skipped stage's integer index, chooses any scaffold.
+  cmd_next
+}
+
+_gate_json_finding() {
+  # JSON string escape preserving TAB (\t), backslash (\\), double-quote (\"),
+  # while stripping other ASCII control characters (0x00-0x08, 0x0A-0x1F, 0x7F).
+  local tab
+  tab="$(printf '\t')"
+  printf '%s' "${1:-}" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e "s/${tab}/\\\\t/g" | tr -d '\000-\010\012-\037\177'
+}
+
+_emit_gate_report_json() { # $1=target $2=file
+  local target="$1" file="$2"
+  local scan_out scan_rc=0
+  scan_out="$(scan_gate "$file")" || scan_rc=$?
+  if [ "$scan_rc" -eq 0 ]; then
+    printf '{"schema_version":1,"kind":"gate.report","target":"%s","clean":true,"findings":[]}\n' \
+      "$(_json_str "$target")"
+    return 0
+  fi
+  local farr="" ffirst=1 line trimmed
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
+    trimmed="$(printf '%s' "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    [ -n "$trimmed" ] || continue
+    if [ "$ffirst" -eq 1 ]; then
+      farr="\"$(_gate_json_finding "$trimmed")\""
+      ffirst=0
+    else
+      farr="$farr,\"$(_gate_json_finding "$trimmed")\""
+    fi
+  done <<EOF
+$scan_out
+EOF
+  printf '{"schema_version":1,"kind":"gate.report","target":"%s","clean":false,"findings":[%s]}\n' \
+    "$(_json_str "$target")" "$farr"
+  return "$scan_rc"
 }
 
 cmd_gate() {
   # Read-only mechanical gate scan (no unlock, no template copy, no durable writes):
   # the ONLY flow.sh verb the graph executor may run from topology cmd position
   # (`check` mutates story/trace on pass and stays Must-ask). Exit 0 clean / 1 findings.
-  local target="${1:-}"
-  if [ "$target" = "--card" ]; then
-    local card="${2:-}" f
-    if [ -z "$card" ]; then echo "usage: /flow gate --card C-NNN"; return 2; fi
-    f="$(resolve_card_file "$card" 2>/dev/null)"
-    if [ -z "$f" ]; then echo "usage: /flow gate --card C-NNN"; return 2; fi
+  local opt_json=0
+  local opt_card=""
+  local is_card=0
+  local stage=""
+  local stage_set=0
+
+  _gate_usage() {
+    if [ "$opt_json" -eq 1 ]; then
+      echo "usage: /flow gate <stage: $STAGES> [--json] | /flow gate --card C-NNN [--json]"
+    else
+      echo "usage: /flow gate <stage: $STAGES> | /flow gate --card C-NNN"
+    fi
+  }
+
+  _gate_card_usage() {
+    if [ "$opt_json" -eq 1 ]; then
+      echo "usage: /flow gate --card C-NNN [--json]"
+    else
+      echo "usage: /flow gate --card C-NNN"
+    fi
+  }
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json)
+        if [ "$opt_json" -eq 1 ]; then
+          _gate_usage
+          return 2
+        fi
+        opt_json=1
+        shift
+        ;;
+      --card)
+        if [ "$is_card" -eq 1 ] || [ "$stage_set" -eq 1 ]; then
+          _gate_usage
+          return 2
+        fi
+        is_card=1
+        shift
+        if [ $# -eq 0 ]; then
+          _gate_card_usage
+          return 2
+        fi
+        opt_card="$1"
+        shift
+        ;;
+      *)
+        if [ "$is_card" -eq 1 ] || [ "$stage_set" -eq 1 ]; then
+          _gate_usage
+          return 2
+        fi
+        stage="$1"
+        stage_set=1
+        shift
+        ;;
+    esac
+  done
+
+  if [ "$is_card" -eq 1 ]; then
+    local f
+    f="$(resolve_card_file "$opt_card" 2>/dev/null)"
+    if [ -z "$f" ]; then _gate_card_usage; return 2; fi
     # A nonexistent card is NOT a gate verdict: reporting it as exit 1 would journal a
     # typo'd id as a genuine red review and burn a two-strikes repair budget.
-    if [ ! -f "$f" ]; then echo "FAIL: card not found for '$card' (looked for $f)"; return 2; fi
-    echo "GATE card ${card}:"
+    if [ ! -f "$f" ]; then echo "FAIL: card not found for '$opt_card' (looked for $f)"; return 2; fi
+    local target_name
+    target_name="$(basename "$f" .md)"
+    if [ "$opt_json" -eq 1 ]; then
+      _emit_gate_report_json "$target_name" "$f"
+      return $?
+    fi
+    echo "GATE card ${opt_card}:"
     if scan_gate "$f"; then echo "  clean"; return 0; fi
     return 1
   fi
-  local known=0 s
-  for s in $STAGES; do [ "$s" = "$target" ] && known=1; done
-  if [ "$known" -eq 0 ]; then
-    echo "usage: /flow gate <stage: $STAGES> | /flow gate --card C-NNN"
+
+  if [ -z "$stage" ]; then
+    _gate_usage
     return 2
   fi
-  echo "GATE stage ${target}:"
-  if scan_gate "$FLOW_DIR/$target.md"; then echo "  clean"; return 0; fi
+
+  local known=0 s
+  for s in $STAGES; do [ "$s" = "$stage" ] && known=1; done
+  if [ "$known" -eq 0 ]; then
+    _gate_usage
+    return 2
+  fi
+
+  if [ "$opt_json" -eq 1 ]; then
+    _emit_gate_report_json "$stage" "$FLOW_DIR/$stage.md"
+    return $?
+  fi
+
+  echo "GATE stage ${stage}:"
+  if scan_gate "$FLOW_DIR/$stage.md"; then echo "  clean"; return 0; fi
   return 1
 }
 
@@ -2535,35 +3031,127 @@ cmd_design() {
   return 1
 }
 
+_emit_debt_list_json() { # $1 = debt file
+  local debt_file="$1"
+  if [ ! -f "$debt_file" ]; then
+    printf '{"schema_version":1,"kind":"debt.list","total":0,"open_count":0,"debts":[]}\n'
+    return 0
+  fi
+  local raw_matches
+  raw_matches="$(grep -nE '^- \[[ xX]\] DEBT:' "$debt_file" 2>/dev/null || true)"
+  if [ -z "$raw_matches" ]; then
+    printf '{"schema_version":1,"kind":"debt.list","total":0,"open_count":0,"debts":[]}\n'
+    return 0
+  fi
+
+  local total=0 open_count=0
+  local darr="" dfirst=1 line line_num line_text is_open
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
+    [ -n "$line" ] || continue
+    line_num="${line%%:*}"
+    line_text="${line#*:}"
+    case "$line_text" in
+      "- [ ]"*) is_open="true"; open_count=$((open_count + 1)) ;;
+      *)        is_open="false" ;;
+    esac
+    total=$((total + 1))
+    local esc_text
+    esc_text="$(_gate_json_finding "$line_text")"
+    local entry="{\"text\":\"$esc_text\",\"open\":$is_open,\"line\":$line_num}"
+    if [ "$dfirst" -eq 1 ]; then
+      darr="$entry"
+      dfirst=0
+    else
+      darr="$darr,$entry"
+    fi
+  done <<EOF
+$raw_matches
+EOF
+
+  printf '{"schema_version":1,"kind":"debt.list","total":%d,"open_count":%d,"debts":[%s]}\n' \
+    "$total" "$open_count" "$darr"
+  return 0
+}
+
 cmd_debt() {
-  local sub="${1:-list}"; shift 2>/dev/null || true
-  case "$sub" in
-    add)
-      local what="${1:-}" exposure="${2:-}" close="${3:-}"
-      if [ -z "$what" ] || [ -z "$exposure" ] || [ -z "$close" ]; then
-        echo 'usage: /flow debt add "<what skipped>" "<exposure>" "<close-before condition>"'
-        return 1
-      fi
-      # strip newlines so one debt is always exactly one line (keeps `debt list` counts honest)
-      what="$(printf '%s' "$what" | tr -d '\n\r')"
-      exposure="$(printf '%s' "$exposure" | tr -d '\n\r')"
-      close="$(printf '%s' "$close" | tr -d '\n\r')"
-      [ -f "$DEBT_FILE" ] || printf '# DEBT - deliberate gate-skips (a loan, written down)\n\n' > "$DEBT_FILE"
-      printf -- '- [ ] DEBT: %s -- %s -- close before: %s -- opened %s\n' \
-        "$what" "$exposure" "$close" "$(date +%Y-%m-%d)" >> "$DEBT_FILE"
-      echo "PASS: debt recorded in DEBT.md"
-      echo "  Security-class (auth/authz/admin/tenancy/payments/data/validation)? The OPERATOR"
-      echo "  must accept this exposure in writing - it is never decided for them. In /flow auto this halts."
-      return 0 ;;
-    list|"")
-      if [ ! -f "$DEBT_FILE" ]; then echo "No debts recorded."; return 0; fi
-      local open; open="$(grep -nE '^- \[ \] DEBT:' "$DEBT_FILE" 2>/dev/null || true)"
-      if [ -z "$open" ]; then echo "No OPEN debts (all closed)."; else
-        echo "OPEN debts (close before their named condition):"; printf '%s\n' "$open" | sed 's/^/  L/'
-      fi
-      return 0 ;;
-    *) echo "usage: /flow debt add|list"; return 1 ;;
-  esac
+  local opt_json=0
+  local is_add=0
+  local is_list=0
+
+  _debt_usage() {
+    echo "usage: /flow debt [list] [--json] | /flow debt add \"<what skipped>\" \"<exposure>\" \"<close-before condition>\""
+  }
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json)
+        if [ "$opt_json" -eq 1 ] || [ "$is_add" -eq 1 ]; then
+          _debt_usage
+          return 2
+        fi
+        opt_json=1
+        shift
+        ;;
+      add)
+        if [ "$opt_json" -eq 1 ] || [ "$is_list" -eq 1 ] || [ "$is_add" -eq 1 ]; then
+          _debt_usage
+          return 2
+        fi
+        is_add=1
+        shift
+        local what="${1:-}" exposure="${2:-}" close="${3:-}"
+        if [ "$what" = "--json" ]; then
+          _debt_usage
+          return 2
+        fi
+        if [ -z "$what" ] || [ -z "$exposure" ] || [ -z "$close" ]; then
+          echo 'usage: /flow debt add "<what skipped>" "<exposure>" "<close-before condition>"'
+          return 1
+        fi
+        if [ $# -gt 3 ]; then
+          _debt_usage
+          return 2
+        fi
+        # strip newlines so one debt is always exactly one line (keeps `debt list` counts honest)
+        what="$(printf '%s' "$what" | tr -d '\n\r')"
+        exposure="$(printf '%s' "$exposure" | tr -d '\n\r')"
+        close="$(printf '%s' "$close" | tr -d '\n\r')"
+        [ -f "$DEBT_FILE" ] || printf '# DEBT - deliberate gate-skips (a loan, written down)\n\n' > "$DEBT_FILE"
+        printf -- '- [ ] DEBT: %s -- %s -- close before: %s -- opened %s\n' \
+          "$what" "$exposure" "$close" "$(date +%Y-%m-%d)" >> "$DEBT_FILE"
+        echo "PASS: debt recorded in DEBT.md"
+        echo "  Security-class (auth/authz/admin/tenancy/payments/data/validation)? The OPERATOR"
+        echo "  must accept this exposure in writing - it is never decided for them. In /flow auto this halts."
+        return 0
+        ;;
+      list)
+        if [ "$is_list" -eq 1 ] || [ "$is_add" -eq 1 ]; then
+          _debt_usage
+          return 2
+        fi
+        is_list=1
+        shift
+        ;;
+      *)
+        _debt_usage
+        return 2
+        ;;
+    esac
+  done
+
+  if [ "$opt_json" -eq 1 ]; then
+    _emit_debt_list_json "$DEBT_FILE"
+    return 0
+  fi
+
+  if [ ! -f "$DEBT_FILE" ]; then echo "No debts recorded."; return 0; fi
+  local open; open="$(grep -nE '^- \[ \] DEBT:' "$DEBT_FILE" 2>/dev/null || true)"
+  if [ -z "$open" ]; then echo "No OPEN debts (all closed)."; else
+    echo "OPEN debts (close before their named condition):"; printf '%s\n' "$open" | sed 's/^/  L/'
+  fi
+  return 0
 }
 
 cmd_contract() {
@@ -2665,26 +3253,53 @@ cmd_tokens() {
 
 assess_scan() {
   # best-effort stack/CI/context detection from real files (fast: no recursive find).
+  local k rmap py rout df has_docker=0 pyf has_py=0 odoo_count=0 mf mlist=""
   echo "stack:"
   [ -f "$ROOT/package.json" ] && echo "  - node (package.json)"
   [ -f "$ROOT/frontend/package.json" ] && echo "  - frontend (frontend/package.json)"
-  { [ -f "$ROOT/pyproject.toml" ] || [ -f "$ROOT/requirements.txt" ]; } && echo "  - python (pyproject/requirements)"
+  { [ -f "$ROOT/pnpm-workspace.yaml" ] || [ -f "$ROOT/nx.json" ] || [ -f "$ROOT/turbo.json" ]; } && echo "  - monorepo (workspaces)"
+  if [ -f "$ROOT/pyproject.toml" ] || [ -f "$ROOT/requirements.txt" ]; then
+    echo "  - python (pyproject/requirements)"
+  else
+    for pyf in "$ROOT"/src/*.py "$ROOT"/src/*/*.py "$ROOT"/*/*.py \
+               "$ROOT"/*/pyproject.toml "$ROOT"/*/*/pyproject.toml \
+               "$ROOT"/*/requirements.txt "$ROOT"/*/*/requirements.txt; do
+      if [ -f "$pyf" ]; then has_py=1; break; fi
+    done
+    [ "$has_py" -eq 1 ] && echo "  - python (subdirectories)"
+  fi
+  for mf in "$ROOT"/__manifest__.py \
+            "$ROOT"/*/__manifest__.py \
+            "$ROOT"/*/*/__manifest__.py \
+            "$ROOT"/*/*/*/__manifest__.py \
+            "$ROOT"/addons/*/__manifest__.py \
+            "$ROOT"/src/odoo/addons/*/__manifest__.py; do
+    [ -f "$mf" ] || continue
+    case "$mlist" in
+      *"|$mf|"*) ;;
+      *) mlist="$mlist|$mf|"; odoo_count=$((odoo_count + 1)) ;;
+    esac
+  done
+  [ "$odoo_count" -gt 0 ] && echo "  - odoo ($odoo_count addons)"
   [ -f "$ROOT/go.mod" ] && echo "  - go (go.mod)"
   [ -f "$ROOT/Cargo.toml" ] && echo "  - rust (Cargo.toml)"
   [ -d "$ROOT/.github/workflows" ] && echo "  - CI: github actions (.github/workflows)"
-  { [ -f "$ROOT/Dockerfile" ] || [ -f "$ROOT/docker-compose.yml" ]; } && echo "  - docker"
+  for df in "$ROOT"/Dockerfile* "$ROOT"/docker-compose*.yml "$ROOT"/docker-compose*.yaml \
+            "$ROOT"/compose.yml "$ROOT"/compose.yaml "$ROOT"/compose.*.yml "$ROOT"/compose.*.yaml; do
+    if [ -f "$df" ]; then has_docker=1; break; fi
+  done
+  [ "$has_docker" -eq 1 ] && echo "  - docker"
   echo "context files present:"
-  local k
   for k in README.md AGENTS.md CLAUDE.md ARCHITECTURE.md docs specs tests test; do
     [ -e "$ROOT/$k" ] && echo "  - $k"
   done
   # ranked surfaces: highest-leverage code first (symbols referenced most widely). Optional helper
   # (stdlib reference-count ranker); degrades to a note if python/helper absent - the flat scan stands.
   echo "ranked surfaces (most-referenced first - inspect these before planning):"
-  local rmap="${HARNESS_PY%/*}/repo_map.py" py rout
+  rmap="$(dirname "$(_harness_native)")/repo_map.py"
   py="$(_python)"
   if [ -n "$py" ] && [ -f "$rmap" ]; then
-    rout="$("$py" "$rmap" "$ROOT" 10 2>/dev/null)"
+    rout="$("$py" "$rmap" "$(_native_path "$ROOT")" 10 2>/dev/null)"
     if [ -n "$rout" ]; then printf '%s\n' "$rout" | sed 's/^/  /'
     else echo "  (no rankable source symbols found)"; fi
   else
@@ -3000,7 +3615,7 @@ cmd_promote() {
         return 0
       fi
       local py; py="$(_python)"
-      FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" promote-suggest
+      FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" promote-suggest
       return $?
       ;;
     *)
@@ -3017,6 +3632,18 @@ cmd_promote() {
   esac
 }
 
+doctor_remedy_for() {
+  # Advice only: callers supply the observed platform; never run installers.
+  case "$1:$2" in
+    timeout:Darwin) printf '%s\n' 'brew install coreutils (provides gtimeout)' ;;
+    grep_p:Darwin) printf '%s\n' 'brew install grep' ;;
+    install_homes:*) printf '%s\n' 'install via npx @manhquy/flow-skill@latest --yes (or flow rules agent-skills for project scope)' ;;
+    python:*) printf '%s\n' 'install working Python >=3.7 with stdlib sqlite3 (python.org or brew install python); replace old/Store-stub launchers' ;;
+    sqlite3:Darwin) printf '%s\n' 'brew install sqlite' ;;
+    sqlite3:*) printf '%s\n' 'install sqlite3 via your package manager' ;;
+  esac
+}
+
 cmd_doctor() {
   # Cross-platform environment + quality check (macOS / Linux / Windows Git Bash).
   local opt_list=0
@@ -3024,7 +3651,7 @@ cmd_doctor() {
   local opt_check=""
   local has_check=0
   local err_msg=""
-  local helper="$SCRIPT_DIR/doctor_helper.py"
+  local helper; helper="$(_native_path "$SCRIPT_DIR/doctor_helper.py")"
   local py; py="$(_python)"
 
   # Pre-scan arguments for --json so any error emits valid JSON if requested
@@ -3134,7 +3761,7 @@ cmd_doctor() {
       if [ -n "$py" ] && "$py" --version >/dev/null 2>&1 && [ -f "$helper" ]; then
         "$py" "$helper" format-error "$err_msg"
       else
-        echo "flow doctor: python interpreter unavailable (--json doctor report requires python 3.8+)" >&2
+        echo "flow doctor: working Python >=3.7 unavailable (--json requires Python); install it and retry" >&2
       fi
     else
       echo "flow doctor: $err_msg" >&2
@@ -3149,7 +3776,7 @@ cmd_doctor() {
         "$py" "$helper" list-json
         return $?
       else
-        echo "flow doctor: python interpreter unavailable (--json doctor report requires python 3.8+)" >&2
+        echo "flow doctor: working Python >=3.7 unavailable (--json requires Python); install it and retry" >&2
         return 1
       fi
     else
@@ -3170,17 +3797,27 @@ cmd_doctor() {
   # If --json requested without python, fail explicitly with unsupported interpreter
   if [ "$opt_json" -eq 1 ]; then
     if [ -z "$py" ] || ! "$py" --version >/dev/null 2>&1 || [ ! -f "$helper" ]; then
-      echo "flow doctor: python interpreter unavailable (--json doctor report requires python 3.8+)" >&2
+      echo "flow doctor: working Python >=3.7 unavailable (--json requires Python); install it and retry" >&2
       return 1
     fi
   fi
 
   local ok=1
+  local doctor_os; doctor_os="$(uname -s 2>/dev/null || echo unknown)"
   local rec_file; rec_file="$(mktemp 2>/dev/null || echo "$ROOT/.flow/.doc-rec.$$")"
   : > "$rec_file"
 
   _record() {
     printf '%s\0%s\0%s\0%s\0' "$1" "$2" "$3" "$4" >> "$rec_file"
+    local remedy=""
+    case "$3" in
+      warn|skip|fail) remedy="$(doctor_remedy_for "$1" "$doctor_os")" ;;
+    esac
+    if [ -n "$remedy" ]; then
+      printf 'remedy:%s\0' "$remedy" >> "$rec_file"
+      [ "$opt_json" -eq 0 ] && printf '  remedy: %s\n' "$remedy"
+    fi
+    return 0
   }
 
   _run_check() {
@@ -3226,11 +3863,9 @@ cmd_doctor() {
       [ "$opt_json" -eq 0 ] && echo "  python:    $py_v ($py)  -> durable layer ENABLED"
       _record "python" "runtime" "ok" "$py_v ($py) -> durable layer ENABLED"
     else
-      [ "$opt_json" -eq 0 ] && {
-        echo "  python:    not found  -> durable layer DISABLED (gate engine still works fully)"
-        echo "             install: macOS 'brew install python' | Ubuntu 'sudo apt install python3' | Windows python.org"
-      }
-      _record "python" "runtime" "warn" "not found -> durable layer DISABLED"
+      [ "$opt_json" -eq 0 ] && echo "  python:    working Python >=3.7 with sqlite3 not found -> product operations REFUSED"
+      _record "python" "runtime" "fail" "working Python >=3.7 with sqlite3 not found; product operations refused"
+      ok=0
     fi
   fi
 
@@ -3246,6 +3881,7 @@ cmd_doctor() {
         ok=0
       fi
     else
+      [ "$opt_json" -eq 0 ] && echo "  sqlite3:   skip (python not found)"
       _record "sqlite3" "runtime" "skip" "python not found"
     fi
   fi
@@ -3296,18 +3932,20 @@ cmd_doctor() {
 
   # 9. harness
   if _run_check "harness"; then
-    if [ -f "$HARNESS_PY" ]; then
-      [ "$opt_json" -eq 0 ] && echo "  harness:   present ($HARNESS_PY)"
-      _record "harness" "assets" "ok" "present ($HARNESS_PY)"
+    if [ -n "$py" ] && [ -f "$HARNESS_PY" ] && [ -z "${FLOW_HARNESS_DISABLE:-}" ] && \
+        _with_timeout "${FLOW_HARNESS_TIMEOUT:-20}" "$py" "$(_harness_native)" --help >/dev/null 2>&1; then
+      [ "$opt_json" -eq 0 ] && echo "  harness:   usable ($HARNESS_PY)"
+      _record "harness" "assets" "ok" "usable ($HARNESS_PY)"
     else
-      [ "$opt_json" -eq 0 ] && echo "  harness:   absent (durable layer off)"
-      _record "harness" "assets" "warn" "absent (durable layer off)"
+      [ "$opt_json" -eq 0 ] && echo "  harness:   missing, disabled or unable to start -> product operations REFUSED; unset FLOW_HARNESS_DISABLE / reinstall; see docs/migration-v1.md"
+      _record "harness" "assets" "fail" "missing, disabled or unable to start; unset FLOW_HARNESS_DISABLE / reinstall; see docs/migration-v1.md"
+      ok=0
     fi
   fi
 
   # 10. timeout
   if _run_check "timeout"; then
-    if command -v timeout >/dev/null 2>&1 || command -v gtimeout >/dev/null 2>&1; then
+    if (command -v timeout >/dev/null 2>&1 && (timeout --version >/dev/null 2>&1 || timeout -s TERM 1 true >/dev/null 2>&1)) || command -v gtimeout >/dev/null 2>&1; then
       [ "$opt_json" -eq 0 ] && echo "  timeout:   full (timeout|gtimeout present)"
       _record "timeout" "tools" "ok" "full (timeout|gtimeout present)"
     else
@@ -3334,9 +3972,9 @@ cmd_doctor() {
     else
       local v_out=""
       if [ -n "$py" ] && "$py" --version >/dev/null 2>&1 && [ -f "$helper" ]; then
-        v_out="$("$py" "$helper" verify-receipt "$SCRIPT_DIR/.." "$mf" 2>/dev/null || echo "FAIL:execution error during integrity verification")"
+        v_out="$("$py" "$helper" verify-receipt "$(_native_path "$SCRIPT_DIR/..")" "$(_native_path "$mf")" 2>/dev/null || echo "FAIL:execution error during integrity verification")"
       else
-        v_out="FAIL:python 3.8+ interpreter unavailable for receipt verification"
+        v_out="FAIL:working Python >=3.7 interpreter unavailable for receipt verification"
       fi
 
       case "$v_out" in
@@ -3376,6 +4014,7 @@ cmd_doctor() {
     [ -d "$HOME/.gemini/antigravity-cli/skills/flow" ] && homes_found="${homes_found:+$homes_found, }antigravity-cli ($HOME/.gemini/antigravity-cli/skills/flow)"
     [ -d "$HOME/.gemini/config/skills/flow" ] && homes_found="${homes_found:+$homes_found, }antigravity-config ($HOME/.gemini/config/skills/flow)"
     [ -d "$ROOT/.claude/skills/flow" ] && homes_found="${homes_found:+$homes_found, }project ($ROOT/.claude/skills/flow)"
+    [ -d "$ROOT/.agents/skills/flow" ] && homes_found="${homes_found:+$homes_found, }project ($ROOT/.agents/skills/flow)"
 
     if [ -n "$homes_found" ]; then
       [ "$opt_json" -eq 0 ] && echo "  install homes: $homes_found"
@@ -3392,7 +4031,7 @@ cmd_doctor() {
     if [ -n "$py" ] && "$py" --version >/dev/null 2>&1 && [ -f "$helper" ]; then
       bj_out="$("$py" "$helper" verify-bounded-json "$ROOT" 2>/dev/null || echo "FAIL:execution error during bounded-json verification")"
     else
-      bj_out="FAIL:python 3.8+ interpreter unavailable for bounded-json verification"
+      bj_out="FAIL:working Python >=3.7 unavailable for bounded-json verification"
     fi
 
     case "$bj_out" in
@@ -3426,7 +4065,7 @@ cmd_doctor() {
     if [ -n "$py" ] && "$py" --version >/dev/null 2>&1 && [ -f "$helper" ]; then
       pg_out="$("$py" "$helper" verify-privacy-guard "$ROOT" 2>/dev/null || echo "FAIL:execution error during privacy guard check")"
     else
-      pg_out="FAIL:python 3.8+ interpreter unavailable for privacy guard check"
+      pg_out="FAIL:working Python >=3.7 unavailable for privacy guard check"
     fi
 
     case "$pg_out" in
@@ -3465,7 +4104,7 @@ cmd_doctor() {
     if [ -n "$py" ] && "$py" --version >/dev/null 2>&1 && [ -f "$helper" ]; then
       sb_out="$("$py" "$helper" verify-scout-bounds "$ROOT" 2>/dev/null || echo "FAIL:execution error during scout bounds check")"
     else
-      sb_out="FAIL:python 3.8+ interpreter unavailable for scout bounds check"
+      sb_out="FAIL:working Python >=3.7 unavailable for scout bounds check"
     fi
 
     case "$sb_out" in
@@ -3659,8 +4298,8 @@ _ws_default_vendor() { # best-effort from the engine tier / harness session env;
 # One physical line per event. Fixed field order (extractors below rely on it). Returns 1 if the
 # append fails so add/remove can WARN (git stays truth) instead of pretending it persisted.
 _ws_record_append() { # path branch vendor sid card task owned port status
+  _ignore_run_state || return 1
   mkdir -p "$LOG_DIR" 2>/dev/null || true
-  _ignore_run_state
   printf '{"worktree_path":"%s","branch":"%s","vendor":"%s","agent_session_id":"%s","card_id":"%s","task_label":"%s","owned_files_glob":"%s","port_offset":%s,"created_at":%s,"status":"%s"}\n' \
     "$(_json_str "$1")" "$(_json_str "$2")" "$(_json_str "$3")" "$(_json_str "$4")" "$(_json_str "$5")" \
     "$(_json_str "$6")" "$(_json_str "$7")" "$8" "$(_now)" "$9" >> "$WS_FILE" 2>/dev/null || return 1
@@ -3704,7 +4343,7 @@ _ws_print_enter() { # branch wt vendor port
   case "$vendor" in codex) echo "  export CODEX_HOME=\"$wt/.codex\"   # isolate Codex history/config per worktree" ;; esac
   echo "  export PORT=\$(( $baseport + $port ))   # = $(( baseport + port )) (per-worktree; avoids dev-server clash)"
   case "$vendor" in
-    claude)      echo "  # launch in this dir: claude    (or from the main repo: claude --worktree $branch)" ;;
+    claude)      echo "  # launch in this dir: claude" ;;
     codex)       echo "  # launch in this dir: codex \"<task>\"" ;;
     antigravity) echo "  # open this dir as an Antigravity workspace/Project, assign one agent" ;;
     *)           echo "  # launch your agent with this dir as its working directory" ;;
@@ -3755,11 +4394,11 @@ _ws_add() {
       base="$(basename "$ef")"; cp "$ef" "$wt/$base" 2>/dev/null && echo "  copied $base -> worktree (copy, never symlink)"
     done
   fi
-  echo "PASS: created worktree for '$branch' (vendor ${vendor:-?}, port-offset $port) -> $wt"
   # card-dispatch boundary. NOTE: no FLOW_PROJECT_ROOT export in the enter block — the DB
   # resolver already maps a linked worktree to the main DB (_db.default_db_path), and
   # exporting the project root would hijack CARDS_DIR/locks/DEBT for every call in there.
-  _graph_record "$card" card-dispatch --branch "$branch" --worktree "$wt" --vendor "$vendor"
+  _graph_record "$card" card-dispatch --branch "$branch" --worktree "$wt" --vendor "$vendor" || return 1
+  echo "PASS: created worktree for '$branch' (vendor ${vendor:-?}, port-offset $port) -> $wt"
   _ws_print_enter "$branch" "$wt" "$vendor" "$port"
   echo "  (tracked in .flow/workspaces.jsonl; see 'workspace list' / 'workspace doctor')"
   return 0
@@ -3893,12 +4532,14 @@ _ws_remove() {
   fi
   # The executor computes the ancestry itself - this verb has no merge knowledge (it only
   # removes a tree) - and records card-abandon when the branch was never merged.
-  _graph_record "$_gcard" card-merge --merge --branch "$branch"
+  local graph_rc=0
+  _graph_record "$_gcard" card-merge --merge --branch "$branch" || graph_rc=1
   # tombstone ONLY on clean success (git is truth; a failed remove changed nothing)
   local vendor card port
   vendor="$(_ws_get "$rec" vendor)"; card="$(_ws_get "$rec" card_id)"; port="$(_ws_get_num "$rec" port_offset)"
   _ws_record_append "$wt" "$branch" "${vendor:--}" "$(_session_id)" "$card" "" "" "${port:-0}" removed \
     || echo "WARNING: worktree removed but tombstone append failed (doctor will show it as an orphan tree-free branch)."
+  [ "$graph_rc" -eq 0 ] || { echo "FAIL: worktree removed but required graph checkpoint failed; reconcile before progression." >&2; return 1; }
   git -C "$ROOT" worktree prune 2>/dev/null || true
   echo "PASS: removed worktree for '$branch' ($wt) and pruned stale metadata."
   return 0
@@ -4432,6 +5073,7 @@ _eval_nonce() {
 # a '## Stage NN' pattern - red-team finding #10).
 _eval_heading_pattern() {
   case "$1" in
+    00)   echo '^## Stage 00' ;;
     01)   echo '^## Stage 01' ;;
     02)   echo '^## Stage 02' ;;
     05)   echo '^## Stage 05' ;;
@@ -4440,19 +5082,20 @@ _eval_heading_pattern() {
   esac
 }
 
-# Extract one stage's ritual text from the mapped file (01→gate-01.md, 02→gate-02.md,
-# 05→gate-05.md, card→gate-card.md): from its heading line up to (not including) the next
+# Extract one stage's ritual text from the mapped file (00→gate-00.md, 01→gate-01.md,
+# 02→gate-02.md, 05→gate-05.md, card→gate-card.md): up to (not including) the next
 # '## ' heading, or EOF. Prints nothing on a bad stage/missing file - caller MUST assert
 # non-empty before any billable call (a silent empty extraction would judge against
 # no rule at all).
-_eval_extract_section() { # $1 = stage (01|02|05|card)
-  local pat src
+_eval_extract_section() { # $1 = stage (00|01|02|05|card), $2 = optional references dir (snapshot)
+  local pat src refdir="${2:-$SCRIPT_DIR/../references}"
   pat="$(_eval_heading_pattern "$1")" || return 1
   case "$1" in
-    01)   src="$SCRIPT_DIR/../references/gate-01.md" ;;
-    02)   src="$SCRIPT_DIR/../references/gate-02.md" ;;
-    05)   src="$SCRIPT_DIR/../references/gate-05.md" ;;
-    card) src="$SCRIPT_DIR/../references/gate-card.md" ;;
+    00)   src="$refdir/gate-00.md" ;;
+    01)   src="$refdir/gate-01.md" ;;
+    02)   src="$refdir/gate-02.md" ;;
+    05)   src="$refdir/gate-05.md" ;;
+    card) src="$refdir/gate-card.md" ;;
     *)    return 1 ;;
   esac
   [ -f "$src" ] || return 1
@@ -4517,15 +5160,16 @@ _eval_isolated_run() {
 
 # Build the judge prompt for one fixture. The challenge block is the extract output
 # (already the judge bytes; `_eval_gate_rules_sha` is not stdin). Returns 1 if empty.
-_eval_build_prompt() { # $1=outfile $2=stage $3=artifact-file $4=nonce
+_eval_build_prompt() { # $1=outfile $2=stage $3=artifact-file $4=nonce $5=optional references dir (snapshot)
   local outfile="$1" stage="$2" artifact="$3" nonce="$4" section shared
-  section="$(_eval_extract_section "$stage")" || return 1
+  local refdir="${5:-$SCRIPT_DIR/../references}"
+  section="$(_eval_extract_section "$stage" "$refdir")" || return 1
   [ -n "$section" ] || return 1
-  # Shared OD/authority lives in 02/03/05 challenges. Extract maps 01/02/05/card;
+  # Shared OD/authority lives in 02/03/05 challenges. Extract maps 00/01/02/05/card;
   # append shared onto 02 only. 05 extract may mention gate-shared.md; do not cat it
   # (shared OD on 05 false-FLAGs f05a — PASS fixture states bearer auth without an ADR).
   if [ "$stage" = "02" ]; then
-    shared="$SCRIPT_DIR/../references/gate-shared.md"
+    shared="$refdir/gate-shared.md"
     [ -f "$shared" ] && section="$section
 $(cat "$shared")"
   fi
@@ -4610,24 +5254,61 @@ _eval_nonce_epoch() { # $1=run_id -> epoch seconds (or empty)
 # CRLF-normalized hash of the explicit gate-rules corpus (index + shared + 11
 # section files). Never glob `gate-*.md` (would pull gate-eval.md + gate-examples.md).
 # A raw-byte hash would differ per checkout line-endings (git autocrlf).
+# The corpus file list lives in `_eval_gate_rules_files` so the batch snapshot
+# hash (`_eval_grader_hash_for`) can never drift from this recipe.
+_eval_gate_rules_files() { # $1 = references dir -> one path per line, fixed order
+  local refdir="$1"
+  printf '%s\n' \
+    "$refdir/gate-rules.md" "$refdir/gate-shared.md" "$refdir/gate-assess.md" \
+    "$refdir/gate-00.md" "$refdir/gate-01.md" "$refdir/gate-02.md" \
+    "$refdir/gate-03.md" "$refdir/gate-04.md" "$refdir/gate-05.md" \
+    "$refdir/gate-card.md" "$refdir/gate-consistency.md" \
+    "$refdir/gate-constitution.md" "$refdir/gate-debt.md"
+}
 _eval_gate_rules_sha() {
-  local ref="$SCRIPT_DIR/../references"
+  local ref="$SCRIPT_DIR/../references" f
   [ -f "$ref/gate-rules.md" ] || { printf 'unknown'; return; }
   {
-    cat "$ref/gate-rules.md"
-    [ -f "$ref/gate-shared.md" ] && cat "$ref/gate-shared.md"
-    [ -f "$ref/gate-assess.md" ] && cat "$ref/gate-assess.md"
-    [ -f "$ref/gate-00.md" ] && cat "$ref/gate-00.md"
-    [ -f "$ref/gate-01.md" ] && cat "$ref/gate-01.md"
-    [ -f "$ref/gate-02.md" ] && cat "$ref/gate-02.md"
-    [ -f "$ref/gate-03.md" ] && cat "$ref/gate-03.md"
-    [ -f "$ref/gate-04.md" ] && cat "$ref/gate-04.md"
-    [ -f "$ref/gate-05.md" ] && cat "$ref/gate-05.md"
-    [ -f "$ref/gate-card.md" ] && cat "$ref/gate-card.md"
-    [ -f "$ref/gate-consistency.md" ] && cat "$ref/gate-consistency.md"
-    [ -f "$ref/gate-constitution.md" ] && cat "$ref/gate-constitution.md"
-    [ -f "$ref/gate-debt.md" ] && cat "$ref/gate-debt.md"
+    while IFS= read -r f; do cat "$f" 2>/dev/null || true; done < <(_eval_gate_rules_files "$ref")
   } | tr -d '\r' | cksum | awk '{print $1}'
+}
+
+# Grader-input isolation (live `eval` batches only). The batch hash below covers
+# EVERYTHING a live vote is judged against: the gate-rules corpus (same recipe
+# as `_eval_gate_rules_sha`), the manifest, and every fixture artifact in
+# manifest order. A missing file contributes an explicit ABSENT sentinel so its
+# later creation is detected too. CRLF-normalized, one `cksum`, no new deps.
+# Called from inside the manifest `while read` loop: every read below takes an
+# explicit file/pipe source and never touches the loop's stdin (the manifest
+# truncation gotcha documented at `_eval_cli_version`).
+_eval_grader_hash_for() { # $1=references dir $2=manifest $3=fixtures dir -> cksum
+  local refdir="$1" manifest="$2" fixturesdir="$3" f fid rel art
+  {
+    while IFS= read -r f; do
+      printf '== %s ==\n' "${f##*/}"
+      if [ -f "$f" ]; then cat "$f"; else printf 'ABSENT\n'; fi
+    done < <(_eval_gate_rules_files "$refdir")
+    printf '== manifest.tsv ==\n'
+    if [ -f "$manifest" ]; then cat "$manifest"; else printf 'ABSENT\n'; fi
+    awk -F'\t' 'NR>1 && $1!="" && $3!="" { gsub(/\r/,"",$1); gsub(/\r/,"",$3); print $1 "\t" $3 }' "$manifest" 2>/dev/null | while IFS=$'\t' read -r fid rel || [ -n "${fid:-}" ]; do
+      [ -n "$fid" ] && [ -n "$rel" ] || continue
+      art="$fixturesdir/$fid/$rel"
+      printf '== fixtures/%s/%s ==\n' "$fid" "$rel"
+      if [ -f "$art" ]; then cat "$art"; else printf 'ABSENT\n'; fi
+    done
+  } | tr -d '\r' | cksum | awk '{print $1}'
+}
+
+# Copy the frozen grader inputs into $1 (an existing empty temp dir, outside the
+# working tree). Fails loudly on any copy error so a partial snapshot can never
+# masquerade as frozen inputs. Layout mirrors the live tree so the hash helper
+# and prompt builder can run unchanged against either root.
+_eval_grader_snapshot() { # $1=dest dir -> 0/1
+  local dest="$1" refdir="$SCRIPT_DIR/../references" f
+  mkdir -p "$dest/references" "$dest/fixtures" || return 1
+  while IFS= read -r f; do cp "$f" "$dest/references/" || return 1; done < <(_eval_gate_rules_files "$refdir")
+  cp "$EVAL_MANIFEST" "$dest/manifest.tsv" || return 1
+  cp -R "$EVAL_DIR/fixtures/." "$dest/fixtures/" || return 1
 }
 
 # CRLF-normalized assembler-output hash (same recipe as _eval_gate_rules_sha). Covers
@@ -4700,6 +5381,7 @@ _eval_replay_vote() { # $1=fid $2=vote-i -> transcript on stdout; return 1 if mi
 # markers vs fixture rows) are always safe to append-only-scan since both are single JSON
 # objects on their own line.
 _eval_emit_batch_marker() { # $1=run_id $2=start|done $3=n_expected-or-n_written
+  _reject_unsafe_root_newlines "$ROOT" || return 1
   mkdir -p "$LOG_DIR" 2>/dev/null || true
   printf '{"ts":"%s","epoch_s":%s,"run_id":"%s","batch":"%s","n":%s}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" "$(_now)" "$(_json_str "$1")" "$(_json_str "$2")" "$3" \
@@ -4714,6 +5396,7 @@ _eval_emit_batch_marker() { # $1=run_id $2=start|done $3=n_expected-or-n_written
 # not per fixture row) - they never change mid-batch, and recomputing per-row was both wasteful
 # (an extra subprocess per fixture) and the original vector for the stdin-consumption bug above.
 _eval_emit_result() { # $1..$14 as before + $15=retries $16=rate_limited $17=prompt_sha $18=timed_out
+  _reject_unsafe_root_newlines "$ROOT" || return 1
   local run_id="$1" fid="$2" stage="$3" expected="$4" verdict="$5" match="$6" flag="$7" pass="$8" invalid="$9" n="${10}" model="${11}" cliv="${12}" flowv="${13}" grsha="${14}"
   local retries="${15:-0}" ratel="${16:-false}" psha="${17:-}" timedout="${18:-false}"
   case "$retries" in ''|*[!0-9]*) retries=0 ;; esac
@@ -5165,6 +5848,7 @@ _eval_routing_parse_action() {
 }
 
 _eval_routing_emit_result() { # $1=run_id $2=fid $3=expected $4=verdict $5=match $6..$9=votes $10=model $11=cliv $12=flowv $13=rulessha $14=retries $15=rate_limited $16=prompt_sha $17=timed_out
+  _reject_unsafe_root_newlines "$ROOT" || return 1
   local run_id="$1" fid="$2" expected="$3" verdict="$4" match="$5" hit="$6" miss="$7" invalid="$8" n="$9"
   local model="${10}" cliv="${11}" flowv="${12}" rulessha="${13}" retries="${14:-0}" ratel="${15:-false}" psha="${16:-}" timedout="${17:-false}"
   case "$retries" in ''|*[!0-9]*) retries=0 ;; esac
@@ -5204,6 +5888,7 @@ _eval_routing_complete_run_ids() {
 }
 
 _eval_routing_emit_batch_marker() { # $1=run_id $2=start|done $3=n
+  _reject_unsafe_root_newlines "$ROOT" || return 1
   mkdir -p "$LOG_DIR" 2>/dev/null || true
   printf '{"ts":"%s","epoch_s":%s,"run_id":"%s","batch":"%s","n":%s}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" "$(_now)" "$(_json_str "$1")" "$(_json_str "$2")" "$3" \
@@ -5313,7 +5998,7 @@ function cmd_eval_routing { # same arg shape as cmd_eval, called only when --sta
   batch_cliv="$(_eval_cli_version)"; batch_flowv="$(_flow_version)"; batch_rulessha="$(_eval_routing_rules_sha)"
   echo "routing-eval: batch $nonce (N=$n per fixture, timeout=${timeout}s)"
 
-  _ignore_run_state
+  _ignore_run_state || return 1
   _eval_routing_emit_batch_marker "$nonce" start "$n_matched"
   trap 'rm -rf "${rundir:-}" 2>/dev/null; exit 130' INT TERM
 
@@ -5519,6 +6204,7 @@ _eval_converge_parse_verdict() { # $1=raw $2=nonce -> GAP|CONVERGED|INVALID
 }
 
 _eval_converge_emit_result() { # same field shape as _eval_routing_emit_result
+  _reject_unsafe_root_newlines "$ROOT" || return 1
   local run_id="$1" fid="$2" expected="$3" verdict="$4" match="$5" hit="$6" miss="$7" invalid="$8" n="$9"
   local model="${10}" cliv="${11}" flowv="${12}" rulessha="${13}" retries="${14:-0}" ratel="${15:-false}" psha="${16:-}" timedout="${17:-false}"
   case "$retries" in ''|*[!0-9]*) retries=0 ;; esac
@@ -5533,6 +6219,7 @@ _eval_converge_emit_result() { # same field shape as _eval_routing_emit_result
 }
 
 _eval_converge_emit_batch_marker() { # $1=run_id $2=start|done $3=n
+  _reject_unsafe_root_newlines "$ROOT" || return 1
   mkdir -p "$LOG_DIR" 2>/dev/null || true
   printf '{"ts":"%s","epoch_s":%s,"run_id":"%s","batch":"%s","n":%s}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" "$(_now)" "$(_json_str "$1")" "$(_json_str "$2")" "$3" \
@@ -5614,7 +6301,7 @@ function cmd_eval_converge { # same arg shape as cmd_eval, called only when --st
   batch_cliv="$(_eval_cli_version)"; batch_flowv="$(_flow_version)"; batch_rulessha="$(_eval_converge_rules_sha)"
   echo "converge-eval: batch $nonce (N=$n per fixture, timeout=${timeout}s)"
 
-  _ignore_run_state
+  _ignore_run_state || return 1
   _eval_converge_emit_batch_marker "$nonce" start "$n_matched"
   trap 'rm -rf "${rundir:-}" 2>/dev/null; exit 130' INT TERM
 
@@ -5753,7 +6440,7 @@ function cmd_eval {
         shift
         diff_new="${1:-}"
         ;;
-      *) echo "usage: /flow eval [--stage 01|02|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>] [--keep-going] [--report] [--record|--replay] [--diff <old> <new>]"; return 1 ;;
+      *) echo "usage: /flow eval [--stage 00|01|02|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>] [--keep-going] [--report] [--record|--replay] [--diff <old> <new>]"; return 1 ;;
     esac
     shift 2>/dev/null || true
   done
@@ -5767,7 +6454,7 @@ function cmd_eval {
   fi
   case "$n" in ''|*[!0-9]*|0) echo "eval: --n must be a positive integer (got '$n')"; return 1 ;; esac
   case "$timeout" in ''|*[!0-9]*|0) echo "eval: --timeout must be a positive integer seconds value (got '$timeout')"; return 1 ;; esac
-  case "$stage_filter" in ""|01|02|05|card|routing|converge) : ;; *) echo "eval: --stage must be one of 01|02|05|card|routing|converge (got '$stage_filter')"; return 1 ;; esac
+  case "$stage_filter" in ""|00|01|02|05|card|routing|converge) : ;; *) echo "eval: --stage must be one of 00|01|02|05|card|routing|converge (got '$stage_filter')"; return 1 ;; esac
   # Backoff between the in-run retry attempts. Default 5s; tests set 0 so the mock-suite is not
   # slowed by 15s+ per degraded-path case across 3-OS CI. Bare-int validation only - a bogus
   # value (`abc`) silently falls back to the default rather than aborting the batch.
@@ -5876,6 +6563,25 @@ function cmd_eval {
         return 0 ;;
     esac
     nonce="$(_eval_nonce)"
+    # Grader-input isolation: freeze the inputs this batch will judge (gate
+    # rules + manifest + fixture artifacts) into a temp copy outside the
+    # working tree, and judge from that copy. `batch_grsha` below is still
+    # the live-corpus hash at batch start; the per-fixture re-hash in the
+    # loop is what catches any drift after this point. Snapshot cleanup
+    # rides the existing EXIT-trap tempdir list (`_register_td`).
+    local grader_snapshot grader_hash
+    grader_snapshot="$(mktemp -d 2>/dev/null)"
+    if [ -z "$grader_snapshot" ] || [ ! -d "$grader_snapshot" ]; then
+      echo "eval: FAIL - could not create grader snapshot dir"
+      return 1
+    fi
+    _register_td "$grader_snapshot"
+    if ! _eval_grader_snapshot "$grader_snapshot"; then
+      echo "eval: FAIL - could not snapshot grader inputs"
+      return 1
+    fi
+    grader_hash="$(_eval_grader_hash_for "$grader_snapshot/references" "$grader_snapshot/manifest.tsv" "$grader_snapshot/fixtures")"
+    echo "eval: grader snapshot $grader_hash (frozen inputs for this batch)"
     batch_cliv="$(_eval_cli_version)"; batch_flowv="$(_flow_version)"; batch_grsha="$(_eval_gate_rules_sha)"
   fi
   echo "eval: batch $nonce (N=$n per fixture, timeout=${timeout}s)"
@@ -5886,7 +6592,7 @@ function cmd_eval {
   # cwd paths, plugin paths from stripped-but-still-envelope-adjacent output) untracked but not
   # ignored -> one `git add .` away from a remote. Idempotent - the helper is a no-op after the
   # first write.
-  _ignore_run_state
+  _ignore_run_state || return 1
 
   # Pre-batch prune of the raw-capture dir - keeps disk bounded but respects concurrent runs
   # (see helper's TTL guard). Runs BEFORE the new batch's own raw dir is created, so this batch's
@@ -5932,15 +6638,40 @@ function cmd_eval {
     [ -z "$fid" ] && continue
     # manifest's stage column uses flow.sh's own full STAGES names ("01-research", "02-scope",
     # "card") for consistency with the rest of the codebase; --stage/heading-map use the terse
-    # 01|02|05|card form the plan's CLI spec documents - normalize by stripping to the leading
+    # 00|01|02|05|card form - normalize by stripping to the leading
     # token before the first '-' (a bare "card" has none, so it passes through unchanged).
     local fstage_short="${fstage%%-*}"
     [ -n "$stage_filter" ] && [ "$fstage_short" != "$stage_filter" ] && continue
     [ -n "$fixture_filter" ] && [ "$fid" != "$fixture_filter" ] && continue
 
+    # Grader-input isolation: re-hash the LIVE inputs before every fixture.
+    # A change since the snapshot means later votes would judge different
+    # rules/artifacts than earlier ones, while result rows still carry the
+    # batch-start hash. Abort loudly, before any further billable call, with
+    # no `done` trailer (torn-batch semantics: `--report` excludes the run).
+    # A change DURING one fixture's votes cannot alter its prompt, which was
+    # built once from the snapshot before any engine call. Replay batches
+    # have no snapshot (`grader_snapshot` unset) and keep their own
+    # staleness hard-fail; this check is live-only.
+    if [ -n "${grader_snapshot:-}" ]; then
+      local live_grader_hash
+      live_grader_hash="$(_eval_grader_hash_for "$SCRIPT_DIR/../references" "$EVAL_MANIFEST" "$EVAL_DIR/fixtures")"
+      if [ "$live_grader_hash" != "$grader_hash" ]; then
+        echo "eval: FAIL - grader inputs changed during batch (snapshot=$grader_hash live=$live_grader_hash); aborting before further judge calls - no done trailer written"
+        trap - INT TERM
+        return 1
+      fi
+    fi
+
     # v1 trust-boundary invariant: ONLY manifest-listed shipped fixtures, resolved beneath
-    # EVAL_DIR - never a caller-supplied path (red-team finding #9).
-    local artifact_path="$EVAL_DIR/fixtures/$fid/$fartifact"
+    # EVAL_DIR - never a caller-supplied path (red-team finding #9). In a live
+    # batch the artifact is read from the frozen snapshot copy, never live.
+    local artifact_path
+    if [ -n "${grader_snapshot:-}" ]; then
+      artifact_path="$grader_snapshot/fixtures/$fid/$fartifact"
+    else
+      artifact_path="$EVAL_DIR/fixtures/$fid/$fartifact"
+    fi
     if [ ! -f "$artifact_path" ]; then
       echo "  $fid: FAIL - declared artifact '$fartifact' not found at $artifact_path"
       total_mismatch=$((total_mismatch + 1))
@@ -5956,9 +6687,9 @@ function cmd_eval {
     _register_td "$rundir"
 
     local promptfile="$rundir/prompt.txt"
-    if ! _eval_build_prompt "$promptfile" "$fstage_short" "$artifact_path" "$nonce"; then
+    if ! _eval_build_prompt "$promptfile" "$fstage_short" "$artifact_path" "$nonce" "${grader_snapshot:+$grader_snapshot/references}"; then
       if [ "$replay_mode" -eq 1 ]; then
-        echo "  $fid: SKIP - no heading-mapped section (artifact-replay scope is 01|02|05|card)"
+        echo "  $fid: SKIP - no heading-mapped section (artifact-replay scope is 00|01|02|05|card)"
         rm -rf "$rundir" 2>/dev/null
         continue
       fi
@@ -6185,16 +6916,21 @@ function cmd_eval {
 cmd_rules() {
   local target="${1:-list}"
   local opt_write=0
-  if [ "${2:-}" = "--write" ]; then
+  if [ "$#" -gt 2 ]; then
+    echo "usage: flow rules [list|agent-skills|agents-md|cursor|windsurf|roo|cline|aider|openhands|copilot] [--write]" >&2
+    exit 2
+  elif [ "${2:-}" = "--write" ]; then
     opt_write=1
   elif [ -n "${2:-}" ]; then
-    echo "usage: flow rules [list|cursor|windsurf|roo|cline|aider|openhands|copilot] [--write]" >&2
+    echo "usage: flow rules [list|agent-skills|agents-md|cursor|windsurf|roo|cline|aider|openhands|copilot] [--write]" >&2
     exit 2
   fi
 
   case "$target" in
     list)
       echo "flow rules - available harness templates:"
+      echo "  agent-skills -> .agents/skills/flow/SKILL.md (Codex/Gemini)"
+      echo "  agents-md    -> AGENTS.md"
       echo "  cursor      -> .cursor/rules/flow.mdc"
       echo "  windsurf    -> .windsurf/rules/flow.md"
       echo "  roo         -> .roomodes"
@@ -6205,6 +6941,69 @@ cmd_rules() {
       echo
       echo "use 'flow rules <harness>' to view or 'flow rules <harness> --write' to materialize."
       return 0
+      ;;
+    agent-skills)
+      # Pointer generation must not create run-state beside the requested file.
+      FLOW_LOG_DISABLE=1
+      if [ "$opt_write" -eq 1 ] && { [ ! -f "$ROOT/skills/flow/SKILL.md" ] || [ ! -f "$ROOT/skills/flow/runner/flow.sh" ]; }; then
+        echo "FAIL: agent-skills requires project-local skills/flow/SKILL.md and skills/flow/runner/flow.sh; no pointer written" >&2
+        return 1
+      fi
+      local tpl='---
+name: flow
+description: Use Flow to inspect project planning stages, execute scoped cards, and verify evidence-backed gates.
+---
+
+# Flow project skill pointer
+
+For project Codex/Gemini discovery, this pointer lives in `.agents/skills/flow/SKILL.md`.
+This target is only for repositories with the canonical Flow bundle checked into project-root `skills/flow`; global installs and `.claude/skills/flow` alone do not satisfy this prerequisite.
+Read [the canonical skill](../../../skills/flow/SKILL.md) (`skills/flow/SKILL.md` from project root) before acting; it remains the source of truth. Do not copy its instructions here or treat this pointer as an additional runtime.
+
+Set `<skill-dir>` to that canonical bundle directory (`skills/flow`). From the project root, invoke `bash <skill-dir>/runner/flow.sh <command>` using the hosting agent or operator; Flow does not own the runtime.
+Follow the canonical skill dispatch, active card allowed files, gates, and evidence requirements. Keep Claude discovery in its separate `.claude/skills` path.'
+      local dest=".agents/skills/flow/SKILL.md"
+      ;;
+    agents-md)
+      # Instruction generation must not create run-state beside the requested file.
+      FLOW_LOG_DISABLE=1
+      local tpl='# Flow Discipline Instructions (AGENTS.md)
+
+This repository is governed by Flow gated build discipline.
+
+## Stage Flow
+
+Advance through explicit, evidence-backed stages:
+Idea→Research→Scope→PRD→ADR→Contract→Cards→Build→Review→Verify→Retro
+
+- Never skip stages without explicit, recorded debt.
+- Do not modify application code while planning artifacts in `flow/` are in progress.
+- Kill at any gate is a valid, honored outcome: stop and record the kill honestly when an idea or plan fails its gate challenge.
+
+## Honest Gates & Verification
+
+- Exit code is ground truth: a gate passes only when its check returns exit code 0.
+- Never fake evidence or claim passes without verified command output.
+- Record real terminal output, exit codes, and diffs under `## Evidence`.
+
+## Card Execution
+
+Implementation tasks are tracked in atomic markdown cards (`cards/C-NNN.md`):
+- **Allowed files:** Confine modifications strictly to the active card'\''s `## Allowed files` section. Never touch unlisted files.
+- **Verify:** Run the exact verification commands declared in `## Verify`.
+- Validate card completion with `@FLOW_RUNNER@ check C-NNN`.
+
+## Ground Truth Runner Commands
+
+The Flow runner is the mechanical authority. Run from the repository root:
+- POSIX / Bash: `@FLOW_RUNNER@ <command>`
+- Windows shells: use Git Bash with the same runner command; WSL path mapping is not verified.
+
+Core commands:
+- `@FLOW_RUNNER@ status` — inspect active stage, in-flight cards, and blockers.
+- `@FLOW_RUNNER@ next` — evaluate current gate and unlock the next stage.
+- `@FLOW_RUNNER@ check C-NNN` — validate card criteria and verify evidence.'
+      local dest="AGENTS.md"
       ;;
     cursor)
       local tpl='---
@@ -6219,8 +7018,8 @@ You are operating inside a repository managed by Flow (`/flow`).
 Flow turns coding agents into evidence-gated, kill-honest build processes.
 
 ## Rules of Engagement
-1. **Never edit files without an active card.** Check in-flight cards via `bash skills/flow/runner/flow.sh status`.
-2. **Always inspect gates before coding.** Run `bash skills/flow/runner/flow.sh next` or `bash skills/flow/runner/flow.sh check C-NNN`.
+1. **Never edit files without an active card.** Check in-flight cards via `@FLOW_RUNNER@ status`.
+2. **Always inspect gates before coding.** Run `@FLOW_RUNNER@ next` or `@FLOW_RUNNER@ check C-NNN`.
 3. **Respect Allowed Files.** Only modify files explicitly listed in the active card'\''s `## Allowed files` section.
 4. **Never fake verify proof.** Paste real terminal output, exit codes, and URLs into `## Evidence`.'
       local dest=".cursor/rules/flow.mdc"
@@ -6230,12 +7029,12 @@ Flow turns coding agents into evidence-gated, kill-honest build processes.
 
 Cascade must respect Flow repository gates and evidence requirements.
 
-1. **Orientation**: Before modifying code, run `bash skills/flow/runner/flow.sh resume` to inspect recent session transitions and active cards.
-2. **Stage Progression**: Planning advances through stages (`00-idea` through `05-contract`). Do not advance without passing gates (`bash skills/flow/runner/flow.sh next`).
+1. **Orientation**: Before modifying code, run `@FLOW_RUNNER@ resume` to inspect recent session transitions and active cards.
+2. **Stage Progression**: Planning advances through stages (`00-idea` through `05-contract`). Do not advance without passing gates (`@FLOW_RUNNER@ next`).
 3. **Card Execution**: When implementing a card (`cards/C-NNN.md`):
    - Confine changes to `## Allowed files`.
    - Run verify commands listed in `## Verify`.
-   - Verify card passage with `bash skills/flow/runner/flow.sh check C-NNN`.
+   - Verify card passage with `@FLOW_RUNNER@ check C-NNN`.
 4. **Clean Exit**: Do not claim work is complete until `flow check` returns exit code 0.'
       local dest=".windsurf/rules/flow.md"
       ;;
@@ -6249,7 +7048,7 @@ Cascade must respect Flow repository gates and evidence requirements.
       "groups": [
         "read",
         ["edit", { "fileRegex": "^(cards/.*|src/.*|tests/.*|flow/.*)$", "description": "Flow and source directories" }],
-        ["command", { "commandRegex": "^bash skills/flow/runner/flow\\.sh.*", "description": "Flow runner execution" }]
+        ["command", { "commandRegex": "@FLOW_COMMAND_REGEX@", "description": "Flow runner execution" }]
       ]
     }
   ]
@@ -6259,18 +7058,18 @@ Cascade must respect Flow repository gates and evidence requirements.
     cline)
       local tpl='# Flow Discipline Rules for Cline
 
-1. Before starting tasks, execute `bash skills/flow/runner/flow.sh status` to identify the active stage and card.
+1. Before starting tasks, execute `@FLOW_RUNNER@ status` to identify the active stage and card.
 2. If planning is in progress, do not modify application code. Complete stage artifacts in `flow/` first.
 3. If building a card:
    - Read `cards/C-NNN.md`.
    - Strictly honor `## Allowed files`.
-   - Execute verification tests with `bash skills/flow/runner/flow.sh check C-NNN`.
+   - Execute verification tests with `@FLOW_RUNNER@ check C-NNN`.
 4. Never mark a card done without real, verified command output in `## Evidence`.'
       local dest=".clinerules"
       ;;
     aider)
       local tpl='# Aider configuration for Flow discipline layer
-test-cmd: "bash -c '\''cid=$(tr -d \" \\r\\n\" < cards/.inflight 2>/dev/null); if [[ \"$cid\" =~ ^C-[0-9]+$ ]]; then bash skills/flow/runner/flow.sh check \"$cid\"; else bash skills/flow/runner/flow.sh status; fi'\''"
+test-cmd: "@FLOW_AIDER_COMMAND@"
 auto-test: true'
       local dest=".aider.conf.yml"
       ;;
@@ -6286,13 +7085,13 @@ triggers:
 
 # Flow Microagent for OpenHands
 
-When working on this repository, execute all Flow commands using the project-local script inside the container:
-`bash skills/flow/runner/flow.sh <command>`
+When working on this repository, execute all Flow commands from the project root using the resolved runner inside the container:
+`@FLOW_RUNNER@ <command>`
 
 Key commands:
-- `bash skills/flow/runner/flow.sh status` — inspect current stage and in-flight cards.
-- `bash skills/flow/runner/flow.sh next` — advance planning stage.
-- `bash skills/flow/runner/flow.sh check C-NNN` — verify card criteria and gates.'
+- `@FLOW_RUNNER@ status` — inspect current stage and in-flight cards.
+- `@FLOW_RUNNER@ next` — advance planning stage.
+- `@FLOW_RUNNER@ check C-NNN` — verify card criteria and gates.'
       local dest=".openhands/microagents/flow.md"
       ;;
     copilot)
@@ -6303,15 +7102,90 @@ This repository enforces Flow discipline:
 - Units of work are tracked as atomic markdown cards in `cards/C-NNN.md`.
 - Never modify files outside a card'\''s declared `## Allowed files`.
 - Verification requires reproducible commands documented under `## Verify`.
-- Mechanical ground truth is `bash skills/flow/runner/flow.sh check C-NNN`.'
+- Mechanical ground truth is `@FLOW_RUNNER@ check C-NNN`.'
       local dest=".github/copilot-instructions.md"
       ;;
     *)
       echo "unknown harness: $target" >&2
-      echo "usage: flow rules [list|cursor|windsurf|roo|cline|aider|openhands|copilot] [--write]" >&2
+      echo "usage: flow rules [list|agent-skills|agents-md|cursor|windsurf|roo|cline|aider|openhands|copilot] [--write]" >&2
       exit 2
       ;;
   esac
+
+  if [ "$target" != "agent-skills" ]; then
+    # Preserve portable source-repo commands; installed projects use this install.
+    local runner_path='skills/flow/runner/flow.sh' runner_cmd
+    if [ ! -f "$ROOT/$runner_path" ]; then
+      runner_path="$SCRIPT_DIR/flow.sh"
+      # Git Bash/MSYS emits POSIX-form paths ("/tmp/x"); consumers outside bash
+      # (editors, Python os.path) need the Windows-native form. cygpath -m is
+      # canonical; pwd -W is the Git Bash builtin fallback; plain pwd degrades loudly.
+      case "$(uname -s 2>/dev/null)" in
+        MINGW*|MSYS*|CYGWIN*)
+          local win_script_dir=''
+          if command -v cygpath >/dev/null 2>&1; then
+            win_script_dir="$(cygpath -m "$SCRIPT_DIR" 2>/dev/null)" || win_script_dir=''
+          fi
+          if [ -n "$win_script_dir" ]; then
+            runner_path="$win_script_dir/flow.sh"
+          else
+            local msys_pwd
+            msys_pwd="$(cd "$SCRIPT_DIR" && pwd -W 2>/dev/null)" || msys_pwd=''
+            if [ -z "$msys_pwd" ]; then
+              echo "WARN: cannot convert install path to Windows form (cygpath missing, pwd -W unsupported); emitting POSIX path" >&2
+              msys_pwd="$SCRIPT_DIR"
+            fi
+            runner_path="$msys_pwd/flow.sh"
+          fi
+          ;;
+      esac
+    fi
+    printf -v runner_cmd 'bash %q' "$runner_path"
+    local token='@FLOW_RUNNER@' replacement="$runner_cmd" rendered=''
+    case "$target" in
+      roo)
+        local command_regex
+        command_regex="$(printf '%s' "$runner_cmd" | sed 's/[][\\.^$*+?(){}|]/\\&/g')"
+        command_regex="$(_json_str "^${command_regex}.*")"
+        token='@FLOW_COMMAND_REGEX@'
+        replacement="$command_regex"
+        ;;
+      aider)
+        local aider_program aider_command
+        printf -v aider_program '%s%s%s%s%s' \
+          'cid=$(tr -d " \r\n" < cards/.inflight 2>/dev/null); if [[ "$cid" =~ ^C-[0-9]+$ ]]; then ' \
+          "$runner_cmd" ' check "$cid"; else ' "$runner_cmd" ' status; fi'
+        # The command runs through TWO bash parse layers (host shell -> inner bash -c).
+        # printf %q on the outer layer is not portable: some bashes emit backslash form,
+        # whose quote removal strips the inner layer's path escapes (PR93: unquoted "("
+        # in metacharacter install paths -> syntax error). A single-quoted wrapper is
+        # deterministic: quote removal restores the program verbatim for the inner shell.
+        # Escape each single quote as '\'' via a literal-concatenation loop: the inline
+        # ${aider_program//\'/\'\\\'\'} substitution has different quote-removal under
+        # Bash 3.2 and emitted malformed bytes (PR93 macOS: shlex "No closing quotation",
+        # bash -n rc=2). Same quoted-pattern construct as the template loop below.
+        local aider_escaped="" aider_rest="$aider_program"
+        local flow_sq="'" flow_bslq="'\\''"
+        while [[ "$aider_rest" == *"$flow_sq"* ]]; do
+          aider_escaped="${aider_escaped}${aider_rest%%"$flow_sq"*}${flow_bslq}"
+          aider_rest="${aider_rest#*"$flow_sq"}"
+        done
+        aider_escaped="${aider_escaped}${aider_rest}"
+        aider_command="bash -c '${aider_escaped}'"
+        aider_command="$(_json_str "$aider_command")"
+        token='@FLOW_AIDER_COMMAND@'
+        replacement="$aider_command"
+        ;;
+      *) ;;
+    esac
+    # Literal replacement: Bash 3.2 retains quotes inside ${v//p/"$r"},
+    # while newer Bash can interpret an unquoted replacement's ampersands.
+    while [[ "$tpl" == *"$token"* ]]; do
+      rendered="${rendered}${tpl%%"$token"*}${replacement}"
+      tpl="${tpl#*"$token"}"
+    done
+    tpl="${rendered}${tpl}"
+  fi
 
   if [ "$opt_write" -eq 1 ]; then
     local parent; parent="$(dirname "$ROOT/$dest")"
@@ -6358,7 +7232,7 @@ usage: bash flow.sh <command> [args]
   loop-prep <card>  Plumbing for ck-loop: isolated worktree + numeric Verify command + param block (thin wrapper; ck-loop is the engine)
   loop-log <card>   Record a finished ck-loop run (iterations/start/end/outcome) into usage-log telemetry
   auto [stop]        Activate attested auto (risk + Stage 05 receipt) or stop
-  attest <verb>      Mint/status/recover attestation receipts (semantic|live-verify|status|recover)
+  attest <verb>      Mint/status/recover attestation receipts (semantic|live-verify|status|recover|verify-chain)
   recall            Read back prior knowledge (debt/retro/playbooks/prev-card/harness) before working
   unlock            Clear this project's concurrency lock (after a crashed/abandoned session)
   harness <args>    Passthrough to the durable layer CLI (intake/story/trace/decision/backlog/query)
@@ -6376,7 +7250,7 @@ usage: bash flow.sh <command> [args]
   eval [opts]       Behavioral eval: does the LLM semantic gate flag a hollow-but-mechanically-clean
                      fixture? Opt-in, BILLABLE (live mode skips cleanly with zero calls if 'claude'
                      CLI absent; --replay never inherits that SKIP).
-                     [--stage 01|02|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>]
+                     [--stage 00|01|02|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>]
                      [--report]  offline: last complete batch's scorecard + drift, zero calls
                      [--record]  live: write stripped transcripts under eval/replay/ (billable)
                      [--replay]  keyless: feed recorded transcripts through parse/vote/scorecard
@@ -6432,6 +7306,7 @@ _log_is_readonly() { # $1 = command -> true|false (does it mutate the flow plan?
 # Covers ALL entry points - assess, next, or any command on a pre-existing project - so cycle
 # analytics are no longer blind on brownfield. One cycle per project dir (ADR decision).
 _ensure_cycle() {
+  _reject_unsafe_root_newlines "$ROOT" || return 1
   [ -f "$CYCLE_FILE" ] && return 0
   { mkdir -p "$LOG_DIR" && printf '%s-%s\n' "$(_now)" "$(uname -n 2>/dev/null | cut -c1-12 || echo host)" > "$CYCLE_FILE"; } 2>/dev/null || true
 }
@@ -6455,7 +7330,9 @@ _is_ephemeral() {
 
 # Build + append one event. $1 = exit code. Wrapped by the caller in { } 2>/dev/null || true.
 _log_event() {
+  [ "${FLOW_IGNORE_UNSAFE:-0}" = 1 ] && return 0
   _log_disabled && return 0
+  _reject_unsafe_root_newlines "$ROOT" || return 1
   _ensure_cycle
   local ec="${1:-0}" now ts dur gp ro ver proj host cyc args eph gfr
   now="$(_now)"; ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo '')"
@@ -6465,10 +7342,10 @@ _log_event() {
   ver="$(_flow_version)"; proj="$(basename "$ROOT" 2>/dev/null || echo '?')"
   host="$(uname -n 2>/dev/null | cut -c1-16 || echo host)"
   cyc="$(cat "$CYCLE_FILE" 2>/dev/null | tr -d '\r\n' || echo '')"
-  args="$(_mask_secrets "$FLOW_LOG_ARGS")"
-  eph="$(_is_ephemeral)"
   # bound the reason so the compact global line stays small (atomic-append friendly) even when
   # a future gate emits a long reason string.
+  args="$(_mask_secrets "$FLOW_LOG_ARGS")"
+  eph="$(_is_ephemeral)"
   gfr="$(printf '%s' "${FLOW_LAST_GATE_FAIL:-}" | cut -c1-120)"
   # Card dwell fields for the compact GLOBAL row: gated on the verb literally being `card`
   # (not merely FLOW_LOG_CARD being set, which `check`/`loop-prep`/etc also do) - only
@@ -6518,15 +7395,15 @@ cmd_usage() {
   local py; py="$(_python)"
   if [ "${1:-}" = "--prune" ]; then          # flow usage --prune [--keep N] [--global]
     shift
-    FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" prune "$@"
+    FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" prune "$@"
     return 0
   fi
   # forward --global to the rollup step too, else `usage --global` queries a src that was
   # never ingested into the usage_event mirror and falsely reports "no events".
   local rollup_global=""
   case " $* " in *" --global "*) rollup_global="--global" ;; esac
-  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" rollup $rollup_global >/dev/null 2>&1 || true
-  FLOW_PROJECT_ROOT="$ROOT" "$py" "$HARNESS_PY" usage "$@"
+  FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" rollup $rollup_global >/dev/null 2>&1 || true
+  FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" usage "$@"
   return 0
 }
 
@@ -6550,12 +7427,37 @@ if [ "$cmd" = "attest" ]; then
   case "$_att_subj" in --*) _att_subj="" ;; esac
   FLOW_LOG_ARGS="${_att_sub}${_att_subj:+ ${_att_subj}}"
 fi
+# Refuse before locks, cycle/state writes or EXIT logging. Help/doctor remain
+# available as diagnostics and never emit usage telemetry on failed startup.
+case "$cmd" in
+  -h|--help|help|doctor) ;;
+  workspace)
+    _runtime_required || exit 1
+    case "${1:-}" in
+      doctor|list) ;;
+      *) _graph_planning_check && _graph_auto_check || exit 1 ;;
+    esac
+    ;;
+  auto)
+    _runtime_required || exit 1
+    case " $* " in
+      *" stop "*) ;;
+      *) _graph_planning_check && _graph_auto_check || exit 1 ;;
+    esac
+    ;;
+  *)
+    _runtime_required || exit 1
+    case "$cmd" in
+      status|resume|ready|card|check) _graph_planning_check && _graph_auto_check || exit 1 ;;
+    esac
+    ;;
+esac
 FLOW_LOG_START="$(_now)"
-trap '_log_on_exit' EXIT
+case "$cmd" in -h|--help|help|doctor) ;; *) trap '_log_on_exit' EXIT ;; esac
 case "$cmd" in
   status|"")      cmd_status "$@" ;;
   resume)         cmd_resume "$@" ;;
-  next)           cmd_next ;;
+  next)           cmd_next "$@" ;;
   assess)         cmd_assess ;;
   card)           cmd_card "$@" ;;
   check)          cmd_check "${1:-}" ;;

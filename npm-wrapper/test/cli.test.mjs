@@ -40,14 +40,14 @@ test('--dry-run --all --json emits a plan event whose target set is the full sup
   assert.equal(events[0].event, 'plan');
   assert.deepEqual(
     events[0].targets.sort(),
-    ['agents', 'antigravity', 'claude', 'codex', 'cursor', 'omp']
+    ['agents', 'antigravity', 'claude', 'codex', 'cursor', 'omp', 'widelai']
   );
   assert.equal(events[0].dryRun, true);
   assert.equal(events[0].version, pkgVersion);
-  // skillVersion is the product axis (SKILL.md); must not equal a wrong/null shape.
+  // Preserve both compatible fields while enforcing the shared SemVer.
   assert.ok(expectedSkillVersion, 'SKILL.md metadata.version must be readable');
   assert.equal(events[0].skillVersion, expectedSkillVersion);
-  assert.notEqual(events[0].skillVersion, events[0].version);
+  assert.equal(events[0].skillVersion, events[0].version);
 });
 
 test('--project -t codex → exit 2 with clear error', () => {
@@ -69,6 +69,12 @@ test('explicit -t omp --dry-run --json plans the OMP destination', () => {
 
 test('--project -t omp → exit 2 (project scope stays claude-only)', () => {
   const r = runCli(['--yes', '-t', 'omp', '--project']);
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /--project scope supports only 'claude'/);
+});
+
+test('--project -t widelai → exit 2 (project scope stays claude-only)', () => {
+  const r = runCli(['--yes', '-t', 'widelai', '--project']);
   assert.equal(r.code, 2);
   assert.match(r.stderr, /--project scope supports only 'claude'/);
 });
@@ -205,6 +211,64 @@ test('real install --target omp: correct files in scratch HOME; receipt digests 
       .digest('hex');
     assert.equal(installedDigest, hashes[rel], `installed file drifted from receipt: ${rel}`);
   }
+
+  rmSync(home, { recursive: true, force: true });
+});
+
+// Real (non-dry-run) explicit widelai install into a scratch HOME. Asserts the
+// skill tree, the generated rules file, and the AGENTS.md pointer line — plus
+// idempotency (second run changes nothing, pointer line stays exactly one)
+// and the conflict refusal (user-edited rules file is never overwritten).
+test('real install --target widelai: skill + generated rules + pointer line; idempotent; conflict refused', () => {
+  const { home, env } = scratchHomeEnv('widelai-install');
+  const r = runCli(['--yes', '-t', 'widelai'], { env });
+  assert.equal(r.code, 0, `widelai install failed: ${r.stderr}`);
+
+  const dest = join(home, '.widelai', 'skills', 'flow');
+  assert.ok(existsSync(join(dest, 'SKILL.md')), 'skill SKILL.md missing');
+  assert.ok(existsSync(join(dest, 'manifest-hashes.json')), 'skill receipt missing');
+
+  const rulesPath = join(home, '.widelai', 'rules', 'flowskill.md');
+  assert.ok(existsSync(rulesPath), 'generated rules file missing');
+  const rules = readFileSync(rulesPath, 'utf8');
+  assert.match(rules, /GENERATED — do not edit by hand/);
+  assert.match(rules, /Branch per card/);
+  assert.match(rules, /bash 3\.2-safe/);
+  assert.match(rules, /flow-attestation\/v1/);
+  assert.match(rules, /verify-chain/);
+  assert.match(rules, /warning-only/);
+  assert.doesNotMatch(rules, /Both must agree/);
+  assert.doesNotMatch(rules, /flow-cost\/v1/);
+
+  const agentsPath = join(home, '.widelai', 'AGENTS.md');
+  assert.ok(existsSync(agentsPath), 'AGENTS.md pointer file missing');
+  const agents = readFileSync(agentsPath, 'utf8');
+  assert.equal(
+    agents.split('\n').filter((l) => l === 'FlowSkill rules: see .widelai/rules/flowskill.md').length,
+    1,
+    'pointer line must appear exactly once'
+  );
+
+  const done = doneLine(r.stdout);
+  assert.match(done, /WidelCode/);
+  assert.match(done, /restart|reload/i);
+
+  // Second run: idempotent — same bytes everywhere, still one pointer line.
+  const rulesBefore = readFileSync(rulesPath, 'utf8');
+  const agentsBefore = readFileSync(agentsPath, 'utf8');
+  const skillBefore = readFileSync(join(dest, 'SKILL.md'), 'utf8');
+  const r2 = runCli(['--yes', '-t', 'widelai'], { env });
+  assert.equal(r2.code, 0, `widelai re-install failed: ${r2.stderr}`);
+  assert.equal(readFileSync(rulesPath, 'utf8'), rulesBefore, 'rules file changed on re-install');
+  assert.equal(readFileSync(agentsPath, 'utf8'), agentsBefore, 'AGENTS.md changed on re-install');
+  assert.equal(readFileSync(join(dest, 'SKILL.md'), 'utf8'), skillBefore, 'skill changed on re-install');
+
+  // User-edited rules file: refused, left untouched.
+  writeFileSync(rulesPath, rulesBefore + '\nuser edit\n');
+  const r3 = runCli(['--yes', '-t', 'widelai'], { env });
+  assert.notEqual(r3.code, 0, 'user-edited rules file must refuse the install');
+  assert.match(r3.stderr, /refusing to overwrite/);
+  assert.match(readFileSync(rulesPath, 'utf8'), /user edit/, 'user-edited rules file was modified');
 
   rmSync(home, { recursive: true, force: true });
 });

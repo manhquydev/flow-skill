@@ -1,4 +1,6 @@
 id	stage	artifact	expected
+b00_unchecked	00-inspect	flow/00-inspect.md	FLAG
+b00_supported	00-inspect	flow/00-inspect.md	PASS
 f01a	01-research	flow/01-research.md	PASS
 f01b	01-research	flow/01-research.md	FLAG
 f02a	02-scope	flow/02-scope.md	PASS
@@ -12,3 +14,5 @@ f05a	05-contract	flow/05-contract.md	PASS
 f05b	05-contract	flow/05-contract.md	FLAG
 f06_sound	05-contract	flow/05-contract.md	PASS
 f06_injected	05-contract	flow/05-contract.md	FLAG
+f07_acyclic	05-contract	flow/05-contract.md	PASS
+f07_missing_ledger	05-contract	flow/05-contract.md	FLAG

@@ -288,6 +288,54 @@ else
   echo "  SKIP [git not found: sub-root case]"
 fi
 
+echo "K) shipped adapter: session values, node mapping, complete versus paused"
+ADAPTER="$("$PY" - "$H" "$SB" <<'EOF'
+import json, os, subprocess, sys
+h, root = sys.argv[1:]
+env = dict(os.environ, FLOW_PROJECT_ROOT=root)
+env.pop('FLOW_GRAPH_TOPOLOGY_FIXTURE', None)
+def call(*args, **overrides):
+    return subprocess.run([sys.executable, h, 'graph', *args],
+                          env=dict(env, **overrides), capture_output=True, text=True)
+def value(*args):
+    result = call(*args)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() and len(result.stdout.splitlines()) == 1
+    return result.stdout.strip()
+assert call('session', '--kind', 'planning', '--project', 'adapter', '--no-create').returncode == 3
+eid = value('session', '--kind', 'planning', '--project', 'adapter')
+assert value('session', '--kind', 'planning', '--project', 'adapter') == eid
+with open(os.path.join(os.path.dirname(h), '..', 'references', 'flow-topology.json')) as f:
+    topo = json.load(f)
+for stage in ('00-idea', '01-research', '02-scope', '03-prd', '04-adr', '05-contract'):
+    node = value('next', '--execution', eid)
+    assert topo['nodes'][node]['stage'] == stage
+    ck = value('record', '--execution', eid, '--node', node, '--gate-exit', '0')
+    assert value('record', '--execution', eid, '--node', node, '--gate-exit', '0') == ck
+done = call('next', '--execution', eid)
+assert done.returncode == 3 and done.stdout == ''
+status = json.loads(value('status', '--execution', eid))
+assert status['execution']['status'] == 'running' and status['open_interrupts'] == []
+assert status['latest'][0]['node'] == 'stage-05'
+assert call('finish', '--execution', eid).returncode == 0
+paused = value('session', '--kind', 'planning', '--project', 'adapter')
+assert paused != eid
+interrupt = call('record', '--execution', paused, '--node', 'stage-00', '--interrupt')
+assert interrupt.returncode == 3 and interrupt.stdout == ''
+assert value('session', '--kind', 'planning', '--project', 'adapter') == paused
+result = call('next', '--execution', paused)
+assert result.returncode == 3 and result.stdout == ''
+status = json.loads(value('status', '--execution', paused))
+assert status['execution']['status'] == 'paused' and status['open_interrupts']
+assert call('next', '--execution', 'missing').returncode == 1
+assert call('record', '--execution', eid, '--node', 'stage-00').returncode == 1
+assert call('next', '--execution', paused, FLOW_HARNESS_DISABLE='1').returncode == 4
+print('session/record values and idempotency; shipped stage mapping; rc3 complete/paused; rc1/4 refusal')
+EOF
+)"
+ck 0 $? "shipped adapter assertions complete"
+has "$ADAPTER" "rc3 complete/paused" "status distinguishes identical no-next return codes"
+
 rm -rf "$SB"
 echo
 echo "RESULT: $pass passed, $fail failed"

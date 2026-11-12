@@ -26,11 +26,13 @@ required.
 
 | | |
 |---|---|
-| **Skill product** | **v0.34.4** |
-| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.7.x** (`@latest` 0.7.11 ships the skill above) |
+| **Skill product** | Release target **v1.0.1** (not a publication receipt) |
+| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) — release target **1.0.1**, intended channel `latest` (not a publication receipt) |
 | **Website** | **[flowskill.io.vn](https://flowskill.io.vn)** |
 | **Tests / CI** | [`tests/manifest.txt`](tests/manifest.txt) · Ubuntu · macOS · Windows |
 | **License** | MIT |
+
+Publication status verified 2026-10-30: GitHub skill release v1.0.0 (2026-10-24) and npm installer 1.0.0 (2026-10-25); registry `latest` is 1.0.0. See the [migration guide](docs/migration-v1.md) for the verified pre-v1 rollback pair.
 
 ## Docs
 
@@ -41,26 +43,28 @@ required.
 
 ## Install
 
-**Requirement:** [Node.js](https://nodejs.org/) **≥ 22.14**.
+**Requirements:** [Node.js](https://nodejs.org/) **≥ 22.14** for installation; Flow v1 product operations require Python **≥ 3.7** (stdlib only).
 
 ```bash
 npx @manhquy/flow-skill@latest
 ```
 
 Always use `@latest`. Do not `npm i` the package alone — that does not copy
-the skill. Do not pin `@0.34.1` on npm — that is the skill version, not the
-installer.
+the skill. Historical skill versions are not necessarily npm package pins.
 
-Two version numbers (intentional): npm package = installer CLI; skill product
-= `SKILL.md` `metadata.version`. `--help` prints both:
-`flow-skill v0.7.8 (ships skill v0.34.1)`.
+Skill product and npm installer now share one SemVer; `SKILL.md` is canonical.
+`--help` preserves the compatible banner with equal versions:
+`flow-skill v<package-version> (ships skill v<skill-version>)`.
 
 Walkthrough: [Install and first run](https://flowskill.io.vn/docs/tutorials/install-and-first-run/).
 Flags: [npm-wrapper/README.md](./npm-wrapper/README.md).
 
 ## First run
 
-Open a fresh agent session, say what you want to build, then type `/flow`
+Open a fresh agent session in the top-level folder where Flow creates
+`flow/` and `cards/` as you start using it (if you are
+inside a subdirectory, move to the repository root first) — say what you want to build,
+then type `/flow`
 (Codex: `$flow`). Details:
 [tutorial](https://flowskill.io.vn/docs/tutorials/install-and-first-run/).
 
@@ -74,6 +78,7 @@ Open a fresh agent session, say what you want to build, then type `/flow`
 /flow check C-001  validate card (done = world-state proof)
 /flow auto       autonomous build (halts on security-class)
 /flow doctor     environment check
+/flow resume    continue an existing Flow project in a fresh session (read-only)
 ```
 
 Full table: [`skills/flow/SKILL.md`](skills/flow/SKILL.md) ·

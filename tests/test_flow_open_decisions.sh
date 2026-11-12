@@ -23,7 +23,8 @@ tick_od() { awk '{ if ($0 == "- [ ] which tenant key?") print "- [x] which tenan
 newsb() {
   SB="$(mktemp -d)"
   mkdir -p "$SB/flow"
-  export FLOW_PROJECT_ROOT="$SB" FLOW_HARNESS_DISABLE=1 FLOW_LOG_DISABLE=1
+  export FLOW_PROJECT_ROOT="$SB" FLOW_LOG_DISABLE=1
+  unset FLOW_HARNESS_DISABLE
 }
 G() { bash "$RUN" gate "$1" 2>&1; }
 C() { bash "$RUN" clarify 2>&1; }

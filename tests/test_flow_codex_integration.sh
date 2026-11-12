@@ -10,7 +10,7 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REF="$HERE/../skills/flow/references"
 SKILL="$HERE/../skills/flow/SKILL.md"
-CONTRACT="$HERE/../flow/05-contract.md"
+CONTRACT="$HERE/../plans/reports/historical-runs/v04-codex-tier/flow/05-contract.md"
 pass=0; fail=0
 # case-insensitive ERE match (use for clause-bound + tolerant-alternation assertions)
 hasE() { if grep -qiE "$2" "$1" 2>/dev/null; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] (missing /$2/ in $(basename "$1"))"; fail=$((fail+1)); fi; }

@@ -15,6 +15,15 @@ cli=command+flags+output/exit, library=public function+args+return, skill=comman
 - One-way rule: this file is planning source of truth. For web the served spec
   (`/openapi.json`) is the runtime artifact of the SAME contract (amend file -> code -> spec).
   For non-web there is no served spec — the no-drift check is the per-type done-evidence.
+- **Module/package dependency seam (only when the project declares one):** Does the contract name the
+  declared module/package graph and ledger every cross-module/package reference with its host,
+  referenced symbol, owner, and the required directed dependency (`host -> owner`)? For every required
+  edge, does it explicitly state whether adding that edge creates a directed cycle in the declared graph?
+  Missing ownership or direction is a contract defect before build, not something to discover from
+  imports, manifests, a daemon, runtime, or a generic dependency scanner. An unresolved cycle hazard is
+  likewise a defect: resolve the direction/graph or cut the reference before advancing. A local reference
+  may say `same-module (N/A edge)`. If no module/package system is declared, require an explicit `N/A`;
+  do not invent module owners from interface names.
 - **Self-consistency pass (the contract is ground truth every downstream card trusts).** Before
   passing this gate, read the contract AGAINST any doc it names as its own source of truth and
   re-state each shared rule in your own words — a contradiction here ships as "passed" and every

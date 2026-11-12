@@ -13,7 +13,8 @@ has() { if printf '%s' "$1" | grep -q -- "$2"; then echo "  ok   [$3]"; pass=$((
 no()  { if printf '%s' "$1" | grep -q -- "$2"; then echo "  FAIL [$3] (unexpected: $2)"; fail=$((fail+1)); else echo "  ok   [$3]"; pass=$((pass+1)); fi; }
 
 newsb() {
-  SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB" FLOW_HARNESS_DISABLE=1 FLOW_LOG_DISABLE=1
+  SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB" FLOW_LOG_DISABLE=1
+  unset FLOW_HARNESS_DISABLE
   mkdir -p "$SB/flow" "$SB/cards" "$SB/.flow" "$SB/src"
 }
 seed_planning() { local s; for s in 00-idea 01-research 02-scope 03-prd 04-adr 05-contract; do printf '#%s\n## Gate\n- [x] ok\n\nreal.\n' "$s" > "$SB/flow/$s.md"; done; }

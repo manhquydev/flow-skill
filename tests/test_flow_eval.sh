@@ -8,6 +8,7 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 RUN="$HERE/../skills/flow/runner/flow.sh"
 EVAL_DIR="$HERE/../skills/flow/eval"
+. "$HERE/fixture_path_lib.sh"
 pass=0; fail=0
 ck()  { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected '$1' got '$2'"; fail=$((fail+1)); fi; }
 has() { if printf '%s' "$1" | grep -q "$2"; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] (missing: $2)"; fail=$((fail+1)); fi; }
@@ -27,8 +28,10 @@ newsb() {
 }
 clean() { rm -rf "$SB" 2>/dev/null; unset FLOW_PROJECT_ROOT FLOW_EVAL_MANIFEST FLOW_EVAL_UNBOUNDED FLOW_EVAL_FORCE_DARWIN FLOW_EVAL_REPLAY_DIR FLOW_EVAL_ISOLATED_CWD; }
 
-# PATH dir with /usr/bin+/bin minus timeout/gtimeout (H / darwin-sim cases).
-make_notimeoutbin() {
+# Build an isolated Unix tool PATH, hiding only the tool under simulation.
+# Python lives outside Git Bash's Unix directories and must remain launchable
+# by both Bash and the native subprocess-based harness timeout fallback.
+make_fixturebin() {
   local dest d f b
   dest="$(mktemp -d)"
   for d in /usr/bin /bin; do
@@ -36,12 +39,18 @@ make_notimeoutbin() {
     for f in "$d"/*; do
       [ -e "$f" ] || continue
       b="$(basename "$f")"
-      case "$b" in timeout|timeout.exe|gtimeout|gtimeout.exe) continue ;; esac
+      case "$1:$b" in
+        noclaude:claude|noclaude:claude.exe|noclaude:claude.cmd) continue ;;
+        notimeout:timeout|notimeout:timeout.exe|notimeout:gtimeout|notimeout:gtimeout.exe) continue ;;
+      esac
       [ -e "$dest/$b" ] || ln -s "$f" "$dest/$b" 2>/dev/null || cp "$f" "$dest/$b" 2>/dev/null
     done
   done
+  fixture_add_python "$dest" python3 || return 1
+  fixture_add_python "$dest" python || return 1
   printf '%s' "$dest"
 }
+make_notimeoutbin() { make_fixturebin notimeout; }
 
 MOCKBIN="$(mktemp -d)"
 # $1 = the fixture-call verdict behavior ONLY - --version and the FLOWPONG probe are handled
@@ -60,7 +69,7 @@ mkmock() {
   } > "$MOCKBIN/claude"
   chmod +x "$MOCKBIN/claude"
 }
-_cleanup_all() { rm -rf "$MOCKBIN" 2>/dev/null; [ -n "${SB:-}" ] && rm -rf "$SB" 2>/dev/null; }
+_cleanup_all() { rm -rf "$MOCKBIN" 2>/dev/null; [ -n "${SB:-}" ] && rm -rf "$SB" 2>/dev/null; [ -n "${priv_tmp:-}" ] && rm -rf "$priv_tmp" 2>/dev/null; }
 trap _cleanup_all EXIT
 
 # ---------- A) fixture mechanical-pass proof (Phase 1 step 5 mechanisms) ----------
@@ -95,16 +104,7 @@ rm -rf "$CB"
 # ---------- B) skip path: claude absent from PATH ----------
 echo "B) claude absent -> skip, exit 0, zero calls"
 newsb
-fakebin="$(mktemp -d)"
-for d in /usr/bin /bin; do
-  [ -d "$d" ] || continue
-  for f in "$d"/*; do
-    [ -e "$f" ] || continue
-    b="$(basename "$f")"
-    case "$b" in claude|claude.exe|claude.cmd) continue ;; esac
-    [ -e "$fakebin/$b" ] || ln -s "$f" "$fakebin/$b" 2>/dev/null || cp "$f" "$fakebin/$b" 2>/dev/null
-  done
-done
+fakebin="$(make_fixturebin noclaude)"
 if PATH="$fakebin" command -v claude >/dev/null 2>&1; then
   echo "  skip [claude-absent] (platform still resolves claude outside /usr/bin,/bin; cannot hide it here)"
 else
@@ -129,6 +129,30 @@ out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture fcda --n 1 --timeout 20 
 ck 0 "$rc" "mock PASS matches expected PASS for fcda (sound fixture)"
 no  "$out" "SKIP" "did not silently take the skip path"
 has "$out" "matches expected PASS" "verdict parsed correctly despite preamble reasoning text"
+clean
+
+# ---------- C2) module dependency seam: mock judge reads the actual ledger facts ----------
+echo "C2) module dependency seam fixtures: acyclic ledger passes; missing ledger flags"
+newsb
+mkmock '
+nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" | head -1)"
+marker="${nonce_line% FLAG}"
+printf "%s" "$prompt" > "$FLOW_PROJECT_ROOT/.received_prompt.txt"
+if printf "%s" "$prompt" | grep -q "| order_workflow | \`orders_api.submit_order\` | orders_api | \`order_workflow -> orders_api\` | No" \
+  && printf "%s" "$prompt" | grep -q "| order_workflow | \`pricing_core.quote\` | pricing_core | \`order_workflow -> pricing_core\` | No"; then
+  printf "%s PASS\n" "$marker"
+else
+  printf "%s FLAG\n" "$marker"
+fi
+'
+out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture f07_acyclic --n 1 --timeout 20 2>&1)"; rc=$?
+ck 0 "$rc" "acyclic module fixture's ledger facts produce PASS"
+has "$out" "matches expected PASS" "acyclic module fixture is evaluated, not skipped"
+out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture f07_missing_ledger --n 1 --timeout 20 2>&1)"; rc=$?
+ck 0 "$rc" "missing-ledger module fixture produces FLAG"
+has "$out" "matches expected FLAG" "missing ownership/direction is judged as a contract defect"
+received="$(cat "$SB/.received_prompt.txt" 2>/dev/null)"
+has "$received" "pricing_core.quote" "missing-ledger prompt actually received the fixture's cross-module reference"
 clean
 
 # ---------- D) mock engine: garbage output -> INVALID -> UNRELIABLE floor + v0.21 breaker ----------
@@ -344,22 +368,48 @@ clean
 # ---------- K) robustness: no prompt temp files remain after a normal run ----------
 echo "K) no prompt-file residue after a normal (uninterrupted) run"
 newsb
-before_count=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -type d 2>/dev/null | wc -l)
+priv_tmp=""
+if ! priv_tmp="$(mktemp -d)" || [ -z "$priv_tmp" ] || [ ! -d "$priv_tmp" ]; then
+  echo "  FAIL [could not create private TMPDIR for Case K]"
+  fail=$((fail+1))
+  exit 1
+fi
+
+_eval_count_dirs() {
+  local target="$1" dir_list rc=0
+  dir_list="$(find "$target" -type d)" || rc=$?
+  if [ "$rc" -ne 0 ] || [ -z "$dir_list" ]; then
+    echo "  FAIL [find failed on $target with exit $rc]" >&2
+    return 1
+  fi
+  printf '%s\n' "$dir_list" | grep -c .
+}
+
+if ! before_count="$(_eval_count_dirs "$priv_tmp")"; then
+  echo "  FAIL [could not count directories in private TMPDIR before batch]"
+  fail=$((fail+1))
+  exit 1
+fi
 mkmock '
 nonce_line="$(printf "%s" "$prompt" | grep -oE "GATE-EVAL-[A-Za-z0-9-]+: FLAG" | head -1)"
 marker="${nonce_line% FLAG}"
 printf "%s PASS\n" "$marker"
 '
-batch_out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --n 3 --timeout 20 2>&1)"
+batch_out="$(TMPDIR="$priv_tmp" PATH="$MOCKBIN:$PATH" bash "$RUN" eval --n 3 --timeout 20 2>&1)"
 # this mock always returns PASS regardless of fixture, so FLAG-expected fixtures
 # correctly mismatch - assert all heading-mapped fixtures were genuinely evaluated
 # (not silently skipped), not that they all matched.
-has "$batch_out" "of 13 evaluated" "the full 13-fixture batch actually completed (not a silent skip)"
-after_count=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -type d 2>/dev/null | wc -l)
-# Allow +/-1 ambient noise from other processes on the system - the real regression this test
-# guards is "N rundirs leak per batch", which would show +6 or more, not +/-1.
+has "$batch_out" "of 17 evaluated" "the full 17-fixture batch actually completed (not a silent skip)"
+if ! after_count="$(_eval_count_dirs "$priv_tmp")"; then
+  echo "  FAIL [could not count directories in private TMPDIR after batch]"
+  fail=$((fail+1))
+  exit 1
+fi
 delta=$((after_count - before_count)); [ "$delta" -lt 0 ] && delta=$((-delta))
-if [ "$delta" -le 1 ]; then echo "  ok   [TMPDIR delta=$delta after a full 13-fixture batch (no rundir residue - allowing +/-1 ambient noise)]"; pass=$((pass+1)); else echo "  FAIL [TMPDIR delta=$delta after a full 13-fixture batch - rundir cleanup regression]"; fail=$((fail+1)); fi
+if [ "$delta" -eq 0 ]; then echo "  ok   [TMPDIR delta=0 after a full 17-fixture batch (zero rundir residue in private TMPDIR)]"; pass=$((pass+1)); else echo "  FAIL [TMPDIR delta=$delta after a full 17-fixture batch - rundir cleanup regression]"; fail=$((fail+1)); fi
+rm -rf "$priv_tmp"
+priv_tmp=""
+unset -f _eval_count_dirs 2>/dev/null || true
 clean
 
 # ---------- L) results/report cases ----------
@@ -450,14 +500,14 @@ unset FLOW_EVAL_RETRY_BACKOFF
 clean
 
 # ---------- P) v0.21: --keep-going overrides the first-fixture breaker ----------
-echo "P) v0.21 --keep-going: all-invalid mock runs the full 13-fixture batch instead of aborting"
+echo "P) v0.21 --keep-going: all-invalid mock runs the full 17-fixture batch instead of aborting"
 newsb
 export FLOW_EVAL_RETRY_BACKOFF=0
 mkmock '
 echo "nothing parseable"
 '
 out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --n 1 --timeout 20 --keep-going 2>&1)"; rc=$?
-has "$out" "of 13 evaluated" "--keep-going ran the full 13-fixture batch"
+has "$out" "of 17 evaluated" "--keep-going ran the full 17-fixture batch"
 no  "$out" "ABORT after first fixture" "--keep-going suppresses the breaker abort line"
 ck 1 "$rc" "--keep-going full batch UNRELIABLE -> exit 1 (FAIL path), not 2 (abort path)"
 unset FLOW_EVAL_RETRY_BACKOFF
@@ -610,16 +660,7 @@ clean
 
 echo "R-B) --stage routing skips cleanly with zero calls when claude is absent"
 newsb
-fakebin="$(mktemp -d)"
-for d in /usr/bin /bin; do
-  [ -d "$d" ] || continue
-  for f in "$d"/*; do
-    [ -e "$f" ] || continue
-    b="$(basename "$f")"
-    case "$b" in claude|claude.exe|claude.cmd) continue ;; esac
-    [ -e "$fakebin/$b" ] || ln -s "$f" "$fakebin/$b" 2>/dev/null || cp "$f" "$fakebin/$b" 2>/dev/null
-  done
-done
+fakebin="$(make_fixturebin noclaude)"
 if PATH="$fakebin" command -v claude >/dev/null 2>&1; then
   echo "  skip [claude-absent] (platform still resolves claude outside /usr/bin,/bin; cannot hide it here)"
 else
@@ -706,16 +747,7 @@ clean
 # ---------- CV) converge modality: repo-state gap-detection judge (mocked engine) ----------
 echo "CV-0) --stage converge skips cleanly with zero calls when claude is absent"
 newsb
-fakebin="$(mktemp -d)"
-for d in /usr/bin /bin; do
-  [ -d "$d" ] || continue
-  for f in "$d"/*; do
-    [ -e "$f" ] || continue
-    b="$(basename "$f")"
-    case "$b" in claude|claude.exe|claude.cmd) continue ;; esac
-    [ -e "$fakebin/$b" ] || ln -s "$f" "$fakebin/$b" 2>/dev/null || cp "$f" "$fakebin/$b" 2>/dev/null
-  done
-done
+fakebin="$(make_fixturebin noclaude)"
 if PATH="$fakebin" command -v claude >/dev/null 2>&1; then
   echo "  skip [claude-absent] (platform still resolves claude outside /usr/bin,/bin; cannot hide it here)"
 else
@@ -832,16 +864,7 @@ newsb
 rdir="$SB/replay"
 write_synth_replay "$rdir" "TESTREPLAYNONCE" "$grsha" "fcda" "PASS" 1
 export FLOW_EVAL_REPLAY_DIR="$rdir"
-fakebin="$(mktemp -d)"
-for d in /usr/bin /bin; do
-  [ -d "$d" ] || continue
-  for f in "$d"/*; do
-    [ -e "$f" ] || continue
-    b="$(basename "$f")"
-    case "$b" in claude|claude.exe|claude.cmd) continue ;; esac
-    [ -e "$fakebin/$b" ] || ln -s "$f" "$fakebin/$b" 2>/dev/null || cp "$f" "$fakebin/$b" 2>/dev/null
-  done
-done
+fakebin="$(make_fixturebin noclaude)"
 if PATH="$fakebin" command -v claude >/dev/null 2>&1; then
   echo "  skip [claude-absent-replay] (cannot hide claude on this platform)"
 else

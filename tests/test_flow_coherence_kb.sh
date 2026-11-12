@@ -43,7 +43,7 @@ printf '# heroku stale-cache fix\n' > "$SB/my-lesson.md"
 out="$(bash "$RUN" promote "$SB/my-lesson.md" 2>&1)"; ck 0 $? "promote exit 0"
 has "$out" "promoted" "promote confirms"
 ck 0 "$(exists "$SB/gkb/my-lesson.md")" "file copied into the global KB"
-out="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" recall 2>&1)"
+out="$(bash "$RUN" recall 2>&1)"
 has "$out" "GLOBAL PLAYBOOKS" "recall surfaces the cross-project section"
 has "$out" "my-lesson" "recall lists the promoted playbook"
 unset FLOW_GLOBAL_KB

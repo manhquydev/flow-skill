@@ -6,3 +6,4 @@ README.md 900
 skills/flow/SKILL.md 1600
 skills/flow/references/gate-rules.md 800
 skills/flow/references/attestations.md 1580
+skills/flow/references/test-impact.md 600

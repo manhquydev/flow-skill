@@ -13,6 +13,7 @@ import os
 import re
 import sqlite3
 import subprocess
+import tempfile
 import time
 
 SCHEMA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema")
@@ -289,6 +290,125 @@ def _applied_versions(con):
         return set()
 
 
+def _fsync_directory_windows(dir_path):
+    """Flush directory changes on Windows using stdlib ctypes and msvcrt.
+
+    Opens the directory handle with FILE_FLAG_BACKUP_SEMANTICS, associates a C
+    runtime file descriptor via open_osfhandle, and calls os.fsync(fd) to flush
+    directory metadata changes to disk. The handle is closed on every path:
+    via os.close(fd) on success, or via CloseHandle if open_osfhandle fails.
+    """
+    import ctypes
+    from ctypes import wintypes
+    import msvcrt
+
+    try:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    except (AttributeError, OSError):
+        kernel32 = getattr(getattr(ctypes, "windll", None), "kernel32", None)
+    if kernel32 is None:
+        raise OSError("Win32 kernel32 unavailable for directory fsync")
+
+    CreateFileW = kernel32.CreateFileW
+    if hasattr(CreateFileW, "argtypes"):
+        CreateFileW.argtypes = [
+            wintypes.LPCWSTR,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.LPVOID,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.HANDLE,
+        ]
+        CreateFileW.restype = wintypes.HANDLE
+    CloseHandle = kernel32.CloseHandle
+    if hasattr(CloseHandle, "argtypes"):
+        CloseHandle.argtypes = [wintypes.HANDLE]
+        CloseHandle.restype = wintypes.BOOL
+
+
+    GENERIC_READ = 0x80000000
+    GENERIC_WRITE = 0x40000000
+    FILE_SHARE_READ_WRITE = 0x3
+    OPEN_EXISTING = 3
+    FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+
+    handle = CreateFileW(
+        dir_path,
+        GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_READ_WRITE,
+        None,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS,
+        None,
+    )
+
+    is_invalid = False
+    if handle is None or handle == 0:
+        is_invalid = True
+    else:
+        try:
+            if ctypes.c_ssize_t(handle).value == -1:
+                is_invalid = True
+        except (TypeError, ValueError):
+            if handle == -1:
+                is_invalid = True
+
+    if is_invalid:
+        err = ctypes.get_last_error() if hasattr(ctypes, "get_last_error") else 0
+        raise OSError(f"CreateFileW failed for directory {dir_path!r}: winerror={err}")
+
+    try:
+        fd = msvcrt.open_osfhandle(handle, 0)
+    except Exception:
+        CloseHandle(handle)
+        raise
+
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _backup_before_migration(con):
+    """Preserve an existing file DB, including committed WAL pages, before DDL.
+
+    Publish only a completed SQLite backup, under a unique sibling name. Never
+    reuse or overwrite a previous backup: an interrupted upgrade can be retried
+    without destroying the original downgrade snapshot. Failure aborts migration.
+    In-memory databases have no durable file to preserve.
+    """
+    path = next((r[2] for r in con.execute("PRAGMA database_list") if r[1] == "main"), "")
+    if not path or not con.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchone():
+        return
+    fd, staging = tempfile.mkstemp(prefix=os.path.basename(path) + ".pre-migration-",
+                                   suffix=".tmp", dir=os.path.dirname(path))
+    os.close(fd)
+    destination = staging[:-4] + ".sqlite3"
+    try:
+        with contextlib.closing(sqlite3.connect(staging)) as backup:
+            con.backup(backup)
+        # SQLite has closed its destination; sync the actual bytes before making
+        # the snapshot visible. Directory sync below makes publication durable.
+        with open(staging, "rb+") as snapshot:
+            os.fsync(snapshot.fileno())
+        # A hard link publishes without replacement, even if another process has
+        # already created the destination. Both files live on the same filesystem.
+        os.link(staging, destination)
+    finally:
+        os.unlink(staging)
+    if os.name == "nt":
+        _fsync_directory_windows(os.path.dirname(path))
+    else:
+        directory = os.open(os.path.dirname(path), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+
+
 def migrate(con):
     """Apply every migration whose version is not yet recorded in schema_version.
 
@@ -297,6 +417,10 @@ def migrate(con):
     an init interrupted between 003 and 004, then healed by _reconcile_legacy inserting 005, must
     still create migration 004 (the intervention table) — a `version <= MAX` gate would skip it."""
     migs = _migrations()
+    applied = _applied_versions(con)
+    needs_reconcile = _table_exists(con, "tool") and "kind" not in _columns(con, "tool")
+    if needs_reconcile or any(version not in applied for version, _ in migs):
+        _backup_before_migration(con)
     _reconcile_legacy(con, migs)
     applied = _applied_versions(con)
     out = []

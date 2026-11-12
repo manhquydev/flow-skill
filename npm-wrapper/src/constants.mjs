@@ -70,10 +70,31 @@ export const TARGETS = [
     alwaysInclude: false,
     projectScopeAllowed: false,
   },
+  {
+    name: 'widelai',
+    label: 'WidelCode (~/.widelai/skills)',
+    // Vendor docs (widelai.com/blog/widelcode-cli-vs-code-extension-release):
+    // skills live under `.widelai/skills`, personal defaults under `~/.widelai/` with the
+    // same layout; rules are read from `.widelai/rules/*.md`. WidelCode does NOT read the
+    // universal `~/.agents/skills` home, so a dedicated target is required. Marker
+    // discipline mirrors cursor/omp: bare `~/.widelai` holds credentials.json for every
+    // WidelCode user, so the marker must be the genuine skills dir `.widelai/skills`.
+    // The rules file + AGENTS.md pointer line are placed by installWidelaiExtras
+    // (installer.mjs) from the generated sibling payload (sync.mjs).
+    markers: ['.widelai/skills'],
+    destTemplates: ['~/.widelai/skills/flow'],
+    alwaysInclude: false,
+    projectScopeAllowed: false,
+  },
 ];
 
 export const TARGET_NAMES = TARGETS.map((t) => t.name);
 export const CLI_NAME = 'flow-skill';
+
+// WidelCode rules pointer line (T1): the single line the installer appends to
+// the user's ~/.widelai/AGENTS.md (idempotent, only if absent). Home for the
+// exact wording is here; installer.mjs reads it from this module.
+export const RULES_POINTER_LINE = 'FlowSkill rules: see .widelai/rules/flowskill.md';
 
 // F3 fix: read version from package.json at runtime so `npm version` bumps propagate to the
 // JSON `plan` event without a hand-edit here.

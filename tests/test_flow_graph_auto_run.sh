@@ -2,7 +2,7 @@
 # Shipping consumer (Phase 4): card-DAG compile against the REAL card format, deps parity
 # with /flow ready, overlap serialization, dep-cycle rejection, the recording contract on
 # the verbs auto-run already calls, executor-computed merge proof, worktree event ingest,
-# and flag-off byte-parity. Requires python + git.
+# and mandatory default recording. Requires python + git.
 # Run: bash tests/test_flow_graph_auto_run.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -18,6 +18,9 @@ has() { if printf '%s' "$1" | grep -q "$2"; then echo "  ok   [$3]"; pass=$((pas
 no() { if printf '%s' "$1" | grep -q "$2"; then echo "  FAIL [$3] unexpected /$2/"; fail=$((fail+1)); else echo "  ok   [$3]"; pass=$((pass+1)); fi; }
 
 SB="$(mktemp -d)"; cd "$SB" || exit 1
+# All runner and direct harness calls must share this sandbox, even when the
+# invoking host has already selected a different Flow project.
+export FLOW_PROJECT_ROOT="$SB"
 git init -q .
 mkdir -p flow cards
 for s in 00-idea 01-research 02-scope 03-prd 04-adr 05-contract; do printf '# %s\nok\n' "$s" > "flow/$s.md"; done
@@ -35,7 +38,9 @@ OUT="$(FLOW_PROJECT_ROOT="$SB" "$PY" "$H" graph cards)"
 ck 0 $? "graph cards exits 0"
 DM="$("$PY" -c "import json,sys;print(' '.join(json.loads(sys.argv[1])['deps_met']))" "$OUT")"
 RDY="$("$PY" -c "import json,sys;print(' '.join(json.loads(sys.argv[1])['ready']))" "$OUT")"
-LEG="$(bash "$RUN" ready 2>/dev/null | grep -oE 'BUILDABLE +C-[0-9]+' | grep -oE 'C-[0-9]+' | sort -u | tr '\n' ' ')"
+READY_OUT="$(bash "$RUN" ready 2>&1)"; ready_rc=$?
+ck 0 "$ready_rc" "runner ready succeeds on the same sandbox as graph cards"
+LEG="$(printf '%s\n' "$READY_OUT" | grep -oE 'BUILDABLE +C-[0-9]+' | grep -oE 'C-[0-9]+' | sort -u | tr '\n' ' ')"
 LEG="$(printf '%s' "$LEG" | sed 's/ $//')"
 ck "C-002 C-004" "$DM" "deps-met set matches legacy BUILDABLE (deps-only semantics)"
 ck "$LEG" "$DM" "deps parity with /flow ready output on the same fixtures"
@@ -70,7 +75,8 @@ git -c user.email=t@t -c user.name=t commit -qm base --allow-empty
 OUT_ADD="$(bash "$RUN" workspace add card/C-002 --card C-002 2>&1)"
 has "$OUT_ADD" "PASS: created worktree" "workspace add succeeded"
 no  "$OUT_ADD" "FLOW_PROJECT_ROOT" "enter block does NOT export FLOW_PROJECT_ROOT (root hijack)"
-EID="$(FLOW_PROJECT_ROOT="$SB" "$PY" "$H" graph session)"
+EID="$(FLOW_PROJECT_ROOT="$SB" "$PY" "$H" graph session --no-create)"; session_rc=$?
+ck 0 "$session_rc" "dispatch already created the auto_run execution (no test-side mint)"
 [ -n "$EID" ]; ck 0 $? "an auto_run execution was created on first record"
 bash "$RUN" check C-002 >/dev/null 2>&1
 ST="$(FLOW_PROJECT_ROOT="$SB" "$PY" "$H" graph status --execution "$EID")"
@@ -124,28 +130,48 @@ EOF
 )"
 ck "1" "$U" "worktree telemetry ingested under its lifecycle key before the tree was removed"
 
-echo "F) doctor is execution-aware; flag off is byte-identical"
+echo "E2) required checkpoint failure cannot report successful card/workspace boundaries"
+card C-010 todo none "src/failure.ts"
+FAILED_CHECK="$(FLOW_GRAPH_FAILPOINT=before-commit bash "$RUN" check C-010 2>&1)"; rc=$?
+ck 1 "$rc" "real card-review checkpoint failure propagates"
+no "$FAILED_CHECK" 'PASS: C-010' "failed card-review emits no card PASS"
+FAILED_ADD="$(FLOW_GRAPH_FAILPOINT=before-commit bash "$RUN" workspace add card/C-010 --card C-010 2>&1)"; rc=$?
+ck 1 "$rc" "real workspace dispatch checkpoint failure propagates"
+no "$FAILED_ADD" 'PASS: created worktree' "failed dispatch emits no workspace PASS"
+FAILED_REMOVE="$(FLOW_GRAPH_FAILPOINT=before-commit bash "$RUN" workspace remove card/C-010 --force 2>&1)"; rc=$?
+ck 1 "$rc" "real workspace teardown checkpoint failure propagates"
+no "$FAILED_REMOVE" 'PASS: removed worktree' "failed teardown checkpoint emits no workspace PASS"
+has "$FAILED_REMOVE" 'worktree removed but required graph checkpoint failed' "partial teardown is reported honestly"
+
+echo "F) doctor is execution-aware; default recording refuses paused execution"
 FLOW_PROJECT_ROOT="$SB" "$PY" "$H" graph record --execution "$EID" --ns card:C-004 \
   --node card-review --interrupt --security-class --prompt halt >/dev/null 2>&1
+ck 3 "$?" "interrupt checkpoint actually pauses the selected shipping execution"
 DOC="$(bash "$RUN" workspace doctor 2>&1)"
 has "$DOC" "OPEN interrupt" "doctor warns about the worktree backing a paused execution"
 unset FLOW_GRAPH_EXECUTOR
 D_OFF="$(bash "$RUN" workspace doctor 2>&1)"
-no "$D_OFF" "OPEN interrupt" "flag off: doctor output unchanged"
+has "$D_OFF" "OPEN interrupt" "default doctor still reports the paused execution"
+for verb in status resume ready; do
+  PAUSED_VIEW="$(bash "$RUN" "$verb" --json 2>&1)"; paused_rc=$?
+  ck 1 "$paused_rc" "$verb cannot advertise readiness while shipping execution is paused"
+done
 B4="$("$PY" - "$SB/.flow/harness.db" "$EID" <<'EOF'
 import sqlite3,sys
 c=sqlite3.connect(sys.argv[1])
 print(c.execute("SELECT COUNT(*) FROM graph_checkpoint WHERE execution_id=?",(sys.argv[2],)).fetchone()[0])
 EOF
 )"
-bash "$RUN" check C-002 >/dev/null 2>&1
+PAUSED_CHECK="$(bash "$RUN" check C-002 2>&1)"; paused_rc=$?
+ck 1 "$paused_rc" "default check refuses a paused graph execution"
+no "$PAUSED_CHECK" "PASS: C-002" "paused checkpoint cannot claim a successful card boundary"
 A4="$("$PY" - "$SB/.flow/harness.db" "$EID" <<'EOF'
 import sqlite3,sys
 c=sqlite3.connect(sys.argv[1])
 print(c.execute("SELECT COUNT(*) FROM graph_checkpoint WHERE execution_id=?",(sys.argv[2],)).fetchone()[0])
 EOF
 )"
-ck "$B4" "$A4" "flag off: check records NOTHING into the journal"
+ck "$B4" "$A4" "paused check records NOTHING into the journal"
 
 cd /; rm -rf "$SB"
 echo

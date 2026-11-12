@@ -18,6 +18,8 @@ another, both look green. This file is the cheap fix.
 - [ ] No unresolved open decisions (resolve via /flow clarify, or assume/cut)
 - [ ] Every write interface names the failure shape (status or exit + body), not only the happy path
 - [ ] Every interface that can return empty names the empty shape (empty list / 404 / exit 2), or an explicit `none`
+- [ ] If this project declares a module/package system, the dependency-seam ledger below covers every cross-module/package reference; each required directed edge has a declared-graph cycle result
+- [ ] If this project declares no module/package system, the dependency-seam ledger explicitly says `N/A`; do not invent owner facts
 - [ ] Access/effects is a concrete token (web: public/token/admin · non-web: writes/side-effects or "none") — not a vibe word (secure, authenticated, restricted)
 
 ## OpenAPI / Swagger rule  (web only — N/A for cli/library/skill)
@@ -48,6 +50,24 @@ Function/—/Access(=none)/Args/Return. The shared column below is "Access/Effec
 |---|---|---|---|---|
 | GET | /healthz | public | none | 200 `{ok:true}` · empty: none · fail `{ok:false,error}` |
 | [FILL] | [FILL] | [FILL] | [FILL] | [FILL] |
+
+## Dependency-seam ledger (module/package systems only)
+
+Use this section only when the project declares a module/package system (for example,
+Odoo add-ons, workspace packages, plugins, or deployable modules). First record the declared
+dependency graph that this contract relies on. Then ledger every cross-module/package symbol
+reference before build. The ledger makes the host, symbol owner, and required direction reviewable
+without guessing from names or code that does not exist yet. If the project declares no
+module/package system, do not fill the table: write the explicit
+`N/A — no module/package system declared` entry below instead.
+
+| Host module/package | Referenced symbol/interface | Owning module/package | Required directed dependency | Creates a directed cycle in the declared graph? |
+|---|---|---|---|---|
+| [FILL] | [FILL] | [FILL] | `host -> owner` | [FILL: yes/no and the graph path] |
+
+- Declared dependency graph: [FILL: module/package names and their direct dependencies]
+- If a reference is local, write its owner as the host and its dependency as `same-module (N/A edge)`.
+- If this project declares no module/package system, write `N/A — no module/package system declared`; do not infer owners from interface names.
 
 ## Shared shapes (objects used by multiple interfaces)
 

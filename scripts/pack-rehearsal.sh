@@ -27,13 +27,15 @@ if [ -n "${GITHUB_ACTIONS:-}" ] && [ -n "${NPM_TOKEN:-}" ]; then
 fi
 
 node -e 'const [M,m]=process.versions.node.split(".").map(Number);if(M<22||(M===22&&m<14)){console.error("FAIL: need Node >=22.14, got "+process.versions.node);process.exit(1)}'
+to_physical() {
+  (cd "$1" && pwd -P)
+}
 
-WORKDIR="$(mktemp -d)"
-PREFIX="$(mktemp -d)"
-DEST="$(mktemp -d)"
+WORKDIR="$(to_physical "$(mktemp -d)")"
+PREFIX="$(to_physical "$(mktemp -d)")"
+DEST="$(to_physical "$(mktemp -d)")"
 export HOME="$WORKDIR/home"
 mkdir -p "$HOME"
-
 echo "=== pack-rehearsal ==="
 echo "ROOT=$ROOT"
 echo "DEST=$DEST"
@@ -105,13 +107,13 @@ BIN="$PREFIX/node_modules/.bin/flow-skill"
 RUN="$DEST/.claude/skills/flow/runner/flow.sh"
 [ -f "$RUN" ] || { echo "FAIL: installed runner not found at $RUN" >&2; exit 1; }
 
-DEST_ABS="$(cd "$DEST" && pwd)"
-RUN_DIR="$(cd "$(dirname "$RUN")" && pwd)"
+DEST_ABS="$(cd "$DEST" && pwd -P)"
+RUN_DIR="$(cd "$(dirname "$RUN")" && pwd -P)"
 case "$RUN_DIR" in
   "$DEST_ABS"/*) ;;
   *) echo "FAIL: driven runner $RUN_DIR is not under DEST $DEST_ABS" >&2; exit 1 ;;
 esac
-CHECKOUT_DIR="$(cd "$ROOT/skills/flow/runner" && pwd)"
+CHECKOUT_DIR="$(cd "$ROOT/skills/flow/runner" && pwd -P)"
 if [ "$RUN_DIR" = "$CHECKOUT_DIR" ]; then
   echo "FAIL: driven runner is the checkout $CHECKOUT_DIR" >&2
   exit 1

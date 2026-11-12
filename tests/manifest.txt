@@ -3,6 +3,7 @@
 # do not encode the list in run_all.sh.
 test_flow_runner.sh
 test_flow_doctor.sh
+test_flow_v1_runtime_required.sh
 test_flow_harness.sh
 test_flow_scenarios.sh
 test_flow_project_types.sh
@@ -38,6 +39,7 @@ test_flow_schema_migration.sh
 test_flow_tool_registry.sh
 test_flow_loop.sh
 test_flow_eval.sh
+test_flow_eval_grader_isolation.sh
 test_eval_fixture_lint.sh
 test_flow_resume.sh
 test_flow_status_legibility.sh
@@ -59,6 +61,7 @@ test_flow_attestation_contract.sh
 test_flow_card_risk.sh
 test_flow_attestation_supervisor.sh
 test_flow_attestations.sh
+test_attest_chain.sh
 test_flow_auto_attestation_enforcement.sh
 test_flow_parallel_auto.sh
 test_flow_attestation_harden.sh
@@ -71,6 +74,13 @@ test_harness_cli_optional_smoke.sh
 test_manifest_runner.sh
 test_doc_budgets.sh
 test_flow_floor_guards.sh
+test_flow_four_point_compat.sh
 test_i18n_pairs.sh
 test_install_safe_update.sh
 test_flow_windows_lifecycle.sh
+test_release_eligibility.sh
+test_release_dispatch_response.sh
+test_release_provenance.sh
+test_verify_attestation_with_gh.sh
+test_release_run_artifact.sh
+test_flow_widelai_packaging.sh

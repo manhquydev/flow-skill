@@ -8,7 +8,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 RUN="$HERE/../skills/flow/runner/flow.sh"
 pass=0; fail=0
 ck() { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected $1 got $2"; fail=$((fail+1)); fi; }
-has() { if printf '%s' "$1" | grep -q "$2"; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3]"; fail=$((fail+1)); fi; }
+has() { if printf '%s' "$1" | grep -q -e "$2"; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3]"; fail=$((fail+1)); fi; }
+no()  { if printf '%s' "$1" | grep -q -e "$2"; then echo "  FAIL [$3] (unexpected: $2)"; fail=$((fail+1)); else echo "  ok   [$3]"; pass=$((pass+1)); fi; }
 
 stage_clean() { printf '#%s\n## Gate\n- [x] honestly done\n\nreal content.\n' "$1" > "$2"; }
 
@@ -67,6 +68,32 @@ bash "$RUN" card >/dev/null; ck 0 $? "card after planning complete"
 printf '# C-001 — base\nstatus: done\ndeps: none\n## Scope\na\n## Allowed files\na.py\n## Verify\n- [x] x\n## Done-evidence\nu\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' > "$SB/cards/C-001.md"
 printf '# C-002 — next\nstatus: todo\ndeps: C-1\n## Scope\nb\n## Allowed files\nb.py\n## Verify\n- [ ] y\n## Done-evidence\nu\n## Evidence\n(empty until done)\n' > "$SB/cards/C-002.md"
 has "$(bash "$RUN" ready)" "BUILDABLE C-002" "short dep id C-1 resolves to done C-001"
+out="$(bash "$RUN" status)"
+has "$out" "NEXT -> start next card: '/flow card start C-NNN'" "remaining todo card still recommends card start"
+bash "$RUN" card start C-002 >/dev/null; ck 0 $? "start remaining card"
+out="$(bash "$RUN" status)"
+has "$out" "NEXT -> continue C-002 (in flight" "in-progress card still recommends continuation"
+has "$out" "NEXT_VERB=card-start" "in-progress card keeps advisory card-start"
+printf '# C-002 — next\nstatus: done\ndeps: C-1\n## Scope\nb\n## Allowed files\nb.py\n## Verify\n- [x] y\n## Done-evidence\nu\n## Evidence\n$ test -f b.py -> PASS implementation verified\n' > "$SB/cards/C-002.md"
+out="$(bash "$RUN" status)"; rc=$?
+ck 0 "$rc" "all-done status succeeds"
+has "$out" "NEXT -> run '/flow retro'" "all-done status recommends supported retro"
+no "$out" "run '/flow check'" "all-done status never recommends check without a card"
+no "$out" "stage 09" "all-done status never points to nonexistent stage 09"
+has "$out" "NEXT_VERB=none" "all-done status preserves closed advisory enum"
+has "$(bash "$RUN" status --json)" '"next_verb":"none"' "all-done JSON agrees with prose"
+has "$(bash "$RUN" resume)" "NEXT -> run '/flow retro'" "all-done resume agrees with status"
+# Execute the command actually displayed, without eval or host auto-dispatch.
+next_line="$(printf '%s\n' "$out" | grep '^NEXT ->')"
+next_command="${next_line#*\'}"; next_command="${next_command%%\'*}"
+read -r next_prefix next_verb next_args <<< "$next_command"
+ck /flow "$next_prefix" "displayed action is a Flow command"
+ck retro "$next_verb" "displayed action uses supported retro verb"
+ck "" "$next_args" "displayed action needs no missing arguments"
+action_out="$(bash "$RUN" "$next_verb" 2>&1)"; rc=$?
+ck 0 "$rc" "executing displayed terminal action succeeds"
+has "$action_out" "answer these 3" "terminal action supplies useful retrospective questions"
+has "$action_out" "append ONE honest line to RETRO.md" "terminal action explains the operator's next step"
 rm -rf "$SB"
 
 echo "F) _python: returns non-zero exit when no python3/python on PATH; exit 0 + path when present"
@@ -172,16 +199,340 @@ rm -f "$IT/src/manifest-hashes.json"
 out="$(bash "$RUNX" doctor 2>&1)"; rc=$?
 has "$out" "bundled tree integrity: dev checkout (install receipt not present) - skipped" "receipt absent -> skip line"
 ck 0 $rc "receipt absent -> doctor exit 0"
-# (e) hash generation deterministic: sync.mjs run twice => byte-identical manifest
-cp "$HERE/../portable-manifest.json" "$IT/pm.before"
-node "$HERE/../npm-wrapper/scripts/sync.mjs" >/dev/null 2>&1
-node "$HERE/../npm-wrapper/scripts/sync.mjs" >/dev/null 2>&1
-if cmp -s "$IT/pm.before" "$HERE/../portable-manifest.json"; then
+# (e) real sync twice in an isolated layout => byte-identical regenerated manifest.
+# Never regenerate the working checkout's tracked manifest from a test.
+mkdir -p "$IT/sync/npm-wrapper/scripts" "$IT/sync/skills"
+cp "$HERE/../npm-wrapper/scripts/sync.mjs" "$IT/sync/npm-wrapper/scripts/sync.mjs"
+cp "$HERE/../portable-manifest.json" "$IT/sync/portable-manifest.json"
+cp -R "$HERE/../skills/flow" "$IT/sync/skills/flow"
+node "$IT/sync/npm-wrapper/scripts/sync.mjs" >/dev/null 2>&1; ck 0 $? "isolated first sync succeeds"
+cp "$IT/sync/portable-manifest.json" "$IT/pm.before"
+node "$IT/sync/npm-wrapper/scripts/sync.mjs" >/dev/null 2>&1; ck 0 $? "isolated second sync succeeds"
+if cmp -s "$IT/pm.before" "$IT/sync/portable-manifest.json"; then
   echo "  ok   [hash regeneration deterministic (byte-stable manifest)]"; pass=$((pass+1))
 else
   echo "  FAIL [hash regeneration not byte-stable]"; fail=$((fail+1))
 fi
 rm -rf "$IT"
+
+echo "J) flow gate [--card C-NNN|<stage>] --json closed envelope"
+SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/flow" "$SB/cards"
+PY_BIN="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+
+# 1. Clean stage gate: exit 0, valid JSON, clean: true, findings: []
+stage_clean "00-idea" "$SB/flow/00-idea.md"
+out="$(bash "$RUN" gate 00-idea --json 2>&1)"; rc=$?
+ck 0 $rc "clean stage gate --json exit 0"
+has "$out" '"schema_version":1' "clean stage JSON carries schema_version 1"
+has "$out" '"kind":"gate.report"' "clean stage JSON carries kind gate.report"
+has "$out" '"target":"00-idea"' "clean stage JSON carries target 00-idea"
+has "$out" '"clean":true' "clean stage JSON carries clean: true"
+has "$out" '"findings":\[\]' "clean stage JSON carries empty findings array"
+if [ -n "$PY_BIN" ]; then
+  printf '%s' "$out" | "$PY_BIN" -c 'import sys, json; d = json.load(sys.stdin); assert d["clean"] is True; assert d["findings"] == []; assert d["target"] == "00-idea"'
+  ck 0 $? "clean stage JSON parses via python"
+else
+  echo "  skip [clean stage JSON parses via python] (no python on this PATH)"
+fi
+# Flag-order parity: gate --json 00-idea
+out_pre="$(bash "$RUN" gate --json 00-idea 2>&1)"; rc_pre=$?
+ck 0 $rc_pre "gate --json 00-idea flag-order exit 0"
+ck "$out" "$out_pre" "gate --json 00-idea identical to gate 00-idea --json"
+
+# 2. Dirty stage gate: unchecked + [FILL] + midtier findings, quotes, backslashes, and real TAB
+echo "web" > "$SB/PROJECT_TYPE"
+TAB_CHAR="$(printf '\t')"
+printf '# 01-research\n## Gate\n- [ ] unchecked item with "quotes", \\backslashes\\ and tab1%stomb\n[FILL: placeholder text]\n## What exists already\n1. single entry\n' "$TAB_CHAR" > "$SB/flow/01-research.md"
+out="$(bash "$RUN" gate 01-research --json 2>&1)"; rc=$?
+ck 1 $rc "dirty stage gate --json exit 1"
+has "$out" '"clean":false' "dirty stage JSON carries clean: false"
+has "$out" '"target":"01-research"' "dirty stage JSON carries target 01-research"
+has "$out" 'unchecked gate boxes:' "findings carry unchecked section"
+has "$out" 'unfilled \[FILL\] placeholders:' "findings carry FILL section"
+has "$out" 'What exists already' "findings carry midtier violation"
+if [ -n "$PY_BIN" ]; then
+  printf '%s' "$out" | "$PY_BIN" -c '
+import sys, json, re
+d = json.load(sys.stdin)
+assert d["clean"] is False
+assert d["target"] == "01-research"
+# Each line remains its own array element (headings + detail lines)
+assert len(d["findings"]) >= 5
+assert any("quotes" in f and "backslashes" in f for f in d["findings"])
+assert any("What exists already" in f for f in d["findings"])
+# Findings include L<line>: prefix from scan_gate detail lines
+assert any(re.match(r"^L[0-9]+:", f) for f in d["findings"])
+# Real TAB preservation: parsed JSON finding contains literal tab character (\t)
+assert any("tab1\ttomb" in f for f in d["findings"]), "literal tab not preserved in findings: %r" % (d["findings"],)
+'
+  ck 0 $? "dirty stage JSON with L<line>: prefix, TAB, and quotes/backslashes parses via python"
+else
+  echo "  skip [dirty stage JSON with L<line>: prefix, TAB, and quotes/backslashes parses via python] (no python on this PATH)"
+fi
+# 3. Missing stage artifact file: exit 1, clean: false, findings has missing file
+out="$(bash "$RUN" gate 02-scope --json 2>&1)"; rc=$?
+ck 1 $rc "missing stage artifact gate --json exit 1"
+has "$out" '"clean":false' "missing stage JSON carries clean: false"
+has "$out" 'missing file:' "missing stage JSON carries missing file finding"
+if [ -n "$PY_BIN" ]; then
+  printf '%s' "$out" | "$PY_BIN" -c 'import sys, json; d = json.load(sys.stdin); assert d["clean"] is False; assert any("missing file:" in f for f in d["findings"])'
+  ck 0 $? "missing stage JSON parses via python"
+else
+  echo "  skip [missing stage JSON parses via python] (no python on this PATH)"
+fi
+
+# 4. Clean card gate: exit 0, valid JSON, clean: true, target: C-001
+printf '# C-001 — clean\nstatus: todo\ndeps: none\n## Scope\nscope\n## Allowed files\nfile.txt\n## Verify\n- [x] verify\n## Done-evidence\nurl\n## Evidence\n(empty until done)\n' > "$SB/cards/C-001.md"
+out_card="$(bash "$RUN" gate --card C-001 --json 2>&1)"; rc=$?
+ck 0 $rc "clean card gate --card --json exit 0"
+has "$out_card" '"target":"C-001"' "clean card JSON carries target C-001"
+has "$out_card" '"clean":true' "clean card JSON carries clean: true"
+has "$out_card" '"findings":\[\]' "clean card JSON carries empty findings"
+# Flag-order parity: gate --json --card C-001
+out_card_pre="$(bash "$RUN" gate --json --card C-001 2>&1)"; rc_card_pre=$?
+ck 0 $rc_card_pre "gate --json --card C-001 flag-order exit 0"
+ck "$out_card" "$out_card_pre" "gate --json --card C-001 identical to gate --card C-001 --json"
+# 5. Dirty card gate: exit 1, valid JSON, clean: false, findings non-empty
+printf '# C-002 — dirty\nstatus: todo\ndeps: none\n## Scope\nscope\n## Allowed files\nfile.txt\n## Verify\n- [ ] verify\n[FILL: placeholder]\n## Done-evidence\nurl\n## Evidence\n(empty until done)\n' > "$SB/cards/C-002.md"
+out="$(bash "$RUN" gate --card C-002 --json 2>&1)"; rc=$?
+ck 1 $rc "dirty card gate --card --json exit 1"
+has "$out" '"target":"C-002"' "dirty card JSON carries target C-002"
+has "$out" '"clean":false' "dirty card JSON carries clean: false"
+has "$out" 'unchecked gate boxes:' "dirty card findings carry unchecked"
+
+# 6. Nonexistent card: exit 2, fails loudly, no JSON report
+out="$(bash "$RUN" gate --card C-999 --json 2>&1)"; rc=$?
+ck 2 $rc "nonexistent card gate --card --json exit 2"
+has "$out" "card not found" "reports card not found for nonexistent card"
+
+# 7. Error handling & legacy usage parity: exit 2
+out="$(bash "$RUN" gate bogus 2>&1)"; rc=$?
+ck 2 $rc "legacy gate bogus exit 2"
+has "$out" "usage: /flow gate <stage:" "legacy gate bogus outputs stage usage"
+no "$out" "--json" "legacy gate bogus does not mention --json"
+
+out="$(bash "$RUN" gate --card 2>&1)"; rc=$?
+ck 2 $rc "legacy gate --card exit 2"
+ck "usage: /flow gate --card C-NNN" "$out" "legacy gate --card outputs exact legacy card usage"
+
+out="$(bash "$RUN" gate --card junk 2>&1)"; rc=$?
+ck 2 $rc "legacy gate --card junk exit 2"
+ck "usage: /flow gate --card C-NNN" "$out" "legacy gate --card junk outputs exact legacy card usage"
+
+out="$(bash "$RUN" gate bogus --json 2>&1)"; rc=$?
+ck 2 $rc "gate bogus --json exit 2"
+has "$out" '\[--json\]' "gate bogus --json usage mentions optional --json"
+
+out="$(bash "$RUN" gate 00-idea --json extra 2>&1)"; rc=$?
+ck 2 $rc "extra args gate 00-idea --json extra exit 2"
+has "$out" '\[--json\]' "extra args with --json shows --json usage"
+
+out="$(bash "$RUN" gate 00-idea extra 2>&1)"; rc=$?
+ck 2 $rc "extra args gate 00-idea extra prose exit 2"
+no "$out" "--json" "extra args without --json does not mention --json"
+
+out="$(bash "$RUN" gate --card C-001 --json extra 2>&1)"; rc=$?
+ck 2 $rc "extra args gate --card C-001 --json extra exit 2"
+
+# 7b. Empty first positional argument must fail loud with exit 2 (no silent scan drop)
+out="$(bash "$RUN" gate "" 00-idea 2>&1)"; rc=$?
+ck 2 $rc "gate empty-arg 00-idea exit 2"
+ck "usage: /flow gate <stage: 00-idea 01-research 02-scope 03-prd 04-adr 05-contract> | /flow gate --card C-NNN" "$out" "gate empty-arg outputs legacy usage"
+
+out="$(bash "$RUN" gate "" 2>&1)"; rc=$?
+ck 2 $rc "gate empty-arg alone exit 2"
+ck "usage: /flow gate <stage: 00-idea 01-research 02-scope 03-prd 04-adr 05-contract> | /flow gate --card C-NNN" "$out" "gate empty-arg alone outputs legacy usage"
+# 8. Prose parity without --json
+out="$(bash "$RUN" gate 00-idea 2>&1)"; rc=$?
+ck 0 $rc "prose clean stage exit 0"
+has "$out" "clean" "prose clean stage reports clean"
+out="$(bash "$RUN" gate 01-research 2>&1)"; rc=$?
+ck 1 $rc "prose dirty stage exit 1"
+has "$out" "unchecked gate boxes:" "prose dirty stage reports findings"
+out="$(bash "$RUN" gate --card C-001 2>&1)"; rc=$?
+ck 0 $rc "prose clean card exit 0"
+has "$out" "clean" "prose clean card reports clean"
+out="$(bash "$RUN" gate --card C-002 2>&1)"; rc=$?
+ck 1 $rc "prose dirty card exit 1"
+has "$out" "unchecked gate boxes:" "prose dirty card reports findings"
+
+rm -rf "$SB"
+
+echo "K) flow debt [list] [--json] closed envelope"
+SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB"
+PY_BIN="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+
+# 1. No DEBT.md: exit 0, valid empty JSON envelope, prose unmodified
+out="$(bash "$RUN" debt list --json 2>&1)"; rc=$?
+ck 0 $rc "no DEBT.md debt list --json exit 0"
+has "$out" '"schema_version":1' "no DEBT.md JSON carries schema_version 1"
+has "$out" '"kind":"debt.list"' "no DEBT.md JSON carries kind debt.list"
+has "$out" '"total":0' "no DEBT.md JSON carries total 0"
+has "$out" '"open_count":0' "no DEBT.md JSON carries open_count 0"
+has "$out" '"debts":\[\]' "no DEBT.md JSON carries empty debts array"
+if [ -n "$PY_BIN" ]; then
+  printf '%s' "$out" | "$PY_BIN" -c 'import sys, json; d = json.load(sys.stdin); assert d["schema_version"] == 1; assert d["kind"] == "debt.list"; assert d["total"] == 0; assert d["open_count"] == 0; assert d["debts"] == []'
+  ck 0 $? "no DEBT.md JSON parses via python"
+else
+  echo "  skip [no DEBT.md JSON parses via python] (no python on this PATH)"
+fi
+
+# Flag-order and shorthand parity: debt --json, debt --json list, debt list --json
+out_shorthand="$(bash "$RUN" debt --json 2>&1)"; rc_shorthand=$?
+ck 0 $rc_shorthand "debt --json exit 0"
+ck "$out" "$out_shorthand" "debt --json identical to debt list --json"
+
+out_prefix="$(bash "$RUN" debt --json list 2>&1)"; rc_prefix=$?
+ck 0 $rc_prefix "debt --json list exit 0"
+ck "$out" "$out_prefix" "debt --json list identical to debt list --json"
+
+# Prose parity when no DEBT.md
+out_prose="$(bash "$RUN" debt list 2>&1)"; rc_prose=$?
+ck 0 $rc_prose "prose debt list (no file) exit 0"
+ck "No debts recorded." "$out_prose" "prose debt list reports No debts recorded."
+
+out_prose_bare="$(bash "$RUN" debt 2>&1)"; rc_prose_bare=$?
+ck 0 $rc_prose_bare "prose bare debt (no file) exit 0"
+ck "No debts recorded." "$out_prose_bare" "prose bare debt reports No debts recorded."
+
+# 2. Populated DEBT.md: open, closed (-[x], -[X]), quotes, backslashes, tabs, line preservation
+TAB_CHAR="$(printf '\t')"
+printf '# DEBT - deliberate gate-skips\n\n- [ ] DEBT: skip 01-research -- internal tool with "quotes", \\backslashes\\ and tab1%stomb -- close before: public release -- opened 2026-10-18\n- [x] DEBT: skip 04-adr -- single obvious choice -- close before: v2 -- opened 2026-10-15\n- [X] DEBT: temp auth bypass -- dev only -- close before: staging -- opened 2026-10-16\n' "$TAB_CHAR" > "$SB/DEBT.md"
+
+out_pop="$(bash "$RUN" debt list --json 2>&1)"; rc_pop=$?
+ck 0 $rc_pop "populated debt list --json exit 0"
+has "$out_pop" '"total":3' "populated JSON carries total 3"
+has "$out_pop" '"open_count":1' "populated JSON carries open_count 1"
+if [ -n "$PY_BIN" ]; then
+  printf '%s' "$out_pop" | "$PY_BIN" -c '
+import sys, json
+d = json.load(sys.stdin)
+assert d["schema_version"] == 1
+assert d["kind"] == "debt.list"
+assert d["total"] == 3
+assert d["open_count"] == 1
+assert len(d["debts"]) == 3
+
+# Item 1: open with special characters and tab preserved
+item0 = d["debts"][0]
+assert item0["line"] == 3
+assert item0["open"] is True
+assert "quotes" in item0["text"]
+assert "backslashes" in item0["text"]
+assert "tab1\ttomb" in item0["text"]
+assert item0["text"].startswith("- [ ] DEBT:")
+
+# Item 2: closed with lowercase x
+item1 = d["debts"][1]
+assert item1["line"] == 4
+assert item1["open"] is False
+assert "04-adr" in item1["text"]
+assert item1["text"].startswith("- [x] DEBT:")
+
+# Item 3: closed with uppercase X
+item2 = d["debts"][2]
+assert item2["line"] == 5
+assert item2["open"] is False
+assert "temp auth bypass" in item2["text"]
+assert item2["text"].startswith("- [X] DEBT:")
+'
+  ck 0 $? "populated JSON parses via python with correct open/closed status, lines, and escaped chars"
+else
+  echo "  skip [populated JSON parses via python with correct open/closed status, lines, and escaped chars] (no python on this PATH)"
+fi
+
+# Flag-order and shorthand parity on populated fixture
+out_pop_shorthand="$(bash "$RUN" debt --json 2>&1)"; rc_pop_shorthand=$?
+ck 0 $rc_pop_shorthand "populated debt --json exit 0"
+ck "$out_pop" "$out_pop_shorthand" "populated debt --json identical to debt list --json"
+
+out_pop_prefix="$(bash "$RUN" debt --json list 2>&1)"; rc_pop_prefix=$?
+ck 0 $rc_pop_prefix "populated debt --json list exit 0"
+ck "$out_pop" "$out_pop_prefix" "populated debt --json list identical to debt list --json"
+
+# Prose parity with open debts
+out_pop_prose="$(bash "$RUN" debt list 2>&1)"; rc_pop_prose=$?
+ck 0 $rc_pop_prose "prose debt list with open debts exit 0"
+has "$out_pop_prose" "OPEN debts (close before their named condition):" "prose lists OPEN debts header"
+has "$out_pop_prose" "  L3:- \[ \] DEBT: skip 01-research" "prose lists line 3 with L prefix"
+no "$out_pop_prose" "04-adr" "prose omits closed debt line 4"
+no "$out_pop_prose" "temp auth bypass" "prose omits closed debt line 5"
+
+out_pop_prose_bare="$(bash "$RUN" debt 2>&1)"; rc_pop_prose_bare=$?
+ck 0 $rc_pop_prose_bare "prose bare debt with open debts exit 0"
+ck "$out_pop_prose" "$out_pop_prose_bare" "prose bare debt matches debt list"
+
+# 3. Closed-only DEBT.md fixture
+printf '# DEBT\n\n- [x] DEBT: all settled -- exp -- close before: prod -- opened 2026-10-17\n' > "$SB/DEBT.md"
+out_closed="$(bash "$RUN" debt list --json 2>&1)"; rc_closed=$?
+ck 0 $rc_closed "closed-only debt list --json exit 0"
+has "$out_closed" '"total":1' "closed-only JSON total 1"
+has "$out_closed" '"open_count":0' "closed-only JSON open_count 0"
+if [ -n "$PY_BIN" ]; then
+  printf '%s' "$out_closed" | "$PY_BIN" -c '
+import sys, json
+d = json.load(sys.stdin)
+assert d["total"] == 1
+assert d["open_count"] == 0
+assert len(d["debts"]) == 1
+assert d["debts"][0]["open"] is False
+assert d["debts"][0]["line"] == 3
+'
+  ck 0 $? "closed-only JSON parses via python with open_count 0"
+else
+  echo "  skip [closed-only JSON parses via python with open_count 0] (no python on this PATH)"
+fi
+
+out_closed_prose="$(bash "$RUN" debt list 2>&1)"; rc_closed_prose=$?
+ck 0 $rc_closed_prose "prose debt list closed-only exit 0"
+ck "No OPEN debts (all closed)." "$out_closed_prose" "prose reports No OPEN debts (all closed)."
+
+# 4. Error handling & invalid / duplicate flags exit 2
+out_err="$(bash "$RUN" debt --json --json 2>&1)"; rc_err=$?
+ck 2 $rc_err "duplicate flag debt --json --json exit 2"
+has "$out_err" "usage: /flow debt" "duplicate flag prints usage"
+
+out_err="$(bash "$RUN" debt list --json --json 2>&1)"; rc_err=$?
+ck 2 $rc_err "duplicate flag debt list --json --json exit 2"
+
+out_err="$(bash "$RUN" debt --json list --json 2>&1)"; rc_err=$?
+ck 2 $rc_err "duplicate flag debt --json list --json exit 2"
+
+out_err="$(bash "$RUN" debt --bogus 2>&1)"; rc_err=$?
+ck 2 $rc_err "unknown flag debt --bogus exit 2"
+
+out_err="$(bash "$RUN" debt list --bogus 2>&1)"; rc_err=$?
+ck 2 $rc_err "unknown flag debt list --bogus exit 2"
+
+out_err="$(bash "$RUN" debt list extra 2>&1)"; rc_err=$?
+ck 2 $rc_err "extra arg debt list extra exit 2"
+
+out_err="$(bash "$RUN" debt --json extra 2>&1)"; rc_err=$?
+ck 2 $rc_err "extra arg debt --json extra exit 2"
+
+out_err="$(bash "$RUN" debt --json add "what" "exp" "close" 2>&1)"; rc_err=$?
+ck 2 $rc_err "invalid flag on add debt --json add exit 2"
+
+out_err="$(bash "$RUN" debt add --json "foo" "bar" 2>&1)"; rc_err=$?
+ck 2 $rc_err "debt add --json \"foo\" \"bar\" exit 2"
+has "$out_err" "usage: /flow debt" "debt add --json prints usage"
+
+out_err="$(bash "$RUN" debt bogus 2>&1)"; rc_err=$?
+ck 2 $rc_err "unknown subcommand debt bogus exit 2"
+
+out_err="$(bash "$RUN" debt "" 2>&1)"; rc_err=$?
+ck 2 $rc_err "empty positional arg debt '' exit 2"
+
+# 5. debt add prose and exit code non-regression
+out_add_fail="$(bash "$RUN" debt add 2>&1)"; rc_add_fail=$?
+ck 1 $rc_add_fail "debt add missing args exit 1"
+ck 'usage: /flow debt add "<what skipped>" "<exposure>" "<close-before condition>"' "$out_add_fail" "debt add missing args prints exact legacy usage"
+
+out_add_ok="$(bash "$RUN" debt add "new item" "exposure desc" "close condition" 2>&1)"; rc_add_ok=$?
+ck 0 $rc_add_ok "debt add valid args exit 0"
+has "$out_add_ok" "PASS: debt recorded in DEBT.md" "debt add reports PASS"
+
+rm -rf "$SB"
 
 echo
 echo "RESULT: $pass passed, $fail failed"

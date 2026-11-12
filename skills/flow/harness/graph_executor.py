@@ -557,11 +557,14 @@ def cmd_graph_next(con, a):
                     with _db.transaction(con):
                         if latest:
                             meta = json.loads(latest["meta"])
+                            fork_id = graph_ids.new_id()
+                            if fork_id <= latest["checkpoint_id"]:
+                                fork_id = graph_ids.after(latest["checkpoint_id"])
                             con.execute(
                                 "INSERT INTO graph_checkpoint (execution_id,ns,checkpoint_id,"
                                 "parent_checkpoint_id,node,manifest,versions,seen,meta) "
                                 "VALUES (?,?,?,?,?,?,?,?,?)",
-                                (a.execution, a.ns or "", graph_ids.new_id(),
+                                (a.execution, a.ns or "", fork_id,
                                  latest["checkpoint_id"], latest["node"], latest["manifest"],
                                  latest["versions"], latest["seen"],
                                  json.dumps({"source": "fork", "step": meta["step"] + 1,

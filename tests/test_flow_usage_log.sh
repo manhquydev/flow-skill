@@ -9,6 +9,12 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 RUN="$HERE/../skills/flow/runner/flow.sh"
 HARN="$HERE/../skills/flow/harness/flow_harness.py"
+# Keep drive-local fixtures but give them their own Git root. Otherwise fixtures
+# below a linked checkout resolve their DB into the main checkout, away from JSONL.
+FIXTURE_ROOT="$(mktemp -d "$HERE/.usage-fixtures.XXXXXX")"
+git init -q "$FIXTURE_ROOT" || exit 1
+trap 'rm -rf "$FIXTURE_ROOT"' EXIT
+HERE="$FIXTURE_ROOT"
 pass=0; fail=0
 ck()  { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected '$1' got '$2'"; fail=$((fail+1)); fi; }
 has() { if printf '%s' "$1" | grep -q "$2"; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] (missing: $2)"; fail=$((fail+1)); fi; }
@@ -53,10 +59,28 @@ echo "4) disable envs suppress logging (FLOW_LOG_DISABLE + DO_NOT_TRACK)"
 newsb
 bash "$RUN" status >/dev/null 2>&1
 before="$(wc -l < "$SB/.flow/events.jsonl" 2>/dev/null | tr -d ' ')"
-FLOW_LOG_DISABLE=1 bash "$RUN" status >/dev/null 2>&1
-DO_NOT_TRACK=1     bash "$RUN" status >/dev/null 2>&1
-after="$(wc -l < "$SB/.flow/events.jsonl" 2>/dev/null | tr -d ' ')"
-ck "$before" "$after" "no events appended while disabled"
+global_before="$(wc -l < "$SB/home/.claude/flow/usage.jsonl" | tr -d ' ')"
+for optout in FLOW_LOG_DISABLE DO_NOT_TRACK; do
+  env "$optout=1" bash "$RUN" status >/dev/null 2>&1
+  after="$(wc -l < "$SB/.flow/events.jsonl" | tr -d ' ')"
+  global_after="$(wc -l < "$SB/home/.claude/flow/usage.jsonl" | tr -d ' ')"
+  ck "$before" "$after" "$optout suppresses per-project telemetry"
+  ck "$global_before" "$global_after" "$optout suppresses global telemetry"
+done
+bash "$RUN" status >/dev/null 2>&1
+ck "$((before + 1))" "$(wc -l < "$SB/.flow/events.jsonl" | tr -d ' ')" "ephemeral project still logs after scoped opt-out"
+ck "$((global_before + 1))" "$(wc -l < "$SB/home/.claude/flow/usage.jsonl" | tr -d ' ')" "global logging resumes after scoped opt-out"
+rm -rf "$SB"
+
+echo "4b) rejected root does not poison telemetry opt-outs for later valid roots"
+newsb
+ec=0
+FLOW_PROJECT_ROOT="$SB"$'\n' bash "$RUN" next >/dev/null 2>&1 || ec=$?
+ck 1 "$ec" "trailing-LF root is rejected"
+ck 1 "$([ -e "$SB/home/.claude/flow/usage.jsonl" ]; echo $?)" "rejection writes no global telemetry"
+FLOW_IGNORE_UNSAFE=1 bash "$RUN" status >/dev/null 2>&1
+has "$(cat "$SB/.flow/events.jsonl" 2>/dev/null)" '"command":"status"' "unsafe refusal state is invocation-local, not inherited"
+has "$(cat "$SB/home/.claude/flow/usage.jsonl" 2>/dev/null)" '"command":"status"' "ordinary global logging remains enabled"
 rm -rf "$SB"
 
 echo "5) next (greenfield) stamps a cycle_id and carries stage_to"
@@ -128,8 +152,10 @@ ck "" "$es" "usage --summary silent on no data"
 rm -rf "$SE"
 rc="$(bash "$RUN" recall 2>&1)"
 has "$rc" "USAGE (mechanical log)" "recall surfaces the usage block"
-rd="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" recall 2>&1)"
-no  "$rd" "USAGE (mechanical log)" "recall omits usage block when harness disabled"
+rd="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" recall 2>&1)"; rd_rc=$?
+ck 1 "$rd_rc" "recall refuses startup when required harness disabled"
+has "$rd" "Unset it; see docs/migration-v1.md" "disabled readback reports recovery guidance"
+no "$rd" "USAGE (mechanical log)" "refused recall does not claim usage readback"
 gr="$("$PY" - "$SB/.flow/events.jsonl" <<'PY'
 import json,sys
 print(next((o.get("gate_fail_reason") or "" for o in (json.loads(l) for l in open(sys.argv[1]) if l.strip()) if o.get("gate_pass") is False), ""))
@@ -455,7 +481,7 @@ else echo "  FAIL [19e: legacy COALESCE by command name failed]"; fail=$((fail+1
 
 # 19f: _ensure_cycle logging is unchanged — grep proves no intent-gate was added
 ec_grep=0
-grep -n '_ensure_cycle' "$HERE/../skills/flow/runner/flow.sh" | grep -qiE '(if|&&|\|\|).*(read.only|build|intent|diag)' && ec_grep=1 || ec_grep=0
+grep -n '_ensure_cycle' "$RUN" | grep -qiE '(if|&&|\|\|).*(read.only|build|intent|diag)' && ec_grep=1 || ec_grep=0
 if [ "$ec_grep" -eq 0 ]; then echo "  ok   [19f: _ensure_cycle has no intent-gate (FR2 intact)]"; pass=$((pass+1));
 else echo "  FAIL [19f: _ensure_cycle appears to have an intent-gate added — FR2 violated]"; fail=$((fail+1)); fi
 
@@ -527,7 +553,7 @@ has "$bo" "[2 build cycles]" "21b: --builds-only shows the filtered build-cycle 
 rm -rf "$SB21"
 
 # 21c: display_count is not a dead variable — grep finds a real read use (the print statement)
-dc_grep="$(grep -n 'display_count' "$HERE/../skills/flow/harness/flow_harness.py" || true)"
+dc_grep="$(grep -n 'display_count' "$HARN" || true)"
 # display_count must appear in a print/f-string (wired), not just assignments
 if printf '%s' "$dc_grep" | grep -q 'print\|f".*display_count\|f'"'"'.*display_count'; then
   echo "  ok   [21c: display_count is wired (found in a print expression)]"; pass=$((pass+1))
@@ -544,9 +570,9 @@ PY="$(command -v python3 || command -v python)"
 SB22A="$HERE/.p1_22a_$$"; rm -rf "$SB22A"; mkdir -p "$SB22A/cards" "$SB22A/home"
 export FLOW_PROJECT_ROOT="$SB22A"; export HOME="$SB22A/home"; export USERPROFILE="$SB22A/home"
 printf '# C-001 — scaffold\nstatus: todo\ndeps: none\n## Scope\none thing\n## Allowed files\ninfra/\n## Verify (run these before done)\n- [x] curl 200\n## Done-evidence (world-state proof)\nurl\n## Evidence (paste actual proof when done)\n$ curl https://x/healthz -> {"ok":true}\n' > "$SB22A/cards/C-001.md"
-FLOW_HARNESS_DISABLE=1 bash "$RUN" card start C-001 >/dev/null 2>&1
+bash "$RUN" card start C-001 >/dev/null 2>&1
 sleep 1
-FLOW_HARNESS_DISABLE=1 bash "$RUN" card done C-001 >/dev/null 2>&1
+bash "$RUN" card done C-001 >/dev/null 2>&1
 gstart="$(grep '"args":"start C-001"' "$HOME/.claude/flow/usage.jsonl" 2>/dev/null)"
 has "$gstart" '"card":"C-001"' "22a: compact global 'card start' row carries card=C-001"
 has "$gstart" '"args":"start C-001"' "22a: compact global 'card start' row carries bounded args"
@@ -557,7 +583,7 @@ rm -rf "$SB22A"
 
 # 22b: non-card commands still emit the constant "card":"","args":"" key shape (never omitted).
 SB22B="$HERE/.p1_22b_$$"; rm -rf "$SB22B"; mkdir -p "$SB22B/home"
-FLOW_PROJECT_ROOT="$SB22B" HOME="$SB22B/home" USERPROFILE="$SB22B/home" FLOW_HARNESS_DISABLE=1 bash "$RUN" status >/dev/null 2>&1
+FLOW_PROJECT_ROOT="$SB22B" HOME="$SB22B/home" USERPROFILE="$SB22B/home" bash "$RUN" status >/dev/null 2>&1
 gstatus="$(cat "$SB22B/home/.claude/flow/usage.jsonl" 2>/dev/null)"
 has "$gstatus" '"card":"","args":""' "22b: non-card command emits empty card/args (constant key shape)"
 rm -rf "$SB22B"

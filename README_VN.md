@@ -25,11 +25,13 @@ stage tiến. Kill tại một cổng là kết quả hợp lệ, được tôn 
 
 | | |
 |---|---|
-| **Skill product** | **v0.34.4** |
-| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) **0.7.x** (`@latest` 0.7.11 ship skill ở trên) |
+| **Skill product** | Mục tiêu phát hành **v1.0.1** (không phải biên nhận đã phát hành) |
+| **npm installer** | [`@manhquy/flow-skill`](https://www.npmjs.com/package/@manhquy/flow-skill) — mục tiêu phát hành **1.0.1**, kênh dự kiến `latest` (không phải biên nhận đã phát hành) |
 | **Website** | **[flowskill.io.vn](https://flowskill.io.vn)** |
 | **Test / CI** | [`tests/manifest.txt`](tests/manifest.txt) · Ubuntu · macOS · Windows |
 | **License** | MIT |
+
+Bản phát hành đã xác minh ngày 2026-10-30: GitHub phát hành skill v1.0.0 (2026-10-24) và npm installer 1.0.0 (2026-10-25); registry xác nhận `latest` là 1.0.0. Xem [hướng dẫn migration](docs/migration-v1.md) để biết cặp rollback trước v1 đã xác minh.
 
 ## Tài liệu
 
@@ -40,25 +42,27 @@ stage tiến. Kill tại một cổng là kết quả hợp lệ, được tôn 
 
 ## Cài đặt
 
-**Yêu cầu:** [Node.js](https://nodejs.org/) **≥ 22.14**.
+**Yêu cầu:** [Node.js](https://nodejs.org/) **≥ 22.14** để cài đặt; thao tác sản phẩm Flow v1 yêu cầu Python **≥ 3.7** (chỉ thư viện chuẩn).
 
 ```bash
 npx @manhquy/flow-skill@latest
 ```
 
 Luôn dùng `@latest`. Đừng chỉ `npm i` package — lệnh đó không copy skill.
-Đừng pin `@0.34.1` trên npm — đó là version skill, không phải installer.
+Version skill trong lịch sử không nhất thiết là version package npm để pin.
 
-Hai số version (cố ý): package npm = installer CLI; skill product =
-`SKILL.md` `metadata.version`. `--help` in cả hai:
-`flow-skill v0.7.8 (ships skill v0.34.1)`.
+Skill product và npm installer nay dùng chung một SemVer; `SKILL.md` là nguồn chuẩn.
+`--help` giữ banner tương thích với hai giá trị bằng nhau:
+`flow-skill v<package-version> (ships skill v<skill-version>)`.
 
 Hướng dẫn: [Cài đặt và lần chạy đầu](https://flowskill.io.vn/vi/docs/tutorials/install-and-first-run/).
 Flag: [npm-wrapper/README_VN.md](./npm-wrapper/README_VN.md).
 
 ## Lần chạy đầu
 
-Mở session agent mới, nói bạn muốn build gì, rồi gõ `/flow`
+Mở session agent mới trong thư mục cấp cao nhất của dự án, nơi Flow tạo `flow/` và `cards/`
+khi bạn bắt đầu sử dụng (nếu đang ở trong thư mục con, chuyển về thư mục gốc repository
+trước) — nói bạn muốn build gì, rồi gõ `/flow`
 (Codex: `$flow`). Chi tiết:
 [hướng dẫn](https://flowskill.io.vn/vi/docs/tutorials/install-and-first-run/).
 
@@ -72,6 +76,7 @@ Mở session agent mới, nói bạn muốn build gì, rồi gõ `/flow`
 /flow check C-001  validate card (done = bằng chứng thế giới thật)
 /flow auto       build tự động (HALT nhóm bảo mật)
 /flow doctor     kiểm môi trường
+/flow resume    tiếp tục dự án Flow hiện có trong session mới (chỉ đọc)
 ```
 
 Bảng đầy đủ: [`skills/flow/SKILL.md`](skills/flow/SKILL.md) ·

@@ -4,7 +4,7 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 RUN="$HERE/../skills/flow/runner/flow.sh"
-export FLOW_HARNESS_DISABLE=1
+unset FLOW_HARNESS_DISABLE
 pass=0; fail=0
 ck()  { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected $1 got $2"; fail=$((fail+1)); fi; }
 no()  { if printf '%s' "$1" | grep -q "$2"; then echo "  FAIL [$3] (unexpected /$2/)"; fail=$((fail+1)); else echo "  ok   [$3]"; pass=$((pass+1)); fi; }
@@ -110,7 +110,7 @@ if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
   out="$(FLOW_PROJECT_ROOT="$SB" "$PY" "$H" graph cards 2>&1)"
   has "$out" '"ready": \["C-002"\]' "graph cards ready includes C-002 after multi-signal"
   has "$out" '"deps_met": \["C-002"\]' "graph cards deps_met includes C-002 after multi-signal"
-  export FLOW_HARNESS_DISABLE=1
+  unset FLOW_HARNESS_DISABLE
   rm -rf "$SB"
 else
   echo "  ok   [skip graph cards python absent]"; pass=$((pass+1))

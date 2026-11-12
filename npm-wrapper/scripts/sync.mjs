@@ -229,4 +229,127 @@ writeFileSync(
   JSON.stringify(receipt, null, 2) + '\n'
 );
 
-console.log(`sync OK: ${dstFiles.length} files, skills-manifest.json emitted, runner hash ${manifest.hashes[runnerRel].slice(0, 8)}...`);
+// --- WidelCode overlay: generated rules file (T1) ---------------------------
+// `.widelai/rules/flowskill.md` is a projection of the repo's multi-home rule
+// map — AGENTS.md + CONTRIBUTING.md + skills/flow/law/CLAUDE.md +
+// skills/flow/references/attestations.md + skills/flow/runner/flow.sh — NOT
+// law/ alone (two of the rules live only in root AGENTS.md). It is generated
+// HERE at pack time, the only point with all sources on disk, and shipped as
+// a sibling payload in the npm tarball; the installer places it under
+// ~/.widelai/rules/. It is NOT part of the skill tree, so
+// manifest-hashes.json does not cover it — regeneration from the sources
+// below is the integrity story: output is deterministic (no timestamps), and
+// the test suite asserts byte-identical re-runs. Rules with no home in this
+// repo (maker/verifier separation, denied-action verdict mapping, a deploy
+// rule) are deliberately NOT stated here — see the "Not in this file" note in
+// the emitted file and the T1 PR description.
+
+// Locate a source line by content. A MISSING source file returns null — the
+// caller skips generation (partial trees, e.g. the sync-release test
+// fixtures, do not carry AGENTS.md/CONTRIBUTING.md). A file that EXISTS but
+// no longer contains the pattern still fails loudly, so a stale rules file
+// can never ship silently.
+//
+// Lines are matched after stripping a trailing carriage return, so
+// `$`-anchored patterns also match on Windows (CRLF) checkouts; the returned
+// text is the clean line, so generated output never carries CR bytes.
+//
+// @param {string} repoRoot - Repository root holding the source file.
+// @param {string} relPath - Source path relative to repoRoot.
+// @param {RegExp} pattern - Pattern the source line must match.
+// @param {string} label - Human-readable source name for the loud failure.
+// @returns {{ file: string, line: number, text: string } | null} The matched
+//   line (1-based), or null when the source file is missing.
+function findRulesSourceLine(repoRoot, relPath, pattern, label) {
+  let text;
+  try {
+    text = readFileSync(resolve(repoRoot, relPath), 'utf8');
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return null;
+    throw e;
+  }
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    // Strip a trailing CR so `$`-anchored patterns match CRLF checkouts
+    // (Windows `core.autocrlf`); the returned text is the clean line.
+    const line = lines[i].replace(/\r$/, '');
+    if (pattern.test(line)) return { file: relPath, line: i + 1, text: line.trim() };
+  }
+  console.error(`FAIL: widelai rules source not found: ${label} (pattern ${pattern} in ${relPath})`);
+  process.exit(1);
+}
+
+/**
+ * Strip a leading list marker (`-`, `*`, `1.`) and a trailing colon from a
+ * quoted source line, so the generated rules file reads as prose.
+ *
+ * @param {string} text - Raw source line.
+ * @returns {string} The line without its list marker or trailing colon.
+ */
+function stripListMarker(text) {
+  return text.replace(/^\s*(?:[-*]|\d+\.)\s*/, '').replace(/:\s*$/, '').trim();
+}
+
+/**
+ * Generate the WidelCode rules file (`.widelai/rules/flowskill.md`) from the
+ * multi-home rule sources (root AGENTS.md, CONTRIBUTING.md, law/CLAUDE.md,
+ * attestations.md, flow.sh). Runs at pack time, the only point with all
+ * sources on disk. Returns the generated path, or null (with a loud warning)
+ * when a source file is missing — partial trees skip generation instead of
+ * shipping rules whose homes cannot be verified. In the skip case any
+ * previously generated file is removed first, so a stale rules file can
+ * never ship from a tree that lacks its sources.
+ *
+ * @returns {string | null} Path of the generated rules file, or null when skipped.
+ */
+function generateWidelaiRules() {
+  // Rule homes live in the repo that owns the skill source: honor the
+  // FLOW_SKILL_SRC override (out-of-tree dev checkouts and CI matrix), so an
+  // out-of-tree sync never pairs an overridden skill with this repo's rules.
+  const repoRoot = process.env.FLOW_SKILL_SRC
+    ? resolve(src, '..', '..')
+    : resolve(pkgRoot, '..');
+  const conventions = findRulesSourceLine(repoRoot, 'AGENTS.md', /bash 3\.2-safe/, 'AGENTS.md conventions (bash 3.2-safe / zero new runtime deps)');
+  const bashCompat = findRulesSourceLine(repoRoot, 'CONTRIBUTING.md', /Bash 3\.2 compatibility/, 'CONTRIBUTING.md bash 3.2 compatibility');
+  const forkBranch = findRulesSourceLine(repoRoot, 'CONTRIBUTING.md', /Fork and branch/, 'CONTRIBUTING.md fork and branch');
+  const branchPerCard = findRulesSourceLine(repoRoot, 'skills/flow/law/CLAUDE.md', /Branch per card/, 'law branch per card');
+  const oneWorktree = findRulesSourceLine(repoRoot, 'skills/flow/law/CLAUDE.md', /One card = one worktree/, 'law one card = one worktree');
+  const verdict = findRulesSourceLine(repoRoot, 'skills/flow/references/attestations.md', /^verdict: pass\|fail\|override$/, 'attestations verdict vocabulary');
+  const chain = findRulesSourceLine(repoRoot, 'skills/flow/references/attestations.md', /^### Receipt chain/, 'attestations receipt chain section');
+  const warnOnly = findRulesSourceLine(repoRoot, 'skills/flow/runner/flow.sh', /warning-only stage semantic receipt/, 'flow.sh warning-only next');
+  const sources = [conventions, bashCompat, forkBranch, branchPerCard, oneWorktree, verdict, chain, warnOnly];
+  const dest = join(pkgRoot, '.widelai', 'rules', 'flowskill.md');
+  if (sources.some((s) => s === null)) {
+    // Partial tree (no AGENTS.md/CONTRIBUTING.md on disk): the release
+    // fixtures and any subtree copy hit this. Skip, loudly — the full repo
+    // always has all eight sources, so a skip here is never a silent loss.
+    // Remove any previously generated file first: a stale rules file must
+    // never ship from a tree that lacks its sources.
+    rmSync(dest, { force: true });
+    console.warn('WARN: widelai rules skipped: a rules source file is missing from this tree (partial tree?); re-run `npm run sync` in the full repo to generate .widelai/rules/flowskill.md');
+    return null;
+  }
+
+  const out = [
+    '<!-- GENERATED — do not edit by hand. Generated by npm-wrapper/scripts/sync.mjs from the sources listed below; re-run `npm run sync` to regenerate. -->',
+    '# FlowSkill rules (WidelCode)',
+    '',
+    'WidelCode reads this file from `.widelai/rules/flowskill.md` (project) or `~/.widelai/rules/flowskill.md` (personal defaults). Each rule is one line pointing at its home in the flow-skill repo — the home is the source of truth, never this file.',
+    '',
+    `- Work only on a branch or worktree: "${stripListMarker(branchPerCard.text)}" (home: ${branchPerCard.file}:${branchPerCard.line}) / "${stripListMarker(oneWorktree.text)}" (home: ${oneWorktree.file}:${oneWorktree.line}). Contributors: "${stripListMarker(forkBranch.text)}" (home: ${forkBranch.file}:${forkBranch.line})`,
+    `- Shell is bash 3.2-safe; zero new runtime dependencies: "${stripListMarker(conventions.text)}" (home: ${conventions.file}:${conventions.line}; also ${bashCompat.file}:${bashCompat.line})`,
+    `- Receipts use schema \`flow-attestation/v1\` (flat \`key: value\`; verdict \`pass|fail|override\` only). (home: ${verdict.file}:${verdict.line})`,
+    `- Receipt integrity: \`flow attest verify-chain\` over \`.flow/attestations/chain.log\` (tamper-evident ledger). (home: ${chain.file}:${chain.line})`,
+    `- \`flow next\` is warning-only on a missing/stale semantic receipt — it never hard-blocks advancement, so no second gate needs to agree first. (home: ${warnOnly.file}:${warnOnly.line})`,
+    '',
+    'Not in this file (deliberately): maker/verifier separation, denied-action verdict mapping, and a deploy rule have no home in this repo, so they are not stated here. See the T1 PR description.',
+    '',
+  ].join('\n');
+  mkdirSync(dirname(dest), { recursive: true });
+  writeFileSync(dest, out);
+  return dest;
+}
+
+const widelaiRulesPath = generateWidelaiRules();
+
+console.log(`sync OK: ${dstFiles.length} files, skills-manifest.json emitted, widelai rules ${widelaiRulesPath ?? 'skipped (partial tree)'}, runner hash ${manifest.hashes[runnerRel].slice(0, 8)}...`);

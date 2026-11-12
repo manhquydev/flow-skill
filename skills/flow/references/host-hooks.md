@@ -77,8 +77,10 @@ fresh-only handoff runs), and any Windows/macOS behavior.
 
 - Sole permitted write: `.flow/context-handoff/snapshot.json` inside an **existing**
   `.flow`. `.flow` itself is never created, never chmodded; a symlinked, foreign-owned,
-  group/world-writable, or non-0700 private dir is **refused, never repaired**. No
-  flow-project markers in the payload cwd ⇒ skip (no auto-init, no fallback directory).
+  group/world-writable, or non-0700 private dir is **refused, never repaired**. Local cwd
+  marker behavior is unchanged; without local markers, adopt only the nearest signature
+  within 24 physical ancestors: `flow/00-idea.md`, `flow/00-inspect.md`, `.flow/`, or an
+  actual file `cards/C-*.md`; otherwise skip (no auto-init or arbitrary fallback).
 - Snapshot reads use `O_NOFOLLOW` + `fstat` (regular file, owner, 0600) and refuse
   snapshots whose recorded project differs from the current one; strict JSON, duplicate
   keys rejected. Platforms without `O_NOFOLLOW`: snapshot refused (fresh-only handoff).

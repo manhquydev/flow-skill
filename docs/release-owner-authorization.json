@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "authorized_by": "owner",
+  "decision": "Owner-locked v1 contract authorizes Python 3 floor, graph-owned /flow next ordering and FLOW_HARNESS_DISABLE refusal. The unified-version owner decision authorizes npm 1.0.0 carrying the already-achieved skill 1.0.0 behavior (v1 disposition ACHIEVED 7/7 at 794fd026141e23a29b5c79af072e7f4fd0bdc165).",
+  "decision_record": "plans/261025-0023-unified-version/decision.md",
+  "authorized_versions": {
+    "npm": "1.0.0",
+    "skill": "1.0.0"
+  },
+  "compatibility": "breaking",
+  "security_rights_expanded": false,
+  "acceptance_evidence": [
+    "https://github.com/manhquydev/flow-skill/pull/87",
+    "https://github.com/manhquydev/flow-skill/pull/88",
+    "https://github.com/manhquydev/flow-skill/actions/runs/39902051551"
+  ],
+  "date": "2026-10-25",
+  "scope": "v1.0.0 only; does not authorize future breaking releases or security-rights expansion"
+}

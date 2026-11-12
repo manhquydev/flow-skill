@@ -128,6 +128,35 @@ test('~/.omp/agent/skills present: omp detected, dest is ~/.omp/agent/skills/flo
   assert.equal(defaultSelection(entries).includes('omp'), true);
 });
 
+// WidelCode target. Same bare-dir guard as cursor/omp: bare `~/.widelai` holds
+// credentials.json for every WidelCode user, so the marker is the genuine
+// skills dir `.widelai/skills`. Vendor docs (widelai.com, 2026-10-04): skills
+// live under `.widelai/skills`, personal defaults under `~/.widelai/` with the
+// same layout; WidelCode does NOT read the universal `~/.agents/skills` home.
+test('bare ~/.widelai (no skills subdir) does NOT trigger widelai detection', () => {
+  const home = fakeHome('widelai-bare');
+  mkdirSync(join(home, '.widelai'), { recursive: true });
+  writeFileSync(join(home, '.widelai', 'credentials.json'), '{}');
+  const entries = detectAll({ home });
+  const widelai = entries.find((e) => e.name === 'widelai');
+  assert.ok(widelai, 'widelai target must be registered in TARGETS');
+  assert.equal(widelai.detected, false, 'bare ~/.widelai (credentials, no skills dir) must not trigger widelai detection');
+  const defaults = defaultSelection(entries);
+  assert.equal(defaults.includes('widelai'), false, 'widelai must never enter default selection without its marker');
+});
+
+test('~/.widelai/skills present: widelai detected, dest is ~/.widelai/skills/flow', () => {
+  const home = fakeHome('widelai-skills');
+  mkdirSync(join(home, '.widelai', 'skills'), { recursive: true });
+  const entries = detectAll({ home });
+  const widelai = entries.find((e) => e.name === 'widelai');
+  assert.equal(widelai.detected, true);
+  assert.equal(widelai.dests.length, 1);
+  assert.equal(widelai.dests[0], join(home, '.widelai', 'skills', 'flow'));
+  assert.equal(widelai.projectScopeAllowed, false, 'project scope stays claude-only');
+  assert.equal(defaultSelection(entries).includes('widelai'), true);
+});
+
 test('~/.config/zed present: agents target detected, dest is ~/.agents/skills/flow', () => {
   const home = fakeHome('zed-marker');
   mkdirSync(join(home, '.config', 'zed'), { recursive: true });

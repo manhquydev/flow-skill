@@ -230,15 +230,63 @@ no "$out_redact" "eyJhbGciOiJIUzI1NiJ9" "raw JWT header does not appear in stdou
 clean
 
 echo "N) resume --card in non-git directory degrades gracefully to 'Not captured in this session'"
+# Git for Windows reconstructs native lookup paths; shim PATH cannot establish
+# the Git-absent precondition reliably. Only this synthetic case is unavailable.
+case "$(uname -s 2>/dev/null):${RUNNER_OS:-}" in
+  MINGW*|MSYS*|CYGWIN*|*:Windows_NT|*:Windows)
+    echo '  SKIP [no-git simulation unavailable on Git for Windows; Git Bash reconstructs system PATH]' ;;
+  *)
 newsb
 clean_stage 00-idea
 printf '# C-003 — nongit\nstatus: todo\ndeps: none\n## Scope\nlocal task\n## Allowed files\nlocal/\n## Verify\n- [ ] true\n## Evidence\n(empty)\n' > "$SB/cards/C-003.md"
-# Force git check to fail by masking PATH or git inside subshell
-out_nongit="$(PATH="/bin:/usr/bin" bash -c 'git() { return 1; }; export -f git; bash "'"$RUN"'" resume --card C-003' 2>&1)"; rc_nongit=$?
-ck 0 "$rc_nongit" "resume --card without working git exits 0"
-has "$out_nongit" "flow resume card: C-003" "card header rendered"
-has "$out_nongit" "Not captured in this session" "git status reports Not captured in this session"
+# Keep real utilities/interpreters but exclude Git. Probe in a fresh Bash, just
+# like the runner: Git Bash may reconstruct PATH or resolve git.exe on startup.
+fakebin="$(mktemp -d)"
+for d in /usr/bin /bin; do
+  [ -d "$d" ] || continue
+  for f in "$d"/*; do
+    [ -e "$f" ] || continue
+    b="$(basename "$f")"
+    case "$b" in git|git.exe) continue ;; esac
+    [ -e "$fakebin/$b" ] || ln -s "$f" "$fakebin/$b" 2>/dev/null || cp "$f" "$fakebin/$b" 2>/dev/null
+  done
+done
+# Native Windows Python needs its install directory/DLL context. Do not copy or
+# symlink an external interpreter into fakebin; retain its original PATH entry.
+no_git_path="$fakebin"
+for b in python3 python; do
+  f="$(command -v "$b" 2>/dev/null || true)"
+  [ -n "$f" ] || continue
+  d="$(dirname "$f")"
+  case "$d" in
+    /bin|/usr/bin) : ;; # already supplied by the core utility shim
+    *) no_git_path="$no_git_path:$d" ;;
+  esac
+done
+# Probe and dispatch in the SAME fresh shell. Re-launching Bash after the probe
+# can reconstruct a different Windows PATH; a failed launcher is not Git absence.
+out_nongit="$(PATH="$no_git_path" "$BASH" -c '
+  runner="$1"; shift
+  hash -r
+  if command -v git >/dev/null 2>&1 || command -v git.exe >/dev/null 2>&1; then
+    printf "FLOW_TEST_GIT_PRESENT\n"; exit 77
+  fi
+  printf "FLOW_TEST_GIT_ABSENT\n"
+  . "$runner"
+' _ "$RUN" resume --card C-003 2>&1)"; rc_nongit=$?
+case "$out_nongit" in
+  FLOW_TEST_GIT_PRESENT*)
+    echo "  SKIP [git-absent resume] (nested Bash still resolves git/git.exe)" ;;
+  FLOW_TEST_GIT_ABSENT*)
+    ck 0 "$rc_nongit" "resume --card without working git exits 0"
+    has "$out_nongit" "flow resume card: C-003" "card header rendered"
+    has "$out_nongit" "Not captured in this session" "git status reports Not captured in this session" ;;
+  *) ck 0 1 "missing-Git probe must actually start before testing resume" ;;
+esac
+rm -rf "$fakebin"
 clean
+    ;;
+esac
 
 echo
 echo "RESULT: $pass passed, $fail failed"

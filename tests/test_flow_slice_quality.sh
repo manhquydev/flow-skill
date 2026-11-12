@@ -22,7 +22,8 @@ has() { if grep -qE -- "$2" "$1" 2>/dev/null; then echo "  ok   [$3]"; pass=$((p
 newsb() {
   SB="$(mktemp -d)"
   mkdir -p "$SB/flow" "$SB/cards"
-  export FLOW_PROJECT_ROOT="$SB" FLOW_HARNESS_DISABLE=1 FLOW_LOG_DISABLE=1
+  export FLOW_PROJECT_ROOT="$SB" FLOW_LOG_DISABLE=1
+  unset FLOW_HARNESS_DISABLE
 }
 stage_clean() { printf '#%s\n## Gate\n- [x] honestly done\n\nreal content.\n' "$1" > "$2"; }
 

@@ -22,7 +22,7 @@ Harness qualification SOP ("Support Thật" mandate): [`harness-qualification-pr
 |  stage/card lifecycle, gate checks ([FILL]/box/evidence),     |
 |  debt ledger, design check, harness passthrough               |
 +---------------------------------------------------------------+
-              | reads/writes (best-effort, graceful degrade)
+              | durable reads/writes and graph ordering (required for v1 product progression)
               v
 +---------------------------------------------------------------+
 |  Durable layer  -  harness/flow_harness.py  (Python+sqlite3, flow-owned) |
@@ -49,7 +49,7 @@ On-disk artifacts (in the project being built):
 
 - **Skill product version** (SKILL.md / plugin.json / portable-manifest) drives coherence and
   harness `flow_version` telemetry.
-- **npm package version** versions the installer CLI only; tag `npm@*` triggers OIDC publish.
+- **npm package version** versions the installer CLI only. Canonical `scripts/release.sh` dispatches the publisher via `workflow_dispatch`; no tag-push trigger exists. Tags are verified output, created only after registry/provenance/install verification.
 - Full procedure: [`docs/release-process.md`](release-process.md).
 
 ## Why this shape
@@ -67,7 +67,10 @@ On-disk artifacts (in the project being built):
 0. Entering a project mid-cycle with no prior context this session? `/flow resume` first —
    read-only session-story brief (last session, in-flight + dwell, gate state, one `NEXT ->`
    line) composed entirely from existing state (events log, `.inflight` registry, gate scan).
-1. `/flow next` walks stages 00->05; each gate = mechanical (flow.sh) + semantic (gate-rules.md).
+1. `/flow next` checks the current gate and asks the graph executor for the next topology
+   node under the v1 contract; `flow.sh` remains the gate-verdict authority and refuses to
+   advance when graph state is unavailable, paused, inconsistent, or untrusted. The
+   current skip rules and 05-contract refusal remain unchanged.
    Unresolved product decisions live as `- [ ]` bullets under `## Open decisions` (Scope/PRD/
    Contract) — the same box scanner blocks `next`; `/flow clarify` lists them and
    `references/clarify.md` is the bounded write-back ritual (advisory, never a `next` gate).
@@ -90,7 +93,7 @@ On-disk artifacts (in the project being built):
 | `skills/flow/harness/` | durable layer (Python CLI + sqlite + Rust toggle) |
 | `skills/flow/_templates/` | the 7 gated artifacts (verbatim buildflow) |
 | `skills/flow/law/` | CLAUDE.md (build-session law), DESIGN.md (UI law), RETRO.md |
-| `skills/flow/references/` | 24 semantic playbooks (gates, agents, loop, design, auto, v0.22 concierge/native-rituals/forge-idea, v0.29 clarify/converge/artifact-lifecycle) |
+| `skills/flow/references/` | semantic playbooks (gates, agents, loop, design, auto, v0.22 concierge/native-rituals/forge-idea, v0.29 clarify/converge/artifact-lifecycle) — count is owned by [`docs/codebase-summary.md`](codebase-summary.md), which mirrors the `references/` tree |
 | `skills/flow/eval/` | behavioral-eval fixtures: artifact-vs-gate + v0.22 routing judge (`fixtures/routing/`) + v0.29 converge repo-state gap judge (`fixtures/converge/`) |
 | `skills/flow/playbooks/` | paid-for stack knowledge (read before, harvest after) |
 | `tests/` | Suites listed in `tests/manifest.txt` (runner / harness / scenarios / loop / eval / resume / status-legibility / concierge / native-rituals / forge-idea / harness trust-align / graph executor / doc budgets). GitHub Actions `bash-suite` job (ubuntu+macos+windows) is the source of truth. |

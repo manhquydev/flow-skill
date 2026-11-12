@@ -13,3 +13,7 @@ coverage/
 skills/
 skills-manifest.json
 
+# Generated WidelCode overlay (rules file) — materialized by `npm run sync`
+# (npm-wrapper/scripts/sync.mjs), shipped in the tarball via package.json `files`.
+.widelai/
+

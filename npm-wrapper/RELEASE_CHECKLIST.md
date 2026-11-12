@@ -1,186 +1,88 @@
 # Release checklist (npm-wrapper)
 
-Dev-only guide (excluded from tarball via `files` allowlist).  
-**Canonical product + npm dual-version process:** [`docs/release-process.md`](../docs/release-process.md).
+Dev-only guide (excluded from tarball via `files` allowlist).
+The authority is the [canonical release process](../docs/release-process.md) and
+[accepted ADR 0002](../docs/adr/0002-unattended-release-policy.md); this checklist
+adds installer-specific verification, not another publish path.
 
-Use this file for **auth/token ops** and a tick-list before each installer publish.
+## Version axes
 
-## Version axes (reminder)
+- npm installer version: `npm-wrapper/package.json`.
+- Skill product version: `skills/flow/SKILL.md`, mirrored by plugin and portable metadata.
+- After sync, CLI help must report both: `flow-skill v<installer> (ships skill v<product>)`.
+- Update the selected axes, changelogs, release intent and synchronized EN/VI docs
+  through the release-preparation PR described in the canonical runbook.
 
-| Axis | File | Example |
-|---|---|---|
-| npm package | `package.json` | `0.1.0` |
-| Skill shipped in tarball | `skills/flow/SKILL.md` (after `npm run sync`) | `0.24.0` |
+## Release boundary
 
-CLI must show both after sync: `flow-skill v0.1.0 (ships skill v0.24.0)`.
+- Only `workflow_dispatch` starts the publisher; `scripts/release.sh` is the canonical
+  dispatcher. Tags never authorize publication and are created only after verification.
+- Eligibility verifies exact master SHA, latest authoritative CI, merged PR, release
+  intent and registry state. Live publishing remains default-off behind
+  `FLOW_AUTOPUBLISH_ENABLED`, with the master-only `npm-publish` environment.
+- Only the publish job receives OIDC. Trusted Publishing covers `npm publish`, not
+  separate dist-tag mutation. Stable SemVer publishes directly to `latest`;
+  prereleases publish to `next`. Do not manually promote a prerelease to `latest`.
+- No required environment reviewer is part of the accepted policy. Do not change
+  environment, account, token or activation settings as a checklist step.
+- Never publish production packages from a laptop, expose credentials in chat/logs,
+  or use a bypass token to work around a failed release gate. Treat exposed tokens
+  as compromised and have the owner revoke them.
 
-## Account facts (read before debugging any auth failure)
+## Installer preparation checks
 
-- **npm account `@manhquy` is passkey-only — it has NO TOTP and never will via self-service.**
-  Created 2026-07-11, after npm stopped allowing new TOTP enrollments (~Sept 2025). Any
-  command/prompt asking for `--otp=<6-digit code>` is a **dead end** for this account — there is
-  no authenticator app to read a code from. `npm login` works (passkey via browser), but that
-  session alone does NOT authorize write operations (publish, dist-tag, token management) —
-  those need a **fresh** 2FA challenge that the npm CLI cannot issue as a passkey prompt on this
-  OS/CLI version (confirmed Windows, npm 11.x, 2026-07).
-- **The only working write-auth path from a local/dev shell is a Granular Access Token with
-  `Bypass 2FA` checked**, minted interactively on the npm dashboard (which does support passkey).
-  This is not a workaround-of-last-resort, it is **the only available path** until either (a) TP
-  coverage extends to the specific write operation, or (b) the account gets a TOTP-capable 2FA
-  method some other way.
-- **npm Trusted Publishing (OIDC) covers `npm publish` but NOT `npm dist-tag add`** (confirmed
-  live 2026-07-17: `E401 Unable to authenticate` immediately after a successful OIDC-authenticated
-  publish in the same job). Every dist-tag promotion (rc→latest, or any manual re-tag) needs the
-  bootstrap-token flow below, **every time**, until npm ships OIDC for that endpoint.
-- **Security note on the bootstrap token**: it grants write access with a 2FA bypass. Run the
-  3 commands (`npm config set` / the actual write / `npm token revoke`) **directly in your own
-  shell**, not relayed through an AI agent or pasted into any chat/log — a token pasted into a
-  conversation must be treated as compromised and revoked immediately.
-
-## Dist-tag promotion (every future promote)
-
-```
-# 1. npmjs.com dashboard -> Access Tokens -> Generate New Token -> Granular Access Token
-#    Permissions: Read and write | Packages: @manhquy/flow-skill | check "Bypass 2FA"
-# 2. Run directly in your own shell (never relay through an agent/chat):
-npm config set //registry.npmjs.org/:_authToken=<token>
-npm dist-tag add @manhquy/flow-skill@<version> <tag>
-npm token list                              # note the id
-npm token revoke <id>                       # immediately
-npm config delete //registry.npmjs.org/:_authToken
-npm logout                                  # belt-and-suspenders session cleanup
-```
-
-**Live dist-tags (as of 2026-07-19):** `latest` → `0.1.0` (GA, OIDC publish), `rc` → `0.1.0-rc.3`.
-GA (non-prerelease) auto-routes to `latest`; pre-release publish **never** moves `latest` automatically.
-
-**Hard deadline: ~2027-01** — npm deprecates bypass-2FA tokens for publish; dist-tag may still
-need an alternative write path — re-check npm changelog before that date.
-
-## Prereqs (one-time — done)
-
-- [x] Trusted Publisher: `owner=manhquydev`, `repo=flow-skill`, `workflow=publish-npm-wrapper.yml`,
-      `environment=npm-publish` (cross-account OK). Confirmed live rc.2+.
-- [x] GitHub Environment `npm-publish` with required reviewer.
-- [x] Repo public (OIDC audience).
-- [ ] Optional: `npm profile get` when diagnosing account issues.
-
-## Canonical Release Command (`scripts/release.sh`)
-
-From the repo root, run the unified release automation that automates surface synchronization, release preparation commits, i18n pair hash recording, the full 7-gate verification battery, tagging, and push:
+From the repository root:
 
 ```bash
-# Non-mutating pre-flight verification:
-bash scripts/release.sh --dry-run
+bash scripts/release-preflight.sh
+bash scripts/pack-rehearsal.sh
+```
 
-# Live release execution (creates tags, pushes master and tags):
+From `npm-wrapper/`:
+
+```bash
+npm run sync
+node bin/cli.mjs --help
+npm test
+npm pack --dry-run --ignore-scripts --json | node -e "const p=JSON.parse(require('fs').readFileSync(0,'utf8'));const s=p[0].unpackedSize;console.log('unpacked',s);if(s>1572864)process.exit(1)"
+```
+
+- [ ] CLI shows both intended versions; executable mode of `bin/cli.mjs` is preserved.
+- [ ] No child-process execution or secrets are introduced into installer sources.
+- [ ] Pack rehearsal is green: pack, compare bundled tree, clean temporary install,
+      CLI execution and installed-skill e2e. Size audit is a separate gate.
+- [ ] Selected changelogs, README pairs and skill mirrors agree with release intent.
+
+## Canonical promotion and verification
+
+After preparation merges and owner-authorized gates pass, from repository root:
+
+```bash
+bash scripts/release.sh --dry-run
+# Only after owner-authorized gates; not authorization to enable live publishing:
 bash scripts/release.sh --yes
 ```
 
-## Diagnostic & Manual Verification (Non-Canonical Reference)
+Dry-run is the default. Keep the release latch disabled until the owner-authorized
+activation criteria in ADR 0002 are satisfied. A local preflight PASS alone does
+not authorize publication.
 
-> **Notice:** The canonical release workflow is `bash scripts/release.sh [--dry-run | --yes]` run from the repository root (documented in `docs/release-process.md`). The manual steps below are preserved strictly as non-canonical diagnostic references for debugging individual components.
+- [ ] Exact publisher run and attempt pass eligibility and required verification.
+- [ ] Registry version, tarball integrity, provenance identity and expected channel
+      match the exact artifact; missing provenance is a failure, not a warning.
+- [ ] `node npm-wrapper/scripts/smoke.mjs <exact-version>` verifies install/CLI/skill
+      behavior from a clean temporary cwd, never from `npm-wrapper/`.
+- [ ] Dual-version output matches the shipped artifact on `next` or `latest`.
+- [ ] Tags and selected GitHub Release are verified output of the canonical script.
 
-```bash
-# 0. From repo root — harness coherence + doctor + dual-version + dist-tag lag
-bash scripts/release-preflight.sh   # expect PREFLIGHT PASS
+Existing versions are verify-only. Partial state or failed verification stops for
+owner action; do not republish, move dist-tags, or repair tags manually. Follow the
+canonical runbook's recovery section rather than historical token/tag procedures.
 
-cd npm-wrapper
+## Historical publish log (historical only)
 
-# 1. Sync skill content from monorepo source of truth
-npm run sync
-# Confirm dual-version string
-node bin/cli.mjs --help | head -3
-
-# 2. Bump installer version only
-npm version prerelease --preid=next    # RC channel
-# npm version patch|minor|major      # stable (drops -rc)
-# Ensure git tag is npm@X.Y.Z (workflow trigger shape), not vX.Y.Z:
-#   git tag npm@$(node -p "require('./package.json').version")
-
-# 3. Tests + guards
-npm test
-git grep -nE "from ['\"]node:child_process['\"]|require\(['\"]node:child_process['\"]|require\(['\"]child_process['\"]" -- 'src/' 'bin/'
-# must be empty
-# secret grep (bin/src/skills/docs listed in older checklist) — must be empty
-
-# 4. Tarball audit (size only — this line stays the dry-run size audit)
-npm pack --dry-run --ignore-scripts --json | node -e "const p=JSON.parse(require('fs').readFileSync(0,'utf8'));const s=p[0].unpackedSize;console.log('unpacked',s);if(s>1572864)process.exit(1)"
-# Per-PR CI (ubuntu): bash scripts/pack-rehearsal.sh
-#   npm pack → extract package/skills/flow → sync.mjs --compare vs repo skills/flow
-#   → npm i --ignore-scripts --prefix <tmp> ./manhquy-flow-skill-*.tgz
-#   → flow-skill --yes --project --dir "$DEST"
-#   → bash tests/e2e-installed-drive.sh "$DEST/.claude/skills/flow/runner/flow.sh"
-# Do not replace the size audit above with the rehearsal; they are different gates.
-
-# 5. Optional local link smoke (no @version on the command)
-npm link
-flow-skill --yes --all --dry-run --json
-npm unlink -g @manhquy/flow-skill
-```
-
-- [ ] `npm-wrapper/CHANGELOG.md` has a section for this version.
-- [ ] Root `README.md` / `README_VN.md` status table npm line updated on both sides, then
-      `bash scripts/check-i18n-pairs.sh` (green). After a committed consistent pair:
-      `bash scripts/check-i18n-pairs.sh record <en_path>` and commit `docs/i18n-pairs.txt`.
-- [ ] Skill product version coherent if skill content changed (`docs/release-process.md`).
-- [ ] `bin/cli.mjs` still `100755` in git (`git ls-files -s bin/cli.mjs`).
-- [ ] Per-PR `pack-rehearsal` job is green (pack → `--compare` → install → e2e). The dry-run size audit above is a different gate.
-
-## Publish (CI only — never laptop `npm publish` for production)
-
-**Canonical:**
-
-```bash
-git push origin master
-git push origin npm@<version>
-# Approve environment npm-publish when Actions prompts
-```
-
-**Optional `workflow_dispatch`:** version must match `package.json`; `dist_tag=next|latest`;
-`dry_run=true` for validation. **`promote_to` ≠ none exits immediately** with manual
-instructions — does not publish.
-
-Workflow must show:
-
-- [ ] skills-manifest count matches synced tree
-- [ ] `npm publish --provenance` succeeds
-- [ ] provenance verify step OK or WARN only
-- [ ] No re-introduction of “NODE_AUTH_TOKEN must be empty” guard
-
-## Post-publish verify (mandatory)
-
-```bash
-npm view @manhquy/flow-skill versions --json
-npm view @manhquy/flow-skill dist-tags --json
-
-# Use @rc or exact version — not bare name if latest lags
-npx --yes @manhquy/flow-skill@next --help
-# expect: flow-skill v<new> (ships skill v<product>)
-
-npx --yes @manhquy/flow-skill@next --yes --all --dry-run --json
-# expect skillVersion
-
-npm view @manhquy/flow-skill@<version> dist.attestations.provenance
-
-# Smoke from EMPTY cwd (never from npm-wrapper/):
-cd /tmp   # Windows: empty dir under %TEMP%
-node /path/to/flow-skill/npm-wrapper/scripts/smoke.mjs <version>
-```
-
-- [ ] Dual-version visible on the channel you ship (`@next` and/or `@latest`)
-- [ ] Nightly will pick up new `next`/`latest` on next cron (or dispatch Nightly manually)
-- [ ] If bare `npm view` / untagged install should use this version → **manual** `dist-tag add … latest`
-
-## Promotion criterion (rc → stable v0.1.0)
-
-- [ ] RC window without critical installer bugs
-- [ ] External tester path exercised (`npx @manhquy/flow-skill@next`)
-- [ ] CI green including Windows bash-suite
-- [ ] `npm version` drops preid → tag `npm@0.1.0` → workflow `dist_tag=latest`
-- [ ] Update README to recommend stable pin / drop RC-only messaging
-
-## Historical publish log (condensed)
+These records describe past publications, not current release instructions or
+current registry channel state. Use the canonical process above for future releases.
 
 | Version | When | Notes |
 |---|---|---|

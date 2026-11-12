@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="t-fav">
-  <title id="t-fav">flow — Favicon</title>
-  <path fill="#1AA3C4" d="M 96 96 H 208 V 144 H 144 V 368 H 208 V 416 H 96 Z"/>
-  <path fill="#1AA3C4" d="M 304 96 H 416 V 416 H 304 V 368 H 368 V 144 H 304 Z"/>
-  <path fill="#22C55E" d="M 224 156 L 324 256 L 224 356 H 176 L 276 256 L 176 156 Z"/>
-</svg>

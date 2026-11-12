@@ -13,7 +13,7 @@ code"); only the shape of the proof changes.
 | **web** | HTTP endpoints (Method/Path/Auth/Request/Response); OpenAPI served | a live deployed URL + real curl output | scaffold+`/healthz` -> vertical slice (endpoint+page) -> backend -> contract-test -> UI mock -> frontend -> e2e |
 | **cli** | commands + flags + output shapes + exit codes | the tool **installs and a real invocation returns the expected output + exit code** | scaffold+one real command -> subcommand groups -> tests -> install smoke on a clean dir |
 | **library** | the public API surface (exported functions/types + their shapes) | the **public API imports + a usage example runs + coverage threshold met** | scaffold+core API -> rounds of API -> tests -> a runnable usage example -> publish dry-run |
-| **skill** | the commands + files the agent reads (SKILL.md surface) | **installed into `~/.claude/skills` + a real run reaches its own done-definition** | scaffold+one runnable command -> references/law -> install -> a dogfood run |
+| **skill** | the commands + files the agent reads (SKILL.md surface) | **installed into `~/.claude/skills`, project `.claude/skills/flow` (Claude), or project `.agents/skills/flow` (Codex/Gemini) + a real run reaches its own done-definition** | scaffold+one runnable command -> references/law -> install -> a dogfood run |
 
 ## What stays the same (all types)
 - Every PRD feature maps to an interface; every interface has its shapes written BEFORE code.

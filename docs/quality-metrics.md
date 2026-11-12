@@ -1,9 +1,19 @@
 # /flow — quality metrics
 
 Living record of the quality experiment: collect real numbers, improve, ensure quality.
-Updated as the skill evolves. Current: **skill v0.34.1** (2026-10-14), **npm-wrapper v0.7.8** (`npx @manhquy/flow-skill@latest` after publish).
+Updated as the skill evolves. Current: **skill v1.0.1** (2026-11-10), **npm-wrapper v1.0.1** (`npx @manhquy/flow-skill@latest` after publish).
 
 Release process for future bumps: [`docs/release-process.md`](release-process.md). Release notes: [`CHANGELOG.md`](../CHANGELOG.md).
+
+## npm-wrapper v1.0.1 + skill v1.0.1 — eval-grader isolation + runner hash re-pin (2026-11-10)
+
+Pending publication (release target). Notes live in [`npm-wrapper/CHANGELOG.md`](../npm-wrapper/CHANGELOG.md) (1.0.1). Dist-tag **`latest`** moves to this pairing upon non-prerelease `npm@1.0.1` publish; the `npm@1.0.1` receipt is verified post-publish as release evidence, not as a prerequisite for dist-tag assignment.
+
+| Axis | Value | Notes |
+|---|---|---|
+| **npm package** | 1.0.1 | ships skill v1.0.1; install `npx @manhquy/flow-skill@latest` after publish |
+| **Skill product in tarball** | 1.0.1 | SKILL.md / skills-manifest.json / manifest-hashes.json |
+| **Stable dist-tag** | `latest` = 1.0.0 (pending) | moves to this pairing on non-prerelease `npm@1.0.1` publish |
 
 ## npm-wrapper v0.7.8 + skill v0.34.1 — transactional installer + Windows containment (2026-10-14)
 

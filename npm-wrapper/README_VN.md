@@ -78,11 +78,12 @@ npx @manhquy/flow-skill@latest --yes --all --dry-run
 
 ## Lần chạy đầu & Các bước tiếp theo
 
-Sau khi cài đặt hoàn tất, hãy khởi động lại hoặc tải lại coding agent của bạn, sau đó:
+Sau khi cài đặt hoàn tất, hãy khởi động lại hoặc tải lại coding agent. Codex CLI dùng
+`$flow`; các agent dùng slash command (Claude Code, Antigravity, OMP) dùng `/flow`:
 
-- `/flow` — kiểm tra giai đoạn hiện tại và xem những điều kiện nào đang chặn tiến trình
-- `/flow next` — đánh giá tiêu chí cổng và chuyển sang giai đoạn tiếp theo
-- `/flow doctor` — kiểm tra tình trạng môi trường và tính toàn vẹn của gói skill đã cài đặt
+- Codex: `$flow`; agent dùng slash command: `/flow` — kiểm tra giai đoạn hiện tại và xem điều gì đang chặn tiến trình
+- Codex: `$flow next`; agent dùng slash command: `/flow next` — đánh giá tiêu chí cổng và chuyển sang giai đoạn tiếp theo
+- Codex: `$flow doctor`; agent dùng slash command: `/flow doctor` — kiểm tra môi trường và tính toàn vẹn của gói skill đã cài đặt
 
 ---
 
@@ -90,11 +91,13 @@ Sau khi cài đặt hoàn tất, hãy khởi động lại hoặc tải lại co
 
 | | |
 |---|---|
-| **GA hiện tại** | **0.7.11** — ships skill product **v0.34.4** |
+| **Mục tiêu phát hành** | npm **1.0.1** / skill **v1.0.1** — kênh dự kiến `latest`; không phải biên nhận đã phát hành |
 | **Node.js** | `>= 22.14.0` |
 | **Tài liệu** | [flowskill.io.vn](https://flowskill.io.vn) |
 | **Kho lưu trữ** | [GitHub: manhquydev/flow-skill](https://github.com/manhquydev/flow-skill) |
 | **Giấy phép** | MIT |
+
+Bản phát hành đã xác minh ngày 2026-10-30: GitHub phát hành skill v1.0.0 (2026-10-24) và npm installer 1.0.0 (2026-10-25); registry xác nhận `latest` là 1.0.0. Xem [hướng dẫn migration](https://github.com/manhquydev/flow-skill/blob/master/docs/migration-v1.md) để biết cặp rollback trước v1 đã xác minh.
 
 ---
 

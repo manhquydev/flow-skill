@@ -99,7 +99,7 @@ def cmd_format_error(msg):
 
 
 def cmd_format_report(ok_flag):
-    # Expect NUL-delimited records: name\0category\0status\0evidence\0...
+    # Four NUL-delimited fields, optionally followed by a tagged remedy token.
     try:
         raw_bytes = sys.stdin.buffer.read()
         raw_text = raw_bytes.decode("utf-8", errors="replace")
@@ -111,14 +111,14 @@ def cmd_format_report(ok_flag):
     if tokens and tokens[-1] == "":
         tokens.pop()
 
-    if len(tokens) % 4 != 0:
-        cmd_format_error("malformed report records stream (tokens count %d not divisible by 4)" % (len(tokens),))
-        return
-
     checks = []
     summary = {"total": 0, "ok": 0, "warn": 0, "fail": 0, "skip": 0}
 
-    for i in range(0, len(tokens), 4):
+    i = 0
+    while i < len(tokens):
+        if len(tokens) - i < 4:
+            cmd_format_error("malformed report records stream (incomplete record)")
+            return
         name = tokens[i]
         cat = tokens[i + 1]
         status = tokens[i + 2]
@@ -129,6 +129,12 @@ def cmd_format_report(ok_flag):
             "status": status,
             "evidence": ev,
         })
+        i += 4
+        if i < len(tokens) and tokens[i].startswith("remedy:"):
+            remedy = tokens[i][len("remedy:"):]
+            if remedy and status in ("warn", "skip", "fail"):
+                checks[-1]["remedy"] = remedy
+            i += 1
         summary["total"] += 1
         if status in summary:
             summary[status] += 1

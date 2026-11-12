@@ -24,20 +24,45 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            shard: 1/3
+          - os: ubuntu-latest
+            shard: 2/3
+          - os: ubuntu-latest
+            shard: 3/3
+          - os: macos-latest
+            shard: full
+          - os: windows-latest
+            shard: 1/3
+          - os: windows-latest
+            shard: 2/3
+          - os: windows-latest
+            shard: 3/3
     runs-on: ${{ matrix.os }}
-    # Windows Git Bash is the slow cell: measured 18-25m for the 39-suite set,
-    # ~43-46m for the 67-suite set (post-C1-C7 wave + PR #26 concurrency lock).
-    # Windows gets 60m to provide headroom and prevent timeout cancellation.
-    # Ubuntu ~2-3m / macOS ~3-4m stay at 15m. Re-measure before trimming this back.
-    timeout-minutes: ${{ matrix.os == 'windows-latest' && 60 || 15 }}
+    # Ubuntu and Windows partition the C-sorted manifest across three isolated runners.
+    # Local Linux shards measured under 9m; retain Ubuntu 25m and Windows' 100m headroom.
+    # macOS measured 14m51s suite (TOTAL wall_s=891) plus post-job cleanup, exceeding 15m;
+    # raised to 30m: run 40069912151 killed macos-full at 25m18s mid-suite with steady
+    # progress while the identical tree passed master 40063546827 in 22m44s (variance).
+    # macOS keeps 40m headroom against that variance.
+    # 261028: PR92 adds test_attest_chain.sh (79 suites); the C-sorted round-robin then
+    # shifts test_sync_release.sh into windows 3/3. Run 40584693774 (head cf36428) was
+    # killed deterministically at the same boundary on both attempts: macos-full at 30m
+    # twice, windows 3/3 at 80m15s (22:42:12→00:02:27Z). Master 40513460418: macos-full
+    # 22m41s at 78 suites; the windows shard carrying test_sync_release ran 61m.
+    # Raised windows 80m→100m and macos 30m→40m for the 79-suite manifest.
+    # 261110: ubuntu shards 15m15s x2 cancel (jobs 129704798984, 129876553449) and
+    # macos-full 40m19s cancel (job 129876035964) against earlier green 37m40s/39m29s
+    # — raised ubuntu 15m→25m and macos 40m→60m (windows stays 100m).
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 100 || (matrix.os == 'macos-latest' && 60 || 25) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Pin the interpreter instead of trusting the runner image: the durable layer and
       # the graph executor are python, and 3.7 is the MEASURED floor (subprocess
       # capture_output/text; no walrus, no match, no builtin generics).
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
@@ -48,11 +73,15 @@ jobs:
         shell: bash
 
       - name: Run flow.sh bash test suite (tests/run_all.sh)
-        run: bash tests/run_all.sh
+        run: |
+          if [ '${{ matrix.shard }}' != full ]; then
+            export FLOW_SUITE_SHARD='${{ matrix.shard }}'
+          fi
+          bash tests/run_all.sh
         shell: bash
 
       - name: Run PowerShell installer suite (Windows only)
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-latest' && matrix.shard == '1/3'
         run: |
           if (-not (Test-Path tests/test_install_safe_update.ps1)) {
             throw "Mandatory test suite tests/test_install_safe_update.ps1 is missing!"
@@ -61,40 +90,41 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         shell: pwsh
 
-  # The engine must still gate a project when the durable layer is unavailable. This job
-  # is the executable proof of that promise (README/system-architecture both claim it),
-  # and it is what a future python-mandatory release would have to consciously replace.
-  no-python-degradation:
+  # V1 replaces the former no-python degradation promise with fail-closed refusal.
+  # Product operations cannot advance when Python is unavailable or explicitly disabled;
+  # help/doctor remain usable so the operator can diagnose and fix the environment.
+  python-required-refusal:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - name: flow.sh gates a project with NO python on PATH
+      - uses: actions/checkout@v7
+      - name: Product operation refuses without Python; help and doctor diagnose
         run: |
           set -e
           R="$GITHUB_WORKSPACE/skills/flow/runner/flow.sh"
           SB="$(mktemp -d)"; SHIM="$(mktemp -d)"
-          # Real absence, not just the opt-out flag: FLOW_HARNESS_DISABLE returns before
-          # _python() is ever called, so it exercises none of the interpreter probes.
           for t in bash sh env cat cp mv rm mkdir sed awk grep date tr head tail sort ls dirname basename find printf uname wc cut comm mktemp touch git timeout; do
             p="$(command -v "$t" 2>/dev/null)" && ln -sf "$p" "$SHIM/$t" || true
           done
-          run() { ( cd "$SB" && env -i PATH="$SHIM" HOME="$SB" bash "$R" "$@" ); }
-          run next
-          test -f "$SB/flow/00-idea.md" || { echo "FAIL: stage 00 not scaffolded"; exit 1; }
-          # Advance past 00 so the durable hook WOULD fire — otherwise the db assertion is
-          # vacuous (stage 00 never mints one even with the harness fully available).
-          sed -i 's/- \[ \]/- [x]/g' "$SB/flow/00-idea.md"
-          # No heredoc: inside a YAML block scalar the terminator would carry the block
-          # indent and never match column 0, so the shell would swallow the rest of the job.
-          python3 -c 'import pathlib,re,sys; f=pathlib.Path(sys.argv[1],"flow","00-idea.md"); f.write_text(re.sub(r"\[FILL.*?\]","filled",f.read_text(),flags=re.S))' "$SB"
-          run next
-          test -f "$SB/flow/01-research.md" || { echo "FAIL: gate did not advance without python"; exit 1; }
-          test ! -f "$SB/.flow/harness.db" || { echo "FAIL: db minted with no interpreter"; exit 1; }
-          run status >/dev/null
-          out="$(run doctor 2>&1 || true)"
-          printf '%s' "$out" | grep -qi "python" || { echo "FAIL: doctor hides the missing interpreter"; exit 1; }
-          echo "OK: engine scaffolds+gates+diagnoses with no python on PATH"
+          run_no_python() { ( cd "$SB" && env -i PATH="$SHIM" HOME="$SB" bash "$R" "$@" ); }
+          rc=0
+          out="$(run_no_python next 2>&1)" || rc=$?
+          test "$rc" -ne 0 || { echo "FAIL: next succeeded without Python"; exit 1; }
+          printf '%s' "$out" | grep -qi 'python' || { echo "FAIL: refusal omits Python prerequisite"; exit 1; }
+          test ! -e "$SB/flow" && test ! -e "$SB/.flow" || { echo "FAIL: no-Python refusal wrote project state"; exit 1; }
+          help="$(run_no_python --help 2>&1)"
+          printf '%s' "$help" | grep -q 'usage: bash flow.sh' || { echo "FAIL: help unavailable without Python"; exit 1; }
+          diag_rc=0
+          diag="$(run_no_python doctor 2>&1)" || diag_rc=$?
+          test "$diag_rc" -le 1 || { echo "FAIL: doctor did not reach its diagnostic path (rc=$diag_rc)"; exit 1; }
+          printf '%s' "$diag" | grep -qi 'python' || { echo "FAIL: doctor does not diagnose the missing Python prerequisite"; exit 1; }
+          SB_DISABLED="$(mktemp -d)"
+          rc=0
+          disabled="$( (cd "$SB_DISABLED" && FLOW_HARNESS_DISABLE=1 bash "$R" next 2>&1) )" || rc=$?
+          test "$rc" -ne 0 || { echo "FAIL: FLOW_HARNESS_DISABLE allowed product operation"; exit 1; }
+          printf '%s' "$disabled" | grep -q 'migration-v1.md' || { echo "FAIL: disable refusal omits migration guide"; exit 1; }
+          test ! -e "$SB_DISABLED/flow" && test ! -e "$SB_DISABLED/.flow" || { echo "FAIL: FLOW_HARNESS_DISABLE refusal wrote project or durable state"; exit 1; }
+          echo "OK: no-python and explicit-disable refuse before project/durable writes; help and doctor remain diagnostic"
         shell: bash
 
   test:
@@ -111,9 +141,9 @@ jobs:
       run:
         working-directory: npm-wrapper
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           # No registry-url / no OIDC scope — this is a pure test workflow.
@@ -162,8 +192,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           # Same floor as npm-wrapper/package.json engines (>=22.14).
           node-version: '22.14'
@@ -184,7 +214,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Keyless eval --replay (or skip-with-notice)
         run: |
           set -eu
@@ -212,7 +242,8 @@ jobs:
 
   # Phase 2 initial set + Phase 3 pack-rehearsal + Phase 7 keyless replay.
   all-checks-passed:
-    needs: [bash-suite, no-python-degradation, test, pack-rehearsal, eval-replay]
+    needs: [bash-suite, python-required-refusal, test, pack-rehearsal, eval-replay]
+    # bash-suite is the whole matrix: any failed/cancelled shard blocks this verdict.
     if: always()
     runs-on: ubuntu-latest
     steps:

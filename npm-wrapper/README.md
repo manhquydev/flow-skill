@@ -78,11 +78,12 @@ npx @manhquy/flow-skill@latest --yes --all --dry-run
 
 ## First Run & Next Steps
 
-After installation completes, restart or reload your coding agent, then run:
+After installation completes, restart or reload your coding agent. Codex CLI uses
+`$flow`; slash-command agents (Claude Code, Antigravity, OMP) use `/flow`:
 
-- `/flow` — check current project stage and see what is blocking advancement
-- `/flow next` — evaluate gate criteria and advance to the next stage
-- `/flow doctor` — verify environment health and installed skill bundle integrity
+- Codex: `$flow`; slash-command agents: `/flow` — check current project stage and blockers
+- Codex: `$flow next`; slash-command agents: `/flow next` — evaluate gates and advance to the next stage
+- Codex: `$flow doctor`; slash-command agents: `/flow doctor` — verify environment health and installed skill bundle integrity
 
 ---
 
@@ -90,11 +91,13 @@ After installation completes, restart or reload your coding agent, then run:
 
 | | |
 |---|---|
-| **Current GA** | **0.7.11** — ships skill product **v0.34.4** |
+| **Release target** | npm **1.0.1** / skill **v1.0.1** — intended channel `latest`; not a publication receipt |
 | **Node.js** | `>= 22.14.0` |
 | **Documentation** | [flowskill.io.vn](https://flowskill.io.vn) |
 | **Repository** | [GitHub: manhquydev/flow-skill](https://github.com/manhquydev/flow-skill) |
 | **License** | MIT |
+
+Publication status verified 2026-10-30: GitHub skill release v1.0.0 (2026-10-24) and npm installer 1.0.0 (2026-10-25); registry `latest` is 1.0.0. See the [migration guide](https://github.com/manhquydev/flow-skill/blob/master/docs/migration-v1.md) for the verified pre-v1 rollback pair.
 
 ---
 

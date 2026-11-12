@@ -20,7 +20,7 @@ newsb() { SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB"; }
 
 echo "A) empty project -> recall runs, says no project history, surfaces skill playbooks (cross-project)"
 newsb
-out="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" recall 2>&1)"; rc=$?
+out="$(bash "$RUN" recall 2>&1)"; rc=$?
 ck 0 "$rc" "recall exit 0 on empty project"
 has "$out" "no project-specific history" "empty-project message shown"
 has "$out" "PLAYBOOKS available" "skill playbooks surfaced even for a fresh project"
@@ -30,7 +30,7 @@ rm -rf "$SB"
 echo "B) open DEBT is read back"
 newsb
 printf '# DEBT\n\n- [ ] DEBT: skip 01-research -- exposure X -- close before: demo -- opened 2026-06-14\n' > "$SB/DEBT.md"
-out="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" recall 2>&1)"
+out="$(bash "$RUN" recall 2>&1)"
 has "$out" "OPEN DEBT" "debt section shown"
 has "$out" "skip 01-research" "the open debt line is shown"
 rm -rf "$SB"
@@ -38,7 +38,7 @@ rm -rf "$SB"
 echo "C) recent RETRO lines read back (only entries after the --- separator)"
 newsb
 printf '# Retro\n\ntemplate instructions here\n\n---\n\nrushed the contract gate, cost a re-plan\n' > "$SB/RETRO.md"
-out="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" recall 2>&1)"
+out="$(bash "$RUN" recall 2>&1)"
 has "$out" "RECENT RETRO" "retro section shown"
 has "$out" "rushed the contract gate" "the retro entry is shown"
 no  "$out" "template instructions" "pre--- template text is not surfaced as a lesson"
@@ -48,26 +48,26 @@ echo "D) previous-card intelligence = most recent DONE card (not a later todo)"
 newsb; mkdir -p "$SB/cards"
 printf '# C-001 - base feature\nstatus: done\ndeps: none\n## Scope\nbuild the thing carefully\n## Allowed files\nx\n' > "$SB/cards/C-001.md"
 printf '# C-002 - next\nstatus: todo\ndeps: none\n## Scope\nnot done yet\n## Allowed files\ny\n' > "$SB/cards/C-002.md"
-out="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" recall 2>&1)"
+out="$(bash "$RUN" recall 2>&1)"
 has "$out" "PREVIOUS CARD" "previous-card section shown"
 has "$out" "last done: C-001" "names the most recent DONE card, not the todo one"
 has "$out" "build the thing carefully" "carries the prior card's Scope forward"
 no  "$out" "not done yet" "does not pull Scope from a still-todo card"
 rm -rf "$SB"
 
-echo "E) graceful without harness (FLOW_HARNESS_DISABLE) but markdown still read"
+echo "E) disabled harness refuses readback rather than silently degrading"
 newsb
 printf '# DEBT\n\n- [ ] DEBT: x -- y -- close before: z -- opened 2026-06-14\n' > "$SB/DEBT.md"
 out="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" recall 2>&1)"; rc=$?
-ck 0 "$rc" "recall exit 0 with harness disabled"
-has "$out" "OPEN DEBT" "markdown ledgers still read back without the harness"
-no  "$out" "FRICTION recorded" "no harness section when the durable layer is disabled"
+ck 1 "$rc" "recall refuses when harness disabled"
+has "$out" "Unset it; see docs/migration-v1.md" "readback refusal is actionable"
+no "$out" "OPEN DEBT" "refused operation does not pretend to read project state"
 rm -rf "$SB"
 
 echo "F) status surfaces a compact memory line + recall pointer"
 newsb
 printf '# DEBT\n\n- [ ] DEBT: a -- b -- close before: c -- opened 2026-06-14\n' > "$SB/DEBT.md"
-out="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" status 2>&1)"
+out="$(bash "$RUN" status 2>&1)"
 has "$out" "memory: 1 open debt" "status shows the open-debt count"
 has "$out" "/flow recall" "status points to recall"
 rm -rf "$SB"
@@ -77,7 +77,7 @@ newsb; mkdir -p "$SB/flow" "$SB/cards"
 for s in 00-idea 01-research 02-scope 03-prd 04-adr 05-contract; do printf '#%s\n## Gate\n- [x] ok\n\nreal.\n' "$s" > "$SB/flow/$s.md"; done
 printf '# C-001 - first\nstatus: done\ndeps: none\n## Scope\nestablished the auth pattern\n## Allowed files\nx\n' > "$SB/cards/C-001.md"
 printf '# DEBT\n\n- [ ] DEBT: q -- r -- close before: s -- opened 2026-06-14\n' > "$SB/DEBT.md"
-out="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" card 2>&1)"
+out="$(bash "$RUN" card 2>&1)"
 has "$out" "PASS: created C-002" "card created after C-001 done"
 has "$out" "Prior knowledge to carry" "card prints the prior-knowledge block"
 has "$out" "established the auth pattern" "card carries the previous card's Scope forward"
@@ -92,11 +92,11 @@ ck 0 "$rc_c" "zero patterns exit 0"
 has "$out_c" "no patterns meet the >=2 occurrence bar yet" "zero patterns message shown"
 rm -rf "$SB"
 
-# (d) harness unavailable => loud degrade, exit 0
+# (d) disabled required harness => actionable startup refusal
 newsb
 out_d="$(FLOW_HARNESS_DISABLE=1 bash "$RUN" promote --suggest 2>&1)"; rc_d=$?
-ck 0 "$rc_d" "harness unavailable exit 0"
-has "$out_d" "durable layer unavailable" "degrade message shown"
+ck 1 "$rc_d" "disabled harness refuses promote suggestions"
+has "$out_d" "Unset it; see docs/migration-v1.md" "refusal message names recovery"
 rm -rf "$SB"
 
 # (a), (b), (e) synthetic DB with a 2-occurrence pattern + 1-occurrence pattern

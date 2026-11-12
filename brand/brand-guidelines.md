@@ -7,7 +7,7 @@ source of truth; tokens must match it exactly.
 ## 1. Color palette
 
 Identity anchor: README badge accent `#1AA3C4`, already in use on
-flowskill.io.vn (observed in `website/src|public`: `#1aa3c4`, dark variant
+flowskill.io.vn (in `flowskill-website` repo: `#1aa3c4`, dark variant
 `#0a4e5e`). Legacy site colors `#D63A2F` and the warm greys (`#C9C6BB`,
 `#C4C0B4`, `#B7B3A6`) are **not** part of this palette; do not extend them.
 

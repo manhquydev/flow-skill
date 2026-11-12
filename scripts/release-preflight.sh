@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # release-preflight.sh — harness-aware gate before shipping skill and/or npm-wrapper.
 # Run from repo root: bash scripts/release-preflight.sh
-# Exit 0 = safe to proceed with tag/publish steps in docs/release-process.md
+# Exit 0 = local checks passed; canonical release gates still apply.
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT" || exit 2
@@ -106,8 +106,8 @@ if [ -n "$skill_v" ] && [ "$skill_v" = "$plugin_v" ] && [ "$skill_v" = "$portabl
 else
   fail "skill product mirrors disagree"
 fi
-if [ -n "$npm_v" ] && [ -n "$skill_v" ] && [ "$npm_v" = "$skill_v" ]; then
-  warn "npm package version equals skill product ($npm_v) — usually accidental; dual-axis is intentional"
+if [ -z "$npm_v" ] || [ -z "$skill_v" ] || [ "$npm_v" != "$skill_v" ]; then
+  fail "npm package and skill product versions must share one SemVer ($npm_v != $skill_v)"
 fi
 
 # marketplace metadata.version is NOT skill product (hosting catalog)
@@ -193,26 +193,21 @@ if command -v npm >/dev/null 2>&1; then
   tags="$(npm view @manhquy/flow-skill dist-tags --json 2>/dev/null || true)"
   if [ -n "$tags" ]; then
     echo "  dist-tags: $tags"
-    reg_rc=""
-    reg_latest=""
+    channel=latest
+    case "${npm_v%%+*}" in *-*) channel=next ;; esac
+    reg_channel=""
     if [ -n "$NODE" ]; then
-      reg_rc="$("$NODE" -e "try{const t=JSON.parse(process.argv[1]);process.stdout.write(t.rc||'')}catch(e){}" "$tags" 2>/dev/null || true)"
-      reg_latest="$("$NODE" -e "try{const t=JSON.parse(process.argv[1]);process.stdout.write(t.latest||'')}catch(e){}" "$tags" 2>/dev/null || true)"
+      reg_channel="$("$NODE" -e "try{const t=JSON.parse(process.argv[1]);process.stdout.write(t[process.argv[2]]||'')}catch(e){}" "$tags" "$channel" 2>/dev/null || true)"
     elif command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
       py="$(command -v python3 || command -v python)"
-      reg_rc="$("$py" -c "import json,sys; t=json.loads(sys.argv[1]); print(t.get('rc') or '')" "$tags" 2>/dev/null || true)"
-      reg_latest="$("$py" -c "import json,sys; t=json.loads(sys.argv[1]); print(t.get('latest') or '')" "$tags" 2>/dev/null || true)"
+      reg_channel="$("$py" -c "import json,sys; t=json.loads(sys.argv[1]); print(t.get(sys.argv[2]) or '')" "$tags" "$channel" 2>/dev/null || true)"
     fi
-    reg_rc="$(printf '%s' "$reg_rc" | tr -d '\r\n')"
-    reg_latest="$(printf '%s' "$reg_latest" | tr -d '\r\n')"
-    echo "  package.json npm_v=$npm_v  registry rc=$reg_rc  latest=$reg_latest"
-    if [ -n "$npm_v" ] && [ -n "$reg_rc" ] && [ "$npm_v" = "$reg_rc" ]; then
-      ok "local package.json matches dist-tag rc"
-    elif [ -n "$npm_v" ] && [ -n "$reg_rc" ] && [ "$npm_v" != "$reg_rc" ]; then
-      warn "local package.json ($npm_v) != registry rc ($reg_rc) — expected mid-release before tag push"
-    fi
-    if [ -n "$reg_rc" ] && [ -n "$reg_latest" ] && [ "$reg_rc" != "$reg_latest" ]; then
-      warn "rc ($reg_rc) != latest ($reg_latest) — intentional for RC; promote latest manually if desired"
+    reg_channel="$(printf '%s' "$reg_channel" | tr -d '\r\n')"
+    echo "  package.json npm_v=$npm_v  registry $channel=$reg_channel"
+    if [ -n "$npm_v" ] && [ -n "$reg_channel" ] && [ "$npm_v" = "$reg_channel" ]; then
+      ok "local package.json matches dist-tag $channel"
+    elif [ -n "$npm_v" ] && [ -n "$reg_channel" ]; then
+      warn "local package.json ($npm_v) != registry $channel ($reg_channel) — expected before canonical release"
     fi
   else
     warn "npm view failed (offline or network)"
@@ -223,24 +218,21 @@ fi
 
 echo
 echo "--- python floor (graph executor needs a real interpreter) ---"
-# Resolve exactly like flow.sh _python(): python3 first, then python, accepting only py3.
-# A `python3`-only probe would brick Windows Git Bash, where python.org installs `python`.
+# Resolve in the same order as flow.sh: python3 first, then python. Select the first
+# working interpreter that also meets the measured floor, so an older python3 cannot
+# mask a supported python executable (common on multi-version dev hosts).
 PYBIN=""
 for c in python3 python; do
-  if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(0 if sys.version_info[0]>=3 else 1)' 2>/dev/null; then
+  if command -v "$c" >/dev/null 2>&1 && \
+     "$c" -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3,7) else 1)' 2>/dev/null; then
     PYBIN="$(command -v "$c")"; break
   fi
 done
 if [ -z "$PYBIN" ]; then
-  fail "no python3 found (durable layer + graph executor require it)"
+  fail "no working python3/python at the measured floor 3.7 (durable layer + graph executor require it)"
 else
   PYVER="$("$PYBIN" -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null)"
   ok "python $PYVER at $PYBIN"
-  # Floor is MEASURED, not asserted: 3.7 is the oldest interpreter that runs this code
-  # (subprocess.run(capture_output=, text=) is 3.7+; no walrus/match/builtin generics).
-  if ! "$PYBIN" -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3,7) else 1)' 2>/dev/null; then
-    fail "python $PYVER is below the measured floor 3.7 (subprocess capture_output/text)"
-  fi
   if "$PYBIN" -m py_compile skills/flow/harness/*.py 2>/dev/null; then
     ok "harness modules compile"
   else
@@ -256,7 +248,7 @@ fi
 
 echo
 if [ "$rc" -eq 0 ]; then
-  echo "PREFLIGHT PASS — next: docs/release-process.md (tag npm@… / skill tag v…)"
+  echo "PREFLIGHT PASS — next: bash scripts/release.sh --dry-run; then bash scripts/release.sh --yes only after owner-authorized gates (docs/release-process.md)"
 else
   echo "PREFLIGHT FAIL — fix FAIL lines before shipping"
 fi
