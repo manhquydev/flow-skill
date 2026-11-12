@@ -62,6 +62,31 @@ else
   bad "SKILL must mention flow-owned or R-IMPROVE-HARNESS"
 fi
 
+echo "F) every flow.sh dispatch verb label is documented in command-dispatch.md"
+# Extract the MAIN dispatch case block (the one whose arms call cmd_*), not the earlier
+# pre-flight blocks (graph guards / trap setup). Filter logic:
+# - take only arms of the form `<word>|<word>) ... cmd_xxx`; alternation labels are split
+#   on '|' and each alternative checked separately;
+# - skip the empty-string alternative (`""`) - it documents `/flow` itself via the status row;
+# - composite card subcommands (`card` label arms like `card start C-NNN`) are covered by the
+#   dedicated `/flow card ...` rows, so the plain `card` label just needs any row mentioning it;
+# - underscores in labels map to dashes (project-type) to match doc spelling.
+RUNNER="$HERE/../skills/flow/runner/flow.sh"
+DISPATCH_DOC="$HERE/../skills/flow/references/command-dispatch.md"
+missing=0
+while IFS= read -r label; do
+  doc_label="$(printf '%s' "$label" | tr '_' '-')"
+  if ! grep -q "$doc_label" "$DISPATCH_DOC"; then
+    echo "  FAIL [dispatch verb '$doc_label' missing from command-dispatch.md]"
+    missing=$((missing+1))
+  fi
+done < <(sed -n '/^FLOW_LOG_START=/,$p' "$RUNNER" | sed -n "/^case \"\$cmd\" in$/,/^esac$/p" | grep -oE '^[[:space:]]*[a-z_"|-]+[)][[:space:]]+cmd_' | sed -E 's/^[[:space:]]*//; s/\)[[:space:]]+cmd_$//; s/^"(.*)"$/\1/' | tr '|' '\n' | sed -E '/^""?$/d; /^$/d' | sort -u)
+if [ "$missing" -eq 0 ]; then
+  ok "all flow.sh dispatch verbs present in command-dispatch.md"
+else
+  bad "$missing dispatch verb(s) missing from command-dispatch.md"
+fi
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
