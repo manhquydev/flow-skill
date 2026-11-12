@@ -228,12 +228,12 @@ def m(x: Optional[int]) -> Union[str, bytes]:
     return x
 PYF
 
-n_ann="$(python3 -c "$PYCHECK" "$tmpf/bad-ann.py" | wc -l)"
-n_wal="$(python3 -c "$PYCHECK" "$tmpf/bad-walrus.py" | wc -l)"
-n_match="$(python3 -c "$PYCHECK" "$tmpf/bad-match.py" | wc -l)"
-n_pos="$(python3 -c "$PYCHECK" "$tmpf/bad-posonly.py" | wc -l)"
-n_fc="$(python3 -c "$PYCHECK" "$tmpf/future-comment.py" | wc -l)"
-n_good="$(python3 -c "$PYCHECK" "$tmpf/good.py" | wc -l)"
+n_ann="$(python3 -c "$PYCHECK" "$tmpf/bad-ann.py" | wc -l | tr -d ' ')"
+n_wal="$(python3 -c "$PYCHECK" "$tmpf/bad-walrus.py" | wc -l | tr -d ' ')"
+n_match="$(python3 -c "$PYCHECK" "$tmpf/bad-match.py" | wc -l | tr -d ' ')"
+n_pos="$(python3 -c "$PYCHECK" "$tmpf/bad-posonly.py" | wc -l | tr -d ' ')"
+n_fc="$(python3 -c "$PYCHECK" "$tmpf/future-comment.py" | wc -l | tr -d ' ')"
+n_good="$(python3 -c "$PYCHECK" "$tmpf/good.py" | wc -l | tr -d ' ')"
 
 fixck 5 "$n_ann" "bad-ann fixture: all 5 modern annotations + runtime alias flagged"
 fixck 1 "$n_wal" "bad-walrus fixture: walrus flagged across all python versions"
