@@ -49,7 +49,7 @@ function Find-Python() {
   foreach ($cmd in @('python3', 'python')) {
     $c = Get-Command $cmd -ErrorAction SilentlyContinue
     if ($c) {
-      & $c.Source -c "import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)" 2>$null >$null
+      & $c.Source -c "import sys; sys.exit(0 if sys.version_info >= (3, 7) else 1)" 2>$null >$null
       if ($LASTEXITCODE -eq 0) { return $c.Source }
     }
   }

@@ -564,6 +564,25 @@ print("PARSED_OK")
 ' 2>/dev/null || echo "FAIL")"
 ck "PARSED_OK" "$out" "raw Windows drive and UNC paths correctly parsed without stripping"
 
+echo "=== Installer Python floor pins (3.7, matching runtime probe) ==="
+# Runtime flow.sh probes (3, 7); the installer probes must not claim a stricter floor.
+grep -q '>= (3, 7)' "$INSTALL_SH" \
+  && ck "PRESENT" "PRESENT" "install.sh probes python floor >= (3, 7)" \
+  || ck "PRESENT" "ABSENT" "install.sh probes python floor >= (3, 7)"
+if grep -q '(3, 8)' "$INSTALL_SH"; then
+  ck "ABSENT" "PRESENT" "install.sh has no stale (3, 8) floor"
+else
+  ck "ABSENT" "ABSENT" "install.sh has no stale (3, 8) floor"
+fi
+grep -q '>= (3, 7)' "$ROOT/install.ps1" \
+  && ck "PRESENT" "PRESENT" "install.ps1 probes python floor >= (3, 7)" \
+  || ck "PRESENT" "ABSENT" "install.ps1 probes python floor >= (3, 7)"
+if grep -q '(3, 8)' "$ROOT/install.ps1"; then
+  ck "ABSENT" "PRESENT" "install.ps1 has no stale (3, 8) floor"
+else
+  ck "ABSENT" "ABSENT" "install.ps1 has no stale (3, 8) floor"
+fi
+
 echo "=== Summary ==="
 if [ "$skipped" -gt 0 ]; then
   echo "Pass: $pass, Fail: $fail, Skipped: $skipped"
