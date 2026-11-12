@@ -423,6 +423,11 @@ for doc in docs/system-architecture.md npm-wrapper/RELEASE_CHECKLIST.md; do
     && ck 0 1 "$doc has no active legacy bypass instructions" || ck 0 0 "$doc has no active legacy bypass instructions"
 done
 
+echo "J) README 'Publication status verified' version matches newest CHANGELOG heading"
+readme_ver="$(sed -nE 's/.*Publication status verified[^:]*: .*npm installer ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$HERE/../README.md" | head -1)"
+changelog_ver="$(awk -F'] - ' '/^## \[/{v=$1; sub(/^\## \[/, "", v); if (v != "Unreleased") { print v; exit } }' "$HERE/../npm-wrapper/CHANGELOG.md")"
+ck "$changelog_ver" "$readme_ver" "README publication status version matches newest CHANGELOG heading (changelog=$changelog_ver)"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

@@ -31,7 +31,7 @@ stage tiến. Kill tại một cổng là kết quả hợp lệ, được tôn 
 | **Test / CI** | [`tests/manifest.txt`](tests/manifest.txt) · Ubuntu · macOS · Windows |
 | **License** | MIT |
 
-Bản phát hành đã xác minh ngày 2026-10-30: GitHub phát hành skill v1.0.0 (2026-10-24) và npm installer 1.0.0 (2026-10-25); registry xác nhận `latest` là 1.0.0. Xem [hướng dẫn migration](docs/migration-v1.md) để biết cặp rollback trước v1 đã xác minh.
+Bản phát hành đã xác minh ngày 2026-11-10: npm installer 1.0.1 đã phát hành (2026-11-10, theo [`npm-wrapper/CHANGELOG.md`](npm-wrapper/CHANGELOG.md)) và GitHub release skill v1.0.1 (2026-11-10); registry xác nhận `latest` là 1.0.1. Xem [hướng dẫn migration](docs/migration-v1.md) để biết cặp rollback trước v1 đã xác minh.
 
 ## Tài liệu
 
