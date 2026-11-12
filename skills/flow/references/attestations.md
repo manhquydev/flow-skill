@@ -322,10 +322,8 @@ class, duration bucket — never argv after `--`, raw output, or secrets.
 ## Locks
 
 Order: shared auto-policy mutex → subject locks sorted by `(subject_id, kind)`
-→ existing runner/workspace mutation lock.
-
-Hard consumers hold locks from validation through irreversible side effects
-(graph/harness/removal).
+→ runner/workspace mutation lock. Hard consumers hold locks from validation
+through irreversible side effects (graph/harness/removal).
 
 ## Backward compatibility
 
@@ -337,4 +335,4 @@ Hard consumers hold locks from validation through irreversible side effects
 ## Rollback
 
 `flow auto stop`, then revert enforcement. Receipts under `.flow/` are
-run-state; remove for audit loss only — does not corrupt cards/DB.
+run-state; remove for audit loss only — cards/DB uncorrupted.
