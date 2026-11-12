@@ -68,8 +68,8 @@ SKILL.md "Run `flow.sh` first". Windows: `<skill>\runner\flow.cmd <cmd>` (not ba
 ## V1 compatibility gate
 
 The owner-approved v1 target makes Python required, graph ordering the default for `/flow next`,
-and `FLOW_HARNESS_DISABLE` a product-operation refusal. This is a breaking change and remains
-unreleased until implementation, independent review, exact-head CI, migration/rollback evidence,
-and installed-package acceptance pass. The skill product and npm installer remain separate
-version axes; an npm installer pin restores bytes only through the installer CLI and does not
-by itself reverse a migrated database. See the [v1 migration guide](https://github.com/manhquydev/flow-skill/blob/master/docs/migration-v1.md).
+and `FLOW_HARNESS_DISABLE` a product-operation refusal. v1 has shipped (skill 1.0.1); the release
+gates that produced it (independent review, exact-head CI, migration/rollback evidence, installed-package
+acceptance) remain the authority — see [`docs/release-process.md`](../../docs/release-process.md). The
+skill product and npm installer share one SemVer. An npm installer pin restores bytes only through the
+installer CLI and does not by itself reverse a migrated database. See the [v1 migration guide](https://github.com/manhquydev/flow-skill/blob/master/docs/migration-v1.md).

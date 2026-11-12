@@ -423,6 +423,22 @@ for doc in docs/system-architecture.md npm-wrapper/RELEASE_CHECKLIST.md; do
     && ck 0 1 "$doc has no active legacy bypass instructions" || ck 0 0 "$doc has no active legacy bypass instructions"
 done
 
+echo "J) contributor docs never describe separate release/version axes"
+if grep -q 'separate release axes' "$HERE/../CONTRIBUTING.md"; then
+  echo "  FAIL [CONTRIBUTING.md contains stale 'separate release axes']"
+  fail=$((fail + 1))
+else
+  echo "  ok   [CONTRIBUTING.md has no 'separate release axes']"
+  pass=$((pass + 1))
+fi
+if grep -q 'remain separate version axes' "$HERE/../skills/flow/references/command-dispatch.md"; then
+  echo "  FAIL [skills/flow/references/command-dispatch.md contains stale 'remain separate version axes']"
+  fail=$((fail + 1))
+else
+  echo "  ok   [skills/flow/references/command-dispatch.md has no 'remain separate version axes']"
+  pass=$((pass + 1))
+fi
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
