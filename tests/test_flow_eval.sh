@@ -1261,6 +1261,33 @@ echo "UM) grep -cF unmeasured phrase == 3 in flow.sh"
 n="$(grep -cF 'semantic layer unmeasured on this host' "$RUN")"
 ck "3" "$n" "unmeasured phrase appears exactly 3 times in flow.sh"
 
+echo "W1) --stage 03 is accepted by cmd_eval argument validation (keyless validation, no manifest)"
+newsb
+out="$(bash "$RUN" eval --stage 03 --report 2>&1)"; rc=$?
+no "$out" "must be one of" "--stage 03 does not trigger stage-validation refusal"
+has "$out" "no complete batch found" "--stage 03 --report reaches --report (no complete batch expected)"
+out="$(bash "$RUN" eval --stage 03 --fixture f03a --n 1 --timeout 20 --report 2>&1)"; rc=$?
+no "$out" "must be one of" "--stage 03 with --fixture f03a does not trigger stage-validation refusal"
+has "$out" "no complete batch found" "--stage 03 with --fixture f03a --report reaches --report"
+clean
+
+echo "W2) --stage 03 appears in both eval usage strings in flow.sh"
+usage_both="$(grep -c '\-\-stage 00|01|02|03|05|card|routing|converge' "$RUN")"
+ck "2" "$usage_both" "usage/validation help strings both list stage 03"
+
+echo "W3) replay skip message scope lists 03 and stage-03 extraction failure is a FAIL, not SKIP"
+skip_line="$(grep -o 'artifact-replay scope is 00|01|02|03|05|card' "$RUN" | head -1)"
+ck "artifact-replay scope is 00|01|02|03|05|card" "$skip_line" "replay SKIP message scope includes 03"
+
+# Behavioral: f03a in replay mode with no replay dir -> FAIL not SKIP.
+newsb
+out="$(bash "$RUN" eval --stage 03 --fixture f03a --n 1 --timeout 20 --replay 2>&1)"; rc=$?
+ck 1 "$rc" "replay without meta exits 1 (fail-closed)"
+has "$out" "missing replay fixtures" "replay without meta reports missing fixtures"
+has "$out" "Never SKIP" "replay without meta never silently SKIPS"
+no "$out" "SKIP - no heading-mapped section" "stage-03 extraction failure is never SKIP in replay"
+clean
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

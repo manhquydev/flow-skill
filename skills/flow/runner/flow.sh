@@ -6442,7 +6442,7 @@ function cmd_eval {
         shift
         diff_new="${1:-}"
         ;;
-      *) echo "usage: /flow eval [--stage 00|01|02|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>] [--keep-going] [--report] [--record|--replay] [--diff <old> <new>]"; return 1 ;;
+      *) echo "usage: /flow eval [--stage 00|01|02|03|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>] [--keep-going] [--report] [--record|--replay] [--diff <old> <new>]"; return 1 ;;
     esac
     shift 2>/dev/null || true
   done
@@ -6456,7 +6456,7 @@ function cmd_eval {
   fi
   case "$n" in ''|*[!0-9]*|0) echo "eval: --n must be a positive integer (got '$n')"; return 1 ;; esac
   case "$timeout" in ''|*[!0-9]*|0) echo "eval: --timeout must be a positive integer seconds value (got '$timeout')"; return 1 ;; esac
-  case "$stage_filter" in ""|00|01|02|05|card|routing|converge) : ;; *) echo "eval: --stage must be one of 00|01|02|05|card|routing|converge (got '$stage_filter')"; return 1 ;; esac
+  case "$stage_filter" in ""|00|01|02|03|05|card|routing|converge) : ;; *) echo "eval: --stage must be one of 00|01|02|03|05|card|routing|converge (got '$stage_filter')"; return 1 ;; esac
   # Backoff between the in-run retry attempts. Default 5s; tests set 0 so the mock-suite is not
   # slowed by 15s+ per degraded-path case across 3-OS CI. Bare-int validation only - a bogus
   # value (`abc`) silently falls back to the default rather than aborting the batch.
@@ -6691,7 +6691,7 @@ function cmd_eval {
     local promptfile="$rundir/prompt.txt"
     if ! _eval_build_prompt "$promptfile" "$fstage_short" "$artifact_path" "$nonce" "${grader_snapshot:+$grader_snapshot/references}"; then
       if [ "$replay_mode" -eq 1 ]; then
-        echo "  $fid: SKIP - no heading-mapped section (artifact-replay scope is 00|01|02|05|card)"
+        echo "  $fid: SKIP - no heading-mapped section (artifact-replay scope is 00|01|02|03|05|card)"
         rm -rf "$rundir" 2>/dev/null
         continue
       fi
@@ -7252,7 +7252,7 @@ usage: bash flow.sh <command> [args]
   eval [opts]       Behavioral eval: does the LLM semantic gate flag a hollow-but-mechanically-clean
                      fixture? Opt-in, BILLABLE (live mode skips cleanly with zero calls if 'claude'
                      CLI absent; --replay never inherits that SKIP).
-                     [--stage 00|01|02|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>]
+                     [--stage 00|01|02|03|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>]
                      [--report]  offline: last complete batch's scorecard + drift, zero calls
                      [--record]  live: write stripped transcripts under eval/replay/ (billable)
                      [--replay]  keyless: feed recorded transcripts through parse/vote/scorecard

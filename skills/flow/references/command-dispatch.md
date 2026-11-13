@@ -25,7 +25,7 @@ is no fragment loader (ADR-0001).
 | `/flow constitution` | `bash <skill>/runner/flow.sh constitution` | Advisory constitution form + markers; then `gate-rules.md`. Not a `next` gate. |
 | `/flow clarify` | `bash <skill>/runner/flow.sh clarify` | List leftover Open-decision boxes; write-back `references/clarify.md`. Not a `next` gate. |
 | `/flow converge` | `bash <skill>/runner/flow.sh converge [--file <payload>]` | Assess vs plan per `references/converge.md`; present the findings table first. |
-| `/flow eval [--stage 01\|02\|05\|card] [--fixture <id>] [--n 3] [--timeout <s>]` | `bash <skill>/runner/flow.sh eval [...]` | Billable; live mode skips if `claude` absent. `--replay` does not inherit that SKIP. See `references/gate-eval.md`. |
+| `/flow eval [--stage 00\|01\|02\|03\|05\|card] [--fixture <id>] [--n 3] [--timeout <s>]` | `bash <skill>/runner/flow.sh eval [...]` | Billable; live mode skips if `claude` absent. `--replay` does not inherit that SKIP. See `references/gate-eval.md`. |
 | `/flow eval --report` | `bash <skill>/runner/flow.sh eval --report` | Offline; relay last complete batch + drift. See `references/gate-eval.md`. |
 | `/flow eval --replay` | `bash <skill>/runner/flow.sh eval --replay` | Keyless replay; missing/stale fixtures exit 1. Verdicts never count toward the eval floor. |
 | `/flow eval --diff <old> <new>` | `bash <skill>/runner/flow.sh eval --diff <old> <new>` | Offline; fixture regression classifier vs baseline. See `references/gate-eval.md`. |
