@@ -469,6 +469,41 @@ printf '# /flow — quality metrics\n\nCurrent: **skill v0.0.0**, **npm-wrapper 
 bash "$tmp/r/scripts/check-release-coherence.sh" >"$OUT/coh-qm-bad.out" 2>&1
 ck 1 $? "quality-metrics.md version mismatch fails offline coherence"
 grep -q 'docs/quality-metrics.md top section' "$OUT/coh-qm-bad.out" && ck 0 0 "reports quality-metrics mismatch" || ck 0 1 "reports quality-metrics mismatch"
+
+# Trailing period on version in quality-metrics.md passes, while 1.0.10 / 1.0.1.2 / 1.0.1-rc.1 fail.
+cur_v="$(sed -nE 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$tmp/r/npm-wrapper/package.json" | head -1)"
+printf '# /flow — quality metrics\n\nCurrent: **skill v%s.** and npm-wrapper v%s.\n' "$cur_v" "$cur_v" > "$tmp/r/docs/quality-metrics.md"
+bash "$tmp/r/scripts/check-release-coherence.sh" >"$OUT/coh-qm-period.out" 2>&1
+ck 0 $? "quality-metrics.md version followed by trailing period passes"
+for bad_suffix in "${cur_v}0" "${cur_v}.2" "${cur_v}-rc.1"; do
+  printf '# /flow — quality metrics\n\nCurrent: **skill v%s** and npm-wrapper v%s\n' "$bad_suffix" "$bad_suffix" > "$tmp/r/docs/quality-metrics.md"
+  bash "$tmp/r/scripts/check-release-coherence.sh" >"$OUT/coh-qm-suffix.out" 2>&1
+  ck 1 $? "quality-metrics.md rejects $bad_suffix when expecting $cur_v"
+done
+
+# Genuine Python-only fallback path (hide node safely in temp PATH; never mutate installed tools).
+cp "$tmp/r/docs/quality-metrics.orig.md" "$tmp/r/docs/quality-metrics.md"
+cp "$tmp/r/docs/release-intent.orig.json" "$tmp/r/docs/release-intent.json"
+pyonly_bin="$OUT/pyonly-bin"
+mkdir -p "$pyonly_bin"
+for tool in sh bash sed grep awk head tr cut sha256sum shasum dirname basename cat python3; do
+  tp="$(type -P "$tool" 2>/dev/null || true)"
+  if [ -n "$tp" ] && [ -x "$tp" ]; then
+    printf '#!/bin/sh\nexec "%s" "$@"\n' "$tp" > "$pyonly_bin/$tool"
+    chmod +x "$pyonly_bin/$tool"
+  fi
+done
+if [ -x "$pyonly_bin/python3" ]; then
+  PATH="$pyonly_bin" bash "$tmp/r/scripts/check-release-coherence.sh" >"$OUT/coh-pyonly-ok.out" 2>&1
+  ck 0 $? "python-only fallback passes on valid checkout when node is absent"
+  grep -q 'SyntaxError' "$OUT/coh-pyonly-ok.out" && ck 0 1 "python-only fallback has no SyntaxError" || ck 0 0 "python-only fallback has no SyntaxError"
+
+  printf '{"schema_version":true,"intent":true,"npm_version":"%s","skill_version":"%s","channel":"latest"}\n' "$cur_v" "$cur_v" > "$tmp/r/docs/release-intent.json"
+  PATH="$pyonly_bin" bash "$tmp/r/scripts/check-release-coherence.sh" >"$OUT/coh-pyonly-bad.out" 2>&1
+  ck 1 $? "python-only fallback rejects boolean schema_version: true"
+  grep -q 'SyntaxError' "$OUT/coh-pyonly-bad.out" && ck 0 1 "python-only error path has no SyntaxError" || ck 0 0 "python-only error path has no SyntaxError"
+  grep -q 'docs/release-intent.json invalid' "$OUT/coh-pyonly-bad.out" && ck 0 0 "python-only reports release-intent invalid" || ck 0 1 "python-only reports release-intent invalid"
+fi
 rm -rf "$tmp"
 
 echo "K) --strict-published fail-closed 6-axis post-publish gate (mocked npm/gh + local git origin)"
@@ -548,12 +583,18 @@ if [ "${FAKE_GH_RELEASE:-ok}" = "missing" ]; then
 fi
 printf '{"tagName":"v2.0.0","isDraft":false,"isPrerelease":false}\n'
 SH
-chmod +x "$strict_bin/npm" "$strict_bin/gh"
+cat > "$strict_bin/npm.cmd" <<'CMD'
+@bash "%~dp0npm" %*
+CMD
+cat > "$strict_bin/gh.cmd" <<'CMD'
+@bash "%~dp0gh" %*
+CMD
+chmod +x "$strict_bin/npm" "$strict_bin/gh" "$strict_bin/npm.cmd" "$strict_bin/gh.cmd"
 
 strict_pass_rc=0
 PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-pass.out" 2>&1 || strict_pass_rc=$?
 ck 0 "$strict_pass_rc" "--strict-published passes when all 6 axes match"
-grep -q 'PREFLIGHT PASS' "$OUT/strict-pass.out" && ck 0 0 "--strict-published reports PREFLIGHT PASS" || ck 0 1 "--strict-published reports PREFLIGHT PASS"
+grep -q 'PREFLIGHT PASS — strict published coherence verified across all 6 axes' "$OUT/strict-pass.out" && ck 0 0 "--strict-published reports post-publish PREFLIGHT PASS without ship prompt" || ck 0 1 "--strict-published reports post-publish PREFLIGHT PASS without ship prompt"
 
 strict_nogh_rc=0
 PATH="$strict_bin:$PATH" FAKE_GH_RELEASE=missing bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-nogh.out" 2>&1 || strict_nogh_rc=$?
@@ -588,9 +629,64 @@ PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --stri
 ck 1 "$strict_readme_rc" "--strict-published fails when README cites older version"
 grep -q 'still cites older version' "$OUT/strict-readme.out" && ck 0 0 "reports stale README publication status" || ck 0 1 "reports stale README publication status"
 
+# Duplicate publication-status line: updated first line + stale second line must FAIL.
+printf 'Publication status verified 2026-11-13: GitHub skill release v2.0.0 (2026-11-13) and npm installer 2.0.0 (2026-11-13); registry `latest` is 2.0.0.\nPublication status verified 2026-10-30: GitHub skill release v1.9.9 (2026-10-24) and npm installer 1.9.9 (2026-10-25); registry `latest` is 1.9.9.\n' > "$strict_repo/README.md"
+git -C "$strict_repo" add README.md
+git -C "$strict_repo" commit -qm "dup stale readme"
+git -C "$strict_repo" tag -f "npm@2.0.0" >/dev/null
+git -C "$strict_repo" tag -f "v2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "npm@2.0.0" "v2.0.0"
+strict_dup_rc=0
+PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-dup.out" 2>&1 || strict_dup_rc=$?
+ck 1 "$strict_dup_rc" "--strict-published fails on duplicate stale publication-status line"
+grep -q 'duplicate publication-status declarations' "$OUT/strict-dup.out" && ck 0 0 "reports duplicate publication-status declarations" || ck 0 1 "reports duplicate publication-status declarations"
+
+# Restore README.md cleanly; test missing root CHANGELOG.md heading & npm-wrapper/CHANGELOG.md heading.
 printf 'Publication status verified 2026-11-13: GitHub skill release v2.0.0 (2026-11-13) and npm installer 2.0.0 (2026-11-13); registry `latest` is 2.0.0.\n' > "$strict_repo/README.md"
+printf '# Changelog\n\n## [1.0.0] - 2026-10-25\n- old\n' > "$strict_repo/CHANGELOG.md"
+git -C "$strict_repo" add README.md CHANGELOG.md
+git -C "$strict_repo" commit -qm "missing root changelog heading"
+git -C "$strict_repo" tag -f "npm@2.0.0" >/dev/null
+git -C "$strict_repo" tag -f "v2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "npm@2.0.0" "v2.0.0"
+strict_cl_rc=0
+PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-cl.out" 2>&1 || strict_cl_rc=$?
+ck 1 "$strict_cl_rc" "--strict-published fails when CHANGELOG.md lacks 2.0.0 heading"
+grep -q 'CHANGELOG.md missing heading for 2.0.0' "$OUT/strict-cl.out" && ck 0 0 "reports missing root CHANGELOG heading" || ck 0 1 "reports missing root CHANGELOG heading"
+
+printf '# Changelog\n\n## [2.0.0] - 2026-11-13\n- release 2.0.0\n' > "$strict_repo/CHANGELOG.md"
+printf '# Changelog\n\n## [1.0.0] - 2026-10-25\n- old\n' > "$strict_repo/npm-wrapper/CHANGELOG.md"
+git -C "$strict_repo" add CHANGELOG.md npm-wrapper/CHANGELOG.md
+git -C "$strict_repo" commit -qm "missing wrapper changelog heading"
+git -C "$strict_repo" tag -f "npm@2.0.0" >/dev/null
+git -C "$strict_repo" tag -f "v2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "npm@2.0.0" "v2.0.0"
+strict_wcl_rc=0
+PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-wcl.out" 2>&1 || strict_wcl_rc=$?
+ck 1 "$strict_wcl_rc" "--strict-published fails when npm-wrapper/CHANGELOG.md lacks 2.0.0 heading"
+grep -q 'npm-wrapper/CHANGELOG.md missing heading for 2.0.0' "$OUT/strict-wcl.out" && ck 0 0 "reports missing wrapper CHANGELOG heading" || ck 0 1 "reports missing wrapper CHANGELOG heading"
+
+# Restore CHANGELOGs; test tags pointing to wrong HEAD SHA (both behind HEAD, and one tag diverging).
+cp "$strict_repo/CHANGELOG.md" "$strict_repo/npm-wrapper/CHANGELOG.md"
+git -C "$strict_repo" add npm-wrapper/CHANGELOG.md
+git -C "$strict_repo" commit -qm "advance HEAD past old tags"
+strict_oldtag_rc=0
+PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-oldtag.out" 2>&1 || strict_oldtag_rc=$?
+ck 1 "$strict_oldtag_rc" "--strict-published fails when remote tags point to wrong HEAD SHA"
+grep -q '!= local HEAD' "$OUT/strict-oldtag.out" && ck 0 0 "reports remote tag != local HEAD" || ck 0 1 "reports remote tag != local HEAD"
+
+git -C "$strict_repo" tag -f "npm@2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "npm@2.0.0"
+strict_difftag_rc=0
+PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-difftag.out" 2>&1 || strict_difftag_rc=$?
+ck 1 "$strict_difftag_rc" "--strict-published fails when v2.0.0 differs from npm@2.0.0"
+grep -q 'remote tag v2.0.0 .* != npm@2.0.0' "$OUT/strict-difftag.out" && ck 0 0 "reports skill tag mismatch against npm tag" || ck 0 1 "reports skill tag mismatch against npm tag"
+
+git -C "$strict_repo" tag -f "v2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "v2.0.0"
+
 printf '# /flow — quality metrics\n\nCurrent: **skill v1.9.9**, **npm-wrapper v1.9.9**.\n' > "$strict_repo/docs/quality-metrics.md"
-git -C "$strict_repo" add README.md docs/quality-metrics.md
+git -C "$strict_repo" add docs/quality-metrics.md
 git -C "$strict_repo" commit -qm "stale qm"
 git -C "$strict_repo" tag -f "npm@2.0.0" >/dev/null
 git -C "$strict_repo" tag -f "v2.0.0" >/dev/null
@@ -599,6 +695,16 @@ strict_qm_rc=0
 PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-qm.out" 2>&1 || strict_qm_rc=$?
 ck 1 "$strict_qm_rc" "--strict-published fails when quality-metrics.md mismatches"
 grep -q 'docs/quality-metrics.md' "$OUT/strict-qm.out" && ck 0 0 "reports quality-metrics mismatch" || ck 0 1 "reports quality-metrics mismatch"
+
+printf '# /flow — quality metrics\n\nCurrent: **skill v2.0.0.**, **npm-wrapper v2.0.0.**\n' > "$strict_repo/docs/quality-metrics.md"
+git -C "$strict_repo" add docs/quality-metrics.md
+git -C "$strict_repo" commit -qm "restore clean 2.0.0"
+git -C "$strict_repo" tag -f "npm@2.0.0" >/dev/null
+git -C "$strict_repo" tag -f "v2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "npm@2.0.0" "v2.0.0"
+strict_final_rc=0
+PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-final.out" 2>&1 || strict_final_rc=$?
+ck 0 "$strict_final_rc" "--strict-published passes again after restoring all 6 axes (with trailing period)"
 
 echo
 echo "RESULT: $pass passed, $fail failed"

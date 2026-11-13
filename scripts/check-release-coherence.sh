@@ -68,6 +68,7 @@ else
       try {
         const d = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
         const [npmV, skillV] = process.argv.slice(2);
+        if (typeof d !== "object" || d === null || Array.isArray(d)) throw new Error("release-intent must be a JSON object");
         if (d.schema_version !== 1) throw new Error(`schema_version must be 1 (got ${d.schema_version})`);
         if (typeof d.intent !== "boolean") throw new Error("intent must be boolean");
         if (d.intent === true) {
@@ -83,17 +84,28 @@ else
     intent_err="$(python3 -c '
 import json, sys
 try:
-    d = json.load(open(sys.argv[1], encoding="utf-8"))
+    with open(sys.argv[1], "r", encoding="utf-8") as fh:
+        d = json.load(fh)
     npm_v, skill_v = sys.argv[2], sys.argv[3]
-    if d.get("schema_version") != 1: raise ValueError(f"schema_version must be 1 (got {d.get(\"schema_version\")})")
-    if not isinstance(d.get("intent"), bool): raise ValueError("intent must be boolean")
-    if d["intent"] is True:
-        if d.get("npm_version") != npm_v: raise ValueError(f"npm_version mismatch ({d.get(\"npm_version\")} != {npm_v})")
-        if d.get("skill_version") is not None and d.get("skill_version") != skill_v: raise ValueError(f"skill_version mismatch ({d.get(\"skill_version\")} != {skill_v})")
+    if not isinstance(d, dict):
+        raise ValueError("release-intent must be a JSON object")
+    sv = d.get("schema_version")
+    if type(sv) is not int or sv != 1:
+        raise ValueError("schema_version must be 1 (got %s)" % sv)
+    intent = d.get("intent")
+    if type(intent) is not bool:
+        raise ValueError("intent must be boolean")
+    if intent is True:
+        if d.get("npm_version") != npm_v:
+            raise ValueError("npm_version mismatch (%s != %s)" % (d.get("npm_version"), npm_v))
+        if d.get("skill_version") is not None and d.get("skill_version") != skill_v:
+            raise ValueError("skill_version mismatch (%s != %s)" % (d.get("skill_version"), skill_v))
         expected = "next" if "-" in npm_v.split("+")[0] else "latest"
-        if d.get("channel") != expected: raise ValueError(f"channel mismatch ({d.get(\"channel\")} != {expected})")
+        if d.get("channel") != expected:
+            raise ValueError("channel mismatch (%s != %s)" % (d.get("channel"), expected))
 except Exception as e:
-    print(e); sys.exit(1)
+    print(e)
+    sys.exit(1)
 ' docs/release-intent.json "$npm_v" "$skill_v" 2>&1)" && intent_rc=0 || intent_rc=1
   else
     intent_err="neither node nor python3 available to validate docs/release-intent.json"
@@ -112,8 +124,8 @@ else
   qm_top="$(head -n 20 docs/quality-metrics.md)"
   qm_esc_skill="$(printf '%s' "$skill_v" | sed 's/[.[\*^$+?(){}|/\\]/\\&/g')"
   qm_esc_npm="$(printf '%s' "$npm_v" | sed 's/[.[\*^$+?(){}|/\\]/\\&/g')"
-  if printf '%s\n' "$qm_top" | grep -qE "(^|[^0-9A-Za-z._-])skill v${qm_esc_skill}([^0-9A-Za-z._-]|$)" \
-    && printf '%s\n' "$qm_top" | grep -qE "(^|[^0-9A-Za-z._-])npm-wrapper v${qm_esc_npm}([^0-9A-Za-z._-]|$)"; then
+  if printf '%s\n' "$qm_top" | grep -qE "(^|[^0-9A-Za-z._-])skill v${qm_esc_skill}($|[^0-9A-Za-z._-]|\.($|[^0-9A-Za-z._-]))" \
+    && printf '%s\n' "$qm_top" | grep -qE "(^|[^0-9A-Za-z._-])npm-wrapper v${qm_esc_npm}($|[^0-9A-Za-z._-]|\.($|[^0-9A-Za-z._-]))"; then
     ok "docs/quality-metrics.md header matches versions (skill v$skill_v / npm-wrapper v$npm_v)"
   else
     fail "docs/quality-metrics.md top section must declare skill v${skill_v} and npm-wrapper v${npm_v}"

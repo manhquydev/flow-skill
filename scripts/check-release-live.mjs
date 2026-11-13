@@ -20,13 +20,30 @@ const fail = (msg) => {
   failures.push(msg);
 };
 
+function quoteWinArg(arg) {
+  const s = String(arg);
+  if (/[,\s&<>()@^|"]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
 function runCmd(cmd, args, opts = {}) {
+  if (process.platform === 'win32' && cmd !== 'git') {
+    const cmdLine = [cmd, ...args.map(quoteWinArg)].join(' ');
+    return spawnSync('cmd.exe', ['/d', '/c', cmdLine], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 30_000,
+      maxBuffer: 8 * 1024 * 1024,
+      ...opts,
+    });
+  }
   return spawnSync(cmd, args, {
     cwd: root,
     encoding: 'utf8',
     timeout: 30_000,
     maxBuffer: 8 * 1024 * 1024,
-    shell: process.platform === 'win32' && cmd !== 'git',
     ...opts,
   });
 }
@@ -220,25 +237,34 @@ if (npmV && parseSemver(npmV)) {
       continue;
     }
     const lines = readFileSync(full, 'utf8').split(/\r?\n/);
-    const pubLine = lines.find((l) => /^(?:Publication status verified|Bản phát hành đã xác minh)\b/.test(l));
-    if (!pubLine) {
+    const pubLines = lines.filter((l) => /^(?:Publication status verified|Bản phát hành đã xác minh)\b/.test(l));
+    if (pubLines.length === 0) {
       fail(`${relPath} missing Publication status verified line`);
       continue;
     }
-    const verMatches = [...pubLine.matchAll(/(?:^|[^0-9A-Za-z._-])v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)/g)]
-      .map((m) => m[1])
-      .filter((tok) => parseSemver(tok) !== null);
-    if (verMatches.length === 0) {
-      fail(`${relPath} Publication status verified line has no valid SemVer (${pubLine})`);
-      continue;
+    let lineFailed = false;
+    for (const pubLine of pubLines) {
+      const verMatches = [...pubLine.matchAll(/(?:^|[^0-9A-Za-z._-])v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)/g)]
+        .map((m) => m[1])
+        .filter((tok) => parseSemver(tok) !== null);
+      if (verMatches.length === 0) {
+        fail(`${relPath} Publication status verified line has no valid SemVer (${pubLine})`);
+        lineFailed = true;
+        continue;
+      }
+      const older = verMatches.filter((v) => compareSemver(v, npmV) < 0);
+      const hasExact = verMatches.some((v) => compareSemver(v, npmV) === 0);
+      if (older.length > 0) {
+        fail(`${relPath} Publication status verified still cites older version(s) [${older.join(', ')}] < ${npmV}`);
+        lineFailed = true;
+      } else if (!hasExact) {
+        fail(`${relPath} Publication status verified does not cite current published version ${npmV}`);
+        lineFailed = true;
+      }
     }
-    const older = verMatches.filter((v) => compareSemver(v, npmV) < 0);
-    const hasExact = verMatches.some((v) => compareSemver(v, npmV) === 0);
-    if (older.length > 0) {
-      fail(`${relPath} Publication status verified still cites older version(s) [${older.join(', ')}] < ${npmV}`);
-    } else if (!hasExact) {
-      fail(`${relPath} Publication status verified does not cite current published version ${npmV}`);
-    } else {
+    if (pubLines.length > 1) {
+      fail(`${relPath} has duplicate publication-status declarations (${pubLines.length}; expected 1)`);
+    } else if (!lineFailed) {
       ok(`${relPath} publication status matches ${npmV}`);
     }
   }
@@ -262,8 +288,8 @@ if (npmV && parseSemver(npmV)) {
     fail('missing docs/quality-metrics.md');
   } else {
     const qmTop = readFileSync(qmPath, 'utf8').split(/\r?\n/).slice(0, 20).join('\n');
-    const hasNpmQm = new RegExp(`(^|[^0-9A-Za-z._-])npm-wrapper v${escapeRe(npmV)}([^0-9A-Za-z._-]|$)`).test(qmTop);
-    const hasSkillQm = skillVersion === null || new RegExp(`(^|[^0-9A-Za-z._-])skill v${escapeRe(skillVersion)}([^0-9A-Za-z._-]|$)`).test(qmTop);
+    const hasNpmQm = new RegExp(`(^|[^0-9A-Za-z._-])npm-wrapper v${escapeRe(npmV)}($|[^0-9A-Za-z._-]|\\.($|[^0-9A-Za-z._-]))`).test(qmTop);
+    const hasSkillQm = skillVersion === null || new RegExp(`(^|[^0-9A-Za-z._-])skill v${escapeRe(skillVersion)}($|[^0-9A-Za-z._-]|\\.($|[^0-9A-Za-z._-]))`).test(qmTop);
     if (hasNpmQm && hasSkillQm) {
       ok(`docs/quality-metrics.md matches published versions (${npmV})`);
     } else {

@@ -278,7 +278,11 @@ fi
 
 echo
 if [ "$rc" -eq 0 ]; then
-  echo "PREFLIGHT PASS — next: bash scripts/release.sh --dry-run; then bash scripts/release.sh --yes only after owner-authorized gates (docs/release-process.md)"
+  if [ "$STRICT_PUBLISHED" -eq 1 ]; then
+    echo "PREFLIGHT PASS — strict published coherence verified across all 6 axes"
+  else
+    echo "PREFLIGHT PASS — next: bash scripts/release.sh --dry-run; then bash scripts/release.sh --yes only after owner-authorized gates (docs/release-process.md)"
+  fi
 else
   echo "PREFLIGHT FAIL — fix FAIL lines before shipping"
 fi
