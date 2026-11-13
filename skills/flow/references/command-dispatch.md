@@ -65,6 +65,8 @@ Table row `/flow card`. Fill per `law/CLAUDE.md`; before coding, `law/CODING.md`
 
 SKILL.md "Run `flow.sh` first". Windows: `<skill>\runner\flow.cmd <cmd>` (not bare `bash`).
 
+Codex/Gemini discovery: `.agents/skills/flow/SKILL.md` pointer is checked into the repo (`flow rules agent-skills` prints a preview only; `--write` creates only an absent target and refuses to overwrite existing files or symlinks — to refresh a pointer safely, compare `flow rules agent-skills` against the file via preview/diff or back up the existing file manually before updating).
+
 ## V1 compatibility gate
 
 The owner-approved v1 target makes Python required, graph ordering the default for `/flow next`,
