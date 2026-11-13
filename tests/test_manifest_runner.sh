@@ -43,6 +43,15 @@ count_parity() {
 listed=$(mktemp)
 clean_list "$listed" "$MANIFEST"
 
+echo "B2) disk -> manifest sweep: every tests/test_*.sh has its own manifest row"
+disk_unlisted=0
+for f in "$HERE"/test_*.sh; do
+  [ -f "$f" ] || continue
+  base="${f##*/}"
+  grep -qxF "$base" "$listed" || { echo "  FAIL [tests/$base has no manifest row]"; disk_unlisted=$((disk_unlisted + 1)); }
+done
+ck 0 "$disk_unlisted" "every on-disk tests/test_*.sh is registered by name (unlisted=$disk_unlisted)"
+
 echo "A) live tree: every manifest entry exists on disk"
 count_parity "$listed" "$HERE"
 ck 0 "$n_missing" "manifest -> disk (no missing files)"

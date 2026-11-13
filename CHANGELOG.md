@@ -1,6 +1,7 @@
 # Changelog
 
 ## [Unreleased]
+- test(e2e): re-land registry registration for the installed-drive E2E suite — `tests/e2e-installed-drive.sh` renamed to `tests/test_e2e_installed_drive.sh` (runner `$1` override unchanged), registered in `tests/manifest.txt`, `scripts/pack-rehearsal.sh` now invokes the new path, `docs/codebase-summary.md` count synced to 83, and `tests/test_manifest_runner.sh` gains a per-file disk→manifest sweep that names any unregistered suite.
 
 ## [1.0.1] - 2026-11-10
 - feat(eval): live batches judge from a frozen snapshot of grader inputs (gate-rules corpus + manifest + fixture tree, copied to a temp dir outside the working tree at batch start); a mid-batch change to any grader input aborts loudly before further judge calls, with no `done` trailer. Replay staleness hard-fail unchanged; no new dependency; Eval STOP bodies untouched.

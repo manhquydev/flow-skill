@@ -83,3 +83,4 @@ test_release_provenance.sh
 test_verify_attestation_with_gh.sh
 test_release_run_artifact.sh
 test_flow_widelai_packaging.sh
+test_e2e_installed_drive.sh

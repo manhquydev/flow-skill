@@ -120,7 +120,7 @@ if [ "$RUN_DIR" = "$CHECKOUT_DIR" ]; then
 fi
 
 # Zero-arg invoke is a job bug — always pass the installed runner as $1.
-bash "$ROOT/tests/e2e-installed-drive.sh" "$RUN"
+bash "$ROOT/tests/test_e2e_installed_drive.sh" "$RUN"
 
 # C5 installed-artifact check — doctor must verify the live runner via the shipped receipt:
 # clean install => ok; tampered bytes => loud FAIL + nonzero; restored bytes => ok again.
