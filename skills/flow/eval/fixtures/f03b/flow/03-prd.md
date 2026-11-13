@@ -40,13 +40,13 @@ Roommates need a clean way to split shared living costs without using heavy acco
 
 ## Features (user-centric — action → observable result)
 
-- FR1: As a household member, I open the dashboard and see a fast balance overview that simplifies debts; empty: none; fail: error banner.
+- FR1: As a household member, I open the dashboard and see a balance overview that simplifies debts; empty: none; fail: error banner.
 - FR2: As an invited roommate, I click the link and sign in quickly to view the group; empty: none; fail: invalid link message.
 - FR3: As a user, I can view real-time chat messages from other roommates about upcoming bills; empty: no messages; fail: connection retry notice.
 
 ## Non-functional requirements
 
-- Performance: system should be fast and scalable for concurrent household usage.
+- Performance: system should be responsive and scalable for concurrent household usage.
 - Interface: mobile-friendly layout suitable for quick lookups on smartphones.
 
 ## Tech stack

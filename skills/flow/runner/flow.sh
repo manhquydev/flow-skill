@@ -5076,6 +5076,7 @@ _eval_heading_pattern() {
     00)   echo '^## Stage 00' ;;
     01)   echo '^## Stage 01' ;;
     02)   echo '^## Stage 02' ;;
+    03)   echo '^## Stage 03' ;;
     05)   echo '^## Stage 05' ;;
     card) echo '^## Card gate' ;;
     *)    return 1 ;;
@@ -5083,17 +5084,18 @@ _eval_heading_pattern() {
 }
 
 # Extract one stage's ritual text from the mapped file (00→gate-00.md, 01→gate-01.md,
-# 02→gate-02.md, 05→gate-05.md, card→gate-card.md): up to (not including) the next
-# '## ' heading, or EOF. Prints nothing on a bad stage/missing file - caller MUST assert
-# non-empty before any billable call (a silent empty extraction would judge against
+# 02→gate-02.md, 03→gate-03.md, 05→gate-05.md, card→gate-card.md): up to (not including)
+# the next '## ' heading, or EOF. Prints nothing on a bad stage/missing file - caller MUST
+# assert non-empty before any billable call (a silent empty extraction would judge against
 # no rule at all).
-_eval_extract_section() { # $1 = stage (00|01|02|05|card), $2 = optional references dir (snapshot)
+_eval_extract_section() { # $1 = stage (00|01|02|03|05|card), $2 = optional references dir (snapshot)
   local pat src refdir="${2:-$SCRIPT_DIR/../references}"
   pat="$(_eval_heading_pattern "$1")" || return 1
   case "$1" in
     00)   src="$refdir/gate-00.md" ;;
     01)   src="$refdir/gate-01.md" ;;
     02)   src="$refdir/gate-02.md" ;;
+    03)   src="$refdir/gate-03.md" ;;
     05)   src="$refdir/gate-05.md" ;;
     card) src="$refdir/gate-card.md" ;;
     *)    return 1 ;;
@@ -5165,10 +5167,10 @@ _eval_build_prompt() { # $1=outfile $2=stage $3=artifact-file $4=nonce $5=option
   local refdir="${5:-$SCRIPT_DIR/../references}"
   section="$(_eval_extract_section "$stage" "$refdir")" || return 1
   [ -n "$section" ] || return 1
-  # Shared OD/authority lives in 02/03/05 challenges. Extract maps 00/01/02/05/card;
-  # append shared onto 02 only. 05 extract may mention gate-shared.md; do not cat it
+  # Shared OD/authority lives in 02/03/05 challenges. Extract maps 00/01/02/03/05/card;
+  # append shared onto 02 and 03. 05 extract may mention gate-shared.md; do not cat it
   # (shared OD on 05 false-FLAGs f05a — PASS fixture states bearer auth without an ADR).
-  if [ "$stage" = "02" ]; then
+  if [ "$stage" = "02" ] || [ "$stage" = "03" ]; then
     shared="$refdir/gate-shared.md"
     [ -f "$shared" ] && section="$section
 $(cat "$shared")"
