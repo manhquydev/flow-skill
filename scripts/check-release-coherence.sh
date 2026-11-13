@@ -57,6 +57,69 @@ grep -q "$npm_v" README_VN.md && ok "README_VN mentions npm $npm_v" || fail "REA
 grep -qE "## \[?${skill_v}\]?" CHANGELOG.md && ok "CHANGELOG.md contains entry for skill $skill_v" || fail "CHANGELOG.md missing entry for skill $skill_v"
 grep -qE "## \[?${npm_v}\]?" npm-wrapper/CHANGELOG.md && ok "npm-wrapper/CHANGELOG.md contains entry for npm $npm_v" || fail "npm-wrapper/CHANGELOG.md missing entry for npm $npm_v"
 
+# Offline release-intent and quality-metrics alignment (no network calls).
+if [ ! -f docs/release-intent.json ]; then
+  fail "missing docs/release-intent.json"
+else
+  intent_err=""
+  if command -v node >/dev/null 2>&1; then
+    intent_err="$(node -e '
+      const fs = require("node:fs");
+      try {
+        const d = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+        const [npmV, skillV] = process.argv.slice(2);
+        if (d.schema_version !== 1) throw new Error(`schema_version must be 1 (got ${d.schema_version})`);
+        if (typeof d.intent !== "boolean") throw new Error("intent must be boolean");
+        if (d.intent === true) {
+          if (d.npm_version !== npmV) throw new Error(`npm_version mismatch (${d.npm_version} != ${npmV})`);
+          if (d.skill_version !== null && d.skill_version !== skillV) throw new Error(`skill_version mismatch (${d.skill_version} != ${skillV})`);
+          const core = npmV.split("+")[0];
+          const expectedChannel = core.includes("-") ? "next" : "latest";
+          if (d.channel !== expectedChannel) throw new Error(`channel mismatch (${d.channel} != ${expectedChannel})`);
+        }
+      } catch (e) { console.log(e.message); process.exit(1); }
+    ' docs/release-intent.json "$npm_v" "$skill_v" 2>&1)" && intent_rc=0 || intent_rc=1
+  elif command -v python3 >/dev/null 2>&1; then
+    intent_err="$(python3 -c '
+import json, sys
+try:
+    d = json.load(open(sys.argv[1], encoding="utf-8"))
+    npm_v, skill_v = sys.argv[2], sys.argv[3]
+    if d.get("schema_version") != 1: raise ValueError(f"schema_version must be 1 (got {d.get(\"schema_version\")})")
+    if not isinstance(d.get("intent"), bool): raise ValueError("intent must be boolean")
+    if d["intent"] is True:
+        if d.get("npm_version") != npm_v: raise ValueError(f"npm_version mismatch ({d.get(\"npm_version\")} != {npm_v})")
+        if d.get("skill_version") is not None and d.get("skill_version") != skill_v: raise ValueError(f"skill_version mismatch ({d.get(\"skill_version\")} != {skill_v})")
+        expected = "next" if "-" in npm_v.split("+")[0] else "latest"
+        if d.get("channel") != expected: raise ValueError(f"channel mismatch ({d.get(\"channel\")} != {expected})")
+except Exception as e:
+    print(e); sys.exit(1)
+' docs/release-intent.json "$npm_v" "$skill_v" 2>&1)" && intent_rc=0 || intent_rc=1
+  else
+    intent_err="neither node nor python3 available to validate docs/release-intent.json"
+    intent_rc=1
+  fi
+  if [ "$intent_rc" -eq 0 ]; then
+    ok "docs/release-intent.json matches versions ($npm_v / $skill_v)"
+  else
+    fail "docs/release-intent.json invalid: $intent_err"
+  fi
+fi
+
+if [ ! -f docs/quality-metrics.md ]; then
+  fail "missing docs/quality-metrics.md"
+else
+  qm_top="$(head -n 20 docs/quality-metrics.md)"
+  qm_esc_skill="$(printf '%s' "$skill_v" | sed 's/[.[\*^$+?(){}|/\\]/\\&/g')"
+  qm_esc_npm="$(printf '%s' "$npm_v" | sed 's/[.[\*^$+?(){}|/\\]/\\&/g')"
+  if printf '%s\n' "$qm_top" | grep -qE "(^|[^0-9A-Za-z._-])skill v${qm_esc_skill}([^0-9A-Za-z._-]|$)" \
+    && printf '%s\n' "$qm_top" | grep -qE "(^|[^0-9A-Za-z._-])npm-wrapper v${qm_esc_npm}([^0-9A-Za-z._-]|$)"; then
+    ok "docs/quality-metrics.md header matches versions (skill v$skill_v / npm-wrapper v$npm_v)"
+  else
+    fail "docs/quality-metrics.md top section must declare skill v${skill_v} and npm-wrapper v${npm_v}"
+  fi
+fi
+
 # Every suite named in tests/manifest.txt must exist on disk.
 # Empty extract is a fail (do not ok a no-op after the runner left the hardcoded loop).
 n=0

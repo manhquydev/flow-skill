@@ -1,15 +1,29 @@
 #!/usr/bin/env bash
 # release-preflight.sh — harness-aware gate before shipping skill and/or npm-wrapper.
-# Run from repo root: bash scripts/release-preflight.sh
-# Exit 0 = local checks passed; canonical release gates still apply.
+# Run from repo root: bash scripts/release-preflight.sh [--strict-published]
+# Exit 0 = checks passed; canonical release gates still apply.
 set -u
+STRICT_PUBLISHED=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --strict-published) STRICT_PUBLISHED=1 ;;
+    -h|--help)
+      echo "usage: bash scripts/release-preflight.sh [--strict-published]"
+      exit 0
+      ;;
+    *)
+      echo "FAIL: unknown argument '$1' (expected --strict-published)" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT" || exit 2
 rc=0
 fail() { echo "FAIL: $*" >&2; rc=1; }
 ok() { echo "OK: $*"; }
 warn() { echo "WARN: $*"; }
-
 echo "=== release-preflight ($(date -u +%Y-%m-%dT%H:%MZ)) ==="
 echo "ROOT=$ROOT"
 
@@ -243,6 +257,22 @@ else
     ok "topology lint + pin verify"
   else
     fail "graph lint failed (topology invalid or pin stale — see harness/README.md)"
+  fi
+fi
+
+if [ "$STRICT_PUBLISHED" -eq 1 ]; then
+  echo
+  echo "--- strict published coherence (6-axis live gate) ---"
+  if [ -z "${NODE:-}" ]; then
+    fail "node required for --strict-published"
+  elif [ ! -f "$ROOT/scripts/check-release-live.mjs" ]; then
+    fail "missing $ROOT/scripts/check-release-live.mjs"
+  else
+    if FLOW_RELEASE_ROOT="$ROOT" "$NODE" "$ROOT/scripts/check-release-live.mjs"; then
+      ok "strict published coherence passed"
+    else
+      fail "strict published coherence failed"
+    fi
   fi
 fi
 

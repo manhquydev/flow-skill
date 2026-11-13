@@ -38,8 +38,9 @@ ck 0 $? "stable/prerelease targets are neutral and idempotent in all four README
 echo "B) deliberate skill mirror drift fails"
 tmp=$(mktemp -d)
 mkdir -p "$tmp/r/skills/flow/runner" "$tmp/r/skills/flow/references" "$tmp/r/.claude-plugin" \
-  "$tmp/r/npm-wrapper" "$tmp/r/tests" "$tmp/r/scripts" "$tmp/r/.github/workflows"
+  "$tmp/r/npm-wrapper" "$tmp/r/tests" "$tmp/r/scripts" "$tmp/r/.github/workflows" "$tmp/r/docs"
 cp "$HERE/../scripts/check-release-coherence.sh" "$tmp/r/scripts/"
+cp "$HERE/../docs/release-intent.json" "$HERE/../docs/quality-metrics.md" "$tmp/r/docs/"
 cp "$HERE/../skills/flow/SKILL.md" "$tmp/r/skills/flow/"
 cp "$HERE/../portable-manifest.json" "$tmp/r/"
 cp "$HERE/../npm-wrapper/package.json" "$tmp/r/npm-wrapper/"
@@ -72,8 +73,9 @@ rm -rf "$tmp"
 echo "C) deleting a listed suite fails coherence (not a vacuous OK)"
 tmp=$(mktemp -d)
 mkdir -p "$tmp/r/skills/flow/runner" "$tmp/r/skills/flow/references" "$tmp/r/.claude-plugin" \
-  "$tmp/r/npm-wrapper" "$tmp/r/tests" "$tmp/r/scripts" "$tmp/r/.github/workflows"
+  "$tmp/r/npm-wrapper" "$tmp/r/tests" "$tmp/r/scripts" "$tmp/r/.github/workflows" "$tmp/r/docs"
 cp "$HERE/../scripts/check-release-coherence.sh" "$tmp/r/scripts/"
+cp "$HERE/../docs/release-intent.json" "$HERE/../docs/quality-metrics.md" "$tmp/r/docs/"
 cp "$HERE/../skills/flow/SKILL.md" "$tmp/r/skills/flow/"
 cp "$HERE/../portable-manifest.json" "$tmp/r/"
 cp "$HERE/../.claude-plugin/plugin.json" "$tmp/r/.claude-plugin/"
@@ -106,8 +108,9 @@ rm -rf "$tmp"
 echo "D) empty registry extract fails coherence"
 tmp=$(mktemp -d)
 mkdir -p "$tmp/r/skills/flow/runner" "$tmp/r/skills/flow/references" "$tmp/r/.claude-plugin" \
-  "$tmp/r/npm-wrapper" "$tmp/r/tests" "$tmp/r/scripts" "$tmp/r/.github/workflows"
+  "$tmp/r/npm-wrapper" "$tmp/r/tests" "$tmp/r/scripts" "$tmp/r/.github/workflows" "$tmp/r/docs"
 cp "$HERE/../scripts/check-release-coherence.sh" "$tmp/r/scripts/"
+cp "$HERE/../docs/release-intent.json" "$HERE/../docs/quality-metrics.md" "$tmp/r/docs/"
 cp "$HERE/../skills/flow/SKILL.md" "$tmp/r/skills/flow/"
 cp "$HERE/../portable-manifest.json" "$tmp/r/"
 cp "$HERE/../.claude-plugin/plugin.json" "$tmp/r/.claude-plugin/"
@@ -130,8 +133,9 @@ rm -rf "$tmp"
 echo "E) deliberate npm-wrapper/README.md drift fails coherence"
 tmp=$(mktemp -d)
 mkdir -p "$tmp/r/skills/flow/runner" "$tmp/r/skills/flow/references" "$tmp/r/.claude-plugin" \
-  "$tmp/r/npm-wrapper" "$tmp/r/tests" "$tmp/r/scripts" "$tmp/r/.github/workflows"
+  "$tmp/r/npm-wrapper" "$tmp/r/tests" "$tmp/r/scripts" "$tmp/r/.github/workflows" "$tmp/r/docs"
 cp "$HERE/../scripts/check-release-coherence.sh" "$tmp/r/scripts/"
+cp "$HERE/../docs/release-intent.json" "$HERE/../docs/quality-metrics.md" "$tmp/r/docs/"
 cp "$HERE/../skills/flow/SKILL.md" "$tmp/r/skills/flow/"
 cp "$HERE/../skills/flow/runner/flow.sh" "$tmp/r/skills/flow/runner/"
 cp "$HERE/../portable-manifest.json" "$tmp/r/"
@@ -165,8 +169,9 @@ rm -rf "$tmp"
 echo "F) deleting npm-wrapper/README_VN.md fails coherence"
 tmp=$(mktemp -d)
 mkdir -p "$tmp/r/skills/flow/runner" "$tmp/r/skills/flow/references" "$tmp/r/.claude-plugin" \
-  "$tmp/r/npm-wrapper" "$tmp/r/tests" "$tmp/r/scripts" "$tmp/r/.github/workflows"
+  "$tmp/r/npm-wrapper" "$tmp/r/tests" "$tmp/r/scripts" "$tmp/r/.github/workflows" "$tmp/r/docs"
 cp "$HERE/../scripts/check-release-coherence.sh" "$tmp/r/scripts/"
+cp "$HERE/../docs/release-intent.json" "$HERE/../docs/quality-metrics.md" "$tmp/r/docs/"
 cp "$HERE/../skills/flow/SKILL.md" "$tmp/r/skills/flow/"
 cp "$HERE/../skills/flow/runner/flow.sh" "$tmp/r/skills/flow/runner/"
 cp "$HERE/../portable-manifest.json" "$tmp/r/"
@@ -198,8 +203,9 @@ rm -rf "$tmp"
 echo "G) publisher workflow ordering gate: audit after smoke fails (hollow/sound pair)"
 tmp=$(mktemp -d)
 mkdir -p "$tmp/r/skills/flow/runner" "$tmp/r/skills/flow/references" "$tmp/r/.claude-plugin" \
-  "$tmp/r/npm-wrapper" "$tmp/r/tests" "$tmp/r/scripts" "$tmp/r/.github/workflows"
+  "$tmp/r/npm-wrapper" "$tmp/r/tests" "$tmp/r/scripts" "$tmp/r/.github/workflows" "$tmp/r/docs"
 cp "$HERE/../scripts/check-release-coherence.sh" "$tmp/r/scripts/"
+cp "$HERE/../docs/release-intent.json" "$HERE/../docs/quality-metrics.md" "$tmp/r/docs/"
 cp "$HERE/../skills/flow/SKILL.md" "$tmp/r/skills/flow/"
 cp "$HERE/../skills/flow/runner/flow.sh" "$tmp/r/skills/flow/runner/"
 cp "$HERE/../skills/flow/runner/attestations.sh" "$tmp/r/skills/flow/runner/"
@@ -422,6 +428,177 @@ for doc in docs/system-architecture.md npm-wrapper/RELEASE_CHECKLIST.md; do
   grep -Ei 'tag.*triggers.*publish|git push.*npm@|npm dist-tag add|npm config set.*authToken|with required reviewer|must configure required reviewers|approve environment' "$source" > "$OUT/obsolete-doc.out" \
     && ck 0 1 "$doc has no active legacy bypass instructions" || ck 0 0 "$doc has no active legacy bypass instructions"
 done
+
+echo "J) offline coherence checks docs/release-intent.json and docs/quality-metrics.md"
+tmp=$(mktemp -d)
+mkdir -p "$tmp/r/skills/flow/runner" "$tmp/r/skills/flow/references" "$tmp/r/.claude-plugin" \
+  "$tmp/r/npm-wrapper" "$tmp/r/tests" "$tmp/r/scripts" "$tmp/r/.github/workflows" "$tmp/r/docs"
+cp "$HERE/../scripts/check-release-coherence.sh" "$tmp/r/scripts/"
+cp "$HERE/../skills/flow/SKILL.md" "$tmp/r/skills/flow/"
+cp "$HERE/../skills/flow/runner/flow.sh" "$tmp/r/skills/flow/runner/"
+cp "$HERE/../skills/flow/runner/attestations.sh" "$tmp/r/skills/flow/runner/"
+cp "$HERE/../skills/flow/references/attestations.md" "$tmp/r/skills/flow/references/"
+cp "$HERE/../portable-manifest.json" "$tmp/r/"
+cp "$HERE/../.claude-plugin/plugin.json" "$tmp/r/.claude-plugin/"
+cp "$HERE/../npm-wrapper/package.json" "$tmp/r/npm-wrapper/"
+cp "$HERE/../npm-wrapper/README.md" "$tmp/r/npm-wrapper/"
+cp "$HERE/../npm-wrapper/README_VN.md" "$tmp/r/npm-wrapper/"
+cp "$HERE/../CHANGELOG.md" "$tmp/r/"
+cp "$HERE/../npm-wrapper/CHANGELOG.md" "$tmp/r/npm-wrapper/"
+cp "$HERE/../README.md" "$tmp/r/"
+cp "$HERE/../README_VN.md" "$tmp/r/"
+cp "$HERE/../tests/manifest.txt" "$tmp/r/tests/"
+cp "$HERE/../.github/workflows/publish-npm-wrapper.yml" "$tmp/r/.github/workflows/"
+cp "$HERE/../scripts/release-workflow.mjs" "$tmp/r/scripts/"
+cp "$HERE/../docs/release-intent.json" "$HERE/../docs/quality-metrics.md" "$tmp/r/docs/"
+while IFS= read -r suite || [ -n "$suite" ]; do
+  suite="${suite%$'\r'}"
+  case "$suite" in ''|\#*) continue ;; esac
+  : > "$tmp/r/tests/$suite"
+done < "$tmp/r/tests/manifest.txt"
+
+cp "$tmp/r/docs/release-intent.json" "$tmp/r/docs/release-intent.orig.json"
+printf '{"schema_version":1,"intent":true,"npm_version":"9.9.9","skill_version":"9.9.9","channel":"latest"}\n' > "$tmp/r/docs/release-intent.json"
+bash "$tmp/r/scripts/check-release-coherence.sh" >"$OUT/coh-intent-bad.out" 2>&1
+ck 1 $? "release-intent.json version mismatch fails offline coherence"
+grep -q 'docs/release-intent.json invalid' "$OUT/coh-intent-bad.out" && ck 0 0 "reports release-intent mismatch" || ck 0 1 "reports release-intent mismatch"
+
+cp "$tmp/r/docs/release-intent.orig.json" "$tmp/r/docs/release-intent.json"
+cp "$tmp/r/docs/quality-metrics.md" "$tmp/r/docs/quality-metrics.orig.md"
+printf '# /flow — quality metrics\n\nCurrent: **skill v0.0.0**, **npm-wrapper v0.0.0**.\n' > "$tmp/r/docs/quality-metrics.md"
+bash "$tmp/r/scripts/check-release-coherence.sh" >"$OUT/coh-qm-bad.out" 2>&1
+ck 1 $? "quality-metrics.md version mismatch fails offline coherence"
+grep -q 'docs/quality-metrics.md top section' "$OUT/coh-qm-bad.out" && ck 0 0 "reports quality-metrics mismatch" || ck 0 1 "reports quality-metrics mismatch"
+rm -rf "$tmp"
+
+echo "K) --strict-published fail-closed 6-axis post-publish gate (mocked npm/gh + local git origin)"
+strict_root="$OUT/strict"
+strict_origin="$strict_root/origin.git"
+strict_repo="$strict_root/repo"
+strict_bin="$strict_root/bin"
+mkdir -p "$strict_origin" "$strict_repo/scripts" "$strict_repo/docs" "$strict_repo/skills/flow/runner" \
+  "$strict_repo/skills/flow/harness" "$strict_repo/npm-wrapper/scripts" "$strict_repo/npm-wrapper/bin" \
+  "$strict_repo/npm-wrapper/skills/flow" "$strict_repo/.claude-plugin" "$strict_bin"
+git -c init.defaultBranch=master init --bare -q "$strict_origin"
+git -c init.defaultBranch=master init -q "$strict_repo"
+git -C "$strict_repo" config user.email "test@example.com"
+git -C "$strict_repo" config user.name "Test Runner"
+git -C "$strict_repo" remote add origin "file://$strict_origin"
+
+cp "$HERE/../scripts/release-preflight.sh" "$HERE/../scripts/check-release-live.mjs" "$strict_repo/scripts/"
+cp "$HERE/../npm-wrapper/scripts/semver.mjs" "$strict_repo/npm-wrapper/scripts/"
+for check in check-release-coherence check-doc-budgets check-i18n-pairs; do
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$strict_repo/scripts/$check.sh"
+  chmod +x "$strict_repo/scripts/$check.sh"
+done
+printf '#!/usr/bin/env bash\necho READY\n' > "$strict_repo/skills/flow/runner/flow.sh"
+chmod +x "$strict_repo/skills/flow/runner/flow.sh"
+printf '# fixture\n' > "$strict_repo/skills/flow/harness/flow_harness.py"
+printf 'version: "2.0.0"\n' > "$strict_repo/skills/flow/SKILL.md"
+cp "$strict_repo/skills/flow/SKILL.md" "$strict_repo/npm-wrapper/skills/flow/"
+printf '{"version":"2.0.0"}\n' > "$strict_repo/portable-manifest.json"
+cp "$strict_repo/portable-manifest.json" "$strict_repo/.claude-plugin/plugin.json"
+printf '{"version":"2.0.0"}\n' > "$strict_repo/npm-wrapper/package.json"
+printf '{}\n' > "$strict_repo/.claude-plugin/marketplace.json"
+cat > "$strict_repo/npm-wrapper/bin/cli.mjs" <<'JS'
+import fs from 'node:fs';
+const { version } = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url)));
+console.log(`flow-skill v${version} (ships skill v${version})`);
+JS
+printf '{"schema_version":1,"intent":true,"npm_version":"2.0.0","skill_version":"2.0.0","channel":"latest"}\n' > "$strict_repo/docs/release-intent.json"
+printf '# /flow — quality metrics\n\nCurrent: **skill v2.0.0**, **npm-wrapper v2.0.0**.\n' > "$strict_repo/docs/quality-metrics.md"
+printf '# Changelog\n\n## [2.0.0] - 2026-11-13\n- release 2.0.0\n' > "$strict_repo/CHANGELOG.md"
+cp "$strict_repo/CHANGELOG.md" "$strict_repo/npm-wrapper/CHANGELOG.md"
+printf 'Publication status verified 2026-11-13: GitHub skill release v2.0.0 (2026-11-13) and npm installer 2.0.0 (2026-11-13); registry `latest` is 2.0.0.\n' > "$strict_repo/README.md"
+printf 'Bản phát hành đã xác minh ngày 2026-11-13: GitHub phát hành skill v2.0.0 (2026-11-13) và npm installer 2.0.0 (2026-11-13); registry xác nhận `latest` là 2.0.0.\n' > "$strict_repo/README_VN.md"
+cp "$strict_repo/README.md" "$strict_repo/npm-wrapper/README.md"
+cp "$strict_repo/README_VN.md" "$strict_repo/npm-wrapper/README_VN.md"
+
+git -C "$strict_repo" add -A
+git -C "$strict_repo" commit -qm "release 2.0.0"
+git -C "$strict_repo" push -q origin master
+git -C "$strict_repo" tag "npm@2.0.0"
+git -C "$strict_repo" tag "v2.0.0"
+git -C "$strict_repo" push -q origin "npm@2.0.0" "v2.0.0"
+
+cat > "$strict_bin/npm" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  *"dist-tags"*)
+    printf '{"latest":"%s","next":"0.7.1-next.0"}\n' "${FAKE_NPM_LATEST:-2.0.0}"
+    ;;
+  *"dist.attestations.provenance"*)
+    if [ "${FAKE_NPM_PROV:-ok}" = "missing" ]; then
+      printf 'null\n'
+    else
+      printf '{"predicateType":"https://slsa.dev/provenance/v1"}\n'
+    fi
+    ;;
+  *)
+    echo "unexpected npm call: $*" >&2
+    exit 99
+    ;;
+esac
+SH
+cat > "$strict_bin/gh" <<'SH'
+#!/usr/bin/env bash
+if [ "${FAKE_GH_RELEASE:-ok}" = "missing" ]; then
+  echo "release not found" >&2
+  exit 1
+fi
+printf '{"tagName":"v2.0.0","isDraft":false,"isPrerelease":false}\n'
+SH
+chmod +x "$strict_bin/npm" "$strict_bin/gh"
+
+strict_pass_rc=0
+PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-pass.out" 2>&1 || strict_pass_rc=$?
+ck 0 "$strict_pass_rc" "--strict-published passes when all 6 axes match"
+grep -q 'PREFLIGHT PASS' "$OUT/strict-pass.out" && ck 0 0 "--strict-published reports PREFLIGHT PASS" || ck 0 1 "--strict-published reports PREFLIGHT PASS"
+
+strict_nogh_rc=0
+PATH="$strict_bin:$PATH" FAKE_GH_RELEASE=missing bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-nogh.out" 2>&1 || strict_nogh_rc=$?
+ck 1 "$strict_nogh_rc" "--strict-published fails when GitHub Release missing"
+grep -q 'GitHub Release v2.0.0 missing' "$OUT/strict-nogh.out" && ck 0 0 "reports missing GitHub Release" || ck 0 1 "reports missing GitHub Release"
+
+git -C "$strict_origin" tag -d "v2.0.0" >/dev/null
+strict_notag_rc=0
+PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-notag.out" 2>&1 || strict_notag_rc=$?
+ck 1 "$strict_notag_rc" "--strict-published fails when remote skill tag missing"
+grep -q 'remote tag v2.0.0 missing on origin' "$OUT/strict-notag.out" && ck 0 0 "reports missing remote tag" || ck 0 1 "reports missing remote tag"
+git -C "$strict_repo" push -q origin "v2.0.0"
+
+strict_npm_rc=0
+PATH="$strict_bin:$PATH" FAKE_NPM_LATEST=1.9.9 bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-npm.out" 2>&1 || strict_npm_rc=$?
+ck 1 "$strict_npm_rc" "--strict-published fails when npm dist-tag drifts"
+grep -q "npm dist-tag 'latest' is '1.9.9', expected '2.0.0'" "$OUT/strict-npm.out" && ck 0 0 "reports npm dist-tag mismatch" || ck 0 1 "reports npm dist-tag mismatch"
+
+strict_noprov_rc=0
+PATH="$strict_bin:$PATH" FAKE_NPM_PROV=missing bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-noprov.out" 2>&1 || strict_noprov_rc=$?
+ck 1 "$strict_noprov_rc" "--strict-published fails when npm provenance missing"
+grep -q 'lacks dist.attestations.provenance' "$OUT/strict-noprov.out" && ck 0 0 "reports missing provenance" || ck 0 1 "reports missing provenance"
+
+printf 'Publication status verified 2026-10-30: GitHub skill release v1.9.9 (2026-10-24) and npm installer 1.9.9 (2026-10-25); registry `latest` is 1.9.9.\n' > "$strict_repo/README.md"
+git -C "$strict_repo" add README.md
+git -C "$strict_repo" commit -qm "stale readme"
+git -C "$strict_repo" tag -f "npm@2.0.0" >/dev/null
+git -C "$strict_repo" tag -f "v2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "npm@2.0.0" "v2.0.0"
+strict_readme_rc=0
+PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-readme.out" 2>&1 || strict_readme_rc=$?
+ck 1 "$strict_readme_rc" "--strict-published fails when README cites older version"
+grep -q 'still cites older version' "$OUT/strict-readme.out" && ck 0 0 "reports stale README publication status" || ck 0 1 "reports stale README publication status"
+
+printf 'Publication status verified 2026-11-13: GitHub skill release v2.0.0 (2026-11-13) and npm installer 2.0.0 (2026-11-13); registry `latest` is 2.0.0.\n' > "$strict_repo/README.md"
+printf '# /flow — quality metrics\n\nCurrent: **skill v1.9.9**, **npm-wrapper v1.9.9**.\n' > "$strict_repo/docs/quality-metrics.md"
+git -C "$strict_repo" add README.md docs/quality-metrics.md
+git -C "$strict_repo" commit -qm "stale qm"
+git -C "$strict_repo" tag -f "npm@2.0.0" >/dev/null
+git -C "$strict_repo" tag -f "v2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "npm@2.0.0" "v2.0.0"
+strict_qm_rc=0
+PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-qm.out" 2>&1 || strict_qm_rc=$?
+ck 1 "$strict_qm_rc" "--strict-published fails when quality-metrics.md mismatches"
+grep -q 'docs/quality-metrics.md' "$OUT/strict-qm.out" && ck 0 0 "reports quality-metrics mismatch" || ck 0 1 "reports quality-metrics mismatch"
 
 echo
 echo "RESULT: $pass passed, $fail failed"
