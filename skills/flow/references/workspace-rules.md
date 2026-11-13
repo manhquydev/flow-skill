@@ -14,6 +14,8 @@ This document defines the exact rule templates and target file conventions for i
 
 | Harness | Target Rule Path | Format / Convention | Purpose |
 |---|---|---|---|
+| **agent-skills** | `.agents/skills/flow/SKILL.md` | Standard skill pointer Markdown (Codex/Gemini discovery) | Points to the canonical project-local `skills/flow/SKILL.md` — not a runtime or a copy; requires the bundle checked into project root; Claude `.claude/skills` stays separate. |
+| **agents-md** | `AGENTS.md` | Repository-level Markdown directives | Standing Flow build-discipline instructions for any harness that reads AGENTS.md. |
 | **Cursor** | `.cursor/rules/flow.mdc` | MDC with YAML frontmatter + Markdown directives | Scopes Flow discipline to `flow/**`, `cards/**`, and source files. |
 | **Windsurf** | `.windsurf/rules/flow.md` | Concise Markdown (< 3,000 characters) | Instructs Cascade to check gate status and card checklists before modifications. |
 | **Roo Code** | `.roomodes` | JSON custom mode declaration | Declares a specialized `flow` mode with execute permissions for the runner. |
@@ -26,7 +28,24 @@ This document defines the exact rule templates and target file conventions for i
 
 ## 2. Rule Templates
 
-### 2.1 Cursor (`.cursor/rules/flow.mdc`)
+### 2.1 agent-skills (`.agents/skills/flow/SKILL.md`)
+
+Emits a standard skill pointer for project Codex/Gemini discovery. The pointer references the
+canonical `skills/flow/SKILL.md` in the project root — never a runtime install or a content
+copy — so Claude's separate `.claude/skills` home stays untouched. Requires the canonical
+bundle checked into project-local `skills/flow` (`skills/flow/SKILL.md` +
+`skills/flow/runner/flow.sh`); `--write` refuses without them. Per the Overwrite Safety
+Contract above, `--write` creates the pointer only when the destination does not yet exist
+and refuses an existing file or symlink.
+
+### 2.2 agents-md (`AGENTS.md`)
+
+Scaffolds repository-level `AGENTS.md` with Flow build-discipline directives (stage flow,
+honest gates, card execution, ground-truth runner commands). `--write` creates it only when
+`AGENTS.md` does not yet exist and refuses an existing file or symlink, per the Overwrite
+Safety Contract above.
+
+### 2.3 Cursor (`.cursor/rules/flow.mdc`)
 
 ```markdown
 ---
@@ -47,7 +66,7 @@ Flow turns coding agents into evidence-gated, kill-honest build processes.
 4. **Never fake verify proof.** Paste real terminal output, exit codes, and URLs into `## Evidence`.
 ```
 
-### 2.2 Windsurf (`.windsurf/rules/flow.md`)
+### 2.4 Windsurf (`.windsurf/rules/flow.md`)
 
 ```markdown
 # Flow Discipline Rules for Windsurf Cascade
@@ -63,7 +82,7 @@ Cascade must respect Flow repository gates and evidence requirements.
 4. **Clean Exit**: Do not claim work is complete until `flow check` returns exit code 0.
 ```
 
-### 2.3 Roo Code (`.roomodes`)
+### 2.5 Roo Code (`.roomodes`)
 
 ```json
 {
@@ -82,7 +101,7 @@ Cascade must respect Flow repository gates and evidence requirements.
 }
 ```
 
-### 2.4 Cline (`.clinerules`)
+### 2.6 Cline (`.clinerules`)
 
 ```markdown
 # Flow Discipline Rules for Cline
@@ -96,7 +115,7 @@ Cascade must respect Flow repository gates and evidence requirements.
 4. Never mark a card done without real, verified command output in `## Evidence`.
 ```
 
-### 2.5 Aider (`.aider.conf.yml`)
+### 2.7 Aider (`.aider.conf.yml`)
 
 ```yaml
 # Aider configuration for Flow discipline layer
@@ -104,7 +123,7 @@ test-cmd: "bash -c 'cid=$(tr -d \" \\r\\n\" < cards/.inflight 2>/dev/null); if [
 auto-test: true
 ```
 
-### 2.6 OpenHands (`.openhands/microagents/flow.md`)
+### 2.8 OpenHands (`.openhands/microagents/flow.md`)
 
 ```markdown
 ---
@@ -127,7 +146,7 @@ Key commands:
 - `bash skills/flow/runner/flow.sh check C-NNN` — verify card criteria and gates.
 ```
 
-### 2.7 GitHub Copilot (`.github/copilot-instructions.md`)
+### 2.9 GitHub Copilot (`.github/copilot-instructions.md`)
 
 ```markdown
 # GitHub Copilot Instructions for Flow

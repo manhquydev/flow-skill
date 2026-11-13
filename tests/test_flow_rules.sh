@@ -624,6 +624,32 @@ for converter in nonzero empty success absent missing_target; do
   ck "$timeout_expected" "$timeout_out" "$converter converter preserves expected subprocess argument"
 done
 
+echo "R) workspace-rules.md parity: every rules target documented; table lists all 9"
+WR_DOC="$HERE/../skills/flow/references/workspace-rules.md"
+list_out="$(bash "$RUN" rules list 2>&1)"
+missing_docs=0
+n_targets=0
+# Parse target ids from `flow rules list` output ("  <id> -> <path> (...)") and
+# require each id to appear in workspace-rules.md. Fail-loud when a new target is
+# added to the runner without a doc update.
+while IFS= read -r tid; do
+  [ -n "$tid" ] || continue
+  n_targets=$((n_targets + 1))
+  if grep -q "$tid" "$WR_DOC"; then
+    echo "  ok   [workspace-rules.md documents '$tid']"
+    pass=$((pass + 1))
+  else
+    echo "  FAIL [workspace-rules.md missing target '$tid']"
+    fail=$((fail + 1))
+    missing_docs=$((missing_docs + 1))
+  fi
+done <<TIDS
+$(printf '%s\n' "$list_out" | sed -nE 's/^[[:space:]]*([A-Za-z0-9-]+)[[:space:]]+-> .*/\1/p')
+TIDS
+ck 9 "$n_targets" "flow rules list exposes 9 targets (got $n_targets)"
+rows9="$(grep -cE '^\| \*\*[^*]+\*\* \|[[:space:]]' "$WR_DOC")"
+ck 9 "$rows9" "workspace-rules.md Harness Target Matrix lists all 9 targets (got $rows9)"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
