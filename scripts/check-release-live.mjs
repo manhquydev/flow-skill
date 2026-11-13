@@ -49,14 +49,36 @@ function runCmd(cmd, args, opts = {}) {
   });
 }
 
-function readJson(relPath) {
+function readHeadFile(relPath) {
+  const res = runCmd('git', ['show', `HEAD:${relPath}`]);
+  if (res.status === 0) {
+    return res.stdout;
+  }
   const full = join(root, relPath);
-  if (!existsSync(full)) {
+  if (existsSync(full)) {
+    return readFileSync(full, 'utf8');
+  }
+  return null;
+}
+
+function assertClean(relPaths) {
+  const res = runCmd('git', ['status', '--porcelain', '--', ...relPaths]);
+  if (res.status === 0 && res.stdout.trim().length > 0) {
+    const dirty = res.stdout.trim().split(/\r?\n/).map((l) => l.trim()).join(', ');
+    fail(`working tree dirty for release docs: ${dirty}`);
+    return false;
+  }
+  return true;
+}
+
+function readJson(relPath) {
+  const text = readHeadFile(relPath);
+  if (text === null) {
     fail(`missing ${relPath}`);
     return null;
   }
   try {
-    return JSON.parse(readFileSync(full, 'utf8'));
+    return JSON.parse(text);
   } catch (e) {
     fail(`invalid JSON in ${relPath}: ${e.message}`);
     return null;
@@ -68,12 +90,11 @@ function escapeRe(str) {
 }
 
 function hasChangelogHeading(relPath, version) {
-  const full = join(root, relPath);
-  if (!existsSync(full)) {
+  const text = readHeadFile(relPath);
+  if (text === null) {
     fail(`missing ${relPath}`);
     return false;
   }
-  const text = readFileSync(full, 'utf8');
   const re = new RegExp(`^##\\s+\\[?v?${escapeRe(version)}\\]?(?:\\s|$)`, 'm');
   return re.test(text);
 }
@@ -85,11 +106,11 @@ const portable = readJson('portable-manifest.json');
 const intent = readJson('docs/release-intent.json');
 
 let skillV = null;
-const skillMdPath = join(root, 'skills/flow/SKILL.md');
-if (!existsSync(skillMdPath)) {
+const skillMdText = readHeadFile('skills/flow/SKILL.md');
+if (skillMdText === null) {
   fail('missing skills/flow/SKILL.md');
 } else {
-  const m = readFileSync(skillMdPath, 'utf8').match(/^\s*version:\s*["']?([0-9][.0-9A-Za-z+-]*)["']?\s*$/m);
+  const m = skillMdText.match(/^\s*version:\s*["']?([0-9][.0-9A-Za-z+-]*)["']?\s*$/m);
   skillV = m ? m[1] : null;
   if (!skillV || !parseSemver(skillV)) fail(`invalid or missing version in skills/flow/SKILL.md (${skillV})`);
 }
@@ -231,13 +252,14 @@ if (npmV && parseSemver(npmV)) {
   // (d) README Publication status verified lines must not report versions older than npm_v
   const readmeTargets = ['README.md', 'README_VN.md', 'npm-wrapper/README.md'];
   if (existsSync(join(root, 'npm-wrapper/README_VN.md'))) readmeTargets.push('npm-wrapper/README_VN.md');
+  assertClean([...readmeTargets, 'CHANGELOG.md', 'npm-wrapper/CHANGELOG.md', 'docs/quality-metrics.md']);
   for (const relPath of readmeTargets) {
-    const full = join(root, relPath);
-    if (!existsSync(full)) {
+    const text = readHeadFile(relPath);
+    if (text === null) {
       fail(`missing ${relPath}`);
       continue;
     }
-    const lines = readFileSync(full, 'utf8').split(/\r?\n/);
+    const lines = text.split(/\r?\n/);
     const pubLines = lines.filter((l) => /^(?:Publication status verified|Bản phát hành đã xác minh)\b/.test(l));
     if (pubLines.length === 0) {
       fail(`${relPath} missing Publication status verified line`);
@@ -284,11 +306,11 @@ if (npmV && parseSemver(npmV)) {
     fail(`npm-wrapper/CHANGELOG.md missing heading for ${npmV}`);
   }
 
-  const qmPath = join(root, 'docs/quality-metrics.md');
-  if (!existsSync(qmPath)) {
+  const qmText = readHeadFile('docs/quality-metrics.md');
+  if (qmText === null) {
     fail('missing docs/quality-metrics.md');
   } else {
-    const qmTop = readFileSync(qmPath, 'utf8').split(/\r?\n/).slice(0, 20).join('\n');
+    const qmTop = qmText.split(/\r?\n/).slice(0, 20).join('\n');
     const hasNpmQm = new RegExp(`(^|[^0-9A-Za-z._+-])npm-wrapper v${escapeRe(npmV)}($|[^0-9A-Za-z._+-]|\\.($|[^0-9A-Za-z._+-]))`).test(qmTop);
     const hasSkillQm = skillVersion === null || new RegExp(`(^|[^0-9A-Za-z._+-])skill v${escapeRe(skillVersion)}($|[^0-9A-Za-z._+-]|\\.($|[^0-9A-Za-z._+-]))`).test(qmTop);
     if (hasNpmQm && hasSkillQm) {

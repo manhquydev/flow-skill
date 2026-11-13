@@ -717,6 +717,14 @@ strict_final_rc=0
 PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-final.out" 2>&1 || strict_final_rc=$?
 ck 0 "$strict_final_rc" "--strict-published passes again after restoring all 6 axes (with trailing period)"
 
+# Negative test: uncommitted dirty change in release doc (README) must fail-closed under --strict-published
+printf "\n<!-- uncommitted dirty edit -->\n" >> "$strict_repo/README.md"
+strict_dirty_rc=0
+PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-dirty.out" 2>&1 || strict_dirty_rc=$?
+ck 1 "$strict_dirty_rc" "--strict-published fails when release doc has uncommitted dirty changes"
+grep -q "working tree dirty for release docs: M README.md" "$OUT/strict-dirty.out" && ck 0 0 "reports dirty working tree on release docs" || ck 0 1 "reports dirty working tree on release docs"
+git -C "$strict_repo" checkout -q -- README.md
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
