@@ -1387,7 +1387,10 @@ _emit_card_handoff_json() {
   local first_h1; first_h1="$(grep -m1 -E '^#[[:space:]]' "$card_file" 2>/dev/null | tr -d '\r')"
   local raw_title=""
   if [ -n "$first_h1" ]; then
-    raw_title="$(printf '%s\n' "$first_h1" | sed -E -e 's/^#[[:space:]]*[Cc]-[0-9]+([[:space:]]*[-—:][[:space:]]*|[[:space:]]+)?//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    # OPS: em dash must stay OUTSIDE a bracket expression — byte-wise seds (Windows
+    # git-bash, C locale) match brackets per UTF-8 byte, leaving \x80\x94 glued to the
+    # title. Alternation matches the literal 3-byte sequence atomically on all seds.
+    raw_title="$(printf '%s\n' "$first_h1" | sed -E -e 's/^#[[:space:]]*[Cc]-[0-9]+//' -e 's/^[[:space:]]+//' -e 's/^(-|:|—)[[:space:]]*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
   fi
   [ -n "$raw_title" ] || raw_title="$resume_card"
 
