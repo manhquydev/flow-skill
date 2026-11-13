@@ -36,6 +36,7 @@ function runCmd(cmd, args, opts = {}) {
       encoding: 'utf8',
       timeout: 30_000,
       maxBuffer: 8 * 1024 * 1024,
+      windowsVerbatimArguments: true,
       ...opts,
     });
   }
@@ -288,8 +289,8 @@ if (npmV && parseSemver(npmV)) {
     fail('missing docs/quality-metrics.md');
   } else {
     const qmTop = readFileSync(qmPath, 'utf8').split(/\r?\n/).slice(0, 20).join('\n');
-    const hasNpmQm = new RegExp(`(^|[^0-9A-Za-z._-])npm-wrapper v${escapeRe(npmV)}($|[^0-9A-Za-z._-]|\\.($|[^0-9A-Za-z._-]))`).test(qmTop);
-    const hasSkillQm = skillVersion === null || new RegExp(`(^|[^0-9A-Za-z._-])skill v${escapeRe(skillVersion)}($|[^0-9A-Za-z._-]|\\.($|[^0-9A-Za-z._-]))`).test(qmTop);
+    const hasNpmQm = new RegExp(`(^|[^0-9A-Za-z._+-])npm-wrapper v${escapeRe(npmV)}($|[^0-9A-Za-z._+-]|\\.($|[^0-9A-Za-z._+-]))`).test(qmTop);
+    const hasSkillQm = skillVersion === null || new RegExp(`(^|[^0-9A-Za-z._+-])skill v${escapeRe(skillVersion)}($|[^0-9A-Za-z._+-]|\\.($|[^0-9A-Za-z._+-]))`).test(qmTop);
     if (hasNpmQm && hasSkillQm) {
       ok(`docs/quality-metrics.md matches published versions (${npmV})`);
     } else {

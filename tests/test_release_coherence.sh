@@ -481,6 +481,11 @@ for bad_suffix in "${cur_v}0" "${cur_v}.2" "${cur_v}-rc.1"; do
   ck 1 $? "quality-metrics.md rejects $bad_suffix when expecting $cur_v"
 done
 
+# Quality-metrics top must reject build metadata suffix like +old
+printf '# /flow — quality metrics\n\nCurrent: **skill v%s+old**, **npm-wrapper v%s+old**\n' "$cur_v" "$cur_v" > "$tmp/r/docs/quality-metrics.md"
+bash "$tmp/r/scripts/check-release-coherence.sh" >"$OUT/coh-qm-plus.out" 2>&1
+ck 1 $? "quality-metrics.md rejects +old build metadata suffix"
+
 # Genuine Python-only fallback path (hide node safely in temp PATH; never mutate installed tools).
 cp "$tmp/r/docs/quality-metrics.orig.md" "$tmp/r/docs/quality-metrics.md"
 cp "$tmp/r/docs/release-intent.orig.json" "$tmp/r/docs/release-intent.json"
@@ -503,6 +508,12 @@ if [ -x "$pyonly_bin/python3" ]; then
   ck 1 $? "python-only fallback rejects boolean schema_version: true"
   grep -q 'SyntaxError' "$OUT/coh-pyonly-bad.out" && ck 0 1 "python-only error path has no SyntaxError" || ck 0 0 "python-only error path has no SyntaxError"
   grep -q 'docs/release-intent.json invalid' "$OUT/coh-pyonly-bad.out" && ck 0 0 "python-only reports release-intent invalid" || ck 0 1 "python-only reports release-intent invalid"
+
+  # Python-only fallback must also reject missing skill_version when intent is true (Node parity)
+  printf '{"schema_version":1,"intent":true,"npm_version":"%s","channel":"latest"}\n' "$cur_v" > "$tmp/r/docs/release-intent.json"
+  PATH="$pyonly_bin" bash "$tmp/r/scripts/check-release-coherence.sh" >"$OUT/coh-pyonly-noskill.out" 2>&1
+  ck 1 $? "python-only fallback rejects missing skill_version key when intent=true"
+  grep -q 'skill_version mismatch' "$OUT/coh-pyonly-noskill.out" && ck 0 0 "python-only reports skill_version mismatch on missing key" || ck 0 1 "python-only reports skill_version mismatch on missing key"
 fi
 rm -rf "$tmp"
 

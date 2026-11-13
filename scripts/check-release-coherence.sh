@@ -98,7 +98,7 @@ try:
     if intent is True:
         if d.get("npm_version") != npm_v:
             raise ValueError("npm_version mismatch (%s != %s)" % (d.get("npm_version"), npm_v))
-        if d.get("skill_version") is not None and d.get("skill_version") != skill_v:
+        if "skill_version" not in d or (d["skill_version"] is not None and d["skill_version"] != skill_v):
             raise ValueError("skill_version mismatch (%s != %s)" % (d.get("skill_version"), skill_v))
         expected = "next" if "-" in npm_v.split("+")[0] else "latest"
         if d.get("channel") != expected:
@@ -124,8 +124,8 @@ else
   qm_top="$(head -n 20 docs/quality-metrics.md)"
   qm_esc_skill="$(printf '%s' "$skill_v" | sed 's/[.[\*^$+?(){}|/\\]/\\&/g')"
   qm_esc_npm="$(printf '%s' "$npm_v" | sed 's/[.[\*^$+?(){}|/\\]/\\&/g')"
-  if printf '%s\n' "$qm_top" | grep -qE "(^|[^0-9A-Za-z._-])skill v${qm_esc_skill}($|[^0-9A-Za-z._-]|\.($|[^0-9A-Za-z._-]))" \
-    && printf '%s\n' "$qm_top" | grep -qE "(^|[^0-9A-Za-z._-])npm-wrapper v${qm_esc_npm}($|[^0-9A-Za-z._-]|\.($|[^0-9A-Za-z._-]))"; then
+  if printf '%s\n' "$qm_top" | grep -qE "(^|[^0-9A-Za-z._+-])skill v${qm_esc_skill}($|[^0-9A-Za-z._+-]|\.($|[^0-9A-Za-z._+-]))" \
+    && printf '%s\n' "$qm_top" | grep -qE "(^|[^0-9A-Za-z._+-])npm-wrapper v${qm_esc_npm}($|[^0-9A-Za-z._+-]|\.($|[^0-9A-Za-z._+-]))"; then
     ok "docs/quality-metrics.md header matches versions (skill v$skill_v / npm-wrapper v$npm_v)"
   else
     fail "docs/quality-metrics.md top section must declare skill v${skill_v} and npm-wrapper v${npm_v}"
