@@ -411,6 +411,41 @@ out="$(bash "$RUN" project-type cli 2>&1)"; ck 1 $? "flip refused while 01 midti
 has "$out" "locked" "type lock names locked despite dirty 01"
 clean
 
+echo "Q) _midtier_adjectives skips URL tokens, checkboxes and inline-code spans (real dispatch, template PRD)"
+# Fixture built from the shipped 03-prd template like the contract repro: the probe
+# bullet is inserted INSIDE the '## Features' slice (never appended at EOF), all
+# template checkboxes ticked and [FILL] placeholders filled so the ONLY mechanical
+# variable is the inserted line.
+prd_case() { # $1=case letter  $2=line to insert inside ## Features
+  newsb
+  for s in 00-idea 01-research 02-scope 04-adr 05-contract; do stage_clean "$s" "$SB/flow/$s.md"; done
+  cp "$HERE/../skills/flow/_templates/03-prd.md" "$SB/flow/03-prd.md"
+  sed -i 's/\[FILL[^]]*\]/filled detail/g' "$SB/flow/03-prd.md"
+  sed -i 's/^- \[ \]/- [x]/' "$SB/flow/03-prd.md"
+  awk -v ins="$2" '
+    /^## Features/ && !done { print; print ins; print ""; done=1; next }
+    { print }
+  ' "$SB/flow/03-prd.md" > "$SB/flow/03-prd.md.new" && mv "$SB/flow/03-prd.md.new" "$SB/flow/03-prd.md"
+  out="$(G 03-prd)"; rc=$?
+  adj="$(printf '%s' "$out" | grep -c 'unquantified adjective' || true)"
+}
+prd_case A '- Landing page hosted at https://fast.example.com with CDN caching'
+ck 0 "$rc" "URL bullet does not false-fail gate 03-prd"
+ck 0 "$adj" "URL token never counted as an adjective"
+clean
+prd_case B '- fast caching layer for the landing page'
+ck 1 "$rc" "prose 'fast caching layer' still fails gate 03-prd"
+ck 1 "$adj" "prose 'fast' still counted as an adjective"
+clean
+prd_case C '- [x] pick a fast cache before the landing page ships'
+ck 0 "$rc" "checkbox bullet skipped by the scanner"
+ck 0 "$adj" "checkbox 'fast' never counted"
+clean
+prd_case D '- run `fast` prefetch before deploy'
+ck 0 "$rc" "inline-code span does not false-fail gate 03-prd"
+ck 0 "$adj" "backticked 'fast' never counted"
+clean
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

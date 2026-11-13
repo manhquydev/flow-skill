@@ -383,6 +383,12 @@ _midtier_adjectives() { # stdin = Features or NFR body; print first listed adjec
     /^[[:space:]]*- \[[ xX]\]/ { next }
     {
       line = tolower($0)
+      # URL tokens and inline-code spans are data, not prose: strip before the
+      # word-boundary scan so a legal link ("https://fast.example.com") or a
+      # backticked command never false-flags the wordlist.
+      gsub(/https?:\/\/[^[:space:]]+/, " ", line)
+      gsub(/www\.[^[:space:]]+/, " ", line)
+      gsub(/`[^`]*`/, " ", line)
       n = split("fast secure intuitive robust prominent", w, " ")
       for (i = 1; i <= n; i++) {
         if (line ~ "(^|[^a-z])" w[i] "([^a-z]|$)") { print w[i]; exit }
