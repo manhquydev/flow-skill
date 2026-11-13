@@ -32,7 +32,7 @@ required.
 | **Tests / CI** | [`tests/manifest.txt`](tests/manifest.txt) · Ubuntu · macOS · Windows |
 | **License** | MIT |
 
-Publication status verified 2026-11-10: npm installer 1.0.1 published (2026-11-10, per [`npm-wrapper/CHANGELOG.md`](npm-wrapper/CHANGELOG.md)) and GitHub release v1.0.1 (2026-11-10); registry `latest` is 1.0.1. See the [migration guide](docs/migration-v1.md) for the verified pre-v1 rollback pair.
+Publication status verified 2026-10-30: GitHub skill release v1.0.0 (2026-10-24) and npm installer 1.0.0 (2026-10-25); registry `latest` is 1.0.0. See the [migration guide](docs/migration-v1.md) for the verified pre-v1 rollback pair.
 
 ## Docs
 
