@@ -13,7 +13,7 @@ Single-process full-transaction helper used by install.sh / install.ps1:
         raw input validation component-by-component BEFORE normalization (rejecting
         symlink components even when '..' traverses them, e.g. /tmp/link/../dest,
         properly supporting POSIX, Windows drives, and UNC paths) →
-        Python 3.8 compatible containment check (disjoint source/dest) →
+        Python 3.7 compatible containment check (disjoint source/dest) →
         exclusive process lock (.flow-skill.installing.lock) compatible with Node installer →
         non-regular files (FIFOs, symlinks) refused before any hashing →
         dest survey (conflicts / root mismatch / legacy collisions collected up front;
@@ -186,7 +186,7 @@ def validate_raw_path_no_symlinks(raw_path_str: str, label: str, must_exist: boo
 
 
 def is_within(child: Path, parent: Path) -> bool:
-    """Python 3.8-compatible containment check without following symlinks."""
+    """Python 3.7-compatible containment check without following symlinks."""
     child_str = os.path.normpath(str(child))
     parent_str = os.path.normpath(str(parent))
     if child_str == parent_str:
