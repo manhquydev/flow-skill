@@ -221,6 +221,52 @@ ck "$manifest_count" "$doc_count" "codebase-summary suite scripts count matches 
 
 rm -f "$listed"
 
+echo "=== release consumer partition ==="
+release_suite="$HERE/test_sync_release.sh"
+tmp=$(mktemp -d)
+FLOW_RELEASE_TEST_GROUP=all bash "$release_suite" --list-consumers > "$tmp/all"
+printf '%s\n' sound release-crlf channel-drift release-exists release-auth release-forbidden release-http404 release-http500 release-network release-empty release-unexpected > "$tmp/original"
+cmp -s "$tmp/all" "$tmp/original"; ck 0 "$?" "original eleven scenario identities retained"
+(unset FLOW_RELEASE_TEST_GROUP; bash "$release_suite" --list-consumers) > "$tmp/default"
+cmp -s "$tmp/all" "$tmp/default"; ck 0 "$?" "unset selector defaults to all"
+FLOW_RELEASE_TEST_GROUP=all bash "$release_suite" --list-consumers unexpected > /dev/null 2>&1
+ck 2 "$?" "extra arguments fail closed"
+: > "$tmp/union"
+for group in consumer-1 consumer-2 consumer-3; do
+  FLOW_RELEASE_TEST_GROUP="$group" bash "$release_suite" --list-consumers > "$tmp/$group"
+  ck 0 "$?" "$group selector succeeds"
+  test -s "$tmp/$group"; ck 0 "$?" "$group is nonempty"
+  cat "$tmp/$group" >> "$tmp/union"
+done
+LC_ALL=C sort "$tmp/all" > "$tmp/expected"
+LC_ALL=C sort "$tmp/union" > "$tmp/actual"
+cmp -s "$tmp/expected" "$tmp/actual"; ck 0 "$?" "consumer partition union exactly equals all"
+ck 11 "$(wc -l < "$tmp/all" | tr -d ' ')" "all eleven existing scenarios retained"
+ck 11 "$(sort -u "$tmp/union" | wc -l | tr -d ' ')" "no duplicate consumer scenarios"
+FLOW_RELEASE_TEST_GROUP=core bash "$release_suite" --list-consumers > "$tmp/core"
+ck 0 "$?" "core selector succeeds"
+test ! -s "$tmp/core"; ck 0 "$?" "core does not duplicate consumer scenarios"
+for group in '' consumer-0 consumer-4 typo; do
+  FLOW_RELEASE_TEST_GROUP="$group" bash "$release_suite" --list-consumers > "$tmp/invalid" 2>&1
+  ck 2 "$?" "invalid release selector fails closed: [$group]"
+done
+# A foreign selector must not silently bypass consumer coverage in CI.
+python3 - "$HERE/../.github/workflows/ci.yml" <<'PYCI'
+import sys
+from pathlib import Path
+s = Path(sys.argv[1]).read_text()
+assert 'FLOW_RELEASE_TEST_GROUP=core bash tests/run_all.sh' in s
+block = s.split('  release-consumers:', 1)[1].split('  # V1 replaces', 1)[0]
+assert 'os: [ubuntu-latest, macos-latest, windows-latest]' in block
+assert 'group: [consumer-1, consumer-2, consumer-3]' in block
+assert 'FLOW_RELEASE_TEST_GROUP: ${{ matrix.group }}' in block
+assert 'run: bash tests/test_sync_release.sh' in block
+assert 'needs: [bash-suite, release-consumers,' in s
+assert 'if: always()' in s.split('  all-checks-passed:', 1)[1]
+PYCI
+ck 0 "$?" "all OS consumer groups and aggregate gate remain mandatory"
+rm -rf "$tmp"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

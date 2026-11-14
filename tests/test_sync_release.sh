@@ -3,6 +3,29 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
+# Default remains the complete suite. CI partitions only independent consumer cases.
+release_group="${FLOW_RELEASE_TEST_GROUP-all}"
+case "$release_group" in
+  all|core|consumer-1|consumer-2|consumer-3) ;;
+  *) echo "invalid FLOW_RELEASE_TEST_GROUP: $release_group" >&2; exit 2 ;;
+esac
+run_core() { [ "$release_group" = all ] || [ "$release_group" = core ]; }
+consumer_cases() {
+  case "$release_group" in
+    all) printf '%s\n' sound release-crlf channel-drift release-exists release-auth release-forbidden release-http404 release-http500 release-network release-empty release-unexpected ;;
+    core) ;;
+    consumer-1) printf '%s\n' sound release-exists release-http404 release-empty ;;
+    consumer-2) printf '%s\n' release-crlf release-auth release-http500 release-unexpected ;;
+    consumer-3) printf '%s\n' channel-drift release-forbidden release-network ;;
+  esac
+}
+# Read-only plan uses the same selector as the execution loop.
+if [ "$#" -eq 1 ] && [ "$1" = --list-consumers ]; then consumer_cases; exit 0; fi
+if [ "$#" -ne 0 ]; then echo "unexpected arguments" >&2; exit 2; fi
+suite_tmp=$(mktemp -d) || exit 1
+trap 'rm -rf "$suite_tmp"' EXIT
+# All fixture directories and formerly fixed logs are private to this invocation.
+export TMPDIR="$suite_tmp"
 pass=0; fail=0
 ck() { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected=$1 got=$2"; fail=$((fail+1)); fi; }
 portable_hash() {
@@ -26,11 +49,12 @@ copy_release_metadata() {
   cp "$ROOT/scripts/check-release-coherence.sh" "$tmp/r/scripts/"
   git -C "$tmp/r" add npm-wrapper/package.json npm-wrapper/CHANGELOG.md npm-wrapper/README.md npm-wrapper/README_VN.md README.md README_VN.md scripts/check-release-coherence.sh
 }
+if run_core; then
 echo "A) sync-release --check exits 0 on current repository"
-node "$(winpath "$ROOT/scripts/sync-release.mjs")" --check >/tmp/sync_check.out 2>&1
+node "$(winpath "$ROOT/scripts/sync-release.mjs")" --check >"$suite_tmp/sync_check.out" 2>&1
 ck 0 $? "sync-release --check exit code"
-grep -q "PASS: All release surfaces coherent" /tmp/sync_check.out && ck 0 0 "reported PASS line" || ck 0 1 "reported PASS line"
-grep -q 'Unified version (npm_v === skill_v)' /tmp/sync_check.out && ck 0 0 "shared SemVer equality check visible" || ck 0 1 "shared SemVer equality check visible"
+grep -q "PASS: All release surfaces coherent" "$suite_tmp/sync_check.out" && ck 0 0 "reported PASS line" || ck 0 1 "reported PASS line"
+grep -q 'Unified version (npm_v === skill_v)' "$suite_tmp/sync_check.out" && ck 0 0 "shared SemVer equality check visible" || ck 0 1 "shared SemVer equality check visible"
 
 echo "B) --check is strictly read-only"
 before_status="$(git -C "$ROOT" status --porcelain scripts/ npm-wrapper/ README* skills/ .claude-plugin/ portable-manifest.json CHANGELOG*)"
@@ -61,10 +85,10 @@ cp "$ROOT/npm-wrapper/CHANGELOG.md" "$tmp/r/npm-wrapper/"
 
 # Deliberate drift in npm-wrapper/README.md
 printf '| **Current GA** | **9.9.9** — ships skill product **v0.0.1** |\n' > "$tmp/r/npm-wrapper/README.md"
-node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --check >/tmp/sync_c.out 2>&1
+node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --check >"$suite_tmp/sync_c.out" 2>&1
 ck 1 $? "drift fails --check"
-grep -q "FAIL: Release coherence check failed" /tmp/sync_c.out && ck 0 0 "reports failure message" || ck 0 1 "reports failure message"
-grep -q "ROW MISMATCH" /tmp/sync_c.out && ck 0 0 "detects row mismatch" || ck 0 1 "detects row mismatch"
+grep -q "FAIL: Release coherence check failed" "$suite_tmp/sync_c.out" && ck 0 0 "reports failure message" || ck 0 1 "reports failure message"
+grep -q "ROW MISMATCH" "$suite_tmp/sync_c.out" && ck 0 0 "detects row mismatch" || ck 0 1 "detects row mismatch"
 node --input-type=module - "$(winpath "$tmp/r")" <<'NODE'
 import { readFileSync, writeFileSync } from 'node:fs';
 const root = process.argv[2];
@@ -73,9 +97,9 @@ const manifest = JSON.parse(readFileSync(p, 'utf8')); manifest.version = '1.2.3j
 writeFileSync(p, JSON.stringify(manifest));
 writeFileSync(`${root}/skills/flow/SKILL.md`, 'version: "1.2.3junk"\n');
 NODE
-node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --check >/tmp/sync_invalid.out 2>&1
+node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --check >"$suite_tmp/sync_invalid.out" 2>&1
 ck 1 $? "identical invalid SemVer refuses --check"
-grep -E 'Unified version \(npm_v === skill_v\).*FAIL' /tmp/sync_invalid.out && ck 0 0 "unified check rejects identical junk" || ck 0 1 "unified check rejects identical junk"
+grep -E 'Unified version \(npm_v === skill_v\).*FAIL' "$suite_tmp/sync_invalid.out" && ck 0 0 "unified check rejects identical junk" || ck 0 1 "unified check rejects identical junk"
 rm -rf "$tmp"
 
 echo "D) missing README file fails --check with exit 1"
@@ -99,9 +123,9 @@ cp "$ROOT/README_VN.md" "$tmp/r/"
 cp "$ROOT/CHANGELOG.md" "$tmp/r/"
 cp "$ROOT/npm-wrapper/CHANGELOG.md" "$tmp/r/npm-wrapper/"
 
-node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --check >/tmp/sync_d.out 2>&1
+node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --check >"$suite_tmp/sync_d.out" 2>&1
 ck 1 $? "missing README fails --check"
-grep -q "FILE MISSING" /tmp/sync_d.out && ck 0 0 "reports FILE MISSING" || ck 0 1 "reports FILE MISSING"
+grep -q "FILE MISSING" "$suite_tmp/sync_d.out" && ck 0 0 "reports FILE MISSING" || ck 0 1 "reports FILE MISSING"
 rm -rf "$tmp"
 
 echo "E) --sync describes prerelease target without publication claims"
@@ -160,7 +184,7 @@ node -e '
   fs.writeFileSync(p, "## [" + v + "] - 2026-10-15\n\n- Pre-release test.\n\n" + fs.readFileSync(p, "utf8"));
 ' "$(winpath "$tmp/r/npm-wrapper/CHANGELOG.md")" "$prerelease_v"
 
-node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --sync >/tmp/sync_e.out 2>&1
+node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --sync >"$suite_tmp/sync_e.out" 2>&1
 ck 0 $? "--sync exits 0 with prerelease"
 
 # Both locales describe the target, not an inferred registry GA value.
@@ -171,7 +195,7 @@ ck 0 $? "npm-wrapper/README_VN.md has neutral prerelease target"
 grep -q 'Current GA\|GA hiện tại' "$tmp/r/npm-wrapper/README.md" "$tmp/r/npm-wrapper/README_VN.md"
 ck 1 $? "no inferred current GA rows"
 node -e 'const fs=require("node:fs");const p=process.argv[1];const data=JSON.parse(fs.readFileSync(p));data.version="9.9.9";fs.writeFileSync(p,JSON.stringify(data,null,2)+"\n");' "$(winpath "$tmp/r/npm-wrapper/package.json")"
-node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --sync >/tmp/sync_mirror.out 2>&1
+node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --sync >"$suite_tmp/sync_mirror.out" 2>&1
 ck 0 $? "canonical skill version repairs npm version drift"
 repaired_v=$(node -e 'console.log(require(process.argv[1]).version)' "$(winpath "$tmp/r/npm-wrapper/package.json")")
 ck "$prerelease_v" "$repaired_v" "package version mirrored from SKILL.md"
@@ -239,20 +263,20 @@ assert.equal(verifyExistingSkillTag('v-remote-different', cwd).ok, false, 'remot
 NODE
 ck 0 $? "skill tag reuse skips identical subtree and fails closed on changed or unavailable subtree"
 
-node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --instructions >/tmp/sync_f.out 2>&1
+node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --instructions >"$suite_tmp/sync_f.out" 2>&1
 ck 0 $? "sync-release --instructions exit code"
-grep -q "Both release tags already exist. This operation was metadata repair / synchronization, not a new release." /tmp/sync_f.out && ck 0 0 "reports metadata repair note" || ck 0 1 "reports metadata repair note"
-grep -q "Git tag npm@$test_npm_v ALREADY exists" /tmp/sync_f.out && ck 0 0 "reports ALREADY exists for npm tag" || ck 0 1 "reports ALREADY exists for npm tag"
-grep -q "Skipping npm tag command" /tmp/sync_f.out && ck 0 0 "skips npm tag command" || ck 0 1 "skips npm tag command"
-grep -q "Git tag v$test_skill_v ALREADY exists" /tmp/sync_f.out && ck 0 0 "reports ALREADY exists for skill tag" || ck 0 1 "reports ALREADY exists for skill tag"
-grep -q "Skipping skill tag command" /tmp/sync_f.out && ck 0 0 "skips skill tag command" || ck 0 1 "skips skill tag command"
-grep -q "git tag npm@" /tmp/sync_f.out
+grep -q "Both release tags already exist. This operation was metadata repair / synchronization, not a new release." "$suite_tmp/sync_f.out" && ck 0 0 "reports metadata repair note" || ck 0 1 "reports metadata repair note"
+grep -q "Git tag npm@$test_npm_v ALREADY exists" "$suite_tmp/sync_f.out" && ck 0 0 "reports ALREADY exists for npm tag" || ck 0 1 "reports ALREADY exists for npm tag"
+grep -q "Skipping npm tag command" "$suite_tmp/sync_f.out" && ck 0 0 "skips npm tag command" || ck 0 1 "skips npm tag command"
+grep -q "Git tag v$test_skill_v ALREADY exists" "$suite_tmp/sync_f.out" && ck 0 0 "reports ALREADY exists for skill tag" || ck 0 1 "reports ALREADY exists for skill tag"
+grep -q "Skipping skill tag command" "$suite_tmp/sync_f.out" && ck 0 0 "skips skill tag command" || ck 0 1 "skips skill tag command"
+grep -q "git tag npm@" "$suite_tmp/sync_f.out"
 ck 1 $? "does not emit git tag npm@"
-grep -q "git tag v" /tmp/sync_f.out
+grep -q "git tag v" "$suite_tmp/sync_f.out"
 ck 1 $? "does not emit git tag v"
-grep -q "git push origin npm@" /tmp/sync_f.out
+grep -q "git push origin npm@" "$suite_tmp/sync_f.out"
 ck 1 $? "does not emit git push origin npm@"
-grep -q "git push origin v" /tmp/sync_f.out
+grep -q "git push origin v" "$suite_tmp/sync_f.out"
 ck 1 $? "does not emit git push origin v"
 rm -rf "$tmp"
 
@@ -281,16 +305,16 @@ git -C "$tmp/r" add -A
 git -C "$tmp/r" -c user.email=test@test -c user.name=test commit -qm init
 git -C "$tmp/r" remote add origin /dev/null/nonexistent
 
-node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --instructions >/tmp/sync_g.out 2>&1
+node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --instructions >"$suite_tmp/sync_g.out" 2>&1
 ck 0 $? "sync-release --instructions exit code with unreachable remote"
-grep -q "Tag creation commands suppressed for safety" /tmp/sync_g.out && ck 0 0 "reports suppression warning" || ck 0 1 "reports suppression warning"
-grep -q "git tag npm@" /tmp/sync_g.out
+grep -q "Tag creation commands suppressed for safety" "$suite_tmp/sync_g.out" && ck 0 0 "reports suppression warning" || ck 0 1 "reports suppression warning"
+grep -q "git tag npm@" "$suite_tmp/sync_g.out"
 ck 1 $? "does not emit git tag npm@"
-grep -q "git tag v" /tmp/sync_g.out
+grep -q "git tag v" "$suite_tmp/sync_g.out"
 ck 1 $? "does not emit git tag v"
-grep -q "git push origin npm@" /tmp/sync_g.out
+grep -q "git push origin npm@" "$suite_tmp/sync_g.out"
 ck 1 $? "does not emit git push origin npm@"
-grep -q "git push origin v" /tmp/sync_g.out
+grep -q "git push origin v" "$suite_tmp/sync_g.out"
 ck 1 $? "does not emit git push origin v"
 rm -rf "$tmp"
 
@@ -328,9 +352,9 @@ before_tags="$(git -C "$tmp/r" tag -l)"
 # PYTHONDONTWRITEBYTECODE: the v1 runner imports its python harness during
 # preflight, which would drop __pycache__ into the clone; that interpreter
 # artifact is not a sync-release mutation and must not fail the hash guard.
-PYTHONDONTWRITEBYTECODE=1 node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --ship --dry-run >/tmp/sync_h.out 2>&1
+PYTHONDONTWRITEBYTECODE=1 node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --ship --dry-run >"$suite_tmp/sync_h.out" 2>&1
 ck 0 $? "--ship --dry-run exits 0"
-grep -q "DRY-RUN SUCCESS" /tmp/sync_h.out && ck 0 0 "reports DRY-RUN SUCCESS" || ck 0 1 "reports DRY-RUN SUCCESS"
+grep -q "DRY-RUN SUCCESS" "$suite_tmp/sync_h.out" && ck 0 0 "reports DRY-RUN SUCCESS" || ck 0 1 "reports DRY-RUN SUCCESS"
 
 after_tree_hash="$(portable_hash "$tmp/r")"
 [ "$before_tree_hash" = "$after_tree_hash" ] && ck 0 0 "recursive tree hash unchanged" || ck 0 1 "recursive tree hash changed"
@@ -343,7 +367,7 @@ after_tree_hash="$(portable_hash "$tmp/r")"
 # coherence (tables, i18n HEAD-blob hashes) stays green.
 yes "# budget breach" | head -700 >> "$tmp/r/README.md"
 after_edit_tree_hash="$(portable_hash "$tmp/r")"
-PYTHONDONTWRITEBYTECODE=1 node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --ship --dry-run >/tmp/sync_i.out 2>&1
+PYTHONDONTWRITEBYTECODE=1 node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --ship --dry-run >"$suite_tmp/sync_i.out" 2>&1
 ck 1 $? "dry-run fails on battery failure"
 after_i_tree_hash="$(portable_hash "$tmp/r")"
 [ "$after_edit_tree_hash" = "$after_i_tree_hash" ] && ck 0 0 "tree hash unchanged on failure" || ck 0 1 "tree hash changed on failure"
@@ -391,9 +415,9 @@ git -C "$tmp/r" remote set-url origin "https://github.com/manhquydev/flow-skill.
 before_j_head="$(git -C "$tmp/r" rev-parse HEAD)"
 before_j_status="$(git -C "$tmp/r" status --porcelain)"
 
-node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --ship --yes >/tmp/sync_j.out 2>&1
+node "$(winpath "$tmp/r/scripts/sync-release.mjs")" --ship --yes >"$suite_tmp/sync_j.out" 2>&1
 ck 1 $? "sync-release --ship --yes exits 1 on unconfirmed remote"
-grep -q "Remote tag status could not be confirmed with origin" /tmp/sync_j.out && ck 0 0 "reports unconfirmed remote error" || ck 0 1 "reports unconfirmed remote error"
+grep -q "Remote tag status could not be confirmed with origin" "$suite_tmp/sync_j.out" && ck 0 0 "reports unconfirmed remote error" || ck 0 1 "reports unconfirmed remote error"
 after_j_tags="$(git -C "$tmp/r" tag -l)"
 [ -z "$after_j_tags" ] && ck 0 0 "zero tags created" || ck 0 1 "zero tags created"
 after_j_head="$(git -C "$tmp/r" rev-parse HEAD)"
@@ -401,6 +425,8 @@ after_j_head="$(git -C "$tmp/r" rev-parse HEAD)"
 after_j_status="$(git -C "$tmp/r" status --porcelain)"
 [ "$before_j_status" = "$after_j_status" ] && ck 0 0 "working tree 100% clean, zero writes" || ck 0 1 "working tree 100% clean, zero writes"
 rm -rf "$tmp"
+
+fi
 
 echo "K) gh release integration branches with mocked gh and fail-closed release view errors"
 tmp=$(mktemp -d)
@@ -599,6 +625,7 @@ cat > "$mock_bin/gh.cmd" << "EOF"
 @bash "%~dp0gh" %*
 EOF
 
+if run_core; then
 # Incapable host tooling must be rejected before either live or dry-run dispatch.
 for capability_mode in --yes --dry-run; do
   capability_state="$tmp/capability-state.json"
@@ -703,8 +730,12 @@ ck_k 1 $? "K10: output does NOT contain 'RELEASE SHIP SUCCESSFUL'" "$tmp/k10.out
 git -C "$tmp/r" remote set-url origin "https://github.com/manhquydev/flow-skill.git"
 git -C "$tmp/r" config --unset url."file://$tmp/origin.git".insteadOf "https://github.com/other-org/malicious-repo.git" || true
 git -C "$tmp/r" config url."file://$tmp/origin.git".insteadOf "https://github.com/manhquydev/flow-skill.git"
+fi
+
+# Transport guard applies to core and isolated consumer groups alike.
 test "$(git -C "$tmp/r" remote get-url --push origin)" = "file://$tmp/origin.git" || { echo "FAIL: Case K push URL is not the local bare origin" >&2; exit 1; }
 
+if [ "$release_group" != core ]; then
 # K11/K12: real workflow CLI and installed-package smoke; only process/transport
 # boundaries are fixtures. Never launch npm publish, live gh, or a network push.
 # A preload keeps this boundary identical on Windows (including direct gh spawns).
@@ -918,7 +949,8 @@ cp.execFileSync = function(command, args, options = {}) {
 syncBuiltinESMExports();
 EOF
 
-for consumer_case in sound release-crlf channel-drift release-exists release-auth release-forbidden release-http404 release-http500 release-network release-empty release-unexpected; do
+while IFS= read -r consumer_case; do
+  echo "SCENARIO: $consumer_case"
   clean_k_tags
   rm -rf "$tmp/retained" "$tmp/consumer-package"
   mkdir -p "$tmp/retained" "$tmp/smoke-tmp"
@@ -991,10 +1023,12 @@ EOF
     grep -q 'RELEASE SHIP SUCCESSFUL' "$tmp/consumer-$consumer_case.out"
     ck_k 1 "$?" "K $consumer_case: no release success message" "$tmp/consumer-$consumer_case.out" "$consumer_rc"
   fi
-done
+done < <(consumer_cases)
+fi
 clean_k_tags
 rm -rf "$tmp"
 
+if run_core; then
 echo "L) npm spawn helper regression: battery must invoke node, never npm.cmd"
 # Windows Node 22 refuses execFileSync of a .cmd (spawnSync EINVAL). Assert the exported
 # helpers resolve to process.execPath and never reference npm.cmd, and that importing the
@@ -1057,6 +1091,7 @@ else
 fi
 rm -rf "$tmp_m"
 
+fi
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1
