@@ -7,6 +7,7 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 RUN_ALL="$HERE/run_all.sh"
+unset FLOW_SUITE_SHARD
 pass=0; fail=0
 ck() { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected=$1 got=$2"; fail=$((fail+1)); fi; }
 
@@ -63,6 +64,14 @@ out="$(cd "$FIXTURE" && bash tests/run_all.sh 2>&1)"; rc=$?
 ck 0 "$rc" "empty quarantine exits 0"
 printf '%s' "$out" | grep -q 'fake suite ran' && ck 0 0 "empty quarantine runs the suite" || ck 1 0 "empty quarantine runs the suite"
 printf '%s' "$out" | grep -q 'SKIP (quarantined' && ck 1 0 "no SKIP with empty quarantine" || ck 0 0 "no SKIP with empty quarantine"
+rm -rf "$FIXTURE"
+
+echo "=== 5. CRLF line endings: entries with Windows \r\n are respected ==="
+make_fixture "$(printf 'fake_pass_suite.sh\tflake with crlf\t%s\r\n' "$future")"
+out="$(cd "$FIXTURE" && bash tests/run_all.sh 2>&1)"; rc=$?
+ck 0 "$rc" "CRLF quarantine entry exits 0"
+printf '%s' "$out" | grep -q 'SKIP (quarantined until' && ck 0 0 "CRLF quarantine skips suite" || ck 1 0 "CRLF quarantine skips suite"
+printf '%s' "$out" | grep -q 'fake suite ran' && ck 1 0 "quarantined suite body must NOT run with CRLF entry" || ck 0 0 "quarantined suite body must NOT run with CRLF entry"
 rm -rf "$FIXTURE"
 
 echo "RESULT: $pass passed, $fail failed"

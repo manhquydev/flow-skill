@@ -59,11 +59,14 @@ is_quarantined() {
   now="$(date +%s)"
   while IFS=$'\t' read -r qfile qreason qepoch || [ -n "$qfile" ]; do
     qfile="${qfile%$'\r'}"
+    qepoch="${qepoch%$'\r'}"
     case "$qfile" in ''|\#*) continue ;; esac
     case "$qepoch" in ''|*[!0-9]*) continue ;; esac
     [ -n "$qreason" ] || continue
     if [ "$qfile" = "$suite" ] && [ "$qepoch" -gt "$now" ] 2>/dev/null; then
-      echo "SKIP (quarantined until $(date -d "@$qepoch" '+%Y-%m-%d' 2>/dev/null || date '+%Y-%m-%d'): $qreason)"
+      local expiry
+      expiry="$(date -d "@$qepoch" '+%Y-%m-%d' 2>/dev/null || date -r "$qepoch" '+%Y-%m-%d' 2>/dev/null || echo "epoch $qepoch")"
+      echo "SKIP (quarantined until $expiry: $qreason)"
       return 0
     fi
   done < "$QUARANTINE"
