@@ -854,7 +854,7 @@ _check_pub_guard "$jtmp/npm-wrapper/CHANGELOG.md" "$jtmp/README_rc.md"
 ck 1 $? "prerelease 1.0.1-rc.1 does not falsely match 1.0.1 in CHANGELOG"
 
 printf 'Publication status verified 2026-11-12: npm installer 1.0.0 (2026-10-25).\n' > "$jtmp/README_ok.md"
-printf 'Publication status verified 2026-10-30: npm installer 0.9.9 (2026-10-20).\n' > "$jtmp/npm-wrapper/README_stale.md"
+printf 'Publication status verified 2026-10-30: npm installer 1.0.1 (2026-11-10).\n' > "$jtmp/npm-wrapper/README_stale.md"
 _check_pub_guard "$jtmp/npm-wrapper/CHANGELOG.md" "$jtmp/README_ok.md" "$jtmp/npm-wrapper/README_stale.md"
 ck 1 $? "cross-README publication version drift fails"
 echo
