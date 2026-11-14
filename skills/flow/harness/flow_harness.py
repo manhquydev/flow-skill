@@ -519,11 +519,17 @@ def cmd_query(con, a):
                 # NEVER return all decisions here: a story-scoped query leaking unrelated
                 # decisions corrupts card resume linked_decisions (the C-001/C-002 leak class).
                 # Whole-token boundary match: C-100 must NOT match C-1000 (substring LIKE leak).
+                # Explicit ESCAPE clause ensures literal '%', '_', and '\\' in story_id are escaped in SQL LIKE.
+                # SELECT notes for boundary regex evaluation but prune it before returning public schema.
                 esc = story_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
                 like_pat = f"%{esc}%"
-                candidates = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision WHERE title LIKE ? OR notes LIKE ?", (like_pat, like_pat))
+                candidates = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome,accessed_count,notes FROM decision WHERE title LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\'", (like_pat, like_pat))
                 boundary = re.compile(r"(?<![0-9A-Za-z_])" + re.escape(story_id) + r"(?![0-9A-Za-z_])")
-                data = [r for r in candidates if boundary.search(r.get("title") or "") or boundary.search(r.get("notes") or "")]
+                data = []
+                for r in candidates:
+                    if boundary.search(r.get("title") or "") or boundary.search(r.get("notes") or ""):
+                        r.pop("notes", None)
+                        data.append(r)
         else:
             data = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision")
         data = _order_by_reuse(data, lambda r: _is_security_text(r.get("title")))

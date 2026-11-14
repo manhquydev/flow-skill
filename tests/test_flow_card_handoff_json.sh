@@ -391,6 +391,54 @@ else
   ck 0 0 "story-boundary: C-1000 query does NOT leak C-100 decision 9100"
 fi
 
+# (e) notes-only match: story ID mentioned ONLY in notes field is returned without leaking notes into public schema
+FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" decision add --id 9200 --title "Generic architecture choice" >/dev/null 2>&1
+# Update decision 9200 notes column with C-200 reference
+FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" - "$NATIVE_SB" << 'PY'
+import sys, sqlite3, os
+db = os.path.join(sys.argv[1], ".flow", "harness.db")
+con = sqlite3.connect(db)
+con.execute("UPDATE decision SET notes=? WHERE id=?", ("Documented specifically for C-200", "9200"))
+con.commit()
+PY
+notes_out="$(FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" query decisions --story C-200 2>&1)"
+printf '%s\n' "$notes_out" | grep -q "9200"
+ck 0 "$?" "notes-only: C-200 query returns decision 9200 matched via notes"
+
+# JSON schema check: notes column must NOT leak into returned public schema
+notes_json="$(FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" query decisions --story C-200 --json 2>&1)"
+ck "PASS" "$("$py" -c '
+import json, sys
+data = json.loads(sys.argv[1])
+assert len(data) == 1, f"expected 1 record, got {len(data)}"
+assert data[0]["id"] == "9200", f"bad id {data[0]["id"]}"
+assert "notes" not in data[0], "notes column leaked into public schema"
+expected_keys = {"id", "title", "status", "predicted_impact", "actual_outcome", "accessed_count"}
+assert set(data[0].keys()) == expected_keys, f"keys mismatch: {set(data[0].keys())}"
+print("PASS")
+' "$notes_json")" "notes-only: notes column stripped and public schema preserved"
+
+# (f) literal wildcard in story ID: C_300 and C%300 matching exact literal characters without wildcard expansion
+FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" decision add --id 9300 --title "Underline case for C_300" >/dev/null 2>&1
+FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" decision add --id 9301 --title "Different case for CX300" >/dev/null 2>&1
+FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" decision add --id 9302 --title "Percent case for C%300" >/dev/null 2>&1
+u300_out="$(FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" query decisions --story C_300 2>&1)"
+printf '%s\n' "$u300_out" | grep -q "9300"
+ck 0 "$?" "literal-wildcard: C_300 query returns exact literal decision 9300"
+if printf '%s\n' "$u300_out" | grep -q "9301"; then
+  ck 0 1 "literal-wildcard: C_300 query leaks wildcard-matched CX300"
+else
+  ck 0 0 "literal-wildcard: C_300 query does NOT match CX300 (underscore escaped)"
+fi
+p300_out="$(FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" query decisions --story C%300 2>&1)"
+printf '%s\n' "$p300_out" | grep -q "9302"
+ck 0 "$?" "literal-wildcard: C%300 query returns exact literal decision 9302"
+if printf '%s\n' "$p300_out" | grep -q "9300"; then
+  ck 0 1 "literal-wildcard: C%300 query leaks C_300"
+else
+  ck 0 0 "literal-wildcard: C%300 query does NOT match C_300 (percent escaped)"
+fi
+
 echo "=== 11. Card handoff normalization regressions (paths, tabs, wrapped verify) ==="
 newsb
 cat << 'EOC' > "$SB/cards/C-003.md"
