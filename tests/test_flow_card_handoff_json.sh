@@ -174,18 +174,41 @@ ck 0 "$?" "prose output preserves NEXT_VERB=card"
 
 out_prose_active="$(bash "$RUN" resume --card C-001 2>&1)"; rc_prose_active=$?
 ck 0 "$rc_prose_active" "resume --card C-001 prose exits 0"
-printf '%s\n' "$out_prose_active" | grep -q "flow resume card: C-001"
-ck 0 "$?" "prose output preserves header"
-printf '%s\n' "$out_prose_active" | grep -q "status:  in_progress"
-ck 0 "$?" "prose output preserves status"
-printf '%s\n' "$out_prose_active" | grep -q "scope:"
-ck 0 "$?" "prose output preserves scope section"
-printf '%s\n' "$out_prose_active" | grep -q "allowed files:"
-ck 0 "$?" "prose output preserves allowed files section"
-printf '%s\n' "$out_prose_active" | grep -q "verify:"
-ck 0 "$?" "prose output preserves verify section"
-printf '%s\n' "$out_prose_active" | grep -q "\*\*First safe step\*\*"
-ck 0 "$?" "prose output preserves First safe step prompt"
+# Line-anchored full-surface check: every prose line the pre-change surface emitted.
+printf '%s\n' "$out_prose_active" | grep -qxF "flow resume card: C-001"
+ck 0 "$?" "prose preserves header line"
+printf '%s\n' "$out_prose_active" | grep -qE '^  project: .+'
+ck 0 "$?" "prose preserves project line"
+printf '%s\n' "$out_prose_active" | grep -qxF "  status:  in_progress"
+ck 0 "$?" "prose preserves status line"
+printf '%s\n' "$out_prose_active" | grep -qxF "scope:"
+ck 0 "$?" "prose preserves scope section header"
+printf '%s\n' "$out_prose_active" | grep -qxF "  Compute minimum set with API_KEY=[REDACTED:credential]"
+ck 0 "$?" "prose preserves scope body line"
+printf '%s\n' "$out_prose_active" | grep -qxF "allowed files:"
+ck 0 "$?" "prose preserves allowed files section header"
+printf '%s\n' "$out_prose_active" | grep -qxF "  src/balance/simplify.ts, src/balance/simplify.test.ts"
+ck 0 "$?" "prose preserves allowed files body line"
+printf '%s\n' "$out_prose_active" | grep -qxF "verify:"
+ck 0 "$?" "prose preserves verify section header"
+printf '%s\n' "$out_prose_active" | grep -qxF "  - [x] npm test src/balance/simplify.test.ts"
+ck 0 "$?" "prose preserves verify body line 1"
+printf '%s\n' "$out_prose_active" | grep -qxF "  - [ ] curl [REDACTED:aws-key-id]"
+ck 0 "$?" "prose preserves verify body line 2"
+printf '%s\n' "$out_prose_active" | grep -qxF "linked decisions:"
+ck 0 "$?" "prose preserves linked decisions section header"
+printf '%s\n' "$out_prose_active" | grep -qxF "  none recorded in harness"
+ck 0 "$?" "prose preserves linked decisions empty body"
+printf '%s\n' "$out_prose_active" | grep -qxF "git status:"
+ck 0 "$?" "prose preserves git status section header"
+printf '%s\n' "$out_prose_active" | grep -qE '^  (Not captured in this session|[^ ].*)$'
+ck 0 "$?" "prose preserves git status body line"
+printf '%s\n' "$out_prose_active" | grep -qxF "NEXT_VERB=card"
+ck 0 "$?" "prose preserves NEXT_VERB line"
+printf '%s\n' "$out_prose_active" | grep -qxF "**First safe step**: review Scope and run Verify commands before editing"
+ck 0 "$?" "prose preserves First safe step line"
+printf '%s\n' "$out_prose_active" | wc -l | grep -qxF "22"
+ck 0 "$?" "prose output keeps the exact 22-line surface"
 
 echo "=== 5. Project-level resume --json preservation (flow_context/v1) ==="
 out_proj_json="$(bash "$RUN" resume --json 2>&1)"; rc_proj_json=$?
@@ -291,6 +314,9 @@ ck 0 "$?" "harness query failure error message reported in JSON mode"
 
 echo "=== 10. Story-scoped decisions query does not leak unrelated decisions ==="
 py="$(command -v python3 2>/dev/null || command -v python 2>/dev/null)"
+
+# (a) empty-unrelated: story-scoped query with only an unrelated decision returns NOTHING
+newsb
 if command -v cygpath >/dev/null 2>&1; then
   NATIVE_SB="$(cygpath -m "$SB")"
   NATIVE_HARNESS="$(cygpath -m "$HARNESS")"
@@ -298,9 +324,6 @@ else
   NATIVE_SB="$SB"
   NATIVE_HARNESS="$HARNESS"
 fi
-
-# (a) empty-unrelated: story-scoped query with only an unrelated decision returns NOTHING
-newsb
 cat << 'EOC' > "$SB/cards/C-001.md"
 # C-001 — Active card unrelated decisions probe
 
@@ -347,6 +370,26 @@ printf '%s\n' "$all_out" | grep -q "9001"
 ck 0 "$?" "no-story: unfiltered query returns decision 9001"
 printf '%s\n' "$all_out" | grep -q "9002"
 ck 0 "$?" "no-story: unfiltered query returns decision 9002"
+
+# (d) story-boundary: C-100 query must NOT return C-1000's decision (substring leak)
+FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" decision add --id 9100 --title "Chosen the C-100 batching design" >/dev/null 2>&1
+FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" decision add --id 91000 --title "Chosen the C-1000 batching design" >/dev/null 2>&1
+b100_out="$(FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" query decisions --story C-100 2>&1)"
+printf '%s\n' "$b100_out" | grep -q "9100"
+ck 0 "$?" "story-boundary: C-100 query returns its own decision 9100"
+if printf '%s\n' "$b100_out" | grep -q "91000"; then
+  ck 0 1 "story-boundary: C-100 query leaks C-1000 decision 91000"
+else
+  ck 0 0 "story-boundary: C-100 query does NOT leak C-1000 decision 91000"
+fi
+b1000_out="$(FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" query decisions --story C-1000 2>&1)"
+printf '%s\n' "$b1000_out" | grep -q "91000"
+ck 0 "$?" "story-boundary: C-1000 query returns its own decision 91000"
+if printf '%s\n' "$b1000_out" | grep -q "9100[^0]"; then
+  ck 0 1 "story-boundary: C-1000 query leaks C-100 decision 9100"
+else
+  ck 0 0 "story-boundary: C-1000 query does NOT leak C-100 decision 9100"
+fi
 
 echo "=== 11. Card handoff normalization regressions (paths, tabs, wrapped verify) ==="
 newsb

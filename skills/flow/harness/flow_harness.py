@@ -518,7 +518,12 @@ def cmd_query(con, a):
                 # If no trace explicitly linked decisions, fall back to matching story id in title or notes.
                 # NEVER return all decisions here: a story-scoped query leaking unrelated
                 # decisions corrupts card resume linked_decisions (the C-001/C-002 leak class).
-                data = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision WHERE title LIKE ? OR notes LIKE ?", (f"%{story_id}%", f"%{story_id}%"))
+                # Whole-token boundary match: C-100 must NOT match C-1000 (substring LIKE leak).
+                esc = story_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                like_pat = f"%{esc}%"
+                candidates = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision WHERE title LIKE ? OR notes LIKE ?", (like_pat, like_pat))
+                boundary = re.compile(r"(?<![0-9A-Za-z_])" + re.escape(story_id) + r"(?![0-9A-Za-z_])")
+                data = [r for r in candidates if boundary.search(r.get("title") or "") or boundary.search(r.get("notes") or "")]
         else:
             data = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision")
         data = _order_by_reuse(data, lambda r: _is_security_text(r.get("title")))
