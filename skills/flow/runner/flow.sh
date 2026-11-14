@@ -1435,7 +1435,14 @@ _emit_card_handoff_json() {
   local decisions=""
   if harness_available; then
     local py; py="$(_python)"
-    decisions="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" decision query --story "$resume_card" 2>/dev/null || true)"
+    local d_err; d_err="$(mktemp 2>/dev/null || echo "$ROOT/.flow/.dec-err.$$")"
+    if ! decisions="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" query decisions --story "$resume_card" 2>"$d_err")"; then
+      local err_msg; err_msg="$(cat "$d_err" 2>/dev/null)"
+      rm -f "$d_err"
+      echo "FAIL: harness query decisions failed: ${err_msg:-exit non-zero}" >&2
+      return 1
+    fi
+    rm -f "$d_err"
   fi
   local decisions_json=""
   first=1
@@ -1536,7 +1543,7 @@ cmd_resume() {
     fi
     local card_st; card_st="$(grep -E '^status:' "$card_file" 2>/dev/null | head -1 | awk '{print $2}')"
     if [ "$opt_json" -eq 1 ]; then
-      _emit_card_handoff_json "$resume_card" "$card_file" "$card_st" "$ROOT"
+      _emit_card_handoff_json "$resume_card" "$card_file" "$card_st" "$ROOT" || return 1
       return 0
     fi
     if [ "$card_st" = "done" ]; then
@@ -1577,9 +1584,16 @@ cmd_resume() {
       local decisions=""
       if harness_available; then
         local py; py="$(_python)"
-        decisions="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" decision query --story "$resume_card" 2>/dev/null || true)"
+        local d_err; d_err="$(mktemp 2>/dev/null || echo "$ROOT/.flow/.dec-err.$$")"
+        if ! decisions="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" query decisions --story "$resume_card" 2>"$d_err")"; then
+          local err_msg; err_msg="$(cat "$d_err" 2>/dev/null)"
+          rm -f "$d_err"
+          echo "  error querying harness decisions: ${err_msg:-exit non-zero}"
+        else
+          rm -f "$d_err"
+        fi
       fi
-      if [ -n "$decisions" ]; then
+      if [ -n "$decisions" ] && [ "$decisions" != "(no decisions)" ]; then
         printf '%s\n' "$decisions" | sed 's/^/  /'
       else
         echo "  none recorded in harness"

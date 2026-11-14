@@ -221,6 +221,66 @@ ck 2 "$rc_b1" "resume --budget --json exits 2"
 bash "$RUN" resume --budget --card C-001 >/dev/null 2>&1; rc_b2=$?
 ck 2 "$rc_b2" "resume --budget --card C-001 exits 2"
 
+echo "=== 8. Semantic linked decisions in JSON and prose modes ==="
+newsb
+cat << 'EOC' > "$SB/cards/C-001.md"
+# C-001 — Active card with linked decisions
+
+status: in_progress
+deps: none
+implements: FR1
+risk: standard
+
+## Scope
+Card with decision test.
+
+## Allowed files
+src/a.ts
+
+## Verify
+- [ ] npm test
+EOC
+
+# Initialize harness and record decision 0001
+py="$("$RUN" __python__ 2>/dev/null || which python3)"
+HARNESS="$ROOT/skills/flow/harness/flow_harness.py"
+FLOW_PROJECT_ROOT="$SB" "$py" "$HARNESS" init >/dev/null 2>&1
+FLOW_PROJECT_ROOT="$SB" "$py" "$HARNESS" decision add --id 0001 --title "Use SQLite WAL mode for C-001" >/dev/null 2>&1
+
+# (a) Verify linked_decisions contains decision 0001 in JSON mode
+out_dec_json="$(bash "$RUN" resume --card C-001 --json 2>&1)"; rc_dec_json=$?
+ck 0 "$rc_dec_json" "resume --card C-001 --json exits 0 with harness decisions"
+py_dec_check="$(python3 -c '
+import json, sys
+try:
+    d = json.loads(sys.argv[1])
+    decisions = d.get("linked_decisions", [])
+    assert len(decisions) >= 1, "linked_decisions is empty"
+    assert any("0001" in item for item in decisions), "decision 0001 not in linked_decisions"
+    assert any("SQLite WAL" in item for item in decisions), "decision title not in linked_decisions"
+    print("PASS")
+except Exception as e:
+    print(f"FAIL: {e}")
+' "$out_dec_json")"
+ck "PASS" "$py_dec_check" "linked_decisions is non-empty array containing decision 0001"
+
+# (b) Verify linked decisions appears in prose mode
+out_dec_prose="$(bash "$RUN" resume --card C-001 2>&1)"; rc_dec_prose=$?
+ck 0 "$rc_dec_prose" "resume --card C-001 prose exits 0 with harness decisions"
+printf '%s
+' "$out_dec_prose" | grep -q "0001"
+ck 0 "$?" "prose output displays decision 0001"
+printf '%s
+' "$out_dec_prose" | grep -q "SQLite WAL"
+ck 0 "$?" "prose output displays decision title"
+
+echo "=== 9. Negative test: harness query error propagation (fail-closed) ==="
+# Trigger harness query decisions error via test hook
+bad_harness_out="$(FLOW_TEST_DECISIONS_ERROR=1 bash "$RUN" resume --card C-001 --json 2>&1)"; bad_rc=$?
+ck 1 "$bad_rc" "harness query failure propagates as error (exit 1) in JSON mode"
+printf '%s\n' "$bad_harness_out" | grep -q "FAIL: harness query decisions failed: simulated harness query error for testing"
+ck 0 "$?" "harness query failure error message reported in JSON mode"
+
 clean
 
 echo

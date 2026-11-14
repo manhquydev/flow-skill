@@ -493,7 +493,34 @@ def cmd_query(con, a):
             print("(no tools registered)")
         return 0
     if a.query_cmd == "decisions":
-        data = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision")
+        if os.environ.get("FLOW_TEST_DECISIONS_ERROR") == "1":
+            print("simulated harness query error for testing", file=sys.stderr)
+            return 1
+        if getattr(a, "story", None):
+            story_id = a.story
+            # Find decisions made in traces for this story or containing story id in notes/title
+            trace_recs = _db.rows(con, "SELECT decisions_made FROM trace WHERE story_id=?", (story_id,))
+            linked_ids = set()
+            for tr in trace_recs:
+                dm = tr.get("decisions_made")
+                if dm:
+                    try:
+                        parsed = json.loads(dm) if isinstance(dm, str) else dm
+                        if isinstance(parsed, list):
+                            for d_item in parsed:
+                                linked_ids.add(str(d_item))
+                    except Exception:
+                        pass
+            if linked_ids:
+                placeholders = ",".join(["?"] * len(linked_ids))
+                data = _db.rows(con, f"SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision WHERE id IN ({placeholders})", tuple(linked_ids))
+            else:
+                # If no trace explicitly linked decisions, fall back to matching story in title or notes or all if story matches
+                data = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision WHERE title LIKE ? OR notes LIKE ?", (f"%{story_id}%", f"%{story_id}%"))
+                if not data:
+                    data = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision")
+        else:
+            data = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision")
         data = _order_by_reuse(data, lambda r: _is_security_text(r.get("title")))
         _touch_accessed(con, "decision", [r["id"] for r in data])
         if a.json:
@@ -1478,7 +1505,7 @@ def build_parser():
     q3 = pqs.add_parser("friction"); q3.add_argument("--json", action="store_true")
     q4 = pqs.add_parser("tools"); q4.add_argument("--responsibility"); q4.add_argument("--json", action="store_true")
     q4.add_argument("--capability"); q4.add_argument("--status", choices=D.TOOL_STATUSES)
-    q5 = pqs.add_parser("decisions"); q5.add_argument("--json", action="store_true")
+    q5 = pqs.add_parser("decisions"); q5.add_argument("--json", action="store_true"); q5.add_argument("--story")
 
     sub.add_parser("audit", help="entropy/drift audit: orphaned/unverified/stale records + a 0-100 score")
     pp = sub.add_parser("propose", help="deterministic improvement proposals from repeated friction/interventions + audit drift")
