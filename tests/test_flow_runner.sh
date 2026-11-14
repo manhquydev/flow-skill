@@ -534,6 +534,28 @@ has "$out_add_ok" "PASS: debt recorded in DEBT.md" "debt add reports PASS"
 
 rm -rf "$SB"
 
+echo "Z) empty suffix card crash regression: check C-, card done C-, cards/C-.md"
+SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"; mkdir -p "$SB/flow" "$SB/cards"
+touch "$SB/cards/C-.md"
+
+# 1. check C- must fail cleanly without bash integer arithmetic error
+out_check="$(bash "$RUN" check C- 2>&1)"; rc_check=$?
+ck 1 $rc_check "check C- exits 1"
+has "$out_check" "FAIL: card not found for 'C-'" "check C- reports clean card not found"
+no "$out_check" "invalid integer constant" "check C- no bash integer constant error"
+
+# 2. card done C- must fail cleanly without bash integer arithmetic error
+out_done="$(bash "$RUN" card done C- 2>&1)"; rc_done=$?
+ck 1 $rc_done "card done C- exits 1"
+has "$out_done" "FAIL: card not found for 'C-'" "card done C- reports clean card not found"
+no "$out_done" "invalid integer constant" "card done C- no bash integer constant error"
+
+# 3. presence of cards/C-.md must not crash highest_card (e.g. via /flow card)
+out_card="$(bash "$RUN" card 2>&1)"; rc_card=$?
+no "$out_card" "invalid integer constant" "cards/C-.md does not crash highest_card with integer error"
+
+rm -rf "$SB"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

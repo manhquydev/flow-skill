@@ -844,7 +844,7 @@ highest_card() {
     for f in "$CARDS_DIR"/C-*.md; do
       [ -e "$f" ] || continue
       n="$(basename "$f" .md)"; n="${n#C-}"
-      case "$n" in (*[!0-9]*) continue;; esac
+      case "$n" in (""|*[!0-9]*) continue;; esac
       n=$((10#$n))
       [ "$n" -gt "$max" ] && max=$n
     done
@@ -855,7 +855,7 @@ highest_card() {
 resolve_card_file() { # $1 = "C-001" | "001" | "1" -> path or empty
   local arg="$1" num
   num="${arg#C-}"; num="${num#c-}"
-  case "$num" in (*[!0-9]*) echo ""; return 1;; esac
+  case "$num" in (""|*[!0-9]*) echo ""; return 1;; esac
   num=$((10#$num))
   printf '%s/C-%03d.md' "$CARDS_DIR" "$num"
 }
