@@ -413,6 +413,7 @@ checkout_err=$(git -C "$tmp/r" checkout -B master 2>&1) || {
   exit 1
 }
 cp "$ROOT/scripts/sync-release.mjs" "$tmp/r/scripts/"
+cp "$ROOT/scripts/check-release-live.mjs" "$ROOT/scripts/release-preflight.sh" "$tmp/r/scripts/"
 cp "$ROOT/scripts/release-dispatch-response.mjs" "$tmp/r/scripts/"
 cp "$ROOT/scripts/release-provenance.mjs" "$ROOT/scripts/verify-attestation-with-gh.mjs" "$tmp/r/scripts/"
 cp "$ROOT/scripts/release-run-artifact.mjs" "$tmp/r/scripts/"
@@ -425,15 +426,34 @@ cp "$ROOT/npm-wrapper/scripts/semver.mjs" "$tmp/r/npm-wrapper/scripts/"
 mkdir -p "$tmp/r/docs"
 cp "$ROOT/docs/release-intent.json" "$tmp/r/docs/"
 copy_release_metadata
+k_skill_v=$(node -e 'const fs = require("node:fs"); const m = fs.readFileSync(process.argv[1], "utf8").match(/version:\s*"([^"]+)"/); console.log(m[1])' "$(winpath "$tmp/r/skills/flow/SKILL.md")")
+k_npm_v=$(node -e 'const p = process.argv[1]; console.log(require(p).version)' "$(winpath "$tmp/r/npm-wrapper/package.json")")
 node -e 'const fs=require("node:fs");const p=process.argv[1];const intent=JSON.parse(fs.readFileSync(p));intent.intent=true;fs.writeFileSync(p,JSON.stringify(intent));' "$(winpath "$tmp/r/docs/release-intent.json")"
+node --input-type=module - "$(winpath "$tmp/r")" "$k_npm_v" << 'EOF'
+import fs from 'node:fs';
+import path from 'node:path';
+const [repo, version] = process.argv.slice(2);
+for (const rel of ['README.md', 'README_VN.md', 'npm-wrapper/README.md', 'npm-wrapper/README_VN.md']) {
+  const p = path.join(repo, rel);
+  if (!fs.existsSync(p)) continue;
+  let text = fs.readFileSync(p, 'utf8');
+  text = text.replace(/^(Publication status verified|Bản phát hành đã xác minh)\b.*$/gm,
+    (m) => m.replace(/1\.0\.0/g, version));
+  fs.writeFileSync(p, text, 'utf8');
+}
+EOF
 cp "$ROOT/scripts/check-release-coherence.sh" "$tmp/r/scripts/"
-git -C "$tmp/r" add scripts/ .github/workflows/publish-npm-wrapper.yml npm-wrapper/scripts/semver.mjs docs/release-intent.json
-commit_err=$(git -C "$tmp/r" commit -qm "sync scripts" 2>&1) || {
+git -C "$tmp/r" add scripts/ .github/workflows/publish-npm-wrapper.yml npm-wrapper/scripts/semver.mjs docs/release-intent.json README.md README_VN.md npm-wrapper/README.md npm-wrapper/README_VN.md
+commit_err=$(git -C "$tmp/r" commit -qm "sync scripts and fixture publication receipts" 2>&1) || {
   if ! git -C "$tmp/r" diff --cached --quiet; then
     echo "FAIL: git commit failed for scripts/: $commit_err" >&2
     exit 1
   fi
 }
+bash "$tmp/r/scripts/check-i18n-pairs.sh" record README.md >/dev/null 2>&1 || true
+bash "$tmp/r/scripts/check-i18n-pairs.sh" record npm-wrapper/README.md >/dev/null 2>&1 || true
+git -C "$tmp/r" add docs/i18n-pairs.txt
+git -C "$tmp/r" commit -qm "sync i18n pairs for fixture" || true
 git -C "$tmp/r" push -q origin master
 git -C "$tmp/r" config url."file://$tmp/origin.git".insteadOf "https://github.com/manhquydev/flow-skill.git"
 git -C "$tmp/r" remote set-url origin "https://github.com/manhquydev/flow-skill.git"
@@ -524,8 +544,8 @@ if [ "$1" = "api" ]; then
       node -e 'const i=JSON.parse(require("fs").readFileSync(process.env.GH_MOCK_STATE_FILE,"utf8")).inputs;console.log(JSON.stringify({id:777,actor:{id:12345},head_sha:i.expected_sha,path:".github/workflows/publish-npm-wrapper.yml",event:"workflow_dispatch",display_title:`Publisher ${i.expected_sha} ${i.expected_version} ${i.dispatch_id}`,status:"completed",conclusion:"success",run_attempt:1}));'
       exit 0
       ;;
-    *commits/*/check-runs*)
-      head_sha=$(echo "$2" | sed -n 's|.*/commits/\([^/]*\)/check-runs.*|\1|p')
+    *commits*check-runs*)
+      head_sha=$(echo "$*" | sed -n 's|.*commits/\([^/?]*\).*|\1|p')
       cat << JSON
 {"check_runs":[{"id":1,"name":"all-checks-passed","head_sha":"$head_sha","status":"completed","conclusion":"success","app":{"slug":"$ci_app"}}]}
 JSON
@@ -706,8 +726,12 @@ const crypto = require('node:crypto');
 const { syncBuiltinESMExports } = require('node:module');
 const root = fs.realpathSync(process.env.K_CONSUMER_ROOT);
 // Unrelated Node programs in the real preflight battery retain their own boundaries.
-if (!['sync-release.mjs', 'release-workflow.mjs', 'verify-attestation-with-gh.mjs', 'smoke.mjs'].includes(path.basename(process.argv[1] || ''))) return;
+const scriptName = path.basename(process.argv[1] || '');
+if (!['sync-release.mjs', 'release-workflow.mjs', 'verify-attestation-with-gh.mjs', 'smoke.mjs', 'check-release-live.mjs'].includes(scriptName)) return;
 const repo = path.join(root, 'r');
+// Intercept check-release-live.mjs ONLY when it is called directly on the release candidate repo ($repo)
+if (scriptName === 'check-release-live.mjs' && process.env.FLOW_RELEASE_ROOT && path.resolve(process.env.FLOW_RELEASE_ROOT) !== path.resolve(repo)) return;
+if (scriptName === 'check-release-live.mjs' && !process.env.FLOW_RELEASE_ROOT && path.resolve(path.join(path.dirname(process.argv[1]), '..')) !== path.resolve(repo)) return;
 const store = path.join(root, 'retained');
 const trace = path.join(root, 'consumer-trace.jsonl');
 const stateFile = path.join(root, 'consumer-state.json');
@@ -730,7 +754,7 @@ function registry(args, options) {
   const spec = args[1], field = args[2];
   assert.ok(spec === '@manhquy/flow-skill' || spec === `@manhquy/flow-skill@${s.version}`);
   const explicit = args.find(a => a.startsWith('--registry='));
-  if (args.includes('--json') && field !== 'dist.attestations.provenance') assert.equal(explicit, '--registry=https://registry.npmjs.org/');
+  if (explicit) assert.equal(explicit, '--registry=https://registry.npmjs.org/');
   else assert.equal(options.env?.npm_config_registry, 'https://registry.npmjs.org/');
   log('registry', { spec, field, registry: 'https://registry.npmjs.org/', published: s.published, afterSmoke: !!s.afterSmoke });
   if (!s.published && field === 'version') return result('', 1, 'npm ERR! E404 Not Found');
@@ -836,16 +860,23 @@ function gh(args, options) {
   throw new Error(`Unrecognized gh boundary: ${json(args)}`);
 }
 cp.spawnSync = function(command, args, options = {}) {
-  if (command === 'git') return spawn(command, args, options);
-  if (command === 'gh') {
+  let cmd = command, cmdArgs = args;
+  if ((command === 'cmd.exe' || command === 'cmd') && args[0] === '/d' && args[1] === '/c') {
+    const raw = args.slice(2).join(' ').trim();
+    const parts = raw.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+    cmd = parts[0]?.replace(/^"|"$/g, '') || '';
+    cmdArgs = parts.slice(1).map(p => p.replace(/^"|"$/g, ''));
+  }
+  if (cmd === 'git') return spawn(cmd, cmdArgs, options);
+  if (cmd === 'gh') {
     try {
-      const out = gh(args, options);
+      const out = gh(cmdArgs, options);
       return { status: 0, stdout: out, stderr: '', error: null };
     } catch (err) {
       return { status: err.status ?? 1, stdout: '', stderr: err.stderr?.toString() ?? err.message, error: err };
     }
   }
-  if (command === 'npm') return registry(args, options);
+  if (cmd === 'npm') return registry(cmdArgs, options);
   if (command === 'npx') {
     const s = state();
     assert.deepEqual(args.slice(0, 3), ['--yes', `--package=@manhquy/flow-skill@${s.version}`, 'flow-skill']);
@@ -869,8 +900,9 @@ cp.execFileSync = function(command, args, options = {}) {
   if (command === 'git' && ['push', 'tag'].includes(args[0]) && !(args[0] === 'tag' && args[1] === '-l')) {
     const s = state(); assert.equal(s.afterSmoke, true);
     const events = fs.readFileSync(trace, 'utf8').trim().split('\n').map(JSON.parse);
+    const releaseCase = process.env.K_CONSUMER_HOLLOW;
     assert.deepEqual(events.filter(e => e.event === 'registry' && e.afterSmoke).map(e => e.field), ['version', 'dist.integrity', 'dist-tags']);
-    assert.notEqual(process.env.K_CONSUMER_HOLLOW, 'channel-drift');
+    assert.notEqual(releaseCase, 'channel-drift');
     if (args[0] === 'push') {
       assert.deepEqual(args.slice(0, 4), ['push', '--atomic', 'origin', 'master']);
       assert.equal(exec('git', ['remote', 'get-url', '--push', 'origin'], { cwd: repo, encoding: 'utf8' }).trim(), process.env.K_LOCAL_ORIGIN);
@@ -921,7 +953,10 @@ assert.deepEqual(flow, ['sound', 'release-crlf'].includes(releaseCase) ? [...fin
 assert.equal(events.filter(e => e.event === 'release-view').length, reachedRelease ? 1 : 0);
 assert.equal(events.filter(e => e.event === 'release').length, ['sound', 'release-crlf'].includes(releaseCase) ? 1 : 0, 'exact gh release create invocation count');
 assert.equal(events.filter(e => e.event === 'consumer').length, 6);
-assert.deepEqual(events.filter(e => e.event === 'registry' && e.afterSmoke).map(e => e.field), ['version', 'dist.integrity', 'dist-tags']);
+const expectedRegistry = ['sound', 'release-crlf'].includes(releaseCase)
+  ? ['version', 'dist.integrity', 'dist-tags', 'dist-tags', 'dist.attestations.provenance']
+  : ['version', 'dist.integrity', 'dist-tags'];
+assert.deepEqual(events.filter(e => e.event === 'registry' && e.afterSmoke).map(e => e.field), expectedRegistry);
 for (const e of events.filter(e => e.event === 'registry')) assert.equal(e.registry, 'https://registry.npmjs.org/');
 for (const directory of [path.join(root, 'r'), path.join(root, 'origin.git')]) {
   const git = args => execFileSync('git', args, { cwd: directory, encoding: 'utf8' }).trim();

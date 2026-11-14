@@ -164,8 +164,10 @@ if (npmV && parseSemver(npmV)) {
   }
 
   // (a) Live npm dist-tags + provenance with bounded retry for registry eventual consistency
-  const maxRegistryRetries = Math.max(1, Number(process.env.FLOW_REGISTRY_RETRIES || 5));
-  const retryDelayMs = Math.max(0, Number(process.env.FLOW_REGISTRY_RETRY_DELAY_MS !== undefined ? process.env.FLOW_REGISTRY_RETRY_DELAY_MS : 2000));
+  const rawRetries = Number(process.env.FLOW_REGISTRY_RETRIES);
+  const maxRegistryRetries = Number.isInteger(rawRetries) && rawRetries >= 1 ? Math.min(rawRetries, 60) : 5;
+  const rawDelay = Number(process.env.FLOW_REGISTRY_RETRY_DELAY_MS);
+  const retryDelayMs = Number.isFinite(rawDelay) && rawDelay >= 0 ? Math.min(rawDelay, 30_000) : 2000;
 
   let distTagsOk = false;
   let provOk = false;
@@ -267,8 +269,22 @@ if (npmV && parseSemver(npmV)) {
       const skillTagSha = refMap[`refs/tags/v${skillVersion}^{}`] || refMap[`refs/tags/v${skillVersion}`] || null;
       if (!skillTagSha) {
         fail(`remote tag v${skillVersion} missing on origin`);
+      } else if (skillTagSha === headSha && (!npmTagSha || skillTagSha === npmTagSha)) {
+        ok(`remote tag v${skillVersion} matches npm@${npmV} and HEAD (${skillTagSha.slice(0, 12)})`);
       } else if (npmTagSha && skillTagSha !== npmTagSha) {
         fail(`remote tag v${skillVersion} (${skillTagSha}) != npm@${npmV} (${npmTagSha})`);
+      } else if (process.env.FLOW_ALLOW_SKILL_TAG_REUSE === '1') {
+        const tagTreeRes = runCmd('git', ['rev-parse', '--verify', `${skillTagSha}:skills`]);
+        const headTreeRes = runCmd('git', ['rev-parse', '--verify', 'HEAD:skills']);
+        const tagTree = tagTreeRes.status === 0 ? tagTreeRes.stdout.trim() : null;
+        const headTree = headTreeRes.status === 0 ? headTreeRes.stdout.trim() : null;
+        if (tagTree && headTree && tagTree === headTree) {
+          ok(`remote tag v${skillVersion} reused with identical skills/ subtree (${tagTree.slice(0, 12)})`);
+        } else if (/^[0-9a-f]{40}$/.test(headSha) && skillTagSha !== headSha) {
+          fail(`remote tag v${skillVersion} (${skillTagSha}) != local HEAD (${headSha})`);
+        } else {
+          ok(`remote tag v${skillVersion} matches npm@${npmV} and HEAD (${skillTagSha.slice(0, 12)})`);
+        }
       } else if (/^[0-9a-f]{40}$/.test(headSha) && skillTagSha !== headSha) {
         fail(`remote tag v${skillVersion} (${skillTagSha}) != local HEAD (${headSha})`);
       } else {
