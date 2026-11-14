@@ -217,7 +217,10 @@ echo "M) EMPTY-TOKEN-CARD: empty Allowed-files list opens its own wave (wildcard
 setup_green
 # C-002 declares an Allowed files section with NO entries -> zero ownership
 # tokens -> wildcard: it must not share a wave with any other card.
+# C-003 shares bin/ with C-001 so it cannot join wave 1; with C-002 in wave 2,
+# C-003 must not join C-002's wildcard wave and must open wave 3.
 printf '# C-002\nstatus: todo\ndeps: none\nimplements: none\nrisk: standard\nrisk-reason: ordinary non-security work\nrisk-ack: none\n## Scope\ntwo\n## Allowed files\n\n## Verify\n- [x] ok\n## Done-evidence\ncli\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' > "$SB/cards/C-002.md"
+printf '# C-003\nstatus: todo\ndeps: none\nimplements: none\nrisk: standard\nrisk-reason: ordinary non-security work\nrisk-ack: none\n## Scope\nthree\n## Allowed files\nbin/\n## Verify\n- [x] ok\n## Done-evidence\ncli\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' > "$SB/cards/C-003.md"
 out="$(bash "$RUN" ready --json 2>&1)"; rc=$?
 ck 0 "$rc" "ready --json with empty-token card rc 0"
 py_res="$(python3 -c '
@@ -225,10 +228,13 @@ import sys, json
 try:
     d = json.loads(sys.argv[1])
     b = dict((item["id"], item) for item in d.get("buildable", []))
-    assert sorted(b) == ["C-001", "C-002"], "buildable ids: %s" % sorted(b)
+    assert sorted(b) == ["C-001", "C-002", "C-003"], "buildable ids: %s" % sorted(b)
     assert b["C-002"]["allowed_files"] == [], "C-002 allowed not empty: %s" % b["C-002"].get("allowed_files")
-    assert d.get("groups") == [["C-001"], ["C-002"]], "groups not split: %s" % d.get("groups")
-    assert b["C-001"]["wave"] != b["C-002"]["wave"], "empty-token card shares a wave"
+    assert b["C-003"]["allowed_files"] == ["bin/"], "C-003 allowed not bin/: %s" % b["C-003"].get("allowed_files")
+    assert d.get("groups") == [["C-001"], ["C-002"], ["C-003"]], "groups not split: %s" % d.get("groups")
+    assert b["C-001"]["wave"] != b["C-002"]["wave"], "C-001 and C-002 share a wave"
+    assert b["C-002"]["wave"] != b["C-003"]["wave"], "empty-token C-002 shares wave with subsequent card C-003"
+    assert b["C-001"]["wave"] != b["C-003"]["wave"], "C-001 and C-003 share a wave"
     print("OK")
 except Exception as e:
     print("ERR: %s" % e)
@@ -236,7 +242,7 @@ except Exception as e:
 ck "OK" "$py_res" "empty-token card isolated into its own wave"
 rm -rf "$SB"
 
-echo "N) MERGE-CONFLICT-STOP: same-file cards land in separate waves (no concurrent overwrite)"
+echo "N) SAME-FILE-CARDS: cards sharing an allowed file land in separate waves"
 setup_green
 printf '# C-002\nstatus: todo\ndeps: none\nimplements: none\nrisk: standard\nrisk-reason: ordinary non-security work\nrisk-ack: none\n## Scope\ntwo\n## Allowed files\nbin/\n## Verify\n- [x] ok\n## Done-evidence\ncli\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' > "$SB/cards/C-002.md"
 printf '# C-003\nstatus: todo\ndeps: none\nimplements: none\nrisk: standard\nrisk-reason: ordinary non-security work\nrisk-ack: none\n## Scope\nthree\n## Allowed files\nbin/\n## Verify\n- [x] ok\n## Done-evidence\ncli\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' > "$SB/cards/C-003.md"
