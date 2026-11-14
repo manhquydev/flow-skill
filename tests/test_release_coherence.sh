@@ -639,6 +639,30 @@ PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --stri
 ck 0 "$strict_pass_rc" "--strict-published passes when all 6 axes match"
 grep -q 'PREFLIGHT PASS — strict published coherence verified across all 6 axes' "$OUT/strict-pass.out" && ck 0 0 "--strict-published reports post-publish PREFLIGHT PASS without ship prompt" || ck 0 1 "--strict-published reports post-publish PREFLIGHT PASS without ship prompt"
 
+# Reusing a skill tag is permitted only for identical skills trees.
+# All pushes here target the fixture's local bare repository, never GitHub.
+printf '\nfixture docs-only change\n' > "$strict_repo/reuse-note.txt"
+git -C "$strict_repo" add reuse-note.txt
+git -C "$strict_repo" commit -qm "fixture docs-only commit"
+git -C "$strict_repo" tag -f "npm@2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "npm@2.0.0"
+reuse_rc=0
+FLOW_ALLOW_SKILL_TAG_REUSE=1 PATH="$strict_bin:$PATH" node "$strict_repo/scripts/check-release-live.mjs" >"$OUT/reuse-pass.out" 2>&1 || reuse_rc=$?
+ck 0 "$reuse_rc" "skill tag reuse accepts identical skills tree with npm tag at new HEAD"
+reuse_off_rc=0
+PATH="$strict_bin:$PATH" node "$strict_repo/scripts/check-release-live.mjs" >"$OUT/reuse-off.out" 2>&1 || reuse_off_rc=$?
+ck 1 "$reuse_off_rc" "skill tag reuse remains opt-in"
+printf 'changed skill tree\n' > "$strict_repo/skills/reuse-negative.txt"
+git -C "$strict_repo" add skills/reuse-negative.txt
+git -C "$strict_repo" commit -qm "fixture changed skills tree"
+git -C "$strict_repo" tag -f "npm@2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "npm@2.0.0"
+reuse_bad_rc=0
+FLOW_ALLOW_SKILL_TAG_REUSE=1 PATH="$strict_bin:$PATH" node "$strict_repo/scripts/check-release-live.mjs" >"$OUT/reuse-negative.out" 2>&1 || reuse_bad_rc=$?
+ck 1 "$reuse_bad_rc" "skill tag reuse rejects different skills tree"
+git -C "$strict_repo" tag -f "v2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "v2.0.0"
+
 strict_nogh_rc=0
 PATH="$strict_bin:$PATH" FAKE_GH_RELEASE=missing bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-nogh.out" 2>&1 || strict_nogh_rc=$?
 ck 1 "$strict_nogh_rc" "--strict-published fails when GitHub Release missing"

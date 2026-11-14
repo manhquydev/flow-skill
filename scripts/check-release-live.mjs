@@ -271,8 +271,6 @@ if (npmV && parseSemver(npmV)) {
         fail(`remote tag v${skillVersion} missing on origin`);
       } else if (skillTagSha === headSha && (!npmTagSha || skillTagSha === npmTagSha)) {
         ok(`remote tag v${skillVersion} matches npm@${npmV} and HEAD (${skillTagSha.slice(0, 12)})`);
-      } else if (npmTagSha && skillTagSha !== npmTagSha) {
-        fail(`remote tag v${skillVersion} (${skillTagSha}) != npm@${npmV} (${npmTagSha})`);
       } else if (process.env.FLOW_ALLOW_SKILL_TAG_REUSE === '1') {
         const tagTreeRes = runCmd('git', ['rev-parse', '--verify', `${skillTagSha}:skills`]);
         const headTreeRes = runCmd('git', ['rev-parse', '--verify', 'HEAD:skills']);
@@ -285,6 +283,8 @@ if (npmV && parseSemver(npmV)) {
         } else {
           ok(`remote tag v${skillVersion} matches npm@${npmV} and HEAD (${skillTagSha.slice(0, 12)})`);
         }
+      } else if (npmTagSha && skillTagSha !== npmTagSha) {
+        fail(`remote tag v${skillVersion} (${skillTagSha}) != npm@${npmV} (${npmTagSha})`);
       } else if (/^[0-9a-f]{40}$/.test(headSha) && skillTagSha !== headSha) {
         fail(`remote tag v${skillVersion} (${skillTagSha}) != local HEAD (${headSha})`);
       } else {
