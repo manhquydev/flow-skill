@@ -62,6 +62,108 @@ else
   bad "SKILL must mention flow-owned or R-IMPROVE-HARNESS"
 fi
 
+echo "F) every flow.sh dispatch verb label is documented in command-dispatch.md"
+# Extract the MAIN dispatch case block (after FLOW_LOG_START=, tolerating trailing
+# comments/whitespace on `case "$cmd" in` and `esac`). Filter logic:
+# - take only arms of the form `<word>|<word>) cmd_xxx`; alternation labels are split
+#   on '|' and each alternative checked separately;
+# - skip the empty-string alternative (`""`) - it documents `/flow` itself via the status row;
+# - underscores in labels map to dashes (project-type) to match doc spelling;
+# - match ONLY the first table cell (column 1 between first and second `|`) as `` `/flow <verb>` ``
+#   or `` `/flow <verb> `` (with an explicit exception for default `status` -> `` `/flow` ``),
+#   so unrelated words in column 3 (e.g. `converged` in `loop-log`) never mask a missing row;
+# - fail closed if `$RUNNER`/`$DISPATCH_DOC` is missing or extracted verb count == 0.
+RUNNER="$HERE/../skills/flow/runner/flow.sh"
+DISPATCH_DOC="$HERE/../skills/flow/references/command-dispatch.md"
+
+_extract_dispatch_verbs() {
+  local runner_path="$1"
+  awk '
+    /^FLOW_LOG_START=/ { in_dispatch = 1 }
+    in_dispatch && /^case "\$cmd" in([[:space:]]*(#.*)?)?$/ { in_case = 1; next }
+    in_case && /^esac([[:space:]]*(#.*)?)?$/ { exit }
+    in_case { print }
+  ' "$runner_path" \
+    | grep -E '^[[:space:]]*[a-z_"|-]+\)[[:space:]]+cmd_' \
+    | sed -E 's/^[[:space:]]*//; s/\)[[:space:]]+cmd_.*$//' \
+    | tr '|' '\n' \
+    | sed -E 's/^"(.*)"$/\1/; /^""?$/d; /^$/d' \
+    | sort -u
+}
+
+_check_dispatch_coverage() {
+  local runner_path="$1" dispatch_doc="$2" quiet="${3:-0}"
+  [ -f "$runner_path" ] || { [ "$quiet" -eq 0 ] && echo "  FAIL [runner missing: $runner_path]"; return 1; }
+  [ -f "$dispatch_doc" ] || { [ "$quiet" -eq 0 ] && echo "  FAIL [dispatch doc missing: $dispatch_doc]"; return 1; }
+
+  local verbs count
+  verbs="$(_extract_dispatch_verbs "$runner_path")"
+  count="$(printf '%s\n' "$verbs" | grep -c . || true)"
+  if [ "$count" -eq 0 ]; then
+    [ "$quiet" -eq 0 ] && echo "  FAIL [extracted 0 dispatch verbs from $runner_path]"
+    return 1
+  fi
+
+  local col1 missing=0 label doc_label
+  col1="$(awk -F'|' '/^\|/{print $2}' "$dispatch_doc")"
+  while IFS= read -r label; do
+    [ -n "$label" ] || continue
+    doc_label="$(printf '%s' "$label" | tr '_' '-')"
+    if [ "$doc_label" = "status" ]; then
+      if ! printf '%s\n' "$col1" | grep -qE '`/flow(`|[[:space:]]+status([[:space:]`]|$))'; then
+        [ "$quiet" -eq 0 ] && echo "  FAIL [default 'status' verb (/flow) missing from column 1 of command-dispatch.md]"
+        missing=$((missing+1))
+      fi
+    else
+      if ! printf '%s\n' "$col1" | grep -qE "\`/flow ${doc_label}([[:space:]\`]|$)"; then
+        [ "$quiet" -eq 0 ] && echo "  FAIL [dispatch verb '$doc_label' missing from column 1 of command-dispatch.md]"
+        missing=$((missing+1))
+      fi
+    fi
+  done <<VERBS
+$verbs
+VERBS
+  [ "$missing" -eq 0 ]
+}
+
+if _check_dispatch_coverage "$RUNNER" "$DISPATCH_DOC"; then
+  verb_count="$(_extract_dispatch_verbs "$RUNNER" | wc -l | tr -d ' ')"
+  ok "all $verb_count flow.sh dispatch verbs present in column 1 of command-dispatch.md"
+else
+  bad "dispatch verb coverage check failed"
+fi
+
+# Self-negative checks in disposable temp dir (must fail closed when wrong).
+neg_tmp="$(mktemp -d)"
+trap 'rm -rf "$neg_tmp"' EXIT
+
+# Neg 1: removing `/flow converge` row from column 1 must FAIL (not masked by `converged` in loop-log).
+grep -v '^| `/flow converge`' "$DISPATCH_DOC" > "$neg_tmp/dispatch-no-converge.md"
+if _check_dispatch_coverage "$RUNNER" "$neg_tmp/dispatch-no-converge.md" 1; then
+  bad "negative guard: missing /flow converge row unexpectedly passed"
+else
+  ok "negative guard: missing /flow converge row fails closed"
+fi
+
+# Neg 2: empty extracted verb list must FAIL (never vacuous pass).
+printf 'FLOW_LOG_START=1\ncase "$cmd" in\nesac\n' > "$neg_tmp/empty-runner.sh"
+if _check_dispatch_coverage "$neg_tmp/empty-runner.sh" "$DISPATCH_DOC" 1; then
+  bad "negative guard: empty extracted verb list unexpectedly passed"
+else
+  ok "negative guard: empty extracted verb list fails closed"
+fi
+
+# Neg 3: trailing comment on `case "$cmd" in # dispatch` must still extract and pass.
+sed 's/^case "\$cmd" in$/case "$cmd" in # dispatch/' "$RUNNER" > "$neg_tmp/commented-runner.sh"
+if _check_dispatch_coverage "$neg_tmp/commented-runner.sh" "$DISPATCH_DOC" 1; then
+  ok "resilience guard: trailing comment on case line still extracts all verbs"
+else
+  bad "resilience guard: trailing comment on case line broke extraction"
+fi
+
+rm -rf "$neg_tmp"
+trap - EXIT
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

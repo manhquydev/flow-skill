@@ -25,14 +25,18 @@ rule text is enforceable by *a* judge," not "this build's self-review caught eve
 
 ## Fixtures and thresholds
 
-Seventeen shipped fixtures (`skills/flow/eval/fixtures/`, manifest `skills/flow/eval/manifest.tsv`):
+Nineteen shipped fixtures (`skills/flow/eval/fixtures/`, manifest `skills/flow/eval/manifest.tsv`):
 sound/hollow pairs for Stage 01 (Research — fabricated quotes, vague "users"), Stage 02 (Scope —
-grade laundering, a real C quietly graded B), and Stage 05 (including an acyclic module dependency
+grade laundering, a real C quietly graded B), Stage 03 (PRD — numeric metric + pain table vs
+unquantified adjective 'fast' / feature with no pain), and Stage 05 (including an acyclic module dependency
 ledger versus a cross-module reference with missing ledger facts; heading-mapped from `gate-05.md`; live
 floor unmeasured until operator `--record`; do not cat `gate-shared.md` onto 05), and the card gate:
 - **b00_unchecked / b00_supported** — Stage-00 brownfield-inspection pair (`flow/00-inspect.md`):
   an unchecked Gate box (`- [ ]`, assessment not actually inspected) is a semantic **FLAG**; a
   checked box backed by observed-from-source evidence (named code paths and verdicts) passes.
+- **f03a / f03b** — Stage-03 PRD pair (`flow/03-prd.md`): a fully quantified PRD with numeric
+  metrics and an explicit pain-to-feature mapping table passes; an unquantified adjective ('fast')
+  or a feature disconnected from any user pain is a semantic FLAG.
 - **f07_acyclic / f07_missing_ledger** — Stage-05 module dependency-seam pair: a fully ledgered
   acyclic route passes; an otherwise shaped cross-module reference without ownership, direction,
   or cycle facts is a semantic FLAG.
@@ -75,11 +79,10 @@ pass**: `eval`, `eval --stage routing`, and `eval --stage converge` each print
 `semantic layer unmeasured on this host` and return 0. Live eval is not a merge gate
 (scorecard table above). Replay never counts toward the eval floor. When present, exactly one
 minimal probe call is made to confirm the CLI runs headless before any real judging starts; a
-probe failure means one billable call was made, then a clean skip. The artifact manifest is 17 rows; a full
-default batch judges every manifest.tsv row — the heading-mapped 01 / 02 / 05 / card fixtures plus the
-00-inspect pair — × N=3 = 51 judge calls
-+ the 1 probe = 52 calls. Unfiltered batches are `--report`-complete (`n_written` == `n_expected`
-== 17). Old 9-eval jsonl (05 FAIL-empty before increment) is not comparable.
+probe failure means one billable call was made, then a clean skip. The artifact manifest is 19 rows; a full
+default batch judges all 19 manifest rows (00 / 01 / 02 / 03 / 05 / card) × N=3 = 57 judge calls
++ the 1 probe = 58 calls. Unfiltered batches are `--report`-complete (`n_written` == `n_expected`
+== 19). Old 9-eval jsonl (05 FAIL-empty before increment) is not comparable.
 
 **Measured real cost — historical** (this machine, 2026-07-10, 22-call baseline batch era,
 default/unforced model, no `--bare` available
@@ -88,8 +91,8 @@ call**, driven almost entirely by this repo's large global `CLAUDE.md` + skill/a
 declarations loading as system-prompt context on every call (~50–60K cache-creation tokens),
 not by the judging prompt itself. A full 22-call baseline batch was real money, order **$6–7**
 on this setup — not the trivial "a token or two" a casual reader might assume from "opt-in".
-The current default batch is larger: 52 calls (17 × 3 + 1). At the same measured per-call
-rate that is roughly **$16–19** per full batch (derived from the 2026-07-10 per-call range,
+The current default batch is larger: 58 calls (19 × 3 + 1). At the same measured per-call
+rate that is roughly **$17–21** per full batch (derived from the 2026-07-10 per-call range,
 not a new measurement).
 Forcing a cheaper model (`--model haiku` on the underlying CLI, not currently plumbed as a flow
 flag) cuts this roughly 5x, but changes what the eval measures (a cheaper, possibly weaker judge)
@@ -172,7 +175,7 @@ recipe above, and a change landing *during* one fixture's votes cannot alter tha
 fixture's prompt (built once, before any engine call). Replay keeps its own
 staleness hard-fail and `--report` stays offline; neither snapshots. No new
 dependency (`cp`/`cksum`/`mktemp` only), no shipped-fixture change (the corpus
-stays at 17 rows), no STOP-zone touch.
+stays at 19 rows), no STOP-zone touch.
 
 ## Modes
 
@@ -190,8 +193,8 @@ responses are frozen. Replay cannot test rules *effectiveness* — that stays li
 What it can do: hard-fail when `_eval_gate_rules_sha` ≠ the recorded hash (`fixtures stale —
 re-record live per ADR re-baseline rule`). Replay verdicts **never count toward the eval floor**.
 
-**Refresh protocol:** edit both sides of a rules change, run a live `--record` batch (17 × `--n 3`
-= 51 judge calls + 1 probe; all 17 manifest rows, incl. the 00-inspect pair) on a host with
+**Refresh protocol:** edit both sides of a rules change, run a live `--record` batch (19 × `--n 3`
+= 57 judge calls + 1 probe; 19 manifest rows) on a host with
 real `timeout`/`gtimeout`, commit the stripped `eval/replay/` tree (verdict lines only — no
 `session_id` / `cwd` envelopes) **in the same change** as the `gate-rules.md` edit. No
 operator-recorded batch exists yet — the `eval-replay` CI job skip-with-notice until then;
@@ -271,7 +274,7 @@ yet (the same "measure, don't assume" discipline that gated this build in the fi
   platform: a signal arriving while the runner is blocked on a foreground judge call was not
   observed to preempt that call promptly. Cleanup between fixtures/calls fires reliably; a
   normal (uninterrupted) run always cleans up its temp files immediately.
-- **Small fixture corpus (fifteen manifest rows, fifteen heading-mapped)**: enough to prove the
+- **Small fixture corpus (nineteen manifest rows)**: enough to prove the
   mechanism and give a real number, not enough for statistical confidence across every
   stage/failure-mode combination. Widening the corpus is a natural v1.x follow-up, not a
   v1 blocker.
@@ -300,8 +303,8 @@ window; the mechanism was never confirmed at the time (rate-limit vs hook conten
 4. **Circuit breaker.** The FIRST evaluated fixture coming back UNRELIABLE (`invalid_count*3 > n`)
    aborts the batch with a distinct nonzero exit code (2) and NO `done` trailer written — the
    junk batch is invisible to `--report`/drift, so it cannot poison the baseline. `--keep-going`
-  forces the full batch; document worst case (≤ N_fixtures × n × 2 + 1 probe ≈ 103 calls at
-  the default 17 manifest rows × 3).
+  forces the full batch; document worst case (≤ N_fixtures × n × 2 + 1 probe ≈ 115 calls at
+  default 19 manifest rows × 3).
 
 ### Rate-limit visibility (advisory, best-effort)
 

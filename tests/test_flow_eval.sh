@@ -74,7 +74,7 @@ trap _cleanup_all EXIT
 
 # ---------- A) fixture mechanical-pass proof (Phase 1 step 5 mechanisms) ----------
 echo "A) fixture mechanical-pass proof"
-for pair in "f01a:flow/01-research.md" "f01b:flow/01-research.md" "f02a:flow/02-scope.md" "f02b:flow/02-scope.md"; do
+for pair in "f01a:flow/01-research.md" "f01b:flow/01-research.md" "f02a:flow/02-scope.md" "f02b:flow/02-scope.md" "f03a:flow/03-prd.md" "f03b:flow/03-prd.md"; do
   fid="${pair%%:*}"; rel="${pair##*:}"
   f="$EVAL_DIR/fixtures/$fid/$rel"
   rc=$(bash -c "export FLOW_LOG_DISABLE=1; source '$RUN' status >/dev/null 2>&1; scan_gate '$f' >/dev/null 2>&1; echo \$?")
@@ -399,14 +399,14 @@ batch_out="$(TMPDIR="$priv_tmp" PATH="$MOCKBIN:$PATH" bash "$RUN" eval --n 3 --t
 # this mock always returns PASS regardless of fixture, so FLAG-expected fixtures
 # correctly mismatch - assert all heading-mapped fixtures were genuinely evaluated
 # (not silently skipped), not that they all matched.
-has "$batch_out" "of 17 evaluated" "the full 17-fixture batch actually completed (not a silent skip)"
+has "$batch_out" "of 19 evaluated" "the full 19-fixture batch actually completed (not a silent skip)"
 if ! after_count="$(_eval_count_dirs "$priv_tmp")"; then
   echo "  FAIL [could not count directories in private TMPDIR after batch]"
   fail=$((fail+1))
   exit 1
 fi
 delta=$((after_count - before_count)); [ "$delta" -lt 0 ] && delta=$((-delta))
-if [ "$delta" -eq 0 ]; then echo "  ok   [TMPDIR delta=0 after a full 17-fixture batch (zero rundir residue in private TMPDIR)]"; pass=$((pass+1)); else echo "  FAIL [TMPDIR delta=$delta after a full 17-fixture batch - rundir cleanup regression]"; fail=$((fail+1)); fi
+if [ "$delta" -eq 0 ]; then echo "  ok   [TMPDIR delta=0 after a full 19-fixture batch (zero rundir residue in private TMPDIR)]"; pass=$((pass+1)); else echo "  FAIL [TMPDIR delta=$delta after a full 19-fixture batch - rundir cleanup regression]"; fail=$((fail+1)); fi
 rm -rf "$priv_tmp"
 priv_tmp=""
 unset -f _eval_count_dirs 2>/dev/null || true
@@ -462,6 +462,13 @@ received="$(cat "$SB/.received_prompt.txt" 2>/dev/null)"
 has "$received" "## Stage 05" "05 extract starts with ## Stage 05"
 has "$received" "GATE-EVAL-" "05 prompt contains GATE-EVAL- task lines"
 no "$received" "do not invent tenancy/auth from convenience" "05 prompt does not cat gate-shared.md"
+sec03="$(FLOW_LIB_ONLY=1 bash -c '. "$0"; _eval_extract_section 03' "$RUN")"
+has "$sec03" "## Stage 03" "_eval_extract_section 03 returns non-empty Stage 03 challenge"
+f03_out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --fixture f03a --n 1 --timeout 20 2>&1)"
+no "$f03_out" "extracted EMPTY" "f03a is heading-mapped (not FAIL-empty before a call)"
+received="$(cat "$SB/.received_prompt.txt" 2>/dev/null)"
+has "$received" "## Stage 03" "03 prompt starts with ## Stage 03"
+has "$received" "do not invent tenancy/auth from convenience" "03 prompt appends gate-shared.md"
 clean
 
 
@@ -500,14 +507,14 @@ unset FLOW_EVAL_RETRY_BACKOFF
 clean
 
 # ---------- P) v0.21: --keep-going overrides the first-fixture breaker ----------
-echo "P) v0.21 --keep-going: all-invalid mock runs the full 17-fixture batch instead of aborting"
+echo "P) v0.21 --keep-going: all-invalid mock runs the full 19-fixture batch instead of aborting"
 newsb
 export FLOW_EVAL_RETRY_BACKOFF=0
 mkmock '
 echo "nothing parseable"
 '
 out="$(PATH="$MOCKBIN:$PATH" bash "$RUN" eval --n 1 --timeout 20 --keep-going 2>&1)"; rc=$?
-has "$out" "of 17 evaluated" "--keep-going ran the full 17-fixture batch"
+has "$out" "of 19 evaluated" "--keep-going ran the full 19-fixture batch"
 no  "$out" "ABORT after first fixture" "--keep-going suppresses the breaker abort line"
 ck 1 "$rc" "--keep-going full batch UNRELIABLE -> exit 1 (FAIL path), not 2 (abort path)"
 unset FLOW_EVAL_RETRY_BACKOFF
@@ -1253,6 +1260,33 @@ clean
 echo "UM) grep -cF unmeasured phrase == 3 in flow.sh"
 n="$(grep -cF 'semantic layer unmeasured on this host' "$RUN")"
 ck "3" "$n" "unmeasured phrase appears exactly 3 times in flow.sh"
+
+echo "W1) --stage 03 is accepted by cmd_eval argument validation (keyless validation, no manifest)"
+newsb
+out="$(bash "$RUN" eval --stage 03 --report 2>&1)"; rc=$?
+no "$out" "must be one of" "--stage 03 does not trigger stage-validation refusal"
+has "$out" "no complete batch found" "--stage 03 --report reaches --report (no complete batch expected)"
+out="$(bash "$RUN" eval --stage 03 --fixture f03a --n 1 --timeout 20 --report 2>&1)"; rc=$?
+no "$out" "must be one of" "--stage 03 with --fixture f03a does not trigger stage-validation refusal"
+has "$out" "no complete batch found" "--stage 03 with --fixture f03a --report reaches --report"
+clean
+
+echo "W2) --stage 03 appears in both eval usage strings in flow.sh"
+usage_both="$(grep -c '\-\-stage 00|01|02|03|05|card|routing|converge' "$RUN")"
+ck "2" "$usage_both" "usage/validation help strings both list stage 03"
+
+echo "W3) replay skip message scope lists 03 and stage-03 extraction failure is a FAIL, not SKIP"
+skip_line="$(grep -o 'artifact-replay scope is 00|01|02|03|05|card' "$RUN" | head -1)"
+ck "artifact-replay scope is 00|01|02|03|05|card" "$skip_line" "replay SKIP message scope includes 03"
+
+# Behavioral: f03a in replay mode with no replay dir -> FAIL not SKIP.
+newsb
+out="$(bash "$RUN" eval --stage 03 --fixture f03a --n 1 --timeout 20 --replay 2>&1)"; rc=$?
+ck 1 "$rc" "replay without meta exits 1 (fail-closed)"
+has "$out" "missing replay fixtures" "replay without meta reports missing fixtures"
+has "$out" "Never SKIP" "replay without meta never silently SKIPS"
+no "$out" "SKIP - no heading-mapped section" "stage-03 extraction failure is never SKIP in replay"
+clean
 
 echo
 echo "RESULT: $pass passed, $fail failed"
