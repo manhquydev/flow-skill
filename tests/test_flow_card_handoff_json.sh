@@ -411,7 +411,8 @@ ck "PASS" "$("$py" -c '
 import json, sys
 data = json.loads(sys.argv[1])
 assert len(data) == 1, f"expected 1 record, got {len(data)}"
-assert data[0]["id"] == "9200", f"bad id {data[0]["id"]}"
+actual_id = data[0].get("id")
+assert actual_id == "9200", f"bad id: {actual_id}"
 assert "notes" not in data[0], "notes column leaked into public schema"
 expected_keys = {"id", "title", "status", "predicted_impact", "actual_outcome", "accessed_count"}
 assert set(data[0].keys()) == expected_keys, f"keys mismatch: {set(data[0].keys())}"
