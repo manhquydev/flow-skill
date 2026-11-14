@@ -138,7 +138,8 @@ test('sync.mjs generates .widelai/rules/flowskill.md deterministically from repo
   assert.match(first, /verify-chain/);
   assert.match(first, /warning-only/);
   assert.doesNotMatch(first, /Both must agree/);
-  assert.doesNotMatch(first, /flow-cost\/v1/);
+  assert.match(first, /flow-cost\/v1/);
+  assert.match(first, /warn-only/);
   assert.doesNotMatch(first, /BLOCKED/);
   const r2 = spawnSync(process.execPath, [syncScript], { cwd: pkgRoot, encoding: 'utf8' });
   assert.equal(r2.status, 0, `sync.mjs re-run failed: ${r2.stderr}`);

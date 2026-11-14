@@ -104,7 +104,10 @@ Path layout under main state root:
   semantic_gate/card-C-001.receipt
   live_verify/card-C-001.receipt
   live_verify/card-C-001.attempt
+  cost/stage-05-contract.receipt
 ```
+
+Cost receipts (`flow-cost/v1`) are per-stage model/spend evidence; see `references/cost-receipts.md`.
 
 Required keys, **canonical order**, single-line `key: value`:
 
@@ -142,9 +145,8 @@ Parser rules:
 
 - Reject blank/unknown keys, duplicates, missing required keys, multiline
   values, NUL/control chars, oversized values, path traversal.
-- Never source/eval receipt content.
-- CRLF normalized on read.
-- Invalid CLI/schema input does **not** overwrite an existing receipt.
+- Never source/eval receipt content; CRLF normalized on read.
+- Invalid input does **not** overwrite an existing receipt.
 
 Atomic write: temp in destination dir → `chmod 600` best-effort → rename.
 Latest assessment wins: valid semantic `fail` and terminal live red replace
@@ -252,13 +254,13 @@ contract_fingerprint: git-<sha1|sha256>:<object-id>
 
 Activation (`flow auto`) requires, atomically after preflight:
 
-- Git repo; main worktree on attached integration branch (linked/detached refuse)
-- Reliable process-group supervisor capability (else refuse live auto)
+- Git repo; main worktree on attached integration branch
+- Reliable process-group supervisor (else refuse live auto)
 - Planning complete + ≥1 card
 - Full risk set valid (no `unknown`, valid security ack)
-- Current accepted Stage 05 `semantic_gate` receipt
+- Accepted Stage 05 `semantic_gate` receipt
 
-Card/live receipts are later transition gates, not activation prerequisites.
+Card/live receipts gate later transitions, not activation.
 `flow auto stop` clears state. Status/resume show `INACTIVE|ACTIVE|STALE|INVALID`.
 
 ### Enforcement matrix
@@ -294,6 +296,7 @@ flow attest semantic --card <id> --base <rev> --revision <rev> --owner <manifest
 flow attest live-verify <id> --revision <rev> --owner <manifest>
 flow attest status [<stage|card>]
 flow attest recover <C-NNN> --mark-failed
+flow attest cost record|status --stage <stage> [options]
 flow auto
 flow auto stop
 ```
@@ -308,29 +311,27 @@ Exit codes:
 ## Process supervisor (attestation only)
 
 Argv-safe: fixed cwd = logical checkout root, process group ownership,
-streaming stdout/stderr independent + combined caps, TERM → grace → KILL → wait.
-Capability probe: if reliable process-group supervisor unavailable, live
-verification and auto activation fail closed (never unbounded fallback).
+independent + capped stdout/stderr, TERM → grace → KILL → wait.
+Capability probe: without a reliable process-group supervisor, live
+verification and auto activation fail closed (no unbounded fallback).
 
 Usage/event logs record only subcommand, subject ID, result
 class, duration bucket — never argv after `--`, raw output, or secrets.
 
 ## Locks
 
-Order: shared auto-policy mutex → subject locks sorted by `(subject_id, kind)`
-→ existing runner/workspace mutation lock.
-
-Hard consumers hold locks from validation through irreversible side effects
-(graph/harness/removal).
+Order: auto-policy mutex → subject locks sorted by `(subject_id, kind)`
+→ runner/workspace mutation lock. Hard consumers hold locks from validation
+through irreversible side effects (graph/harness/removal).
 
 ## Backward compatibility
 
-- Manual/teach/work without auto state: warnings only; pre-v0.28 exit codes.
+- Without auto state: warnings only; pre-v0.28 exit codes.
 - Planning `next` never hard-enforced in v0.28.
-- Bash + Git floor; Python/SQLite optional, never required to parse receipts.
+- Bash + Git floor; Python/SQLite optional, never required for receipts.
 - Harness `risk_lane` remains separate advisory taxonomy (no silent sync).
 
 ## Rollback
 
 `flow auto stop`, then revert enforcement. Receipts under `.flow/` are
-run-state; remove for audit loss only — does not corrupt cards/DB.
+run-state; remove for audit loss only — cards/DB uncorrupted.

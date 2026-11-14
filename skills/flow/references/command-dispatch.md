@@ -45,7 +45,7 @@ is no fragment loader (ADR-0001).
 | `/flow loop-log <C-NNN> --iterations N --start M --end K --outcome converged\|circuit-broke\|no-improve` | `bash <skill>/runner/flow.sh loop-log <C-NNN> ...` | Record a finished ck-loop run into usage telemetry (`LOOP <card>: start->end in N iters (outcome)`); card id is validated before populating telemetry's card field; exit 0/1/2 by outcome (converged/circuit-broke/no-improve). |
 | `/flow auto` | `bash <skill>/runner/flow.sh auto [--parallel]` | Load `references/auto-run.md`. `--parallel` records the parallel policy (`parallel: true` in auto-state) and prints advisory waves; placement and waiting stay with the host. |
 | `/flow auto stop` | `bash <skill>/runner/flow.sh auto stop` | Clear auto policy; return to warning-only manual path. |
-| `/flow attest …` | `bash <skill>/runner/flow.sh attest semantic\|live-verify\|status\|recover\|verify-chain …` | Mint/inspect receipts (`references/attestations.md`). Must-ask before mint/recover. |
+| `/flow attest …` | `bash <skill>/runner/flow.sh attest semantic\|live-verify\|status\|recover\|verify-chain\|cost …` | Mint/inspect receipts (`references/attestations.md`). Cost receipts are warn-only accounting evidence (`references/cost-receipts.md`). Must-ask before mint/recover. |
 | `/flow recall` | `bash <skill>/runner/flow.sh recall` | Read back prior knowledge; apply at start of a stage/card. |
 | `/flow unlock` | `bash <skill>/runner/flow.sh unlock` | Clear lock after crashed session. Confirm the other session is gone first. |
 | `/flow retro` | `bash <skill>/runner/flow.sh retro` | Ask the 3 questions; operator writes RETRO.md (`law/RETRO.md`). |
