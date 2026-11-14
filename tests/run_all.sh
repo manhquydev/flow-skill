@@ -46,6 +46,33 @@ suite_inputs() {
     suite_list | LC_ALL=C sort
   fi
 }
+
+# Quarantine check: returns 0 (skip) when the suite is actively quarantined.
+# Reads tests/quarantine.tsv (test_file<TAB>reason<TAB>expires_epoch_s).
+# Bash 3.2-safe: while + IFS=$'\t' read, no associative arrays, no mapfile.
+# Malformed lines (wrong field count, non-numeric epoch) are silently
+# ignored from the skip decision — the suite still runs (fail-closed).
+QUARANTINE="$HERE/quarantine.tsv"
+is_quarantined() {
+  local suite="$1" now qfile qreason qepoch
+  [ -f "$QUARANTINE" ] || return 1
+  now="$(date +%s)"
+  while IFS=$'\t' read -r qfile qreason qepoch || [ -n "$qfile" ]; do
+    qfile="${qfile%$'\r'}"
+    qepoch="${qepoch%$'\r'}"
+    case "$qfile" in ''|\#*) continue ;; esac
+    case "$qepoch" in ''|*[!0-9]*) continue ;; esac
+    [ -n "$qreason" ] || continue
+    if [ "$qfile" = "$suite" ] && [ "$qepoch" -gt "$now" ] 2>/dev/null; then
+      local expiry
+      expiry="$(date -d "@$qepoch" '+%Y-%m-%d' 2>/dev/null || date -r "$qepoch" '+%Y-%m-%d' 2>/dev/null || echo "epoch $qepoch")"
+      echo "SKIP (quarantined until $expiry: $qreason)"
+      return 0
+    fi
+  done < "$QUARANTINE"
+  return 1
+}
+
 ordinal=0
 total_t0=$(date +%s 2>/dev/null || echo 0)
 while IFS= read -r suite || [ -n "$suite" ]; do
@@ -54,6 +81,10 @@ while IFS= read -r suite || [ -n "$suite" ]; do
     continue
   fi
   n=$((n + 1))
+  if is_quarantined "$suite"; then
+    echo "==================== $suite (quarantined) ===================="
+    continue
+  fi
   echo "==================== $suite ===================="
   t0=$(date +%s 2>/dev/null || echo 0)
   bash "$HERE/$suite" || rc=1

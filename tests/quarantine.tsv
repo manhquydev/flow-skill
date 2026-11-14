@@ -1,0 +1,6 @@
+# Flaky suite quarantine list. Format: test_file<TAB>reason<TAB>expires_epoch_s
+# (Unix seconds since epoch). A suite whose basename matches test_file while
+# expires_epoch_s > now is SKIPPED by tests/run_all.sh; an expired entry still
+# runs the suite (fail-closed). Malformed lines are silently ignored from the
+# skip decision (the suite still runs). Initially empty — add entries only
+# with a named follow-up to fix the flake, and remove them when it lands.
