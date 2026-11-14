@@ -3171,8 +3171,8 @@ cmd_contract() {
   fi
   if [ -z "$paths" ]; then echo "contract: no served paths found (flow/05-contract.md or openapi.json) - skipped."; return 0; fi
   local base base_path prefixes nprefix found=0
-  base="$(grep -rhoE '(VITE_API_BASE|VITE_API_URL|API_BASE|REACT_APP_API_BASE)[[:space:]]*[:=][[:space:]]*[^[:space:]]+' \
-            "$ROOT/.env" "$ROOT/.env.example" "$ROOT/frontend" 2>/dev/null | head -1 | sed -E 's/^[^=:]*[:=][[:space:]]*//; s/["'"'"';,]//g')"
+  base="$(grep -rhoE --exclude-dir=node_modules '(VITE_API_BASE|VITE_API_URL|API_BASE|REACT_APP_API_BASE|NEXT_PUBLIC_API_URL|NEXT_PUBLIC_API_BASE|PUBLIC_API_URL)[[:space:]]*[:=][[:space:]]*[^[:space:]]+' \
+            "$ROOT"/.env* "$ROOT/frontend"/.env* "$ROOT/frontend" 2>/dev/null | head -1 | sed -E 's/^[^=:]*[:=][[:space:]]*//; s/["'"'"';,]//g')"
   base_path="$(printf '%s' "$base" | sed -E 's#^[a-z][a-z0-9+.-]*://[^/]+##; s#/$##')"
   prefixes="$(printf '%s\n' "$paths" | sed -E 's#^(/[^/]+).*#\1#' | sort -u | grep .)"
   nprefix="$(printf '%s\n' "$prefixes" | grep -c .)"

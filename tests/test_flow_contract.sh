@@ -63,6 +63,26 @@ ck 0 "$rc" "exit 0: origin-only base resolves all prefixes"
 no  "$out" "mixed served prefixes" "no false mixed-prefix flag on origin-only base"
 rm -rf "$SB"
 
+echo "G) .env.local with NEXT_PUBLIC_API_URL -> detects double-prefix risk"
+newsb
+contract_md /api/admin/users
+printf 'NEXT_PUBLIC_API_URL=http://localhost:8000/api\n' > "$SB/.env.local"
+out="$(bash "$RUN" contract 2>&1)"; rc=$?
+ck 1 "$rc" "exit 1 when flagged"
+has "$out" "double-prefix risk" "double-prefix flagged from .env.local"
+rm -rf "$SB"
+
+echo "H) frontend/node_modules does not trigger false-positive"
+newsb
+contract_md /api/users
+mkdir -p "$SB/frontend/node_modules/some-lib"
+printf 'NEXT_PUBLIC_API_URL=http://localhost:8000/api\n' > "$SB/frontend/node_modules/some-lib/config.env"
+out="$(bash "$RUN" contract 2>&1)"; rc=$?
+ck 0 "$rc" "exit 0: node_modules ignored, no false-positive"
+has "$out" "PASS" "passes when node_modules is ignored"
+no  "$out" "double-prefix" "no false double-prefix from node_modules"
+rm -rf "$SB"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
