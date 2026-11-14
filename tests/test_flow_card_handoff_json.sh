@@ -18,6 +18,7 @@ ROOT="$(cd "$HERE/.." && pwd)"
 RUN="$ROOT/skills/flow/runner/flow.sh"
 unset FLOW_HARNESS_DISABLE
 export FLOW_LOG_DISABLE=1
+py="$(command -v python3 2>/dev/null || command -v python 2>/dev/null)"
 
 pass=0
 fail=0
@@ -81,7 +82,7 @@ out1="$(bash "$RUN" resume --card C-001 --json 2>&1)"; rc1=$?
 ck 0 "$rc1" "resume --card C-001 --json exits 0"
 ck 1 "$(printf '%s\n' "$out1" | wc -l | tr -d ' ')" "resume --card C-001 --json emits exactly 1 line"
 
-py_check1="$(python3 -c '
+py_check1="$("$py" -c '
 import json, sys
 try:
     d = json.loads(sys.argv[1])
@@ -144,7 +145,7 @@ out_done_json="$(bash "$RUN" resume --card C-002 --json 2>&1)"; rc_done_json=$?
 ck 0 "$rc_done_json" "resume --card C-002 --json on done card exits 0"
 ck 1 "$(printf '%s\n' "$out_done_json" | wc -l | tr -d ' ')" "done card in JSON mode emits single line"
 
-py_check_done="$(python3 -c '
+py_check_done="$("$py" -c '
 import json, sys
 try:
     d = json.loads(sys.argv[1])
@@ -189,7 +190,7 @@ ck 0 "$?" "prose output preserves First safe step prompt"
 echo "=== 5. Project-level resume --json preservation (flow_context/v1) ==="
 out_proj_json="$(bash "$RUN" resume --json 2>&1)"; rc_proj_json=$?
 ck 0 "$rc_proj_json" "project-level resume --json exits 0"
-py_check_proj="$(python3 -c '
+py_check_proj="$("$py" -c '
 import json, sys
 try:
     d = json.loads(sys.argv[1])
@@ -257,7 +258,7 @@ FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" decision add --id 0001 --
 # (a) Verify linked_decisions contains decision 0001 in JSON mode
 out_dec_json="$(bash "$RUN" resume --card C-001 --json 2>&1)"; rc_dec_json=$?
 ck 0 "$rc_dec_json" "resume --card C-001 --json exits 0 with harness decisions"
-py_dec_check="$(python3 -c '
+py_dec_check="$("$py" -c '
 import json, sys
 try:
     d = json.loads(sys.argv[1])
@@ -346,6 +347,83 @@ printf '%s\n' "$all_out" | grep -q "9001"
 ck 0 "$?" "no-story: unfiltered query returns decision 9001"
 printf '%s\n' "$all_out" | grep -q "9002"
 ck 0 "$?" "no-story: unfiltered query returns decision 9002"
+
+echo "=== 11. Card handoff normalization regressions (paths, tabs, wrapped verify) ==="
+newsb
+cat << 'EOC' > "$SB/cards/C-003.md"
+# C-003 — Complex formatting normalization card
+
+status: in_progress
+deps: none
+implements: FR4
+risk: standard
+
+## Scope
+Verification of normalization.
+
+## Allowed files
+- `lib/x.py`, lib/y.py
+- src/a.ts, src/b.ts   src/c.ts
+* `path/to/script.sh`
+- secrets/password=supersecretpassword123, src/config.ts
+
+## Verify
+- [x] npm	test
+  --runInBand
+- [ ] curl AKIA1234567890ABCDEF
+  -H "Authorization: Bearer token"
+- pytest tests/unit
+  --verbose
+  -k "test_feature"
+EOC
+
+out_norm="$(bash "$RUN" resume --card C-003 --json 2>&1)"; rc_norm=$?
+ck 0 "$rc_norm" "resume --card C-003 --json exits 0"
+ck 1 "$(printf '%s\n' "$out_norm" | wc -l | tr -d ' ')" "resume --card C-003 --json emits exactly 1 line"
+
+py_check_norm="$("$py" -c '
+import json, sys
+try:
+    d = json.loads(sys.argv[1])
+    # 1. Allowed files normalization: bullets stripped, backticks stripped, comma/whitespace separated
+    af = d.get("allowed_files", [])
+    assert af == [
+        "lib/x.py",
+        "lib/y.py",
+        "src/a.ts",
+        "src/b.ts",
+        "src/c.ts",
+        "path/to/script.sh",
+        "secrets/password=[REDACTED:credential]",
+        "src/config.ts"
+    ], f"bad normalized allowed_files: {af}"
+
+    # Secret redaction verified
+    assert "supersecretpassword123" not in json.dumps(af), "raw password leaked in allowed_files"
+    assert any("[REDACTED:credential]" in f for f in af), "redaction marker missing in allowed_files"
+
+    # 2. Verify commands normalization: tabs preserved, continuation lines joined, shell flags intact
+    vc = d.get("verify_commands", [])
+    assert len(vc) == 3, f"expected 3 verify commands, got {len(vc)}: {vc}"
+    assert vc[0] == "npm\ttest --runInBand", f"bad verify[0]: {repr(vc[0])}"
+    assert "\t" in vc[0], "literal tab missing in verify[0]"
+    assert "--runInBand" in vc[0], "shell flag --runInBand corrupted in verify[0]"
+    assert vc[1] == "curl [REDACTED:aws-key-id] -H \"Authorization: Bearer token\"", f"bad verify[1]: {repr(vc[1])}"
+    assert "AKIA1234567890ABCDEF" not in vc[1], "raw aws key leaked in verify[1]"
+    assert vc[2] == "pytest tests/unit --verbose -k \"test_feature\"", f"bad verify[2]: {repr(vc[2])}"
+    print("PASS")
+except Exception as e:
+    print(f"FAIL: {e}")
+' "$out_norm")"
+ck "PASS" "$py_check_norm" "handoff JSON normalizes paths, preserves tabs and groups wrapped verify"
+
+echo "=== 12. Empty --card= argument handling ==="
+bash "$RUN" resume --card= --json >/dev/null 2>&1; rc_ec1=$?
+ck 2 "$rc_ec1" "resume --card= --json exits 2"
+bash "$RUN" resume --json --card= >/dev/null 2>&1; rc_ec2=$?
+ck 2 "$rc_ec2" "resume --json --card= exits 2"
+bash "$RUN" resume --budget --card= >/dev/null 2>&1; rc_ec3=$?
+ck 2 "$rc_ec3" "resume --budget --card= exits 2"
 
 clean
 

@@ -1378,6 +1378,11 @@ _json_str_multiline() {
   }' | tr -d '\000-\011\013-\037'
 }
 
+_json_str_cmd() {
+  local tab; tab="$(printf '\t')"
+  printf '%s' "${1:-}" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e "s/$tab/\\\\t/g" | tr -d '\000-\037'
+}
+
 _emit_card_handoff_json() {
   local resume_card="$1"
   local card_file="$2"
@@ -1399,6 +1404,7 @@ _emit_card_handoff_json() {
   local scope_json; scope_json="$(_json_str_multiline "$raw_scope")"
 
   local raw_allowed; raw_allowed="$(awk '/^## Allowed files/{flag=1; next} /^## /{flag=0} flag' "$card_file" | sed -e '1{/^[[:space:]]*$/d;}' -e '${/^[[:space:]]*$/d;}')"
+  raw_allowed="$(printf '%s' "$raw_allowed" | _redact_secrets)"
   local allowed_json=""
   local first=1
   local item
@@ -1412,25 +1418,42 @@ _emit_card_handoff_json() {
     else
       allowed_json="$allowed_json,\"$(_json_str "$item")\""
     fi
-  done < <(printf '%s\n' "$raw_allowed" | tr ',' '\n')
+  done < <(printf '%s\n' "$raw_allowed" | sed -E 's/^[[:space:]]*[-*][[:space:]]*//' | tr -d '`' | tr -s ' \t,' '\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | awk 'NF')
 
   local raw_verify; raw_verify="$(awk '/^## Verify/{flag=1; next} /^## /{flag=0} flag' "$card_file" | sed -e '1{/^[[:space:]]*$/d;}' -e '${/^[[:space:]]*$/d;}')"
   local verify_json=""
   first=1
   while IFS= read -r item || [ -n "$item" ]; do
-    item="$(printf '%s' "$item" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-    [ -n "$item" ] || continue
-    item="$(printf '%s' "$item" | sed -E 's/^[-*][[:space:]]*(\[[ xX]\][[:space:]]*)?//')"
-    item="$(printf '%s' "$item" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
     [ -n "$item" ] || continue
     item="$(printf '%s' "$item" | _redact_secrets)"
     if [ "$first" -eq 1 ]; then
-      verify_json="\"$(_json_str "$item")\""
+      verify_json="\"$(_json_str_cmd "$item")\""
       first=0
     else
-      verify_json="$verify_json,\"$(_json_str "$item")\""
+      verify_json="$verify_json,\"$(_json_str_cmd "$item")\""
     fi
-  done < <(printf '%s\n' "$raw_verify")
+  done < <(printf '%s\n' "$raw_verify" | awk '
+BEGIN { item = "" }
+/^[[:space:]]*$/ { next }
+/^[[:space:]]*([-*]|[0-9]+\.)[[:space:]]/ {
+  if (item != "") print item
+  sub(/^[[:space:]]*([-*]|[0-9]+\.)[[:space:]]*/, "")
+  sub(/^\[[ xX]\][[:space:]]*/, "")
+  sub(/^[[:space:]]+/, "")
+  sub(/[[:space:]]+$/, "")
+  item = $0
+  next
+}
+{
+  sub(/^[[:space:]]+/, "")
+  sub(/[[:space:]]+$/, "")
+  if (item == "") item = $0
+  else item = item " " $0
+}
+END {
+  if (item != "") print item
+}
+')
 
   local decisions=""
   if harness_available; then
@@ -1468,9 +1491,10 @@ _emit_card_handoff_json() {
   if command -v git >/dev/null 2>&1 && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     git_commit="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null | tr -d '\r')"
     local git_st=""
-    git_st="$(git -C "$ROOT" status --porcelain 2>/dev/null)"
-    if [ -z "$git_st" ]; then
-      git_clean=true
+    if git_st="$(git -C "$ROOT" status --porcelain 2>/dev/null)"; then
+      if [ -z "$git_st" ]; then
+        git_clean=true
+      fi
     fi
   fi
 
@@ -1512,6 +1536,7 @@ cmd_resume() {
         ;;
       --card=*)
         resume_card="${1#--card=}"
+        [ -n "$resume_card" ] || { usage; exit 2; }
         ;;
       *)
         usage; exit 2
