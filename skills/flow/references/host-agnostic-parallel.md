@@ -47,11 +47,10 @@ the card worktree after the host's wait returns.
 ## Machine contract (ready.report)
 
 `flow ready --json` emits a single `ready.report` envelope (schema_version 1) that is the
-machine-readable source of truth for host-side wave dispatch. The primary consumer is the
-lab dispatch bridge (`plans/261101-0002-flowskill-agent-lab/lab-ready-dispatch.py`), which
-keys on `EXPECTED_READY_REPORT_KEYS` and validates via `validate_ready_report()`. The test
-suite `tests/test_flow_ready_report_schema.sh` pins the key-set and must be updated in the
-same change as any runner change to the envelope.
+machine-readable source of truth for host-side wave dispatch. External consumers (such as
+the flowskill-autolab supervisor / agent-lab dispatch components) key on `EXPECTED_READY_REPORT_KEYS`
+and validate via `validate_ready_report()`. The test suite `tests/test_flow_ready_report_schema.sh`
+pins the envelope key-set within this repository and must be updated alongside any runner changes.
 
 **Top-level key-set (pinned, non-negotiable):**
 `schema_version`, `kind`, `planning_complete`, `note`, `buildable`, `blocked`, `warnings`,
@@ -76,11 +75,11 @@ loop:
   groups   = envelope.groups
   if groups empty: break
   for wave in groups:
-    n = min(N, |wave|)                # N = host concurrency cap
-    spawn n workers, one per card
-  join                                # host waits
-  # worker death mid-wave is fine: re-call ready --json; done cards never
-  # reappear in buildable[] (their check already passed).
+    for batch in chunks(wave, N):     # N = host concurrency cap
+      spawn one worker per card in batch
+      join                            # wait for current batch before next
+    # Reconcile completed work and mark cards done in this tree before proceeding;
+    # only cards marked done here are guaranteed not to reappear in buildable[].
 ```
 
 ## Forbidden (ADR-0001; not a nit)

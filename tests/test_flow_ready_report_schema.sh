@@ -91,19 +91,21 @@ assert data['kind'] == 'ready.report'
 assert data['planning_complete'] is True
 b = data['buildable']
 assert len(b) >= 1, 'buildable must be non-empty'
-item_keys = sorted(b[0].keys())
 expected_item = sorted('$EXPECTED_ITEM_KEYS'.split(','))
-if item_keys != expected_item:
-    print(f'ITEM-KEY-MISMATCH: got {item_keys}, expected {expected_item}')
-    sys.exit(1)
+for item in b:
+    item_keys = sorted(item.keys())
+    if item_keys != expected_item:
+        print(f'ITEM-KEY-MISMATCH: got {item_keys}, expected {expected_item}')
+        sys.exit(1)
 assert isinstance(data['groups'], list), 'groups must be a list'
 for g in data['groups']:
     assert isinstance(g, list), 'each group must be a list of card-id strings'
+    assert all(isinstance(card_id, str) for card_id in g), 'each group must contain card-id strings'
 print('OK')
 " "$out" 2>&1)"
 ck "OK" "$py_res" "key-set + buildable sub-keys + groups structure"
 if [ "$py_res" != "OK" ]; then
-  echo "  >>> SYNC REQUIRED: update lab-ready-dispatch.py EXPECTED_READY_REPORT_KEYS + validate_ready_report AND this test in the same change."
+  echo "  >>> SYNC REQUIRED: update EXPECTED_READY_REPORT_KEYS in dispatch components AND this test in the same change."
   fail=$((fail + 1))
 fi
 rm -rf "$SB"
@@ -128,7 +130,7 @@ print('OK')
 " "$out" 2>&1)"
 ck "OK" "$py_res" "auto --parallel key-set unchanged, parallel_policy=true, auto=ACTIVE"
 if [ "$py_res" != "OK" ]; then
-  echo "  >>> SYNC REQUIRED: update lab-ready-dispatch.py EXPECTED_READY_REPORT_KEYS + validate_ready_report AND this test in the same change."
+  echo "  >>> SYNC REQUIRED: update EXPECTED_READY_REPORT_KEYS in dispatch components AND this test in the same change."
   fail=$((fail + 1))
 fi
 rm -rf "$SB"
