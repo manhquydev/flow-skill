@@ -26,6 +26,16 @@ function quoteWinArg(arg) {
   }
   return s;
 }
+function sleepMs(ms) {
+  if (ms <= 0) return;
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  } catch {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {}
+  }
+}
+
 
 function runCmd(cmd, args, opts = {}) {
   if (process.platform === 'win32') {
@@ -153,42 +163,83 @@ if (npmV && parseSemver(npmV)) {
     ok(`local HEAD SHA ${headSha.slice(0, 12)} (${npmV} on ${channel})`);
   }
 
-  // (a) Live npm dist-tags + provenance
-  const tagsRes = runCmd('npm', ['view', PACKAGE, 'dist-tags', '--json', `--registry=${PUBLIC_REGISTRY}`]);
-  if (tagsRes.status !== 0) {
-    fail(`npm dist-tags query failed: ${(tagsRes.stderr || tagsRes.error?.message || '').trim()}`);
-  } else {
-    try {
-      const distTags = JSON.parse(tagsRes.stdout);
-      if (!distTags || typeof distTags !== 'object' || distTags[channel] !== npmV) {
-        fail(`npm dist-tag '${channel}' is '${distTags?.[channel] ?? 'missing'}', expected '${npmV}'`);
-      } else {
-        ok(`npm dist-tag ${channel} === ${npmV}`);
+  // (a) Live npm dist-tags + provenance with bounded retry for registry eventual consistency
+  const rawRetries = Number(process.env.FLOW_REGISTRY_RETRIES);
+  const maxRegistryRetries = Number.isInteger(rawRetries) && rawRetries >= 1 ? Math.min(rawRetries, 60) : 5;
+  const rawDelay = Number(process.env.FLOW_REGISTRY_RETRY_DELAY_MS);
+  const retryDelayMs = Number.isFinite(rawDelay) && rawDelay >= 0 ? Math.min(rawDelay, 30_000) : 2000;
+
+  let distTagsOk = false;
+  let provOk = false;
+  let lastDistTagError = '';
+  let lastProvError = '';
+  let registryAttempt = 0;
+
+  for (registryAttempt = 1; registryAttempt <= maxRegistryRetries; registryAttempt++) {
+    distTagsOk = false;
+    provOk = false;
+    lastDistTagError = '';
+    lastProvError = '';
+
+    const tagsRes = runCmd('npm', ['view', PACKAGE, 'dist-tags', '--json', `--registry=${PUBLIC_REGISTRY}`]);
+    if (tagsRes.status !== 0) {
+      lastDistTagError = `npm dist-tags query failed: ${(tagsRes.stderr || tagsRes.error?.message || '').trim()}`;
+    } else {
+      try {
+        const distTags = JSON.parse(tagsRes.stdout);
+        if (!distTags || typeof distTags !== 'object' || distTags[channel] !== npmV) {
+          lastDistTagError = `npm dist-tag '${channel}' is '${distTags?.[channel] ?? 'missing'}', expected '${npmV}'`;
+        } else {
+          distTagsOk = true;
+        }
+      } catch (e) {
+        lastDistTagError = `npm dist-tags returned invalid JSON: ${e.message}`;
       }
-    } catch (e) {
-      fail(`npm dist-tags returned invalid JSON: ${e.message}`);
+    }
+
+    const provRes = runCmd('npm', ['view', `${PACKAGE}@${npmV}`, 'dist.attestations.provenance', '--json', `--registry=${PUBLIC_REGISTRY}`]);
+    if (provRes.status !== 0) {
+      lastProvError = `npm provenance query failed for ${PACKAGE}@${npmV}: ${(provRes.stderr || provRes.error?.message || '').trim()}`;
+    } else {
+      try {
+        const raw = provRes.stdout.trim();
+        const prov = raw ? JSON.parse(raw) : null;
+        const entries = Array.isArray(prov) ? prov : (prov && typeof prov === 'object' ? [prov] : []);
+        const validProv = entries.length > 0 && entries.some(
+          (e) => e && typeof e === 'object' && ((typeof e.predicateType === 'string' && e.predicateType.length > 0) || (typeof e.url === 'string' && e.url.length > 0))
+        );
+        if (!validProv) {
+          lastProvError = `${PACKAGE}@${npmV} lacks dist.attestations.provenance`;
+        } else {
+          provOk = true;
+        }
+      } catch (e) {
+        lastProvError = `npm provenance returned invalid JSON for ${PACKAGE}@${npmV}: ${e.message}`;
+      }
+    }
+
+    if (distTagsOk && provOk) {
+      if (registryAttempt > 1) {
+        ok(`registry eventual consistency reached on attempt ${registryAttempt}/${maxRegistryRetries}`);
+      }
+      break;
+    }
+
+    if (registryAttempt < maxRegistryRetries) {
+      sleepMs(retryDelayMs);
     }
   }
 
-  const provRes = runCmd('npm', ['view', `${PACKAGE}@${npmV}`, 'dist.attestations.provenance', '--json', `--registry=${PUBLIC_REGISTRY}`]);
-  if (provRes.status !== 0) {
-    fail(`npm provenance query failed for ${PACKAGE}@${npmV}: ${(provRes.stderr || provRes.error?.message || '').trim()}`);
+  if (distTagsOk) {
+    ok(`npm dist-tag ${channel} === ${npmV}`);
   } else {
-    try {
-      const raw = provRes.stdout.trim();
-      const prov = raw ? JSON.parse(raw) : null;
-      const entries = Array.isArray(prov) ? prov : (prov && typeof prov === 'object' ? [prov] : []);
-      const validProv = entries.length > 0 && entries.some(
-        (e) => e && typeof e === 'object' && ((typeof e.predicateType === 'string' && e.predicateType.length > 0) || (typeof e.url === 'string' && e.url.length > 0))
-      );
-      if (!validProv) {
-        fail(`${PACKAGE}@${npmV} lacks dist.attestations.provenance`);
-      } else {
-        ok(`${PACKAGE}@${npmV} has dist.attestations.provenance`);
-      }
-    } catch (e) {
-      fail(`npm provenance returned invalid JSON for ${PACKAGE}@${npmV}: ${e.message}`);
-    }
+    fail(`${lastDistTagError} (after ${maxRegistryRetries} attempt(s))`);
+  }
+
+  if (provOk) {
+    ok(`${PACKAGE}@${npmV} has dist.attestations.provenance`);
+  } else {
+    fail(`${lastProvError} (after ${maxRegistryRetries} attempt(s))`);
   }
 
   // (b) Remote git tags on origin matching each other and HEAD commit SHA
@@ -218,6 +269,20 @@ if (npmV && parseSemver(npmV)) {
       const skillTagSha = refMap[`refs/tags/v${skillVersion}^{}`] || refMap[`refs/tags/v${skillVersion}`] || null;
       if (!skillTagSha) {
         fail(`remote tag v${skillVersion} missing on origin`);
+      } else if (skillTagSha === headSha && (!npmTagSha || skillTagSha === npmTagSha)) {
+        ok(`remote tag v${skillVersion} matches npm@${npmV} and HEAD (${skillTagSha.slice(0, 12)})`);
+      } else if (process.env.FLOW_ALLOW_SKILL_TAG_REUSE === '1') {
+        const tagTreeRes = runCmd('git', ['rev-parse', '--verify', `${skillTagSha}:skills`]);
+        const headTreeRes = runCmd('git', ['rev-parse', '--verify', 'HEAD:skills']);
+        const tagTree = tagTreeRes.status === 0 ? tagTreeRes.stdout.trim() : null;
+        const headTree = headTreeRes.status === 0 ? headTreeRes.stdout.trim() : null;
+        if (tagTree && headTree && tagTree === headTree) {
+          ok(`remote tag v${skillVersion} reused with identical skills/ subtree (${tagTree.slice(0, 12)})`);
+        } else if (/^[0-9a-f]{40}$/.test(headSha) && skillTagSha !== headSha) {
+          fail(`remote tag v${skillVersion} (${skillTagSha}) != local HEAD (${headSha})`);
+        } else {
+          ok(`remote tag v${skillVersion} matches npm@${npmV} and HEAD (${skillTagSha.slice(0, 12)})`);
+        }
       } else if (npmTagSha && skillTagSha !== npmTagSha) {
         fail(`remote tag v${skillVersion} (${skillTagSha}) != npm@${npmV} (${npmTagSha})`);
       } else if (/^[0-9a-f]{40}$/.test(headSha) && skillTagSha !== headSha) {

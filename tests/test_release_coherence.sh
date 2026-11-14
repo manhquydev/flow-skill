@@ -571,6 +571,17 @@ cat > "$strict_bin/npm" <<'SH'
 #!/usr/bin/env bash
 case "$*" in
   *"dist-tags"*)
+    if [ -n "${FAKE_NPM_LAG_FILE:-}" ]; then
+      count=0
+      [ -f "$FAKE_NPM_LAG_FILE" ] && count="$(cat "$FAKE_NPM_LAG_FILE")"
+      count=$((count + 1))
+      echo "$count" > "$FAKE_NPM_LAG_FILE"
+      threshold="${FAKE_NPM_LAG_THRESHOLD:-1}"
+      if [ "$count" -le "$threshold" ]; then
+        printf '{"latest":"1.9.9","next":"0.7.1-next.0"}\n'
+        exit 0
+      fi
+    fi
     printf '{"latest":"%s","next":"0.7.1-next.0"}\n' "${FAKE_NPM_LATEST:-2.0.0}"
     ;;
   *"dist.attestations.provenance"*)
@@ -627,6 +638,30 @@ strict_pass_rc=0
 PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-pass.out" 2>&1 || strict_pass_rc=$?
 ck 0 "$strict_pass_rc" "--strict-published passes when all 6 axes match"
 grep -q 'PREFLIGHT PASS — strict published coherence verified across all 6 axes' "$OUT/strict-pass.out" && ck 0 0 "--strict-published reports post-publish PREFLIGHT PASS without ship prompt" || ck 0 1 "--strict-published reports post-publish PREFLIGHT PASS without ship prompt"
+
+# Reusing a skill tag is permitted only for identical skills trees.
+# All pushes here target the fixture's local bare repository, never GitHub.
+printf '\nfixture docs-only change\n' > "$strict_repo/reuse-note.txt"
+git -C "$strict_repo" add reuse-note.txt
+git -C "$strict_repo" commit -qm "fixture docs-only commit"
+git -C "$strict_repo" tag -f "npm@2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "npm@2.0.0"
+reuse_rc=0
+FLOW_ALLOW_SKILL_TAG_REUSE=1 PATH="$strict_bin:$PATH" node "$strict_repo/scripts/check-release-live.mjs" >"$OUT/reuse-pass.out" 2>&1 || reuse_rc=$?
+ck 0 "$reuse_rc" "skill tag reuse accepts identical skills tree with npm tag at new HEAD"
+reuse_off_rc=0
+PATH="$strict_bin:$PATH" node "$strict_repo/scripts/check-release-live.mjs" >"$OUT/reuse-off.out" 2>&1 || reuse_off_rc=$?
+ck 1 "$reuse_off_rc" "skill tag reuse remains opt-in"
+printf 'changed skill tree\n' > "$strict_repo/skills/reuse-negative.txt"
+git -C "$strict_repo" add skills/reuse-negative.txt
+git -C "$strict_repo" commit -qm "fixture changed skills tree"
+git -C "$strict_repo" tag -f "npm@2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "npm@2.0.0"
+reuse_bad_rc=0
+FLOW_ALLOW_SKILL_TAG_REUSE=1 PATH="$strict_bin:$PATH" node "$strict_repo/scripts/check-release-live.mjs" >"$OUT/reuse-negative.out" 2>&1 || reuse_bad_rc=$?
+ck 1 "$reuse_bad_rc" "skill tag reuse rejects different skills tree"
+git -C "$strict_repo" tag -f "v2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "v2.0.0"
 
 strict_nogh_rc=0
 PATH="$strict_bin:$PATH" FAKE_GH_RELEASE=missing bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-nogh.out" 2>&1 || strict_nogh_rc=$?
@@ -771,6 +806,75 @@ strict_lstree128_rc=0
 FAKE_GIT_LSTREE=128 PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-lstree128.out" 2>&1 || strict_lstree128_rc=$?
 ck 1 "$strict_lstree128_rc" "--strict-published fails when git ls-tree exits 128"
 grep -q 'git ls-tree failed with exit 128' "$OUT/strict-lstree128.out" && ck 0 0 "reports git ls-tree failure" || ck 0 1 "reports git ls-tree failure" 
+
+# Test: Registry eventual consistency retry succeeds on attempt 2
+strict_lag_file="$OUT/strict-lag.count"
+rm -f "$strict_lag_file"
+strict_retry_succ_rc=0
+FAKE_NPM_LAG_FILE="$strict_lag_file" FAKE_NPM_LAG_THRESHOLD=2 FLOW_REGISTRY_RETRY_DELAY_MS=10 \
+  PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-retry-succ.out" 2>&1 || strict_retry_succ_rc=$?
+ck 0 "$strict_retry_succ_rc" "--strict-published succeeds after registry eventual consistency retry"
+grep -q 'registry eventual consistency reached on attempt 2' "$OUT/strict-retry-succ.out" \
+  && ck 0 0 "reports eventual consistency reached on attempt 2" || ck 0 1 "reports eventual consistency reached on attempt 2"
+rm -f "$strict_lag_file"
+
+# Test: Registry eventual consistency retry exhaustion fails closed
+strict_lag_fail_file="$OUT/strict-lag-fail.count"
+rm -f "$strict_lag_fail_file"
+strict_retry_exhaust_rc=0
+FAKE_NPM_LAG_FILE="$strict_lag_fail_file" FAKE_NPM_LAG_THRESHOLD=99 FLOW_REGISTRY_RETRIES=2 FLOW_REGISTRY_RETRY_DELAY_MS=10 \
+  PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-retry-exhaust.out" 2>&1 || strict_retry_exhaust_rc=$?
+ck 1 "$strict_retry_exhaust_rc" "--strict-published fails closed when registry eventual consistency retries exhaust"
+grep -q 'after 2 attempt(s)' "$OUT/strict-retry-exhaust.out" \
+  && ck 0 0 "reports retry exhaustion with attempt count" || ck 0 1 "reports retry exhaustion with attempt count"
+rm -f "$strict_lag_fail_file"
+
+# Test: Pending next-version docs ([Unreleased] and [2.1.0]) coexist cleanly with verified 2.0.0
+cat > "$strict_repo/CHANGELOG.md" <<'EOF'
+# Changelog
+
+## [Unreleased]
+- work in progress
+
+## [2.1.0] - 2026-11-20
+- prepared next release
+
+## [2.0.0] - 2026-11-13
+- release 2.0.0
+EOF
+cat > "$strict_repo/npm-wrapper/CHANGELOG.md" <<'EOF'
+# Changelog
+
+## [Unreleased]
+- work in progress
+
+## [2.1.0] - 2026-11-20
+- prepared next release
+
+## [2.0.0] - 2026-11-13
+- release 2.0.0
+EOF
+git -C "$strict_repo" add CHANGELOG.md npm-wrapper/CHANGELOG.md
+git -C "$strict_repo" commit -qm "add pending next-version notes"
+git -C "$strict_repo" tag -f "npm@2.0.0" >/dev/null
+git -C "$strict_repo" tag -f "v2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin master "npm@2.0.0" "v2.0.0"
+strict_pending_rc=0
+PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-pending.out" 2>&1 || strict_pending_rc=$?
+ck 0 "$strict_pending_rc" "--strict-published passes with pending next-version headings present"
+
+# Test: Trigger ordering & deadlock prevention
+# (1) Offline coherence passes on candidate commit before remote tags/releases exist
+git -C "$strict_origin" tag -d "npm@2.0.0" "v2.0.0" >/dev/null 2>&1 || true
+strict_prepublish_rc=0
+PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/check-release-coherence.sh" >"$OUT/strict-prepublish.out" 2>&1 || strict_prepublish_rc=$?
+ck 0 "$strict_prepublish_rc" "offline pre-publish coherence check passes before live tags/release exist (no deadlock)"
+# (2) Strict live coherence fails closed before remote tags/releases exist
+strict_prelive_rc=0
+PATH="$strict_bin:$PATH" FLOW_REGISTRY_RETRIES=1 FLOW_REGISTRY_RETRY_DELAY_MS=0 node "$strict_repo/scripts/check-release-live.mjs" >"$OUT/strict-prelive.out" 2>&1 || strict_prelive_rc=$?
+ck 1 "$strict_prelive_rc" "strict live coherence fails closed before remote tags/release exist"
+grep -q 'remote tag npm@2.0.0 missing on origin' "$OUT/strict-prelive.out" \
+  && ck 0 0 "reports remote tag missing before publish" || ck 0 1 "reports remote tag missing before publish"
 
 echo
 echo "RESULT: $pass passed, $fail failed"
