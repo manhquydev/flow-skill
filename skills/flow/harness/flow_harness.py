@@ -515,10 +515,10 @@ def cmd_query(con, a):
                 placeholders = ",".join(["?"] * len(linked_ids))
                 data = _db.rows(con, f"SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision WHERE id IN ({placeholders})", tuple(linked_ids))
             else:
-                # If no trace explicitly linked decisions, fall back to matching story in title or notes or all if story matches
+                # If no trace explicitly linked decisions, fall back to matching story id in title or notes.
+                # NEVER return all decisions here: a story-scoped query leaking unrelated
+                # decisions corrupts card resume linked_decisions (the C-001/C-002 leak class).
                 data = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision WHERE title LIKE ? OR notes LIKE ?", (f"%{story_id}%", f"%{story_id}%"))
-                if not data:
-                    data = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision")
         else:
             data = _db.rows(con, "SELECT id,title,status,predicted_impact,actual_outcome,accessed_count FROM decision")
         data = _order_by_reuse(data, lambda r: _is_security_text(r.get("title")))

@@ -288,6 +288,65 @@ ck 1 "$bad_rc" "harness query failure propagates as error (exit 1) in JSON mode"
 printf '%s\n' "$bad_harness_out" | grep -q "FAIL: harness query decisions failed: simulated harness query error for testing"
 ck 0 "$?" "harness query failure error message reported in JSON mode"
 
+echo "=== 10. Story-scoped decisions query does not leak unrelated decisions ==="
+py="$(command -v python3 2>/dev/null || command -v python 2>/dev/null)"
+if command -v cygpath >/dev/null 2>&1; then
+  NATIVE_SB="$(cygpath -m "$SB")"
+  NATIVE_HARNESS="$(cygpath -m "$HARNESS")"
+else
+  NATIVE_SB="$SB"
+  NATIVE_HARNESS="$HARNESS"
+fi
+
+# (a) empty-unrelated: story-scoped query with only an unrelated decision returns NOTHING
+newsb
+cat << 'EOC' > "$SB/cards/C-001.md"
+# C-001 — Active card unrelated decisions probe
+
+status: in_progress
+deps: none
+implements: FR1
+risk: standard
+
+## Scope
+Probe card.
+
+## Allowed files
+src/a.ts
+
+## Verify
+- [ ] npm test
+EOC
+FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" init >/dev/null 2>&1
+FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" decision add --id 9002 --title "Unrelated C-002 caching decision" >/dev/null 2>&1
+leak_out="$(FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" query decisions --story C-001 2>&1)"
+if printf '%s\n' "$leak_out" | grep -q "9002"; then
+  ck 0 1 "empty-unrelated: story C-001 query leaks unrelated decision 9002"
+else
+  ck 0 0 "empty-unrelated: story C-001 query returns no unrelated decisions"
+fi
+printf '%s\n' "$leak_out" | grep -q "(no decisions)"
+ck 0 "$?" "empty-unrelated: reports (no decisions)"
+
+# (b) matching-linked: trace-linked decision IS returned for the scoped story
+FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" decision add --id 9001 --title "Use SQLite WAL mode for C-001" >/dev/null 2>&1
+FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" trace --summary "work C-001 storage layer" --story C-001 --decisions 9001 --outcome completed >/dev/null 2>&1
+linked_out="$(FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" query decisions --story C-001 2>&1)"
+printf '%s\n' "$linked_out" | grep -q "9001"
+ck 0 "$?" "matching-linked: linked decision 9001 returned for C-001"
+if printf '%s\n' "$linked_out" | grep -q "9002"; then
+  ck 0 1 "matching-linked: unrelated decision 9002 leaked into C-001 query"
+else
+  ck 0 0 "matching-linked: unrelated decision 9002 NOT returned for C-001"
+fi
+
+# (c) no-story: unfiltered query still returns ALL decisions
+all_out="$(FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" query decisions 2>&1)"
+printf '%s\n' "$all_out" | grep -q "9001"
+ck 0 "$?" "no-story: unfiltered query returns decision 9001"
+printf '%s\n' "$all_out" | grep -q "9002"
+ck 0 "$?" "no-story: unfiltered query returns decision 9002"
+
 clean
 
 echo
