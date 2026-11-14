@@ -47,11 +47,16 @@ body() { awk -v sq="'" -v dq='"' -v bs='\\' '
 # of the constructs it forbids (no literal '&>>' or spaced '|&' appears here).
 B4A='map''file|readar''ray|declar''e -A|&'
 B4B='>>'
-BASH4PAT="${B4A}${B4B}|[[:space:]][|][&]"
+BASH4PAT="${B4A}${B4B}|[[:space:]][|][&]|(local|declare|typeset)[[:space:]]+-[A-Za-z]*A"
 
 # bash_floor <file> <relname>
 bash_floor() {
-  hits=$(body "$1" | grep -E "$BASH4PAT")
+  local content rc=0
+  if ! content=$(body "$1"); then
+    viol "$2" "0" "cannot read file"
+    return 1
+  fi
+  hits=$(printf '%s\n' "$content" | grep -E "$BASH4PAT")
   if [ -n "$hits" ]; then
     while IFS= read -r row; do
       ln=${row%%:*}
@@ -118,7 +123,7 @@ for n in ast.walk(tree):
     elif isinstance(n, ast.arguments) and getattr(n, "posonlyargs", []):
         first = n.posonlyargs[0]
         print("%d:positional-only parameters" % getattr(first, "lineno", 1))
-    elif isinstance(n, ast.Assign):
+    elif isinstance(n, (ast.Assign, ast.AnnAssign)) and getattr(n, "value", None):
         for sub in ast.walk(n.value):
             if isinstance(sub, ast.Subscript) and isinstance(sub.value, ast.Name) and sub.value.id in GEN:
                 print("%d:runtime builtin generic subscript (fails py3.7 even with __future__)" % getattr(sub, "lineno", n.lineno))
@@ -190,6 +195,7 @@ def h() -> type[int]:
 def k() -> frozenset[int] | None:
     return None
 Alias = list[int]
+AnnAlias: object = list[int]
 PYF
 
 # 2. Walrus operator (AST check on py3.8+, SyntaxError on py3.7) -> exactly 1 line
@@ -235,12 +241,18 @@ n_pos="$(python3 -c "$PYCHECK" "$tmpf/bad-posonly.py" | wc -l | tr -d ' ')"
 n_fc="$(python3 -c "$PYCHECK" "$tmpf/future-comment.py" | wc -l | tr -d ' ')"
 n_good="$(python3 -c "$PYCHECK" "$tmpf/good.py" | wc -l | tr -d ' ')"
 
-fixck 5 "$n_ann" "bad-ann fixture: all 5 modern annotations + runtime alias flagged"
+fixck 6 "$n_ann" "bad-ann fixture: all 5 modern annotations + runtime alias and annotated alias flagged"
 fixck 1 "$n_wal" "bad-walrus fixture: walrus flagged across all python versions"
 fixck 1 "$n_match" "bad-match fixture: match statement flagged across all python versions"
 fixck 1 "$n_pos" "bad-posonly fixture: positional-only params flagged across all python versions"
 fixck 2 "$n_fc" "comment-only future import is NOT honored (2 lines still flagged)"
 fixck 0 "$n_good" "good fixture: typing.Optional/Union and UPPER_CASE OR stay clean"
+
+# 7. Bash 4+ associative array variants (local -A, declare  -A)
+# Pieces assembled dynamically so this suite's own source stays clean of forbidden patterns.
+printf '#!/usr/bin/env bash\n%s -A items\n%s  -A map\n%s -aA complex\n' "loc""al" "dec""lare" "type""set" > "$tmpf/bad-assoc.sh"
+n_assoc=$(body "$tmpf/bad-assoc.sh" | grep -cE "$BASH4PAT" | tr -d '[:space:]')
+fixck 3 "$n_assoc" "bad-assoc fixture: associative array declarations detected" 
 rm -rf "$tmpf"
 
 echo
