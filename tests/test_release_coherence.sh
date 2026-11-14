@@ -612,6 +612,10 @@ if [ "\${FAKE_GIT_SHOW:-}" = "128" ] && [ "\$1" = "show" ]; then
   echo "fatal: fake git show error" >&2
   exit 128
 fi
+if [ "\${FAKE_GIT_LSTREE:-}" = "128" ] && [ "\$1" = "ls-tree" ]; then
+  echo "fatal: fake git ls-tree error" >&2
+  exit 128
+fi
 exec "$REAL_GIT" "\$@"
 SH
 cat > "$strict_bin/git.cmd" <<'CMD'
@@ -761,6 +765,12 @@ PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --stri
 ck 1 "$strict_del_vn_rc" "--strict-published fails when npm-wrapper/README_VN.md is deleted in working tree"
 grep -q 'working tree dirty for release docs:.*D npm-wrapper/README_VN.md' "$OUT/strict-del-vn.out" && ck 0 0 "reports deleted release doc in working tree" || ck 0 1 "reports deleted release doc in working tree"
 git -C "$strict_repo" checkout -q -- npm-wrapper/README_VN.md
+
+# Negative test: git ls-tree failure (exit 128) must fail-closed under --strict-published
+strict_lstree128_rc=0
+FAKE_GIT_LSTREE=128 PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-lstree128.out" 2>&1 || strict_lstree128_rc=$?
+ck 1 "$strict_lstree128_rc" "--strict-published fails when git ls-tree exits 128"
+grep -q 'git ls-tree failed with exit 128' "$OUT/strict-lstree128.out" && ck 0 0 "reports git ls-tree failure" || ck 0 1 "reports git ls-tree failure" 
 
 echo
 echo "RESULT: $pass passed, $fail failed"

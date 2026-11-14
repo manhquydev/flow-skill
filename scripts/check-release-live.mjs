@@ -28,7 +28,7 @@ function quoteWinArg(arg) {
 }
 
 function runCmd(cmd, args, opts = {}) {
-  if (process.platform === 'win32' && cmd !== 'git') {
+  if (process.platform === 'win32') {
     const cmdLine = [cmd, ...args.map(quoteWinArg)].join(' ');
     return spawnSync('cmd.exe', ['/d', '/c', cmdLine], {
       cwd: root,
@@ -252,7 +252,11 @@ if (npmV && parseSemver(npmV)) {
   // (d) README Publication status verified lines must not report versions older than npm_v
   const readmeTargets = ['README.md', 'README_VN.md', 'npm-wrapper/README.md'];
   const vnInHead = runCmd('git', ['ls-tree', 'HEAD', 'npm-wrapper/README_VN.md']);
-  if (vnInHead.status === 0 && vnInHead.stdout.trim().length > 0) readmeTargets.push('npm-wrapper/README_VN.md');
+  if (vnInHead.status !== 0) {
+    fail(`git ls-tree failed with exit ${vnInHead.status}: ${(vnInHead.stderr || vnInHead.error?.message || '').trim()}`);
+  } else if (vnInHead.stdout.trim().length > 0) {
+    readmeTargets.push('npm-wrapper/README_VN.md');
+  }
   assertClean([...readmeTargets, 'CHANGELOG.md', 'npm-wrapper/CHANGELOG.md', 'docs/quality-metrics.md']);
   for (const relPath of readmeTargets) {
     const text = readHeadFile(relPath);
