@@ -73,6 +73,7 @@ test_sync_release.sh
 test_harness_cli_optional_smoke.sh
 test_manifest_runner.sh
 test_doc_budgets.sh
+test_flow_floor_guards.sh
 test_flow_four_point_compat.sh
 test_i18n_pairs.sh
 test_install_safe_update.sh
