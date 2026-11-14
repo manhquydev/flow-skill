@@ -27,7 +27,7 @@ Point; do not copy. If a fact already has a home, link it.
 | Semantic gate challenges | `skills/flow/references/gate-rules.md` |
 | Architecture layers | `docs/system-architecture.md` |
 | Quality numbers | `docs/quality-metrics.md` |
-| Release / dual versions | `docs/release-process.md` |
+| Release / unified version | `docs/release-process.md` |
 | Suite registry | `tests/manifest.txt` |
 | Word budgets | `docs/doc-budgets.txt` |
 | Identity / process-token | `docs/adr/0001-discipline-layer-identity.md` |

@@ -39,8 +39,8 @@ flow-skill/
 └── README.md
 ```
 
-**Release / versioning:** skill product (`0.30.x`) ≠ npm package (`0.7.x`, GA on `latest`).  
-See [`docs/release-process.md`](release-process.md).
+**Release / versioning:** skill product and npm installer share **one** SemVer; the mirrors are
+kept equal by `sync-release --check` (see [`docs/release-process.md`](release-process.md)).
 
 ## Commands (`/flow ...`)
 `resume` (read-only session-story brief: last session, in-flight + dwell, gate state, NEXT ->;

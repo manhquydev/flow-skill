@@ -219,6 +219,39 @@ doc_count="$(grep -oE '[0-9]+ suite scripts' "$HERE/../docs/codebase-summary.md"
 manifest_count="$(grep -cE '^test_' "$MANIFEST")"
 ck "$manifest_count" "$doc_count" "codebase-summary suite scripts count matches manifest ($manifest_count)"
 
+echo "=== unified-axes drift guard: codebase-summary must not re-declare dual axes ==="
+SUMMARY="$HERE/../docs/codebase-summary.md"
+# (a) must NOT contain the stale dual-axes sentence (skill ... != ... npm in the Release/versioning paragraph)
+dual_line="$(grep -nE 'Release / versioning:.*skill.*(!=|≠).*npm' "$SUMMARY" | head -1)"
+if [ -n "$dual_line" ]; then
+  echo "  FAIL [codebase-summary.md re-declares dual version axes in Release/versioning: $dual_line]"
+  fail=$((fail+1))
+else
+  echo "  ok   [codebase-summary.md has no dual-axes declaration in Release/versioning]"
+  pass=$((pass+1))
+fi
+# (b) if the Release/versioning paragraph hard-codes a version number, it must match the real skill version from SKILL.md
+SKILLMD="$HERE/../skills/flow/SKILL.md"
+sk_ver="$(sed -nE 's/^[[:space:]]*version:[[:space:]]*"?([0-9][.0-9A-Za-z-]*).*/\1/p' "$SKILLMD" | head -1)"
+rel_line="$(grep -E 'Release / versioning:' "$SUMMARY" | head -1)"
+if [ -n "$rel_line" ]; then
+  rel_vers="$(printf '%s' "$rel_line" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?' | sort -u)"
+  bad_vers=""
+  while IFS= read -r v; do
+    [ -n "$v" ] || continue
+    [ "$v" = "$sk_ver" ] || bad_vers="$bad_vers $v"
+  done <<VERS
+$rel_vers
+VERS
+  if [ -z "$bad_vers" ]; then
+    echo "  ok   [codebase-summary Release/versioning hard-coded versions match SKILL.md ($sk_ver)]"
+    pass=$((pass+1))
+  else
+    echo "  FAIL [codebase-summary Release/versioning cites versions not matching SKILL.md ($sk_ver):$bad_vers]"
+    fail=$((fail+1))
+  fi
+fi
+
 rm -f "$listed"
 
 echo
