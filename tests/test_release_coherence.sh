@@ -601,6 +601,23 @@ cat > "$strict_bin/gh.cmd" <<'CMD'
 @bash "%~dp0gh" %*
 CMD
 chmod +x "$strict_bin/npm" "$strict_bin/gh" "$strict_bin/npm.cmd" "$strict_bin/gh.cmd"
+REAL_GIT="$(command -v git)"
+cat > "$strict_bin/git" <<SH
+#!/usr/bin/env bash
+if [ "\${FAKE_GIT_STATUS:-}" = "128" ] && [ "\$1" = "status" ]; then
+  echo "fatal: fake git status error" >&2
+  exit 128
+fi
+if [ "\${FAKE_GIT_SHOW:-}" = "128" ] && [ "\$1" = "show" ]; then
+  echo "fatal: fake git show error" >&2
+  exit 128
+fi
+exec "$REAL_GIT" "\$@"
+SH
+cat > "$strict_bin/git.cmd" <<'CMD'
+@bash "%~dp0git" %*
+CMD
+chmod +x "$strict_bin/git" "$strict_bin/git.cmd"
 
 strict_pass_rc=0
 PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-pass.out" 2>&1 || strict_pass_rc=$?
@@ -724,6 +741,26 @@ PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --stri
 ck 1 "$strict_dirty_rc" "--strict-published fails when release doc has uncommitted dirty changes"
 grep -q "working tree dirty for release docs: M README.md" "$OUT/strict-dirty.out" && ck 0 0 "reports dirty working tree on release docs" || ck 0 1 "reports dirty working tree on release docs"
 git -C "$strict_repo" checkout -q -- README.md
+
+# Negative test: git status failure (exit 128) must fail-closed under --strict-published
+strict_status128_rc=0
+FAKE_GIT_STATUS=128 PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-status128.out" 2>&1 || strict_status128_rc=$?
+ck 1 "$strict_status128_rc" "--strict-published fails when git status exits 128"
+grep -q 'git status failed with exit 128' "$OUT/strict-status128.out" && ck 0 0 "reports git status failure" || ck 0 1 "reports git status failure"
+
+# Negative test: git show failure (exit 128) must fail-closed without working tree fallback
+strict_show128_rc=0
+FAKE_GIT_SHOW=128 PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-show128.out" 2>&1 || strict_show128_rc=$?
+ck 1 "$strict_show128_rc" "--strict-published fails when git show exits 128 without working tree fallback"
+grep -q 'git show HEAD:.* failed with exit 128' "$OUT/strict-show128.out" && ck 0 0 "reports git show failure" || ck 0 1 "reports git show failure"
+
+# Negative test: deleting npm-wrapper/README_VN.md in working tree must be caught by git status
+rm -f "$strict_repo/npm-wrapper/README_VN.md"
+strict_del_vn_rc=0
+PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-del-vn.out" 2>&1 || strict_del_vn_rc=$?
+ck 1 "$strict_del_vn_rc" "--strict-published fails when npm-wrapper/README_VN.md is deleted in working tree"
+grep -q 'working tree dirty for release docs:.*D npm-wrapper/README_VN.md' "$OUT/strict-del-vn.out" && ck 0 0 "reports deleted release doc in working tree" || ck 0 1 "reports deleted release doc in working tree"
+git -C "$strict_repo" checkout -q -- npm-wrapper/README_VN.md
 
 echo
 echo "RESULT: $pass passed, $fail failed"

@@ -3,7 +3,6 @@
 // Invoked by `bash scripts/release-preflight.sh --strict-published` or directly
 // via `node scripts/check-release-live.mjs`. Never publishes, tags, or mutates state.
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compareSemver, parseSemver } from '../npm-wrapper/scripts/semver.mjs';
@@ -54,16 +53,17 @@ function readHeadFile(relPath) {
   if (res.status === 0) {
     return res.stdout;
   }
-  const full = join(root, relPath);
-  if (existsSync(full)) {
-    return readFileSync(full, 'utf8');
-  }
+  fail(`git show HEAD:${relPath} failed with exit ${res.status}: ${(res.stderr || res.error?.message || '').trim()}`);
   return null;
 }
 
 function assertClean(relPaths) {
   const res = runCmd('git', ['status', '--porcelain', '--', ...relPaths]);
-  if (res.status === 0 && res.stdout.trim().length > 0) {
+  if (res.status !== 0) {
+    fail(`git status failed with exit ${res.status}: ${(res.stderr || res.error?.message || '').trim()}`);
+    return false;
+  }
+  if (res.stdout.trim().length > 0) {
     const dirty = res.stdout.trim().split(/\r?\n/).map((l) => l.trim()).join(', ');
     fail(`working tree dirty for release docs: ${dirty}`);
     return false;
@@ -251,7 +251,8 @@ if (npmV && parseSemver(npmV)) {
 
   // (d) README Publication status verified lines must not report versions older than npm_v
   const readmeTargets = ['README.md', 'README_VN.md', 'npm-wrapper/README.md'];
-  if (existsSync(join(root, 'npm-wrapper/README_VN.md'))) readmeTargets.push('npm-wrapper/README_VN.md');
+  const vnInHead = runCmd('git', ['ls-tree', 'HEAD', 'npm-wrapper/README_VN.md']);
+  if (vnInHead.status === 0 && vnInHead.stdout.trim().length > 0) readmeTargets.push('npm-wrapper/README_VN.md');
   assertClean([...readmeTargets, 'CHANGELOG.md', 'npm-wrapper/CHANGELOG.md', 'docs/quality-metrics.md']);
   for (const relPath of readmeTargets) {
     const text = readHeadFile(relPath);
