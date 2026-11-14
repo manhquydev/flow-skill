@@ -767,6 +767,8 @@ function gh(args, options) {
     assert.equal(args[2], `v${s.skillVersion}`);
     const releaseCase = process.env.K_CONSUMER_HOLLOW;
     if (args[1] === 'view') {
+      const pastEvents = fs.existsSync(trace) ? fs.readFileSync(trace, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : [];
+      if (pastEvents.some(e => e.event === 'release')) return json({ tagName: args[2], isDraft: false, isPrerelease: false });
       log('release-view');
       if (releaseCase === 'release-exists') return json({ tagName: args[2] });
       const diagnostics = {
@@ -834,6 +836,15 @@ function gh(args, options) {
   throw new Error(`Unrecognized gh boundary: ${json(args)}`);
 }
 cp.spawnSync = function(command, args, options = {}) {
+  if (command === 'git') return spawn(command, args, options);
+  if (command === 'gh') {
+    try {
+      const out = gh(args, options);
+      return { status: 0, stdout: out, stderr: '', error: null };
+    } catch (err) {
+      return { status: err.status ?? 1, stdout: '', stderr: err.stderr?.toString() ?? err.message, error: err };
+    }
+  }
   if (command === 'npm') return registry(args, options);
   if (command === 'npx') {
     const s = state();
