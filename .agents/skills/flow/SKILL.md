@@ -1,6 +1,6 @@
 ---
 name: flow
-description: Use Flow to inspect project planning stages, execute scoped cards, and verify evidence-backed gates.
+description: Run the buildflow gated build process from idea to real done-evidence. Walk gated stages (Idea->Research->Scope->PRD->ADR->Contract->Cards->Build->Review->Deploy/Ship->Verify->Retro), each with a honest gate that must pass before advancing. Adapts to project type (web|cli|library|skill). Use when starting or driving a real product build, when the user types /flow, /flow next, /flow card, /flow check, or asks to scope/plan/ship a project through gates. Kill at any gate is a valid outcome.
 ---
 
 # Flow project skill pointer

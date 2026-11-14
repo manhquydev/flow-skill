@@ -164,6 +164,65 @@ fi
 rm -rf "$neg_tmp"
 trap - EXIT
 
+# H) argument-hint covers every dispatch verb parsed from flow.sh (no hard-coded list).
+SKILL_MD="$HERE/../skills/flow/SKILL.md"
+hint_line="$(grep '^argument-hint:' "$SKILL_MD")"
+hint_missing=0
+while IFS= read -r verb; do
+  [ -n "$verb" ] || continue
+  if ! printf '%s' "$hint_line" | grep -qE "(^|[ |[])${verb}([ |[]|\])"; then
+    echo "  FAIL [dispatch verb '$verb' missing from argument-hint in SKILL.md]"
+    hint_missing=$((hint_missing+1))
+  fi
+done <<HINTVERBS
+$(_extract_dispatch_verbs "$RUNNER")
+HINTVERBS
+if [ "$hint_missing" -eq 0 ]; then
+  verb_count="$(_extract_dispatch_verbs "$RUNNER" | grep -c . || true)"
+  ok "all $verb_count dispatch verbs present in argument-hint"
+else
+  bad "$hint_missing dispatch verbs missing from argument-hint"
+fi
+
+# H neg: a hint line missing 'rules' must FAIL.
+neg_tmp="$(mktemp -d)"
+trap 'rm -rf "$neg_tmp"' EXIT
+printf '%s\n' "$(printf '%s' "$hint_line" | sed 's/ | rules |//')" > "$neg_tmp/hint-no-rules.md"
+hint_neg_missing=0
+while IFS= read -r verb; do
+  [ -n "$verb" ] || continue
+  printf '%s' "$(cat "$neg_tmp/hint-no-rules.md")" | grep -qE "(^|[ |[])${verb}([ |[]|\])" || hint_neg_missing=$((hint_neg_missing+1))
+done <<HINTVERBS2
+$(_extract_dispatch_verbs "$RUNNER")
+HINTVERBS2
+if [ "$hint_neg_missing" -gt 0 ]; then
+  ok "negative guard: argument-hint missing a dispatch verb fails closed"
+else
+  bad "negative guard: truncated argument-hint unexpectedly passed"
+fi
+
+# I) .agents pointer description must equal the canonical SKILL.md description line.
+POINTER="$HERE/../.agents/skills/flow/SKILL.md"
+canon_desc="$(grep '^description:' "$SKILL_MD")"
+ptr_desc="$(grep '^description:' "$POINTER")"
+if [ -n "$canon_desc" ] && [ "$canon_desc" = "$ptr_desc" ]; then
+  ok ".agents pointer description is byte-identical to canonical SKILL.md description"
+else
+  bad ".agents pointer description diverges from canonical SKILL.md description"
+fi
+
+# I neg: diverging pointer description must FAIL.
+sed 's/^description: .*/description: Drifted pointer description./' "$SKILL_MD" > "$neg_tmp/skill-drifted.md"
+neg_canon="$(grep '^description:' "$neg_tmp/skill-drifted.md")"
+if [ "$neg_canon" != "$ptr_desc" ]; then
+  ok "negative guard: drifted description comparison fails closed"
+else
+  bad "negative guard: drifted description unexpectedly matched"
+fi
+
+rm -rf "$neg_tmp"
+trap - EXIT
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
