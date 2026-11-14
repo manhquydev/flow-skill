@@ -73,6 +73,8 @@ operator-authority-only):
 - eval
 - converge
 - rules
+- loop-prep
+- loop-log
 
 **Default-deny:** any verb not explicitly listed under May-run above is must-ask — this
 includes any verb added to flow after this file was written. When in doubt, ask.
