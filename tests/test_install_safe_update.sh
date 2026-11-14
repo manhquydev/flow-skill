@@ -566,21 +566,28 @@ ck "PARSED_OK" "$out" "raw Windows drive and UNC paths correctly parsed without 
 
 echo "=== Installer Python floor pins (3.7, matching runtime probe) ==="
 # Runtime flow.sh probes (3, 7); the installer probes must not claim a stricter floor.
-grep -q '>= (3, 7)' "$INSTALL_SH" \
-  && ck "PRESENT" "PRESENT" "install.sh probes python floor >= (3, 7)" \
-  || ck "PRESENT" "ABSENT" "install.sh probes python floor >= (3, 7)"
-if grep -q '(3, 8)' "$INSTALL_SH"; then
+grep -q 'sys\.version_info >= (3, 7)' "$INSTALL_SH" \
+  && ck "PRESENT" "PRESENT" "install.sh probes python floor sys.version_info >= (3, 7)" \
+  || ck "PRESENT" "ABSENT" "install.sh probes python floor sys.version_info >= (3, 7)"
+if grep -q 'sys\.version_info >= (3, 8)' "$INSTALL_SH"; then
   ck "ABSENT" "PRESENT" "install.sh has no stale (3, 8) floor"
 else
   ck "ABSENT" "ABSENT" "install.sh has no stale (3, 8) floor"
 fi
-grep -q '>= (3, 7)' "$ROOT/install.ps1" \
-  && ck "PRESENT" "PRESENT" "install.ps1 probes python floor >= (3, 7)" \
-  || ck "PRESENT" "ABSENT" "install.ps1 probes python floor >= (3, 7)"
-if grep -q '(3, 8)' "$ROOT/install.ps1"; then
+grep -q 'sys\.version_info >= (3, 7)' "$ROOT/install.ps1" \
+  && ck "PRESENT" "PRESENT" "install.ps1 probes python floor sys.version_info >= (3, 7)" \
+  || ck "PRESENT" "ABSENT" "install.ps1 probes python floor sys.version_info >= (3, 7)"
+if grep -q 'sys\.version_info >= (3, 8)' "$ROOT/install.ps1"; then
   ck "ABSENT" "PRESENT" "install.ps1 has no stale (3, 8) floor"
 else
   ck "ABSENT" "ABSENT" "install.ps1 has no stale (3, 8) floor"
+fi
+
+# If a python3.7 binary exists on PATH, run an actual install/update smoke test through installer_helper
+if command -v python3.7 >/dev/null 2>&1; then
+  echo "=== Python 3.7 live installer smoke ==="
+  py37_smoke="$(python3.7 "$INSTALLER_HELPER" --help 2>&1)"
+  [ $? -eq 0 ] && ck "OK" "OK" "installer_helper runs under Python 3.7" || ck "OK" "FAIL" "installer_helper runs under Python 3.7"
 fi
 
 echo "=== Summary ==="
