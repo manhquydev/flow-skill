@@ -26,11 +26,12 @@ rule text is enforceable by *a* judge," not "this build's self-review caught eve
 ## Fixtures and thresholds
 
 Nineteen shipped fixtures (`skills/flow/eval/fixtures/`, manifest `skills/flow/eval/manifest.tsv`):
-sound/hollow pairs for Stage 01 (Research — fabricated quotes, vague "users"), Stage 02 (Scope —
-grade laundering, a real C quietly graded B), Stage 03 (PRD — numeric metric + pain table vs
-unquantified adjective 'fast' / feature with no pain), and Stage 05 (including an acyclic module dependency
-ledger versus a cross-module reference with missing ledger facts; heading-mapped from `gate-05.md`; live
-floor unmeasured until operator `--record`; do not cat `gate-shared.md` onto 05), and the card gate:
+sound/hollow pairs for Stage 00 (Brownfield Inspection — unchecked gate box vs observed-from-source evidence),
+Stage 01 (Research — fabricated quotes, vague "users"), Stage 02 (Scope — grade laundering, a real C quietly
+graded B), Stage 03 (PRD — numeric metric + pain table vs unquantified adjective 'fast' / feature with no pain),
+and Stage 05 (including an acyclic module dependency ledger versus a cross-module reference with missing ledger
+facts; heading-mapped from `gate-05.md`; live floor unmeasured until operator `--record`; do not cat `gate-shared.md`
+onto 05), and the card gate:
 - **b00_unchecked / b00_supported** — Stage-00 brownfield-inspection pair (`flow/00-inspect.md`):
   an unchecked Gate box (`- [ ]`, assessment not actually inspected) is a semantic **FLAG**; a
   checked box backed by observed-from-source evidence (named code paths and verdicts) passes.
