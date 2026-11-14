@@ -1941,6 +1941,60 @@ cmd_card_start() { # mark a card actively in progress (operator-visible in_progr
   return 0
 }
 
+# verify-command frontmatter support: `verify-command: <cmd>` on a card runs the
+# command (300s cap, stdout+stderr merged), records a sha256 receipt of the output
+# into the verify-receipt JSONL stream, and fails the gate on non-zero exit BEFORE
+# any status mutation.
+_card_verify_command() { # $1 = card file -> verify-command value ('' if absent)
+  sed -n '1,/^##[[:space:]]/ { s/^verify-command:[[:space:]]*//p; }' "$1" 2>/dev/null | head -1 | tr -d '\r' | sed 's/[[:space:]]*$//'
+}
+
+_verify_receipt_emit() { # $1 card, $2 cmd, $3 sha256, $4 exit_code -> append JSONL (best-effort)
+  _log_disabled && return 0
+  _ensure_cycle
+  local now ts cyc cmd_masked
+  now="$(_now)"
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo '')"
+  cyc="$(cat "$CYCLE_FILE" 2>/dev/null | tr -d '\r\n' || echo '')"
+  cmd_masked="$(_mask_secrets "${2:-}")"
+  mkdir -p "$LOG_DIR" 2>/dev/null || true
+  printf '{"ts":"%s","epoch_s":%s,"session_id":"%s","cycle_id":"%s","kind":"verify-receipt","card":"%s","cmd":"%s","sha256":"%s","exit_code":%s}\n' \
+    "$ts" "$now" "$(_json_str "$(_session_id)")" "$cyc" \
+    "$(_json_str "${1:-}")" "$(_json_str "$cmd_masked")" "$(_json_str "${3:-}")" "${4:-1}" \
+    >> "$EVENTS_FILE" 2>/dev/null || true
+  return 0
+}
+
+_verify_command_gate() { # $1 card id, $2 card file -> 0 pass / 1 fail (receipt always emitted when cmd set)
+  local vc; vc="$(_card_verify_command "$2")"
+  [ -n "$vc" ] || return 0
+  local tf rc sha
+  tf="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/.flow_vcmd_${$}_$RANDOM")"
+  ( cd "$ROOT" && _run_with_timeout 300 "$vc" >"$tf" 2>&1 )
+  rc=$?
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha="$(sha256sum "$tf" 2>/dev/null | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    sha="$(shasum -a 256 "$tf" 2>/dev/null | awk '{print $1}')"
+  else
+    sha=""
+  fi
+  if ! printf '%s' "$sha" | grep -Eq '^[0-9a-f]{64}$'; then
+    echo "FAIL: card $1 verify-command: sha256 calculation failed or no supported hash utility (sha256sum/shasum)" >&2
+    rm -f "$tf" 2>/dev/null
+    return 1
+  fi
+  _verify_receipt_emit "$1" "$vc" "$sha" "$rc"
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL: verify-command exited $rc"
+    tail -5 "$tf" 2>/dev/null | sed 's/^/      /'
+    rm -f "$tf" 2>/dev/null
+    return 1
+  fi
+  rm -f "$tf" 2>/dev/null
+  return 0
+}
+
 cmd_card_done() { # CLI-owned flip to done, gated by the SAME done-rules as '/flow check' (revert on fail)
   local arg="${1:-}"
   if [ -z "$arg" ]; then echo "usage: /flow card done C-NNN"; return 1; fi
@@ -1993,6 +2047,14 @@ cmd_card_done() { # CLI-owned flip to done, gated by the SAME done-rules as '/fl
     fi
   fi
 
+  # verify-command gate BEFORE any status mutation (fail keeps status unchanged).
+  if ! _verify_command_gate "$id" "$file"; then
+    if [ "$enforce" = "1" ]; then
+      _att_lock_release "$lname2"; _att_lock_release "$lname"; _att_auto_lock_release
+    fi
+    echo "FAIL: $id verify-command gate failed (status unchanged)."
+    return 1
+  fi
   # On INT/TERM after flip-to-done: restore todo and abort (fail-closed). Never continue
   # into durable complete after a partial restore.
   # shellcheck disable=SC2064
@@ -2239,6 +2301,15 @@ cmd_check() {
       found=1
     fi
   done
+
+  # 4b) verify-command frontmatter: run it, receipt the output sha256; non-zero
+  #     exit fails the gate (and cmd_card_done callers revert/keep todo).
+  #     Skip when called from cmd_card_done (--withhold-pass) which runs it pre-flip.
+  if [ "$withhold_pass" -ne 1 ]; then
+    if ! _verify_command_gate "$id" "$file"; then
+      found=1
+    fi
+  fi
 
   # 5) if done: all Verify boxes checked AND Evidence is real world-state (multi-signal floor)
   if [ "$st" = "done" ]; then
