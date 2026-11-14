@@ -1220,6 +1220,7 @@ def cmd_prune(con, a):
         # "mirror rows for this sink are rebuilt from the kept lines", and orphaned keyed
         # rows would be unreachable forever after.
         con.execute("DELETE FROM usage_event WHERE src=? OR src LIKE ? || '#%'", (src, _canon_sink(src)))
+        con.execute("DELETE FROM verify_receipt WHERE src=? OR src LIKE ? || '#%'", (src, _canon_sink(src)))
         con.execute("DELETE FROM rollup_cursor WHERE src=? OR src LIKE ? || '#%'", (src, _canon_sink(src)))
         con.commit()
         print(json.dumps({"sink": src, "kept": len(kept), "dropped": len(lines) - len(kept)}))
