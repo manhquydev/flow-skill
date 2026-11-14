@@ -1405,9 +1405,16 @@ cmd_resume() {
     fi
     local card_st; card_st="$(grep -E '^status:' "$card_file" 2>/dev/null | head -1 | awk '{print $2}')"
     if [ "$card_st" = "done" ]; then
+      local _ap
+      _ap="$(_att_attempt_path "$resume_card" 2>/dev/null || true)"
+      if [ -n "$_ap" ] && [ -f "$_ap" ]; then
+        echo "WARNING: card $resume_card has a live attempt in progress or was interrupted (auto will block until it is resolved; see references/attestations.md)"
+        echo "NEXT_VERB=card"
+        return 0
+      fi
       local _rp _st
       _rp="$(_att_receipt_path semantic_gate card "$resume_card" 2>/dev/null || true)"
-      _st="$(_att_receipt_status "$_rp" 2>/dev/null || echo missing)"
+      _st="$(_att_receipt_status "$_rp" 2>/dev/null)" || _st="${_st:-missing}"
       if [ "$_st" != "current" ]; then
         echo "WARNING: card $resume_card receipt is $_st (auto will require a current pass; see references/attestations.md)"
         echo "NEXT_VERB=card"
@@ -1416,7 +1423,7 @@ cmd_resume() {
       local _rpl _stl
       _rpl="$(_att_receipt_path live_verify card "$resume_card" 2>/dev/null || true)"
       if [ -f "$_rpl" ]; then
-        _stl="$(_att_receipt_status "$_rpl" 2>/dev/null || echo missing)"
+        _stl="$(_att_receipt_status "$_rpl" 2>/dev/null)" || _stl="${_stl:-missing}"
         if [ "$_stl" != "current" ]; then
           echo "WARNING: card $resume_card live receipt is $_stl (auto will require a current pass; see references/attestations.md)"
           echo "NEXT_VERB=card"
@@ -1435,9 +1442,9 @@ cmd_resume() {
       echo "receipts:"
       local _rp_sem _rp_live _st_sem _st_live
       _rp_sem="$(_att_receipt_path semantic_gate card "$resume_card" 2>/dev/null || true)"
-      _st_sem="$(_att_receipt_status "$_rp_sem" 2>/dev/null || echo missing)"
+      _st_sem="$(_att_receipt_status "$_rp_sem" 2>/dev/null)" || _st_sem="${_st_sem:-missing}"
       _rp_live="$(_att_receipt_path live_verify card "$resume_card" 2>/dev/null || true)"
-      _st_live="$(_att_receipt_status "$_rp_live" 2>/dev/null || echo missing)"
+      _st_live="$(_att_receipt_status "$_rp_live" 2>/dev/null)" || _st_live="${_st_live:-missing}"
       echo "  semantic: $_st_sem"
       echo "  live:     $_st_live"
       echo
@@ -1513,7 +1520,7 @@ cmd_resume() {
   if [ -n "$_cur_stage" ] && _att_is_stage "$_cur_stage" 2>/dev/null; then
     _rp="$(_att_receipt_path semantic_gate stage "$_cur_stage" 2>/dev/null || true)"
     if [ -n "$_rp" ]; then
-      _st="$(_att_receipt_status "$_rp" 2>/dev/null || echo missing)"
+      _st="$(_att_receipt_status "$_rp" 2>/dev/null)" || _st="${_st:-missing}"
       case "$_st" in
         current) : ;;
         *) echo "WARNING: stage $_cur_stage semantic receipt is $_st (auto will require a current pass; see references/attestations.md)" ;;

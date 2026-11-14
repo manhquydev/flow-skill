@@ -183,6 +183,37 @@ ck 0 "$rc" "resume --card C-001 exits 0"
 has "$out" "card C-001 is already done - see 'flow recall'" "reports already done when receipt current"
 no "$out" "WARNING:" "no warning when receipt is current"
 rm -rf "$SB"
+echo "K) card resume (done): warns when live attempt is in progress / interrupted"
+setup_repo
+base="$(git -C "$SB" rev-parse HEAD)"
+mkdir -p "$SB/src"; printf 'v1\n' > "$SB/src/app.py"
+git -C "$SB" add -A && git -C "$SB" commit -qm "app v1"
+bash "$RUN" attest semantic --card C-001 --base "$base" --revision HEAD --owner bin/owner_card_semantic.txt >/dev/null
+sed -i 's/^status: todo/status: done/' "$SB/cards/C-001.md" 2>/dev/null || sed -i '' 's/^status: todo/status: done/' "$SB/cards/C-001.md"
+mkdir -p "$SB/.flow/attestations/live_verify"
+printf 'pid=9999\nstart=1000\nhost=test\n' > "$SB/.flow/attestations/live_verify/card-C-001.attempt"
+out="$(bash "$RUN" resume --card C-001 2>&1)"; rc=$?
+ck 0 "$rc" "resume --card C-001 exits 0 with attempt marker"
+has "$out" "WARNING: card C-001 has a live attempt in progress or was interrupted" "attempt marker triggers warning"
+no "$out" "card C-001 is already done" "does not report already done when attempt marker exists"
+rm -rf "$SB"
+
+echo "L) card resume (done): warns when live_verify receipt is stale or red"
+setup_repo
+base="$(git -C "$SB" rev-parse HEAD)"
+mkdir -p "$SB/src"; printf 'v1\n' > "$SB/src/app.py"
+git -C "$SB" add -A && git -C "$SB" commit -qm "app v1"
+bash "$RUN" attest semantic --card C-001 --base "$base" --revision HEAD --owner bin/owner_card_semantic.txt >/dev/null
+bash "$RUN" attest live-verify C-001 --revision HEAD --owner bin/owner_card_live.txt >/dev/null
+sed -i 's/^status: todo/status: done/' "$SB/cards/C-001.md" 2>/dev/null || sed -i '' 's/^status: todo/status: done/' "$SB/cards/C-001.md"
+rp="$SB/.flow/attestations/live_verify/card-C-001.receipt"
+awk '{sub(/verdict: pass/, "verdict: fail"); print}' "$rp" > "$rp.tmp" && mv "$rp.tmp" "$rp"
+out="$(bash "$RUN" resume --card C-001 2>&1)"; rc=$?
+ck 0 "$rc" "resume --card C-001 exits 0 with red live receipt"
+has "$out" "WARNING: card C-001 live receipt is red" "red live receipt triggers warning"
+no "$out" "card C-001 is already done" "does not report already done when live receipt is red"
+rm -rf "$SB"
+
 
 echo
 echo "RESULT: $pass passed, $fail failed"
