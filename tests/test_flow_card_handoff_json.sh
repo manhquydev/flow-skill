@@ -207,8 +207,8 @@ printf '%s\n' "$out_prose_active" | grep -qxF "NEXT_VERB=card"
 ck 0 "$?" "prose preserves NEXT_VERB line"
 printf '%s\n' "$out_prose_active" | grep -qxF "**First safe step**: review Scope and run Verify commands before editing"
 ck 0 "$?" "prose preserves First safe step line"
-printf '%s\n' "$out_prose_active" | wc -l | grep -qxF "22"
-ck 0 "$?" "prose output keeps the exact 22-line surface"
+prose_lines="$(printf '%s\n' "$out_prose_active" | wc -l | tr -d '[:space:]')"
+ck "22" "$prose_lines" "prose output keeps the exact 22-line surface"
 
 echo "=== 5. Project-level resume --json preservation (flow_context/v1) ==="
 out_proj_json="$(bash "$RUN" resume --json 2>&1)"; rc_proj_json=$?
@@ -467,6 +467,28 @@ bash "$RUN" resume --json --card= >/dev/null 2>&1; rc_ec2=$?
 ck 2 "$rc_ec2" "resume --json --card= exits 2"
 bash "$RUN" resume --budget --card= >/dev/null 2>&1; rc_ec3=$?
 ck 2 "$rc_ec3" "resume --budget --card= exits 2"
+
+echo "=== 13. Regression: BSD wc -l padded output numeric comparison (22 accepted, 21/23 rejected) ==="
+# BSD wc -l on macOS prints leading spaces (e.g. "      22"). Normalizing with tr -d '[:space:]'
+# and comparing numerically ensures exact-22-line validation works cross-platform without weakening.
+_wc_exact_22() {
+  local raw trimmed
+  raw="$1"
+  trimmed="$(printf '%s' "$raw" | tr -d '[:space:]')"
+  [ -n "$trimmed" ] && [ "$trimmed" -eq 22 ] 2>/dev/null
+}
+_wc_exact_22 "      22"
+ck 0 "$?" "padded BSD wc output '      22' accepted as exact 22"
+_wc_exact_22 "      21"
+ck 1 "$?" "padded BSD wc output '      21' rejected"
+_wc_exact_22 "      23"
+ck 1 "$?" "padded BSD wc output '      23' rejected"
+_wc_exact_22 "22"
+ck 0 "$?" "unpadded GNU wc output '22' accepted"
+_wc_exact_22 "21"
+ck 1 "$?" "unpadded '21' rejected"
+_wc_exact_22 "23"
+ck 1 "$?" "unpadded '23' rejected"
 
 clean
 
