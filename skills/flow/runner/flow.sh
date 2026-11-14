@@ -5131,6 +5131,7 @@ _eval_heading_pattern() {
     00)   echo '^## Stage 00' ;;
     01)   echo '^## Stage 01' ;;
     02)   echo '^## Stage 02' ;;
+    03)   echo '^## Stage 03' ;;
     05)   echo '^## Stage 05' ;;
     card) echo '^## Card gate' ;;
     *)    return 1 ;;
@@ -5138,17 +5139,18 @@ _eval_heading_pattern() {
 }
 
 # Extract one stage's ritual text from the mapped file (00→gate-00.md, 01→gate-01.md,
-# 02→gate-02.md, 05→gate-05.md, card→gate-card.md): up to (not including) the next
-# '## ' heading, or EOF. Prints nothing on a bad stage/missing file - caller MUST assert
-# non-empty before any billable call (a silent empty extraction would judge against
+# 02→gate-02.md, 03→gate-03.md, 05→gate-05.md, card→gate-card.md): up to (not including)
+# the next '## ' heading, or EOF. Prints nothing on a bad stage/missing file - caller MUST
+# assert non-empty before any billable call (a silent empty extraction would judge against
 # no rule at all).
-_eval_extract_section() { # $1 = stage (00|01|02|05|card), $2 = optional references dir (snapshot)
+_eval_extract_section() { # $1 = stage (00|01|02|03|05|card), $2 = optional references dir (snapshot)
   local pat src refdir="${2:-$SCRIPT_DIR/../references}"
   pat="$(_eval_heading_pattern "$1")" || return 1
   case "$1" in
     00)   src="$refdir/gate-00.md" ;;
     01)   src="$refdir/gate-01.md" ;;
     02)   src="$refdir/gate-02.md" ;;
+    03)   src="$refdir/gate-03.md" ;;
     05)   src="$refdir/gate-05.md" ;;
     card) src="$refdir/gate-card.md" ;;
     *)    return 1 ;;
@@ -5220,10 +5222,10 @@ _eval_build_prompt() { # $1=outfile $2=stage $3=artifact-file $4=nonce $5=option
   local refdir="${5:-$SCRIPT_DIR/../references}"
   section="$(_eval_extract_section "$stage" "$refdir")" || return 1
   [ -n "$section" ] || return 1
-  # Shared OD/authority lives in 02/03/05 challenges. Extract maps 00/01/02/05/card;
-  # append shared onto 02 only. 05 extract may mention gate-shared.md; do not cat it
+  # Shared OD/authority lives in 02/03/05 challenges. Extract maps 00/01/02/03/05/card;
+  # append shared onto 02 and 03. 05 extract may mention gate-shared.md; do not cat it
   # (shared OD on 05 false-FLAGs f05a — PASS fixture states bearer auth without an ADR).
-  if [ "$stage" = "02" ]; then
+  if [ "$stage" = "02" ] || [ "$stage" = "03" ]; then
     shared="$refdir/gate-shared.md"
     [ -f "$shared" ] && section="$section
 $(cat "$shared")"
@@ -6495,7 +6497,7 @@ function cmd_eval {
         shift
         diff_new="${1:-}"
         ;;
-      *) echo "usage: /flow eval [--stage 00|01|02|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>] [--keep-going] [--report] [--record|--replay] [--diff <old> <new>]"; return 1 ;;
+      *) echo "usage: /flow eval [--stage 00|01|02|03|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>] [--keep-going] [--report] [--record|--replay] [--diff <old> <new>]"; return 1 ;;
     esac
     shift 2>/dev/null || true
   done
@@ -6509,7 +6511,7 @@ function cmd_eval {
   fi
   case "$n" in ''|*[!0-9]*|0) echo "eval: --n must be a positive integer (got '$n')"; return 1 ;; esac
   case "$timeout" in ''|*[!0-9]*|0) echo "eval: --timeout must be a positive integer seconds value (got '$timeout')"; return 1 ;; esac
-  case "$stage_filter" in ""|00|01|02|05|card|routing|converge) : ;; *) echo "eval: --stage must be one of 00|01|02|05|card|routing|converge (got '$stage_filter')"; return 1 ;; esac
+  case "$stage_filter" in ""|00|01|02|03|05|card|routing|converge) : ;; *) echo "eval: --stage must be one of 00|01|02|03|05|card|routing|converge (got '$stage_filter')"; return 1 ;; esac
   # Backoff between the in-run retry attempts. Default 5s; tests set 0 so the mock-suite is not
   # slowed by 15s+ per degraded-path case across 3-OS CI. Bare-int validation only - a bogus
   # value (`abc`) silently falls back to the default rather than aborting the batch.
@@ -6744,7 +6746,7 @@ function cmd_eval {
     local promptfile="$rundir/prompt.txt"
     if ! _eval_build_prompt "$promptfile" "$fstage_short" "$artifact_path" "$nonce" "${grader_snapshot:+$grader_snapshot/references}"; then
       if [ "$replay_mode" -eq 1 ]; then
-        echo "  $fid: SKIP - no heading-mapped section (artifact-replay scope is 00|01|02|05|card)"
+        echo "  $fid: SKIP - no heading-mapped section (artifact-replay scope is 00|01|02|03|05|card)"
         rm -rf "$rundir" 2>/dev/null
         continue
       fi
@@ -7015,7 +7017,7 @@ For project Codex/Gemini discovery, this pointer lives in `.agents/skills/flow/S
 This target is only for repositories with the canonical Flow bundle checked into project-root `skills/flow`; global installs and `.claude/skills/flow` alone do not satisfy this prerequisite.
 Read [the canonical skill](../../../skills/flow/SKILL.md) (`skills/flow/SKILL.md` from project root) before acting; it remains the source of truth. Do not copy its instructions here or treat this pointer as an additional runtime.
 
-Set `<skill-dir>` to that canonical bundle directory (`skills/flow`). From the project root, invoke `bash <skill-dir>/runner/flow.sh <command>` using the hosting agent or operator; Flow does not own the runtime.
+Set `<skill-dir>` to that canonical bundle directory (`skills/flow`). From the project root, invoke `bash <skill-dir>/runner/flow.sh <command>` (macOS / Linux / Windows Git Bash) or `<skill-dir>\runner\flow.cmd <command>` (Windows PowerShell or cmd, including inside Codex; bare `bash` may resolve to WSL and cannot read `C:/` paths) using the hosting agent or operator; Flow does not own the runtime.
 Follow the canonical skill dispatch, active card allowed files, gates, and evidence requirements. Keep Claude discovery in its separate `.claude/skills` path.'
       local dest=".agents/skills/flow/SKILL.md"
       ;;
@@ -7305,7 +7307,7 @@ usage: bash flow.sh <command> [args]
   eval [opts]       Behavioral eval: does the LLM semantic gate flag a hollow-but-mechanically-clean
                      fixture? Opt-in, BILLABLE (live mode skips cleanly with zero calls if 'claude'
                      CLI absent; --replay never inherits that SKIP).
-                     [--stage 00|01|02|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>]
+                     [--stage 00|01|02|03|05|card|routing|converge] [--fixture <id>] [--n 3] [--timeout <seconds>]
                      [--report]  offline: last complete batch's scorecard + drift, zero calls
                      [--record]  live: write stripped transcripts under eval/replay/ (billable)
                      [--replay]  keyless: feed recorded transcripts through parse/vote/scorecard
