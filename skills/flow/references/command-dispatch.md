@@ -25,7 +25,7 @@ is no fragment loader (ADR-0001).
 | `/flow constitution` | `bash <skill>/runner/flow.sh constitution` | Advisory constitution form + markers; then `gate-rules.md`. Not a `next` gate. |
 | `/flow clarify` | `bash <skill>/runner/flow.sh clarify` | List leftover Open-decision boxes; write-back `references/clarify.md`. Not a `next` gate. |
 | `/flow converge` | `bash <skill>/runner/flow.sh converge [--file <payload>]` | Assess vs plan per `references/converge.md`; present the findings table first. |
-| `/flow eval [--stage 01\|02\|05\|card] [--fixture <id>] [--n 3] [--timeout <s>]` | `bash <skill>/runner/flow.sh eval [...]` | Billable; live mode skips if `claude` absent. `--replay` does not inherit that SKIP. See `references/gate-eval.md`. |
+| `/flow eval [--stage 00\|01\|02\|03\|05\|card] [--fixture <id>] [--n 3] [--timeout <s>]` | `bash <skill>/runner/flow.sh eval [...]` | Billable; live mode skips if `claude` absent. `--replay` does not inherit that SKIP. See `references/gate-eval.md`. |
 | `/flow eval --report` | `bash <skill>/runner/flow.sh eval --report` | Offline; relay last complete batch + drift. See `references/gate-eval.md`. |
 | `/flow eval --replay` | `bash <skill>/runner/flow.sh eval --replay` | Keyless replay; missing/stale fixtures exit 1. Verdicts never count toward the eval floor. |
 | `/flow eval --diff <old> <new>` | `bash <skill>/runner/flow.sh eval --diff <old> <new>` | Offline; fixture regression classifier vs baseline. See `references/gate-eval.md`. |
@@ -41,6 +41,8 @@ is no fragment loader (ADR-0001).
 | `/flow mode work` | `bash <skill>/runner/flow.sh mode work` | Interview once, draft 00-05, pause for scope sign-off; same gates. See `references/mode-work.md`. |
 | `/flow ready` | `bash <skill>/runner/flow.sh ready [--json]` | Relay buildable cards; operator dispatches. Confirm allowed-files don't overlap. `--json` prints one closed `ready.report` envelope, display-only (`schema_version`, `kind`, `planning_complete`, `note`, `buildable[].id/deps/allowed_files/wave`, `blocked[]`, `warnings[]`, `groups[][]`, `auto`, `parallel_policy`); exit 1 when planning is incomplete or, with auto active, no todo card is buildable. `allowed_files` and waves use the same `_ws_tokens` normalization as `workspace check`; undeclared allowed-files conflict with everything (own wave). Waves are advisory: the host places and waits (see `host-agnostic-parallel.md`). |
 | `/flow workspace <verb>` | `bash <skill>/runner/flow.sh workspace add\|list\|enter\|remove\|check\|doctor\|port [...]` | Relay worktree isolation output; don't auto-`--force` a `remove`. `workspace port` allocates deterministic per-card port (`references/host-agnostic-parallel.md`). Advisory. |
+| `/flow loop-prep <C-NNN> [--metric failing-tests] [--iterations N] [--guard]` | `bash <skill>/runner/flow.sh loop-prep <C-NNN> ...` | Plumbing for ck-loop: emits the isolated `loop/<C-NNN>` worktree (clean tree, named branch enforced) + numeric failing-tests Verify command + param block; ck-loop (installed skill) stays the untouched execution engine. Aborts loudly on dirty worktree, detached HEAD, stale `loop-results.tsv.lock`, or zero `tests/test_*.sh`. Scope comes from the card's own Allowed files (never the Verify target), falling back to `tests/test_*.sh` only when undeclared. |
+| `/flow loop-log <C-NNN> --iterations N --start M --end K --outcome converged\|circuit-broke\|no-improve` | `bash <skill>/runner/flow.sh loop-log <C-NNN> ...` | Record a finished ck-loop run into usage telemetry (`LOOP <card>: start->end in N iters (outcome)`); card id is validated before populating telemetry's card field; exit 0/1/2 by outcome (converged/circuit-broke/no-improve). |
 | `/flow auto` | `bash <skill>/runner/flow.sh auto [--parallel]` | Load `references/auto-run.md`. `--parallel` records the parallel policy (`parallel: true` in auto-state) and prints advisory waves; placement and waiting stay with the host. |
 | `/flow auto stop` | `bash <skill>/runner/flow.sh auto stop` | Clear auto policy; return to warning-only manual path. |
 | `/flow attest …` | `bash <skill>/runner/flow.sh attest semantic\|live-verify\|status\|recover\|verify-chain\|cost …` | Mint/inspect receipts (`references/attestations.md`). Cost receipts are warn-only accounting evidence (`references/cost-receipts.md`). Must-ask before mint/recover. |
@@ -64,6 +66,8 @@ Table row `/flow card`. Fill per `law/CLAUDE.md`; before coding, `law/CODING.md`
 ## Install-path note
 
 SKILL.md "Run `flow.sh` first". Windows: `<skill>\runner\flow.cmd <cmd>` (not bare `bash`).
+
+Codex/Gemini discovery: `.agents/skills/flow/SKILL.md` pointer is checked into the repo (`flow rules agent-skills` prints a preview only; `--write` creates only an absent target and refuses to overwrite existing files or symlinks — to refresh a pointer safely, compare `flow rules agent-skills` against the file via preview/diff or back up the existing file manually before updating).
 
 ## V1 compatibility gate
 

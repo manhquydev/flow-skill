@@ -77,6 +77,7 @@ test_flow_four_point_compat.sh
 test_i18n_pairs.sh
 test_install_safe_update.sh
 test_flow_windows_lifecycle.sh
+test_flow_rules_agent_skills_pointer.sh
 test_release_eligibility.sh
 test_release_dispatch_response.sh
 test_release_provenance.sh
