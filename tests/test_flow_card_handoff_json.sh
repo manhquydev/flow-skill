@@ -242,10 +242,17 @@ src/a.ts
 EOC
 
 # Initialize harness and record decision 0001
-py="$("$RUN" __python__ 2>/dev/null || which python3)"
+py="$(which python3 2>/dev/null || which python 2>/dev/null)"
 HARNESS="$ROOT/skills/flow/harness/flow_harness.py"
-FLOW_PROJECT_ROOT="$SB" "$py" "$HARNESS" init >/dev/null 2>&1
-FLOW_PROJECT_ROOT="$SB" "$py" "$HARNESS" decision add --id 0001 --title "Use SQLite WAL mode for C-001" >/dev/null 2>&1
+if command -v cygpath >/dev/null 2>&1; then
+  NATIVE_SB="$(cygpath -m "$SB")"
+  NATIVE_HARNESS="$(cygpath -m "$HARNESS")"
+else
+  NATIVE_SB="$SB"
+  NATIVE_HARNESS="$HARNESS"
+fi
+FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" init >/dev/null 2>&1
+FLOW_PROJECT_ROOT="$NATIVE_SB" "$py" "$NATIVE_HARNESS" decision add --id 0001 --title "Use SQLite WAL mode for C-001" >/dev/null 2>&1
 
 # (a) Verify linked_decisions contains decision 0001 in JSON mode
 out_dec_json="$(bash "$RUN" resume --card C-001 --json 2>&1)"; rc_dec_json=$?
