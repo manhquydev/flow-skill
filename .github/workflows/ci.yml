@@ -77,7 +77,7 @@ jobs:
           if [ '${{ matrix.shard }}' != full ]; then
             export FLOW_SUITE_SHARD='${{ matrix.shard }}'
           fi
-          bash tests/run_all.sh
+          FLOW_RELEASE_TEST_GROUP=core bash tests/run_all.sh
         shell: bash
 
       - name: Run PowerShell installer suite (Windows only)
@@ -89,6 +89,30 @@ jobs:
           pwsh -NoProfile -File tests/test_install_safe_update.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         shell: pwsh
+
+  # Each consumer executes its real release/installed-package assertions once per OS.
+  # The core scenarios remain in bash-suite; these groups are a disjoint partition.
+  release-consumers:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        group: [consumer-1, consumer-2, consumer-3]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.14'
+      - name: Independent release consumer scenarios
+        env:
+          FLOW_RELEASE_TEST_GROUP: ${{ matrix.group }}
+        run: bash tests/test_sync_release.sh
+        shell: bash
 
   # V1 replaces the former no-python degradation promise with fail-closed refusal.
   # Product operations cannot advance when Python is unavailable or explicitly disabled;
@@ -242,7 +266,7 @@ jobs:
 
   # Phase 2 initial set + Phase 3 pack-rehearsal + Phase 7 keyless replay.
   all-checks-passed:
-    needs: [bash-suite, python-required-refusal, test, pack-rehearsal, eval-replay]
+    needs: [bash-suite, release-consumers, python-required-refusal, test, pack-rehearsal, eval-replay]
     # bash-suite is the whole matrix: any failed/cancelled shard blocks this verdict.
     if: always()
     runs-on: ubuntu-latest
