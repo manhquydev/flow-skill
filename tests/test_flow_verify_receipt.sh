@@ -11,8 +11,8 @@ PY="$(command -v python3 || command -v python)"
 pass=0
 fail=0
 ck()  { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass + 1)); else echo "  FAIL [$3] expected='$1' got='$2'"; fail=$((fail + 1)); fi; }
-has() { if printf '%s' "$1" | grep -q "$2"; then echo "  ok   [$3]"; pass=$((pass + 1)); else echo "  FAIL [$3] (missing: $2)"; fail=$((fail + 1)); fi; }
-no()  { if printf '%s' "$1" | grep -q "$2"; then echo "  FAIL [$3] (unexpected: $2)"; fail=$((fail+1)); else echo "  ok   [$3]"; pass=$((pass+1)); fi; }
+has() { if printf '%s' "$1" | grep -qF -- "$2"; then echo "  ok   [$3]"; pass=$((pass + 1)); else echo "  FAIL [$3] (missing: $2)"; fail=$((fail + 1)); fi; }
+no() { if printf '%s' "$1" | grep -qF -- "$2"; then echo "  FAIL [$3] (unexpected: $2)"; fail=$((fail+1)); else echo "  ok   [$3]"; pass=$((pass+1)); fi; }
 
 mkcard() { # $1 verify-command line ('' = none)
   SB="$(mktemp -d)"
@@ -91,7 +91,7 @@ if rows:
 else:
     print("SHA-NA")
 ' 2>&1)"
-  has "$q" "^1$" "rollup inserted a verify_receipt row"
+  ck 1 "$(printf '%s' "$q" | grep -c '^1$')" "rollup inserted a verify_receipt row"
   has "$q" "SHA-OK" "rolled-up sha256/cmd fields sane"
   rm -rf "$SB"
 else
