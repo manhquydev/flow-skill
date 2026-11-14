@@ -74,6 +74,6 @@ Codex/Gemini discovery: `.agents/skills/flow/SKILL.md` pointer is checked into t
 The owner-approved v1 target makes Python required, graph ordering the default for `/flow next`,
 and `FLOW_HARNESS_DISABLE` a product-operation refusal. The v1 release gate has passed; independent
 review, exact-head CI, migration/rollback evidence and installed-package acceptance remain required
-for future releases — see the [release runbook](../../../docs/release-process.md). The
+for future releases — see the [release runbook](https://github.com/manhquydev/flow-skill/blob/master/docs/release-process.md). The
 skill product and npm installer share one SemVer. An npm installer pin restores bytes only through the
 installer CLI and does not by itself reverse a migrated database. See the [v1 migration guide](https://github.com/manhquydev/flow-skill/blob/master/docs/migration-v1.md).

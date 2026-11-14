@@ -773,20 +773,40 @@ ck 1 "$strict_lstree128_rc" "--strict-published fails when git ls-tree exits 128
 grep -q 'git ls-tree failed with exit 128' "$OUT/strict-lstree128.out" && ck 0 0 "reports git ls-tree failure" || ck 0 1 "reports git ls-tree failure"
 
 echo "P) contributor docs never describe separate release/version axes"
-if grep -q 'separate release axes' "$HERE/../CONTRIBUTING.md"; then
+contrib_file="$HERE/../CONTRIBUTING.md"
+dispatch_file="$HERE/../skills/flow/references/command-dispatch.md"
+if [ ! -r "$contrib_file" ]; then
+  echo "  FAIL [CONTRIBUTING.md missing or unreadable]"
+  fail=$((fail + 1))
+elif tr -s '[:space:]' ' ' < "$contrib_file" | grep -q 'separate release axes'; then
   echo "  FAIL [CONTRIBUTING.md contains stale 'separate release axes']"
   fail=$((fail + 1))
 else
   echo "  ok   [CONTRIBUTING.md has no 'separate release axes']"
   pass=$((pass + 1))
 fi
-if grep -q 'remain separate version axes' "$HERE/../skills/flow/references/command-dispatch.md"; then
+if [ ! -r "$dispatch_file" ]; then
+  echo "  FAIL [command-dispatch.md missing or unreadable]"
+  fail=$((fail + 1))
+elif tr -s '[:space:]' ' ' < "$dispatch_file" | grep -q 'remain separate version axes'; then
   echo "  FAIL [skills/flow/references/command-dispatch.md contains stale 'remain separate version axes']"
   fail=$((fail + 1))
 else
   echo "  ok   [skills/flow/references/command-dispatch.md has no 'remain separate version axes']"
   pass=$((pass + 1))
 fi
+
+# Negative test: original multiline wrapped paragraph must FAIL the guard when restored
+neg_dispatch="$(mktemp)"
+printf 'The skill product and npm installer remain separate\nversion axes; an npm installer pin restores bytes\n' > "$neg_dispatch"
+if tr -s '[:space:]' ' ' < "$neg_dispatch" | grep -q 'remain separate version axes'; then
+  echo "  ok   [negative guard: wrapped 'remain separate\\nversion axes' correctly detected]"
+  pass=$((pass + 1))
+else
+  echo "  FAIL [negative guard: wrapped 'remain separate\\nversion axes' was missed]"
+  fail=$((fail + 1))
+fi
+rm -f "$neg_dispatch"
 
 
 echo
