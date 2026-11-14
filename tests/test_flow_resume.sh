@@ -196,7 +196,7 @@ has "$out_miss" "card C-999 not found" "error message reports missing card path"
 printf '# C-001 — test\nstatus: done\ndeps: none\n## Scope\none thing\n## Allowed files\ninfra/\n## Verify\n- [x] ok\n## Evidence\nproof\n' > "$SB/cards/C-001.md"
 out_done="$(bash "$RUN" resume --card C-001 2>&1)"; rc_done=$?
 ck 0 "$rc_done" "resume --card on already done card exits 0"
-has "$out_done" "card C-001 is already done - see 'flow recall'" "done card points user to flow recall"
+has "$out_done" "WARNING: card C-001 receipt is missing" "done card with missing receipt warns"
 has "$out_done" "NEXT_VERB=card" "NEXT_VERB emitted on done card"
 clean
 
