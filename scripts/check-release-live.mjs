@@ -7,6 +7,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compareSemver, parseSemver } from '../npm-wrapper/scripts/semver.mjs';
 
+// Historical documentation receipts are not assertions about this new publication.
+const historicalReceipts = process.argv.length === 3 && process.argv[2] === '--historical-receipts';
+if (process.argv.length > 2 && !historicalReceipts) { console.error('Unknown live-check arguments'); process.exit(2); }
+
 const PACKAGE = '@manhquy/flow-skill';
 const PUBLIC_REGISTRY = 'https://registry.npmjs.org/';
 const REPO = process.env.GITHUB_REPOSITORY || 'manhquydev/flow-skill';
@@ -347,10 +351,14 @@ if (npmV && parseSemver(npmV)) {
       }
       const older = verMatches.filter((v) => compareSemver(v, npmV) < 0);
       const hasExact = verMatches.some((v) => compareSemver(v, npmV) === 0);
-      if (older.length > 0) {
+      const future = verMatches.filter((v) => compareSemver(v, npmV) > 0);
+      if (historicalReceipts && future.length > 0) {
+        fail(`${relPath} historical receipt cites unpublished future version(s) [${future.join(', ')}] > ${npmV}`);
+        lineFailed = true;
+      } else if (!historicalReceipts && older.length > 0) {
         fail(`${relPath} Publication status verified still cites older version(s) [${older.join(', ')}] < ${npmV}`);
         lineFailed = true;
-      } else if (!hasExact) {
+      } else if (!historicalReceipts && !hasExact) {
         fail(`${relPath} Publication status verified does not cite current published version ${npmV}`);
         lineFailed = true;
       }
@@ -358,7 +366,7 @@ if (npmV && parseSemver(npmV)) {
     if (pubLines.length > 1) {
       fail(`${relPath} has duplicate publication-status declarations (${pubLines.length}; expected 1)`);
     } else if (!lineFailed) {
-      ok(`${relPath} publication status matches ${npmV}`);
+      ok(historicalReceipts ? `${relPath} historical receipt retained; current publication verified by live checks` : `${relPath} publication status matches ${npmV}`);
     }
   }
 

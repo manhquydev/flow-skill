@@ -429,19 +429,7 @@ copy_release_metadata
 k_skill_v=$(node -e 'const fs = require("node:fs"); const m = fs.readFileSync(process.argv[1], "utf8").match(/version:\s*"([^"]+)"/); console.log(m[1])' "$(winpath "$tmp/r/skills/flow/SKILL.md")")
 k_npm_v=$(node -e 'const p = process.argv[1]; console.log(require(p).version)' "$(winpath "$tmp/r/npm-wrapper/package.json")")
 node -e 'const fs=require("node:fs");const p=process.argv[1];const intent=JSON.parse(fs.readFileSync(p));intent.intent=true;fs.writeFileSync(p,JSON.stringify(intent));' "$(winpath "$tmp/r/docs/release-intent.json")"
-node --input-type=module - "$(winpath "$tmp/r")" "$k_npm_v" << 'EOF'
-import fs from 'node:fs';
-import path from 'node:path';
-const [repo, version] = process.argv.slice(2);
-for (const rel of ['README.md', 'README_VN.md', 'npm-wrapper/README.md', 'npm-wrapper/README_VN.md']) {
-  const p = path.join(repo, rel);
-  if (!fs.existsSync(p)) continue;
-  let text = fs.readFileSync(p, 'utf8');
-  text = text.replace(/^(Publication status verified|Bản phát hành đã xác minh)\b.*$/gm,
-    (m) => m.replace(/1\.0\.0/g, version));
-  fs.writeFileSync(p, text, 'utf8');
-}
-EOF
+# Keep historical publication receipts unchanged; live verification is separate.
 cp "$ROOT/scripts/check-release-coherence.sh" "$tmp/r/scripts/"
 git -C "$tmp/r" add scripts/ .github/workflows/publish-npm-wrapper.yml npm-wrapper/scripts/semver.mjs docs/release-intent.json README.md README_VN.md npm-wrapper/README.md npm-wrapper/README_VN.md
 commit_err=$(git -C "$tmp/r" commit -qm "sync scripts and fixture publication receipts" 2>&1) || {
@@ -450,10 +438,12 @@ commit_err=$(git -C "$tmp/r" commit -qm "sync scripts and fixture publication re
     exit 1
   fi
 }
-bash "$tmp/r/scripts/check-i18n-pairs.sh" record README.md >/dev/null 2>&1 || true
-bash "$tmp/r/scripts/check-i18n-pairs.sh" record npm-wrapper/README.md >/dev/null 2>&1 || true
+bash "$tmp/r/scripts/check-i18n-pairs.sh" record README.md || { echo "FAIL: i18n record README.md" >&2; exit 1; }
+bash "$tmp/r/scripts/check-i18n-pairs.sh" record npm-wrapper/README.md || { echo "FAIL: i18n record npm-wrapper/README.md" >&2; exit 1; }
 git -C "$tmp/r" add docs/i18n-pairs.txt
-git -C "$tmp/r" commit -qm "sync i18n pairs for fixture" || true
+if ! git -C "$tmp/r" diff --cached --quiet; then
+  git -C "$tmp/r" commit -qm "sync i18n pairs for fixture" || { echo "FAIL: i18n fixture commit" >&2; exit 1; }
+fi
 git -C "$tmp/r" push -q origin master
 git -C "$tmp/r" config url."file://$tmp/origin.git".insteadOf "https://github.com/manhquydev/flow-skill.git"
 git -C "$tmp/r" remote set-url origin "https://github.com/manhquydev/flow-skill.git"

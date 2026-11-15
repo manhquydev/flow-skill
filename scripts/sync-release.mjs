@@ -1127,12 +1127,12 @@ To execute release promotion live, re-run with --yes:
   console.log('Post-Publish Strict Live Coherence Verification');
   console.log('================================================================================\n');
   try {
-    execFileSync(process.execPath, [join(repoRoot, 'scripts/check-release-live.mjs')], {
+    execFileSync(process.execPath, [join(repoRoot, 'scripts/check-release-live.mjs'), '--historical-receipts'], {
       cwd: repoRoot,
       stdio: 'inherit',
       env: { ...process.env, FLOW_RELEASE_ROOT: repoRoot, ...(preTagSkillStatus.exists ? { FLOW_ALLOW_SKILL_TAG_REUSE: '1' } : {}) },
     });
-    console.log('✓ Strict live release coherence verified across all 6 axes.');
+    console.log('✓ Live release identity verified; historical documentation receipts retained.');
   } catch (err) {
     console.error(`\nFAIL: Post-publish strict live release coherence verification failed (exit code ${err.status ?? 1}).`);
     console.error('All release surfaces must agree. Stop for owner reconciliation.');

@@ -89,6 +89,8 @@ jobs:
           node-version: '22'
       - name: Install npm with OIDC support
         run: npm install --global npm@11.21.0
+      - name: Verify committed release coherence before mutating package hooks
+        run: bash scripts/check-release-coherence.sh
       - name: Test and pack the exact package once
         working-directory: npm-wrapper
         env:
