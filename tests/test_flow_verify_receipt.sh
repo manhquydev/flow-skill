@@ -4,6 +4,8 @@
 # records a sha256 receipt event, and fails the gate BEFORE any status change.
 # Run: bash tests/test_flow_verify_receipt.sh  (Git Bash on Windows or any POSIX bash)
 set -u
+# Isolate receipt-positive fixtures from caller telemetry preferences.
+unset DO_NOT_TRACK FLOW_LOG_DISABLE
 HERE="$(cd "$(dirname "$0")" && pwd)"
 RUN="$HERE/../skills/flow/runner/flow.sh"
 HARNESS_PY="$HERE/../skills/flow/harness/flow_harness.py"
@@ -123,7 +125,7 @@ ck done "$st" "card flipped to done"
 rm -rf "$SB"
 
 echo "F) inline secrets in verify-command are masked in verify-receipt event"
-mkcard 'curl -H "Authorization: Bearer secret_bearer_token_12345" http://localhost:8080'
+mkcard 'printf "Authorization: Bearer secret_bearer_token_12345\n"'
 bash "$RUN" card done C-001 >/dev/null 2>&1
 ev="$(grep 'verify-receipt' "$SB/.flow/events.jsonl" 2>/dev/null | tail -1)"
 has "$ev" '***redacted***' "secret command masked"
