@@ -232,7 +232,8 @@ writeFileSync(
 // --- WidelCode overlay: generated rules file (T1) ---------------------------
 // `.widelai/rules/flowskill.md` is a projection of the repo's multi-home rule
 // map — AGENTS.md + CONTRIBUTING.md + skills/flow/law/CLAUDE.md +
-// skills/flow/references/attestations.md + skills/flow/runner/flow.sh — NOT
+// skills/flow/references/attestations.md + skills/flow/references/cost-receipts.md
+// + skills/flow/runner/flow.sh — NOT
 // law/ alone (two of the rules live only in root AGENTS.md). It is generated
 // HERE at pack time, the only point with all sources on disk, and shipped as
 // a sibling payload in the npm tarball; the installer places it under
@@ -293,7 +294,7 @@ function stripListMarker(text) {
 /**
  * Generate the WidelCode rules file (`.widelai/rules/flowskill.md`) from the
  * multi-home rule sources (root AGENTS.md, CONTRIBUTING.md, law/CLAUDE.md,
- * attestations.md, flow.sh). Runs at pack time, the only point with all
+ * attestations.md, cost-receipts.md, flow.sh). Runs at pack time, the only point with all
  * sources on disk. Returns the generated path, or null (with a loud warning)
  * when a source file is missing — partial trees skip generation instead of
  * shipping rules whose homes cannot be verified. In the skip case any
@@ -316,13 +317,14 @@ function generateWidelaiRules() {
   const oneWorktree = findRulesSourceLine(repoRoot, 'skills/flow/law/CLAUDE.md', /One card = one worktree/, 'law one card = one worktree');
   const verdict = findRulesSourceLine(repoRoot, 'skills/flow/references/attestations.md', /^verdict: pass\|fail\|override$/, 'attestations verdict vocabulary');
   const chain = findRulesSourceLine(repoRoot, 'skills/flow/references/attestations.md', /^### Receipt chain/, 'attestations receipt chain section');
+  const cost = findRulesSourceLine(repoRoot, 'skills/flow/references/cost-receipts.md', /Cost receipts are warn-only/, 'cost-receipts warn-only cost evidence');
   const warnOnly = findRulesSourceLine(repoRoot, 'skills/flow/runner/flow.sh', /warning-only stage semantic receipt/, 'flow.sh warning-only next');
-  const sources = [conventions, bashCompat, forkBranch, branchPerCard, oneWorktree, verdict, chain, warnOnly];
+  const sources = [conventions, bashCompat, forkBranch, branchPerCard, oneWorktree, verdict, chain, cost, warnOnly];
   const dest = join(pkgRoot, '.widelai', 'rules', 'flowskill.md');
   if (sources.some((s) => s === null)) {
     // Partial tree (no AGENTS.md/CONTRIBUTING.md on disk): the release
     // fixtures and any subtree copy hit this. Skip, loudly — the full repo
-    // always has all eight sources, so a skip here is never a silent loss.
+    // always has all nine sources, so a skip here is never a silent loss.
     // Remove any previously generated file first: a stale rules file must
     // never ship from a tree that lacks its sources.
     rmSync(dest, { force: true });
@@ -340,6 +342,7 @@ function generateWidelaiRules() {
     `- Shell is bash 3.2-safe; zero new runtime dependencies: "${stripListMarker(conventions.text)}" (home: ${conventions.file}:${conventions.line}; also ${bashCompat.file}:${bashCompat.line})`,
     `- Receipts use schema \`flow-attestation/v1\` (flat \`key: value\`; verdict \`pass|fail|override\` only). (home: ${verdict.file}:${verdict.line})`,
     `- Receipt integrity: \`flow attest verify-chain\` over \`.flow/attestations/chain.log\` (tamper-evident ledger). (home: ${chain.file}:${chain.line})`,
+    `- Cost receipts use schema \`flow-cost/v1\` (flat \`key: value\`; warn-only accounting evidence, never a gate). (home: ${cost.file}:${cost.line})`,
     `- \`flow next\` is warning-only on a missing/stale semantic receipt — it never hard-blocks advancement, so no second gate needs to agree first. (home: ${warnOnly.file}:${warnOnly.line})`,
     '',
     'Not in this file (deliberately): maker/verifier separation, denied-action verdict mapping, and a deploy rule have no home in this repo, so they are not stated here. See the T1 PR description.',

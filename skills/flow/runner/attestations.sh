@@ -782,7 +782,9 @@ _att_chain_verify() { # exit 0 OK, 1 BROKEN/MISMATCH/MISSING/UNTRACKED, 2 NO-LED
   done < "$tmpf"
   if [ "$mismatch" -eq 0 ]; then
     # Receipts with no ledger entry are invisible to the pass above: enumerate
-    # receipt files and require a ledger entry for each.
+    # receipt files and require a ledger entry for each. cost/ receipts are
+    # accounting evidence, not chained attestations, so the enumeration skips
+    # them (see references/cost-receipts.md).
     local keysf untracked=0 rf rkind rname rst rsid rkey
     if ! keysf="$(mktemp "${TMPDIR:-/tmp}/.att-chain-keys.XXXXXX" 2>/dev/null)"; then
       echo "chain: BROKEN (cannot create temp file for ledger key index)"
@@ -806,7 +808,7 @@ _att_chain_verify() { # exit 0 OK, 1 BROKEN/MISMATCH/MISSING/UNTRACKED, 2 NO-LED
       rkey="$rkind/$rst/$rsid"
       grep -qxF "$rkey" "$keysf" 2>/dev/null || { echo "chain: UNTRACKED $rf (receipt has no ledger entry)"; untracked=1; break; }
     done <<EOF
-$(find "$(_att_dir)" -type f -name '*.receipt' 2>/dev/null)
+$(find "$(_att_dir)" -type f -name '*.receipt' ! -path '*/cost/*' 2>/dev/null)
 EOF
     rm -f "$keysf" 2>/dev/null || true
     [ "$untracked" -eq 0 ] || { rm -f "$tmpf" 2>/dev/null || true; return 1; }
@@ -814,6 +816,396 @@ EOF
   rm -f "$tmpf" 2>/dev/null || true
   [ "$mismatch" -eq 0 ] || return 1
   echo "chain: OK $n entries"
+  return 0
+}
+
+# ---------- cost receipts (flow-cost/v1) ----------
+# Per-stage model + spend evidence. Accounting only: a cost receipt never
+# gates anything and never changes any attestation verdict (warn-only, see
+# references/cost-receipts.md). Cost receipts live in
+# <state>/.flow/attestations/cost/ and are NOT chained: the tamper-evident
+# ledger covers attestation receipts only, so _att_chain_verify skips cost/.
+_ATT_COST_SCHEMA="flow-cost/v1"
+_ATT_COST_STAGES="00-idea 00-inspect 01-research 02-scope 03-prd 04-adr 05-contract"
+_ATT_COST_PRICE_TABLE_VERSION="widelai-2026-11-12"
+_ATT_COST_ERR=""
+_ATT_COST_STALE=""
+
+_att_cost_is_stage() {
+  case " $_ATT_COST_STAGES " in *" $1 "*) return 0 ;; esac
+  return 1
+}
+
+_att_cost_price() { # $1 model_id -> prints "<in> <out>" (mcr/1k) or "unknown unknown"
+  case "$1" in
+    claude-sonnet-5.5) printf '400 2000' ;;
+    claude-opus-5.5) printf '800 4000' ;;
+    claude-fable-5.1) printf '2000 10000' ;;
+    *) printf 'unknown unknown' ;;
+  esac
+}
+
+_att_cost_mint_run_id() { # run-YYYYMMDD-HHMMSS-<6 lowercase hex>
+  local ts hex
+  ts="$(date -u +%Y%m%d-%H%M%S 2>/dev/null || echo 19700101-000000)"
+  hex="$(printf '%06x' $(( (RANDOM * 32768 + RANDOM) % 16777216 )))"
+  printf 'run-%s-%s' "$ts" "$hex"
+}
+
+_att_cost_compute() { # $1 in $2 out $3 in_price $4 out_price -> ceil((in*ip + out*op)/1000)
+  printf '%s' $(( ($1 * $3 + $2 * $4 + 999) / 1000 ))
+}
+
+_att_cost_valid_uint() { # $1 value $2 max digits
+  case "$1" in ""|*[!0-9]*) return 1 ;; esac
+  [ "${#1}" -le "$2" ]
+}
+
+_att_cost_valid_label() { # run_id / price_table_version: [A-Za-z0-9][A-Za-z0-9._-]{0,63}
+  case "$1" in
+    [A-Za-z0-9][A-Za-z0-9._-]*) [ "${#1}" -le 64 ] && return 0 ;;
+  esac
+  return 1
+}
+
+_att_cost_valid_timestamp() { # UTC YYYY-MM-DDTHH:MM:SSZ (shape only)
+  case "$1" in
+    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) return 0 ;;
+  esac
+  return 1
+}
+
+_att_cost_valid_rel_ref() { # none | relative path, no traversal (mirrors _att_valid_repo_ref, no repo: prefix)
+  local r="$1" p
+  case "$r" in
+    none) return 0 ;;
+  esac
+  p="$r"
+  case "$p" in
+    ""|/*|*..*|*"//"*|*\\*) return 1 ;;
+  esac
+  case "/$p/" in *"//"*|*"/./"*|*"/../"*) return 1 ;; esac
+  [ "${#p}" -le 256 ] || return 1
+  return 0
+}
+
+_att_cost_valid_fingerprint() { # git-sha1:<40 hex> | git-sha256:<64 hex>
+  local oid
+  case "$1" in
+    git-sha1:*)
+      oid="${1#git-sha1:}"
+      case "$oid" in *[!0-9a-f]*|'') return 1 ;; esac
+      [ "${#oid}" -eq 40 ] ;;
+    git-sha256:*)
+      oid="${1#git-sha256:}"
+      case "$oid" in *[!0-9a-f]*|'') return 1 ;; esac
+      [ "${#oid}" -eq 64 ] ;;
+    *) return 1 ;;
+  esac
+}
+
+_att_cost_path() { # $1 stage
+  printf '%s/cost/stage-%s.receipt' "$(_att_dir)" "$1"
+}
+
+_att_cost_parse() { # $1 path — sets _ATT_C_* ; sets _ATT_COST_ERR on failure; return 0 valid
+  local f="$1" line k v seen="" n=0 size expect
+  _ATT_C_schema=""; _ATT_C_run_id=""; _ATT_C_stage=""; _ATT_C_subject_fingerprint=""
+  _ATT_C_attestation_ref=""; _ATT_C_model_id=""; _ATT_C_input_tokens=""; _ATT_C_output_tokens=""
+  _ATT_C_token_count_source=""; _ATT_C_price_table_version=""
+  _ATT_C_input_price_mcr_per_1k=""; _ATT_C_output_price_mcr_per_1k=""
+  _ATT_C_cost_mcredits=""; _ATT_C_budget_cap_mcredits=""; _ATT_C_budget_status=""
+  _ATT_C_timestamp=""
+  _ATT_COST_ERR=""
+  [ -f "$f" ] || { _ATT_COST_ERR="missing file"; return 1; }
+  size="$(wc -c < "$f" 2>/dev/null | tr -d ' ')"
+  [ "${size:-0}" -le 16384 ] || { _ATT_COST_ERR="receipt oversized"; return 1; }
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="$(printf '%s' "$line" | tr -d '\r')"
+    n=$((n + 1))
+    [ "$n" -le 64 ] || { _ATT_COST_ERR="too many lines"; return 1; }
+    [ -n "$line" ] || { _ATT_COST_ERR="blank line $n"; return 1; }
+    case "$line" in
+      *": "*) k="${line%%: *}"; v="${line#*: }" ;;
+      *) _ATT_COST_ERR="line $n missing ': ' separator"; return 1 ;;
+    esac
+    case "$k" in
+      schema|run_id|stage|subject_fingerprint|attestation_ref|model_id|input_tokens|output_tokens|token_count_source|price_table_version|input_price_mcr_per_1k|output_price_mcr_per_1k|cost_mcredits|budget_cap_mcredits|budget_status|timestamp) : ;;
+      *) _ATT_COST_ERR="line $n unknown key '$k'"; return 1 ;;
+    esac
+    case " $seen " in *" $k "*) _ATT_COST_ERR="duplicate key '$k'"; return 1 ;; esac
+    seen="$seen $k"
+    case "$n" in
+      1) [ "$k" = "schema" ] || { _ATT_COST_ERR="line 1 must be schema"; return 1; } ;;
+      2) [ "$k" = "run_id" ] || { _ATT_COST_ERR="line 2 must be run_id"; return 1; } ;;
+      3) [ "$k" = "stage" ] || { _ATT_COST_ERR="line 3 must be stage"; return 1; } ;;
+      4) [ "$k" = "subject_fingerprint" ] || { _ATT_COST_ERR="line 4 must be subject_fingerprint"; return 1; } ;;
+      5) [ "$k" = "attestation_ref" ] || { _ATT_COST_ERR="line 5 must be attestation_ref"; return 1; } ;;
+      6) [ "$k" = "model_id" ] || { _ATT_COST_ERR="line 6 must be model_id"; return 1; } ;;
+      7) [ "$k" = "input_tokens" ] || { _ATT_COST_ERR="line 7 must be input_tokens"; return 1; } ;;
+      8) [ "$k" = "output_tokens" ] || { _ATT_COST_ERR="line 8 must be output_tokens"; return 1; } ;;
+      9) [ "$k" = "token_count_source" ] || { _ATT_COST_ERR="line 9 must be token_count_source"; return 1; } ;;
+      10) [ "$k" = "price_table_version" ] || { _ATT_COST_ERR="line 10 must be price_table_version"; return 1; } ;;
+      11) [ "$k" = "input_price_mcr_per_1k" ] || { _ATT_COST_ERR="line 11 must be input_price_mcr_per_1k"; return 1; } ;;
+      12) [ "$k" = "output_price_mcr_per_1k" ] || { _ATT_COST_ERR="line 12 must be output_price_mcr_per_1k"; return 1; } ;;
+      13) [ "$k" = "cost_mcredits" ] || { _ATT_COST_ERR="line 13 must be cost_mcredits"; return 1; } ;;
+      14) [ "$k" = "budget_cap_mcredits" ] || { _ATT_COST_ERR="line 14 must be budget_cap_mcredits"; return 1; } ;;
+      15) [ "$k" = "budget_status" ] || { _ATT_COST_ERR="line 15 must be budget_status"; return 1; } ;;
+      16) [ "$k" = "timestamp" ] || { _ATT_COST_ERR="line 16 must be timestamp"; return 1; } ;;
+    esac
+    case "$v" in *$'\t'*) _ATT_COST_ERR="line $n tab in value"; return 1 ;; esac
+    [ "${#v}" -le 512 ] || { _ATT_COST_ERR="line $n value oversized"; return 1; }
+    case "$k" in
+      schema) _ATT_C_schema="$v" ;;
+      run_id) _ATT_C_run_id="$v" ;;
+      stage) _ATT_C_stage="$v" ;;
+      subject_fingerprint) _ATT_C_subject_fingerprint="$v" ;;
+      attestation_ref) _ATT_C_attestation_ref="$v" ;;
+      model_id) _ATT_C_model_id="$v" ;;
+      input_tokens) _ATT_C_input_tokens="$v" ;;
+      output_tokens) _ATT_C_output_tokens="$v" ;;
+      token_count_source) _ATT_C_token_count_source="$v" ;;
+      price_table_version) _ATT_C_price_table_version="$v" ;;
+      input_price_mcr_per_1k) _ATT_C_input_price_mcr_per_1k="$v" ;;
+      output_price_mcr_per_1k) _ATT_C_output_price_mcr_per_1k="$v" ;;
+      cost_mcredits) _ATT_C_cost_mcredits="$v" ;;
+      budget_cap_mcredits) _ATT_C_budget_cap_mcredits="$v" ;;
+      budget_status) _ATT_C_budget_status="$v" ;;
+      timestamp) _ATT_C_timestamp="$v" ;;
+    esac
+  done < "$f"
+  [ "$n" -eq 16 ] || { _ATT_COST_ERR="expected 16 keys, got $n"; return 1; }
+  [ "$_ATT_C_schema" = "$_ATT_COST_SCHEMA" ] || { _ATT_COST_ERR="schema must be $_ATT_COST_SCHEMA"; return 1; }
+  _att_cost_valid_label "$_ATT_C_run_id" || { _ATT_COST_ERR="run_id invalid"; return 1; }
+  _att_cost_is_stage "$_ATT_C_stage" || { _ATT_COST_ERR="stage invalid"; return 1; }
+  _att_cost_valid_fingerprint "$_ATT_C_subject_fingerprint" || { _ATT_COST_ERR="subject_fingerprint invalid"; return 1; }
+  _att_cost_valid_rel_ref "$_ATT_C_attestation_ref" || { _ATT_COST_ERR="attestation_ref invalid"; return 1; }
+  case "$_ATT_C_model_id" in ""|*" "*|*$'\t'*) _ATT_COST_ERR="model_id invalid"; return 1 ;; esac
+  [ "${#_ATT_C_model_id}" -le 128 ] || { _ATT_COST_ERR="model_id oversized"; return 1; }
+  _att_cost_valid_uint "$_ATT_C_input_tokens" 12 || { _ATT_COST_ERR="input_tokens invalid"; return 1; }
+  _att_cost_valid_uint "$_ATT_C_output_tokens" 12 || { _ATT_COST_ERR="output_tokens invalid"; return 1; }
+  case "$_ATT_C_token_count_source" in reported|estimated) : ;; *) _ATT_COST_ERR="token_count_source invalid"; return 1 ;; esac
+  _att_cost_valid_label "$_ATT_C_price_table_version" || { _ATT_COST_ERR="price_table_version invalid"; return 1; }
+  case "$_ATT_C_input_price_mcr_per_1k" in unknown) : ;; *) _att_cost_valid_uint "$_ATT_C_input_price_mcr_per_1k" 6 || { _ATT_COST_ERR="input_price_mcr_per_1k invalid"; return 1; } ;; esac
+  case "$_ATT_C_output_price_mcr_per_1k" in unknown) : ;; *) _att_cost_valid_uint "$_ATT_C_output_price_mcr_per_1k" 6 || { _ATT_COST_ERR="output_price_mcr_per_1k invalid"; return 1; } ;; esac
+  case "$_ATT_C_cost_mcredits" in unknown) : ;; *) _att_cost_valid_uint "$_ATT_C_cost_mcredits" 18 || { _ATT_COST_ERR="cost_mcredits invalid"; return 1; } ;; esac
+  case "$_ATT_C_budget_cap_mcredits" in none) : ;; *) _att_cost_valid_uint "$_ATT_C_budget_cap_mcredits" 18 || { _ATT_COST_ERR="budget_cap_mcredits invalid"; return 1; } ;; esac
+  case "$_ATT_C_budget_status" in none|within|exceeded|unpriced) : ;; *) _ATT_COST_ERR="budget_status invalid"; return 1 ;; esac
+  _att_cost_valid_timestamp "$_ATT_C_timestamp" || { _ATT_COST_ERR="timestamp invalid"; return 1; }
+  if [ "$_ATT_C_input_price_mcr_per_1k" = "unknown" ] || [ "$_ATT_C_output_price_mcr_per_1k" = "unknown" ]; then
+    [ "$_ATT_C_cost_mcredits" = "unknown" ] || { _ATT_COST_ERR="cost_mcredits must be unknown when a price is unknown"; return 1; }
+    [ "$_ATT_C_budget_status" = "unpriced" ] || { _ATT_COST_ERR="budget_status must be unpriced when cost is unknown"; return 1; }
+  else
+    [ "$_ATT_C_cost_mcredits" != "unknown" ] || { _ATT_COST_ERR="cost_mcredits must be an integer when prices are known"; return 1; }
+    expect="$(_att_cost_compute "$_ATT_C_input_tokens" "$_ATT_C_output_tokens" "$_ATT_C_input_price_mcr_per_1k" "$_ATT_C_output_price_mcr_per_1k")"
+    [ "$expect" = "$_ATT_C_cost_mcredits" ] || { _ATT_COST_ERR="cost_mcredits mismatch: want $expect"; return 1; }
+    if [ "$_ATT_C_budget_cap_mcredits" = "none" ]; then
+      [ "$_ATT_C_budget_status" = "none" ] || { _ATT_COST_ERR="budget_status must be none without a cap"; return 1; }
+    elif [ "$_ATT_C_cost_mcredits" -le "$_ATT_C_budget_cap_mcredits" ]; then
+      [ "$_ATT_C_budget_status" = "within" ] || { _ATT_COST_ERR="budget_status must be within (cost <= cap)"; return 1; }
+    else
+      [ "$_ATT_C_budget_status" = "exceeded" ] || { _ATT_COST_ERR="budget_status must be exceeded (cost > cap)"; return 1; }
+    fi
+  fi
+  return 0
+}
+
+_att_cost_stale_reason() { # uses _ATT_C_* from a prior _att_cost_parse; sets _ATT_COST_STALE; 0=stale
+  local stage="$_ATT_C_stage" ref target apath afp headfp
+  _ATT_COST_STALE=""
+  if [ "$_ATT_C_attestation_ref" != "none" ]; then
+    ref="$_ATT_C_attestation_ref"
+    target="$(_att_main_state_root)/$ref"
+    [ -f "$target" ] || { _ATT_COST_STALE="attestation_ref target missing: $ref"; return 0; }
+  fi
+  apath="$(_att_receipt_path semantic_gate stage "$stage" 2>/dev/null || true)"
+  if [ -n "$apath" ] && [ -f "$apath" ] && _att_receipt_parse "$apath" 2>/dev/null; then
+    afp="$_ATT_R_subject_fingerprint"
+    [ "$afp" = "$_ATT_C_subject_fingerprint" ] || { _ATT_COST_STALE="subject_fingerprint differs from stage attestation receipt"; return 0; }
+    return 1
+  fi
+  # No attestation receipt: compare against the stage blob at HEAD (best-effort).
+  if _att_git_ok 2>/dev/null; then
+    headfp="$(_att_stage_fingerprint "$stage" HEAD 2>/dev/null || true)"
+    if [ -n "$headfp" ] && [ "$headfp" != "$_ATT_C_subject_fingerprint" ]; then
+      _ATT_COST_STALE="subject_fingerprint differs from stage blob at HEAD"; return 0
+    fi
+  fi
+  return 1
+}
+
+_att_cost_status() { # $1 path -> missing|invalid|stale|current ; 0 only for current
+  local path="$1"
+  if [ ! -f "$path" ]; then echo "missing"; return 1; fi
+  if ! _att_cost_parse "$path"; then echo "invalid"; return 1; fi
+  if _att_cost_stale_reason; then echo "stale"; return 1; fi
+  echo "current"; return 0
+}
+
+_att_cost_warn() { # $1 stage — warn-only: always return 0, warnings to stderr
+  local stage="$1" path over
+  path="$(_att_cost_path "$stage")"
+  if [ ! -f "$path" ]; then
+    echo "WARNING: cost receipt missing for stage $stage (accounting evidence only; attestation verdict unaffected; see references/cost-receipts.md)" >&2
+    return 0
+  fi
+  if ! _att_cost_parse "$path"; then
+    echo "WARNING: cost receipt for stage $stage is invalid: ${_ATT_COST_ERR:-parse error} (treated as missing; attestation verdict unaffected)" >&2
+    return 0
+  fi
+  if _att_cost_stale_reason; then
+    echo "WARNING: cost receipt for stage $stage is stale: ${_ATT_COST_STALE} (attestation verdict unaffected)" >&2
+    return 0
+  fi
+  if [ "$_ATT_C_input_tokens" = "0" ] && [ "$_ATT_C_output_tokens" = "0" ]; then
+    echo "WARNING: cost receipt for stage $stage records no usage (both token counts are 0)" >&2
+  fi
+  if [ "$_ATT_C_cost_mcredits" = "unknown" ]; then
+    if [ "$_ATT_C_budget_cap_mcredits" != "none" ]; then
+      echo "WARNING: cost receipt for stage $stage is unpriced (unknown model '$_ATT_C_model_id'); budget cap of $_ATT_C_budget_cap_mcredits mcr is unverifiable" >&2
+    fi
+    return 0
+  fi
+  if [ "$_ATT_C_budget_status" = "exceeded" ]; then
+    over=$(( _ATT_C_cost_mcredits - _ATT_C_budget_cap_mcredits ))
+    echo "WARNING: cost receipt for stage $stage exceeded its budget cap by ${over} mcr (cost $_ATT_C_cost_mcredits mcr vs cap $_ATT_C_budget_cap_mcredits mcr; attestation verdict unaffected)" >&2
+  fi
+  return 0
+}
+
+_att_cost_write() { # builds from _ATT_CW_* vars; atomic; no chain entry (cost is not attestation)
+  local body dest
+  dest="$(_att_cost_path "$_ATT_CW_stage")" || return 1
+  body="schema: ${_ATT_COST_SCHEMA}
+run_id: ${_ATT_CW_run_id}
+stage: ${_ATT_CW_stage}
+subject_fingerprint: ${_ATT_CW_subject_fingerprint}
+attestation_ref: ${_ATT_CW_attestation_ref}
+model_id: ${_ATT_CW_model_id}
+input_tokens: ${_ATT_CW_input_tokens}
+output_tokens: ${_ATT_CW_output_tokens}
+token_count_source: ${_ATT_CW_token_count_source}
+price_table_version: ${_ATT_CW_price_table_version}
+input_price_mcr_per_1k: ${_ATT_CW_input_price_mcr_per_1k}
+output_price_mcr_per_1k: ${_ATT_CW_output_price_mcr_per_1k}
+cost_mcredits: ${_ATT_CW_cost_mcredits}
+budget_cap_mcredits: ${_ATT_CW_budget_cap_mcredits}
+budget_status: ${_ATT_CW_budget_status}
+timestamp: ${_ATT_CW_timestamp}
+"
+  _att_atomic_write "$dest" "$body" || return 1
+  return 0
+}
+
+_att_cost_record() { # flow attest cost record --stage S --model-id M --input-tokens N --output-tokens N [options]
+  local stage="" model="" in_tok="" out_tok="" src="reported" cap="none"
+  local ptv="$_ATT_COST_PRICE_TABLE_VERSION" run_id="" fp="" aref=""
+  local apath rel prices in_price out_price cost status ts dest
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --stage) shift; stage="${1:-}" ;;
+      --model-id) shift; model="${1:-}" ;;
+      --input-tokens) shift; in_tok="${1:-}" ;;
+      --output-tokens) shift; out_tok="${1:-}" ;;
+      --token-count-source) shift; src="${1:-}" ;;
+      --budget-cap-mcredits) shift; cap="${1:-}" ;;
+      --price-table-version) shift; ptv="${1:-}" ;;
+      --run-id) shift; run_id="${1:-}" ;;
+      --subject-fingerprint) shift; fp="${1:-}" ;;
+      --attestation-ref) shift; aref="${1:-}" ;;
+      *) echo "usage: flow attest cost record --stage <stage> --model-id <id> --input-tokens <n> --output-tokens <n> [--token-count-source reported|estimated] [--budget-cap-mcredits <n>|none] [--price-table-version <v>] [--run-id <id>] [--subject-fingerprint <fp>] [--attestation-ref <path>|none]"; return 2 ;;
+    esac
+    shift 2>/dev/null || true
+  done
+  [ -n "$stage" ] && [ -n "$model" ] && [ -n "$in_tok" ] && [ -n "$out_tok" ] || { echo "FAIL: --stage, --model-id, --input-tokens and --output-tokens are required"; return 2; }
+  _att_cost_is_stage "$stage" || { echo "FAIL: unknown stage '$stage' (want one of: $_ATT_COST_STAGES)"; return 2; }
+  case "$src" in reported|estimated) : ;; *) echo "FAIL: --token-count-source must be reported|estimated"; return 2 ;; esac
+  _att_cost_valid_uint "$in_tok" 12 || { echo "FAIL: --input-tokens must be a non-negative integer (<=12 digits)"; return 2; }
+  _att_cost_valid_uint "$out_tok" 12 || { echo "FAIL: --output-tokens must be a non-negative integer (<=12 digits)"; return 2; }
+  case "$cap" in none) : ;; *) _att_cost_valid_uint "$cap" 18 || { echo "FAIL: --budget-cap-mcredits must be an integer or 'none'"; return 2; } ;; esac
+  _att_cost_valid_label "$ptv" || { echo "FAIL: --price-table-version invalid"; return 2; }
+  case "$model" in ""|*" "*|*$'\t'*) echo "FAIL: --model-id must be a single token (no spaces)"; return 2 ;; esac
+  [ "${#model}" -le 128 ] || { echo "FAIL: --model-id too long"; return 2; }
+  [ -z "$run_id" ] && run_id="$(_att_cost_mint_run_id)"
+  _att_cost_valid_label "$run_id" || { echo "FAIL: --run-id invalid"; return 2; }
+  if [ -z "$fp" ]; then
+    apath="$(_att_receipt_path semantic_gate stage "$stage" 2>/dev/null || true)"
+    if [ -n "$apath" ] && [ -f "$apath" ] && _att_receipt_parse "$apath" 2>/dev/null; then
+      fp="$_ATT_R_subject_fingerprint"
+    elif _att_git_ok 2>/dev/null; then
+      fp="$(_att_stage_fingerprint "$stage" HEAD 2>/dev/null || true)"
+    fi
+    [ -n "$fp" ] || { echo "FAIL: no subject fingerprint: stage $stage has no attestation receipt and no committed stage blob; pass --subject-fingerprint"; return 2; }
+  fi
+  _att_cost_valid_fingerprint "$fp" || { echo "FAIL: --subject-fingerprint must be git-sha1:<40 hex> or git-sha256:<64 hex>"; return 2; }
+  if [ -z "$aref" ]; then
+    apath="$(_att_receipt_path semantic_gate stage "$stage" 2>/dev/null || true)"
+    if [ -n "$apath" ] && [ -f "$apath" ]; then
+      rel=".flow/attestations/semantic_gate/stage-${stage}.receipt"
+      aref="$rel"
+    else
+      aref="none"
+    fi
+  fi
+  _att_cost_valid_rel_ref "$aref" || { echo "FAIL: --attestation-ref must be 'none' or a relative path"; return 2; }
+  prices="$(_att_cost_price "$model")"
+  in_price="${prices%% *}"; out_price="${prices##* }"
+  if [ "$in_price" = "unknown" ] || [ "$out_price" = "unknown" ]; then
+    echo "WARNING: model '$model' is not in price table $_ATT_COST_PRICE_TABLE_VERSION; recording unpriced receipt (no fallback price, cost unknown)" >&2
+    cost="unknown"; status="unpriced"
+  else
+    cost="$(_att_cost_compute "$in_tok" "$out_tok" "$in_price" "$out_price")"
+    if [ "$cap" = "none" ]; then status="none";
+    elif [ "$cost" -le "$cap" ]; then status="within";
+    else status="exceeded"; fi
+  fi
+  if [ "$in_tok" = "0" ] && [ "$out_tok" = "0" ]; then
+    echo "WARNING: no usage recorded (both token counts are 0)" >&2
+  fi
+  if [ "$status" = "exceeded" ]; then
+    echo "WARNING: cost exceeds budget cap (cost $cost mcr vs cap $cap mcr); recording the real totals" >&2
+  fi
+  ts="$(_att_now_rfc3339)"
+  _ATT_CW_stage="$stage"; _ATT_CW_run_id="$run_id"; _ATT_CW_subject_fingerprint="$fp"
+  _ATT_CW_attestation_ref="$aref"; _ATT_CW_model_id="$model"
+  _ATT_CW_input_tokens="$in_tok"; _ATT_CW_output_tokens="$out_tok"
+  _ATT_CW_token_count_source="$src"; _ATT_CW_price_table_version="$ptv"
+  _ATT_CW_input_price_mcr_per_1k="$in_price"; _ATT_CW_output_price_mcr_per_1k="$out_price"
+  _ATT_CW_cost_mcredits="$cost"; _ATT_CW_budget_cap_mcredits="$cap"
+  _ATT_CW_budget_status="$status"; _ATT_CW_timestamp="$ts"
+  _att_lock_acquire "cost-$stage" || return 1
+  if ! _att_cost_write; then
+    _att_lock_release "cost-$stage"
+    echo "FAIL: could not write cost receipt"; return 1
+  fi
+  _att_lock_release "cost-$stage"
+  dest="$(_att_cost_path "$stage")"
+  echo "cost recorded: $dest"
+  echo "  model: $model  cost: $cost mcr  budget: $status"
+  return 0
+}
+
+_att_cost_status_cmd() { # flow attest cost status [--stage S]
+  local stage="" s st
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --stage) shift; stage="${1:-}" ;;
+      *) echo "usage: flow attest cost status [--stage <stage>]"; return 2 ;;
+    esac
+    shift 2>/dev/null || true
+  done
+  if [ -n "$stage" ]; then
+    _att_cost_is_stage "$stage" || { echo "FAIL: unknown stage '$stage'"; return 2; }
+    st="$(_att_cost_status "$(_att_cost_path "$stage")" 2>/dev/null || true)"
+    echo "cost stage $stage: $st"
+    _att_cost_warn "$stage"
+    return 0
+  fi
+  for s in $_ATT_COST_STAGES; do
+    st="$(_att_cost_status "$(_att_cost_path "$s")" 2>/dev/null || true)"
+    echo "cost stage $s: $st"
+    _att_cost_warn "$s"
+  done
   return 0
 }
 
@@ -1555,10 +1947,13 @@ cmd_attest() {
         echo "  branch: ${_ATT_A_integration_branch}"
       fi
       if [ -n "$target" ]; then
-        local sid path kind
+        local sid path kind cst
         if _att_is_stage "$target"; then
           path="$(_att_receipt_path semantic_gate stage "$target")"
           echo "semantic_gate stage $target: $(_att_receipt_status "$path" 2>/dev/null || echo missing)"
+          cst="$(_att_cost_status "$(_att_cost_path "$target")" 2>/dev/null || true)"
+          echo "cost stage $target: $cst"
+          _att_cost_warn "$target"
         else
           sid="$(_att_norm_card_id "$target" 2>/dev/null || echo "$target")"
           path="$(_att_receipt_path semantic_gate card "$sid")"
@@ -1580,8 +1975,16 @@ cmd_attest() {
     verify-chain)
       _att_chain_verify; return $?
       ;;
+    cost)
+      local csub="${1:-}"; shift 2>/dev/null || true
+      case "$csub" in
+        record) _att_cost_record "$@" ; return $? ;;
+        status) _att_cost_status_cmd "$@" ; return $? ;;
+        *) echo "usage: flow attest cost record|status ..."; return 2 ;;
+      esac
+      ;;
     *)
-      echo "usage: flow attest semantic|live-verify|status|recover|verify-chain ..."
+      echo "usage: flow attest semantic|live-verify|status|recover|verify-chain|cost ..."
       return 2
       ;;
   esac
