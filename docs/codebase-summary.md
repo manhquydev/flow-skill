@@ -32,7 +32,7 @@ flow-skill/
 │   ├── RELEASE_CHECKLIST.md     # OIDC + dist-tag token ops
 │   └── test/                    # 93 node:test cases
 ├── .github/workflows/           # ci · publish-npm-wrapper · nightly-registry-health
-├── tests/                       # run_all.sh (wall_s timing) + 83 suite scripts
+├── tests/                       # run_all.sh (wall_s timing) + 84 suite scripts
 ├── install.sh / install.ps1     # global or per-project install + doctor
 ├── portable-manifest.json       # skill product version (with SKILL.md, plugin.json)
 ├── docs/                        # architecture, quality-metrics, release-process, journals

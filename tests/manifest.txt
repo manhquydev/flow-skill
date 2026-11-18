@@ -42,6 +42,7 @@ test_flow_eval.sh
 test_flow_eval_grader_isolation.sh
 test_eval_fixture_lint.sh
 test_flow_resume.sh
+test_flow_card_handoff_json.sh
 test_flow_status_legibility.sh
 test_flow_concierge.sh
 test_flow_native_rituals.sh
