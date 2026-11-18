@@ -31,7 +31,7 @@ ${targetRows}
   - Antigravity writes 2 destinations (CLI + IDE skill homes).
   - --project supports only "claude".
   - "npm i" alone does not install the skill — you must run this CLI.
-  - Installer version (this package) ≠ skill product version (SKILL.md).
+  - Installer and bundled skill share one SemVer (v1.0.0+).
 
 EXAMPLES
   npx @manhquy/flow-skill@latest
@@ -41,8 +41,13 @@ EXAMPLES
   npx @manhquy/flow-skill@latest --yes --project --dir .
   npx @manhquy/flow-skill@latest --yes --all --dry-run --json
 
+AFTER INSTALL
+  Reload your AI tool in your project's main folder, then chat:
+  /flow <describe your idea in English or Tiếng Việt>   (Codex: $flow)
+  /flow doctor                                          (verify Python >= 3.7 & Git Bash)
+
 MORE
   Docs:     https://github.com/manhquydev/flow-skill#readme
-  Security: https://github.com/manhquydev/flow-skill/blob/main/SECURITY.md
+  Security: https://github.com/manhquydev/flow-skill/blob/master/SECURITY.md
 `;
 }

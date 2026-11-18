@@ -78,12 +78,23 @@ npx @manhquy/flow-skill@latest --yes --all --dry-run
 
 ## First Run & Next Steps
 
-After installation completes, restart or reload your coding agent. Codex CLI uses
-`$flow`; slash-command agents (Claude Code, Antigravity, OMP) use `/flow`:
+After installation completes, restart or reload your coding agent in your project's **main folder** (not a subfolder). Codex CLI uses `$flow`; slash-command agents (Claude Code, Antigravity, OMP) use `/flow`:
 
-- Codex: `$flow`; slash-command agents: `/flow` — check current project stage and blockers
-- Codex: `$flow next`; slash-command agents: `/flow next` — evaluate gates and advance to the next stage
-- Codex: `$flow doctor`; slash-command agents: `/flow doctor` — verify environment health and installed skill bundle integrity
+1. **Start by chatting in English or Tiếng Việt:**
+   - `/flow I want to build a class homework tracker web app` (Codex: `$flow I want to build...`)
+   - `/flow mình muốn làm web nhắc bài tập cho lớp`
+   - Or run `/flow assess` first if the folder already has existing code.
+2. **Choose your pace:** Say **yes** to **`work` mode** (AI asks 5 quick questions, drafts stages `00–05`, and pauses for your approval) or stay in **`teach` mode** (you fill the planning files yourself) — both modes enforce the exact same gates.
+3. **Everyday commands:**
+   - Codex: `$flow`; slash-command agents: `/flow` — check current project stage and blockers
+   - Codex: `$flow next`; slash-command agents: `/flow next` — evaluate gates and advance to the next stage
+   - Codex: `$flow doctor`; slash-command agents: `/flow doctor` — verify environment health and installed skill bundle integrity
+
+### If a gate says `FAIL`
+
+- Check the exact `L<line>` line number reported in the `FAIL` output.
+- Replace every `[FILL: ...]` placeholder completely (delete the `[` `]` brackets too) and mark finished gate checkboxes `- [x]` (lowercase `x`), or run `/flow mode work` so AI drafts with you.
+- Re-run `/flow next` (or `/flow check C-001` once a card has real world-state proof pasted under `## Evidence`).
 
 ---
 
@@ -92,7 +103,8 @@ After installation completes, restart or reload your coding agent. Codex CLI use
 | | |
 |---|---|
 | **Release target** | npm **1.0.1** / skill **v1.0.1** — intended channel `latest`; not a publication receipt |
-| **Node.js** | `>= 22.14.0` |
+| **Node.js** | `>= 22.14.0` (installer) |
+| **Runtime (Flow v1)** | Python `>= 3.7` from [python.org](https://www.python.org/) (`sqlite3` built in) · Windows: [Git for Windows](https://git-scm.com/) (Git Bash) |
 | **Documentation** | [flowskill.io.vn](https://flowskill.io.vn) |
 | **Repository** | [GitHub: manhquydev/flow-skill](https://github.com/manhquydev/flow-skill) |
 | **License** | MIT |
@@ -105,7 +117,7 @@ Publication status verified 2026-10-30: GitHub skill release v1.0.0 (2026-10-24)
 
 - **Agent does not show `/flow`:** Make sure you ran the installer via `npx @manhquy/flow-skill@latest`. Running bare `npm install @manhquy/flow-skill` only downloads the npm package into `node_modules` without executing the installer to copy skill files to your agent's directory.
 - **Updating Flow:** Re-run `npx @manhquy/flow-skill@latest` anytime to fetch the newest release. Pinning `@latest` ensures `npx` does not reuse an older cached version.
-- **Node.js version requirement:** Requires Node.js ≥ 22.14 LTS (`node --version`).
+- **Node.js & runtime requirements:** Installer requires Node.js >= 22.14 LTS (`node --version`). Running `/flow` commands requires Python >= 3.7 from python.org (`sqlite3` is built in; on Windows avoid the empty Microsoft Store `python` alias) and **Git for Windows (Git Bash)** on Windows. Run `/flow doctor` anytime to check all dependencies.
 - **Uninstalling:** Remove the skill folder from the agent directories you installed into:
   ```bash
   rm -rf ~/.claude/skills/flow ~/.cursor/skills/flow ~/.codex/skills/flow ~/.agents/skills/flow ~/.gemini/antigravity-cli/skills/flow ~/.omp/agent/skills/flow
