@@ -43,7 +43,7 @@ select_py() {
   PY=""
   for candidate in python3 python; do
     if command -v "$candidate" >/dev/null 2>&1; then
-      if "$candidate" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' >/dev/null 2>&1; then
+      if "$candidate" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 7) else 1)' >/dev/null 2>&1; then
         PY="$candidate"
         return 0
       fi
