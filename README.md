@@ -24,6 +24,13 @@ stage advances. Kill at a gate is a valid, honored outcome.
 front door; typed verbs still work. Standalone — no AgentKit or claudekit
 required.
 
+## In plain words
+
+Flow is a step-by-step quality checklist for your AI coding assistant
+(**Idea -> Plan -> Small Tasks -> Real Working Proof**) so AI doesn't guess or
+claim "done" when nothing works. Built for developers, students, and non-coders
+learning Vibe Coding — chat naturally in English or Tiếng Việt.
+
 | | |
 |---|---|
 | **Skill product** | Release target **v1.0.1** (not a publication receipt) |
@@ -43,7 +50,12 @@ Publication status verified 2026-10-30: GitHub skill release v1.0.0 (2026-10-24)
 
 ## Install
 
-**Requirements:** [Node.js](https://nodejs.org/) **≥ 22.14** for installation; Flow v1 product operations require Python **≥ 3.7** (stdlib only).
+**Requirements:**
+- [Node.js](https://nodejs.org/) **>= 22.14** (to run the installer)
+- [Python](https://www.python.org/) **>= 3.7** from python.org (`sqlite3` is built in, no `pip install`; on Windows, avoid the empty Microsoft Store `python` alias)
+- **Git for Windows (includes Git Bash)** on Windows ([git-scm.com](https://git-scm.com/))
+
+Run `/flow doctor` (Codex: `$flow doctor`) anytime to verify your setup.
 
 ```bash
 npx @manhquy/flow-skill@latest
@@ -61,12 +73,20 @@ Flags: [npm-wrapper/README.md](./npm-wrapper/README.md).
 
 ## First run
 
-Open a fresh agent session in the top-level folder where Flow creates
-`flow/` and `cards/` as you start using it (if you are
-inside a subdirectory, move to the repository root first) — say what you want to build,
-then type `/flow`
-(Codex: `$flow`). Details:
-[tutorial](https://flowskill.io.vn/docs/tutorials/install-and-first-run/).
+1. Open your AI coding tool in your project's **main folder** (not a subfolder), where Flow creates `flow/` and `cards/`.
+2. Chat in plain English or Tiếng Việt (Codex: `$flow`): e.g. `/flow I want to build a class homework tracker web app` or `/flow mình muốn làm web nhắc bài tập cho lớp` (or `/flow assess` if the folder already has code).
+3. Pick your pace: say **yes** to **`work` mode** (AI asks 5 quick questions, drafts stages `00–05`, pauses for your approval) or stay in **`teach` mode** (you fill files yourself: delete `[FILL: ...]` brackets completely, then change `- [ ]` to `- [x]`). Both modes enforce the exact same gates. Details: [tutorial](https://flowskill.io.vn/docs/tutorials/install-and-first-run/).
+
+## Key terms in plain words
+
+| Term | Plain meaning |
+|---|---|
+| `Gate` | Checkpoint before advancing; both script (`flow.sh`) and AI rules (`SKILL.md`) must pass. |
+| `Kill at a gate` | Stopping a weak idea early to save wasted effort (does **not** delete your files). |
+| `Card (C-001)` | One small, testable task created after planning stages `00–05` pass. |
+| `ADR & Contract` | Short notes on tech choices (`04-adr`) and agreed inputs/outputs (`05-contract`) before coding. |
+| `World-state proof` | Real working proof (live URL/path + pasted command output), never just "tests pass". |
+| `Resume / Worktree` | `/flow resume` picks up where you left off; a worktree is a safe folder copy for parallel tasks. |
 
 ## Everyday
 

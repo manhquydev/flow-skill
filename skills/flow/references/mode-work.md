@@ -13,15 +13,19 @@
    1. Idea in one line?
    2. Who has the pain (a real named person/group)?
    3. Rough budget/time?
-   4. Stack preference, if any?
+   4. Stack preference, if any? (Tell non-coders upfront that *"no preference / pick for me / bạn chọn giúp mình"* is welcome — when chosen, pick a simple beginner-friendly stack and explain it in one plain sentence.)
    5. One channel for the first users?
    Host-neutral: use whatever ask/prompt surface the host has.
 2. **Draft 00 -> 01 -> 02.** Fill idea, do real research (delegate to `researcher` per
    `agent-stage-mapping.md` — actually open competitors, quote real complaints with links),
    and produce the scope table with honest Impact + Grade. Run each gate with `flow.sh next`.
 3. **ONE scope pause.** Stop at the Scope gate (stage 02). Present the GO/KILL + cut list +
-   any C-feature path decisions and get explicit sign-off. This is the only mandatory pause
-   in work mode — scope is the operator's call, and killing here is cheap.
+   any C-feature path decisions and get explicit sign-off. Before asking for approval,
+   translate Flow shorthand into everyday EN/VI words (see `references/concierge.md`):
+   `Impact H/M/L` (high/medium/low value to the user), `Grade A/B/C` (build effort: A = quick
+   & simple, B = moderate, C = heavy/risky), and `GO/KILL` (proceed vs stop an unviable idea
+   early to save wasted effort — never deletes project files). This is the only mandatory
+   pause in work mode — scope is the operator's call, and killing here is cheap.
 4. **Draft 03 -> 05.** PRD (numeric metric, pain->feature mapping), ADR (delegate to
    `architect`/`bmad-create-architecture`), Contract (the seam; consider `bmad-spec` kernel).
    Run each gate. After drafting 02 / 03 / 05, leftover bullets under `## Open decisions`
@@ -30,7 +34,9 @@
    Never invent auth, tenancy, retention, or billing to clear `[FILL]`.
 5. **Deliver the card set as one summary.** After stage 05 passes, run `/flow card` to
    create the cards, fill their scopes, and present the whole set + build order + which are
-   parallel-safe (`/flow ready`) in a single summary for the operator to review.
+   parallel-safe (`/flow ready`) in a single summary for the operator to review — translating
+   `ADR` (key tech choices & what we skip) and `Contract` (agreed inputs/outputs & error
+   cases before coding) into everyday EN/VI words before asking to start building.
    Group cards under PRD `FRn` (the user-visible story), not under layer (all models, then
    all services). Every value card fills `## Independent test`.
 

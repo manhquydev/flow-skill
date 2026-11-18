@@ -30,8 +30,9 @@ risk-ack: none
 
 [FILL: what will be observable in the world when this is done — a URL you can click,
 a curl output, a deployed page. "Tests pass" / "code merged" are NOT done-evidence.]
+> Example of >=2 real world-state signals to paste under `## Evidence` when done: 1) live URL or created file path (e.g. `https://my-app.pages.dev/items` or `dist/cli.js`) + 2) pasted command output & exit code (`$ curl -i https://my-app.pages.dev/items` -> `HTTP/2 200`, `exit 0`), never just "I tested it".
 
 ## Evidence (paste the actual proof here when done)
 
-<!-- Paste the re-run command output or re-read the path/URL. Do not quote the agent claiming tests passed. -->
+<!-- Paste >=2 real world-state proofs below (live URL or file path + re-run terminal output, see example above). Do not quote the agent claiming tests ran. -->
 (empty until done)

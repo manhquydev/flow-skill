@@ -16,7 +16,7 @@ export async function promptTargets(entries) {
     .map((e) => e.name);
 
   const selected = await multiselect({
-    message: 'Install to which harnesses?',
+    message: 'Install to which AI coding tools (harnesses)?',
     options,
     initialValues,
     required: true,
@@ -28,10 +28,10 @@ export async function promptTargets(entries) {
 // Global vs project scope. Project scope is Claude-only (agent contract).
 export async function promptScope(defaultDir = process.cwd()) {
   const scope = await select({
-    message: 'Scope?',
+    message: 'Install scope?',
     options: [
-      { value: 'global', label: 'Global (all agents that were selected)' },
-      { value: 'project', label: `Project (${defaultDir}) — Claude only` },
+      { value: 'global', label: 'Global — available in all folders (recommended)' },
+      { value: 'project', label: `Project (${defaultDir}) — this folder only (Claude Code)` },
     ],
     initialValue: 'global',
   });
