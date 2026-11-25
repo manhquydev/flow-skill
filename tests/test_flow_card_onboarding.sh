@@ -50,6 +50,7 @@ do
     has_lit "$f" "card done C-" "$rel names card done C-NNN path"
   fi
   no_lit  "$f" "dist/cli.js" "$rel drops broken dist/cli.js proof example"
+  no_lit  "$f" "console.log('ready')" "$rel does not teach dummy console.log('ready') as proof"
 done
 has_lit "$ROOT/npm-wrapper/README.md" "check C-001" "npm-wrapper/README.md distinguishes check C-001"
 has_lit "$ROOT/npm-wrapper/README_VN.md" "check C-001" "npm-wrapper/README_VN.md distinguishes check C-001"
@@ -145,8 +146,9 @@ ck 0 $? "check C-001 on todo reports status: todo (not done)"
 
 echo "F) Positive: documented CLI command + replace placeholder + card done C-001 -> PASS done + durable DB"
 rm -rf "$SB/proj/evidence"
-cmd_out="$(cd "$SB/proj" && mkdir -p evidence && node -e "console.log('ready')" > evidence/cli-smoke.log && cat evidence/cli-smoke.log)"
-ck "ready" "$cmd_out" "documented CLI command creates evidence/cli-smoke.log and prints ready"
+printf 'console.log("Homework tracker: 2 due");\n' > "$SB/proj/dist/cli.js"
+cmd_out="$(cd "$SB/proj" && mkdir -p evidence && node dist/cli.js > evidence/cli-smoke.log && cat evidence/cli-smoke.log)"
+ck "Homework tracker: 2 due" "$cmd_out" "fixture CLI command creates evidence/cli-smoke.log with feature output"
 python3 - "$SB/proj/cards/C-001.md" "$cmd_out" <<'PY'
 import re, sys
 p, out = sys.argv[1], sys.argv[2]
