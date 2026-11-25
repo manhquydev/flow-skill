@@ -34,7 +34,7 @@ Keep the four "blocked" senses distinct:
 |---|---|---|
 | **host-blocked** | mux/pane approval chrome or occupant stuck | the host |
 | **subagent-BLOCKED** | scoped subagent status protocol | `agent-detection.md` |
-| **ready-blocked** | deps unmet or allowed-files overlap | `flow.sh ready` |
+| **ready-blocked** | deps unmet or evidence/receipt checks failed | `flow.sh ready` |
 | **Tier-C security halt** | security-class exposure; operator DEBT | `auto-run.md` |
 
 Mixing them auto-answers a payments card or auto-halts a yes/no prompt.
@@ -43,6 +43,49 @@ Mixing them auto-answers a payments card or auto-halts a yes/no prompt.
 
 The **HOST waits** (Task join / human / the mux's own wait). `flow.sh` **never waits on or polls** another agent. Fan-in is world-state: re-invoke `check` in
 the card worktree after the host's wait returns.
+
+## Wave re-derive
+
+When the host loses a worker mid-wave, the recovery is not a retry of the dead
+worker's command — it is a **re-derive from `ready --json`**. The envelope is
+the single source of truth for which cards are actionable; once the host finishes
+merge and card completion (`status: done` via `/flow card done C-NNN` or the
+lifecycle in `auto-run.md`), the card will not reappear in `buildable[]`, so completed
+work is never re-run. A passing `check` alone leaves a `todo` card buildable and can
+be re-run if a worker dies before the host completes the card. `flow.sh` remains
+read-only for this protocol: the host owns every spawn and every join.
+
+```text
+loop:
+  report = flow ready --json                    # source of truth, re-callable
+  if ready failed or report.planning_complete is false:
+    stop with the report                        # not actionable / planning incomplete
+  groups = report.groups                        # groups: [["C-001", ...], ...]
+  if groups empty: break                        # no actionable cards in a valid report
+  for g in groups:                              # each wave g is an array of card IDs
+    while g not empty:                          # drain wave respecting concurrency cap N
+      batch = g.pop_first(N)                    # N = host's concurrency cap
+      spawn batch workers, one per card         # host-owned placement
+      join                                      # host waits for this batch (file-is-the-wait)
+    break                                       # re-derive from ready --json before next wave
+  # worker death mid-wave: the join may return with fewer completions than
+  # spawns — that is fine. The coordinating checkout merges completed work
+  # and marks it done (auto-run.md); the loop re-calls ready --json and the fresh
+  # buildable[] contains only cards whose deps are met. Cards with status: done
+  # never reappear. Blocked cards stay in blocked[] with their reason.
+```
+
+Rules:
+- Each iteration is a **fresh derivation**, never a resume of the previous
+  spawn set. The dead worker's card is either back in `buildable[]` (work
+  incomplete / not marked done → re-derive it) or absent (`status: done`
+  after merge in coordinating checkout → skip).
+- `blocked[]` cards are **not retried** by the host; they carry their
+  `ready-blocked` reason (deps unmet or evidence/receipt checks failed) and
+  wait for the dependency to change the envelope. Allowed-files overlap is
+  partitioned into separate advisory wave groups, not `blocked[]`.
+- `flow.sh` never tracks worker PIDs, never counts live workers, and never
+  owns a worker registry — the host's join is the only completion signal.
 
 ## Forbidden (ADR-0001; not a nit)
 
