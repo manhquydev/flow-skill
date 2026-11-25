@@ -72,7 +72,7 @@ Flag: [npm-wrapper/README_VN.md](./npm-wrapper/README_VN.md).
 
 ## Lần chạy đầu
 
-1. Mở công cụ AI trong **thư mục chính** của dự án (không mở trong thư mục con), nơi Flow sẽ tạo `flow/` và `cards/`.
+1. Mở công cụ AI trong **thư mục chính** của dự án (không mở trong thư mục con), nơi Flow dùng hoặc tạo `flow/` và `cards/`.
 2. Chat tự nhiên bằng Tiếng Việt hoặc English (Codex dùng `$flow`): ví dụ `/flow mình muốn làm web nhắc bài tập cho lớp` hoặc `/flow I want to build a class homework tracker web app` (hoặc gõ `/flow assess` nếu thư mục đã có code sẵn).
 3. Chọn cách làm phù hợp với bạn: trả lời **đồng ý (yes)** để bật **`work` mode** (AI hỏi 5 câu ngắn, soạn nháp các bước `00–05` rồi dừng chờ bạn duyệt) hoặc giữ **`teach` mode** (bạn tự điền file: xóa trọn cụm ngoặc `[FILL: ...]`, sau đó đổi `- [ ]` thành `- [x]`). Cả hai chế độ đều giữ nguyên 100% cổng kiểm tra. Chi tiết: [hướng dẫn](https://flowskill.io.vn/vi/docs/tutorials/install-and-first-run/).
 
@@ -82,9 +82,9 @@ Flag: [npm-wrapper/README_VN.md](./npm-wrapper/README_VN.md).
 |---|---|
 | `Gate` | Chốt kiểm tra trước khi qua bước mới; cả script (`flow.sh`) và luật AI (`SKILL.md`) phải cùng đạt. |
 | `Kill at a gate` | Chủ động dừng sớm ý tưởng chưa khả thi để đỡ tốn công làm tiếp (**không** xóa file của bạn). |
-| `Card (C-001)` | Một phần việc nhỏ, kiểm thử được, tạo ra sau khi các bước lập kế hoạch `00–05` đã qua cổng. |
+| `Card (C-001)` | Một phần việc nhỏ, kiểm thử được, tạo ra sau khi các bước lập kế hoạch `00–05` qua cổng (hoặc `debt-skip`). |
 | `ADR & Contract` | Ghi chú ngắn về lựa chọn công nghệ (`04-adr`) và đầu vào/đầu ra thống nhất (`05-contract`) trước khi code. |
-| `World-state proof` | Bằng chứng chạy thật ngoài thực tế (link sống/đường dẫn file + kết quả lệnh thật), không chỉ nói "test ok". |
+| `World-state proof` | Bằng chứng chạy thật (link sống hoặc file `evidence/cli-smoke.log` có thật + kết quả lệnh & `exit 0`), thay thế `(empty until done)`. |
 | `Resume / Worktree` | `/flow resume` giúp làm tiếp phiên trước; worktree là bản sao thư mục tách riêng để làm song song an toàn. |
 
 ## Hằng ngày
@@ -94,7 +94,8 @@ Flag: [npm-wrapper/README_VN.md](./npm-wrapper/README_VN.md).
 /flow next       kiểm gate + mở stage kế
 /flow assess     đánh giá brownfield
 /flow card       tạo build card
-/flow check C-001  validate card (done = bằng chứng thế giới thật)
+/flow card done C-001  tick Verify [-x], thay (empty until done) bằng proof -> PASS done
+/flow check C-001      kiểm trạng thái hiện tại (nếu done: cần status: done + Verify + proof)
 /flow auto       build tự động (HALT nhóm bảo mật)
 /flow doctor     kiểm môi trường
 /flow resume    tiếp tục dự án Flow hiện có trong session mới (chỉ đọc)

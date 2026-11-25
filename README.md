@@ -73,7 +73,7 @@ Flags: [npm-wrapper/README.md](./npm-wrapper/README.md).
 
 ## First run
 
-1. Open your AI coding tool in your project's **main folder** (not a subfolder), where Flow creates `flow/` and `cards/`.
+1. Open your AI coding tool in your project's **main folder** (not a subfolder), where Flow uses or creates `flow/` and `cards/`.
 2. Chat in plain English or Tiếng Việt (Codex: `$flow`): e.g. `/flow I want to build a class homework tracker web app` or `/flow mình muốn làm web nhắc bài tập cho lớp` (or `/flow assess` if the folder already has code).
 3. Pick your pace: say **yes** to **`work` mode** (AI asks 5 quick questions, drafts stages `00–05`, pauses for your approval) or stay in **`teach` mode** (you fill files yourself: delete `[FILL: ...]` brackets completely, then change `- [ ]` to `- [x]`). Both modes enforce the exact same gates. Details: [tutorial](https://flowskill.io.vn/docs/tutorials/install-and-first-run/).
 
@@ -83,9 +83,9 @@ Flags: [npm-wrapper/README.md](./npm-wrapper/README.md).
 |---|---|
 | `Gate` | Checkpoint before advancing; both script (`flow.sh`) and AI rules (`SKILL.md`) must pass. |
 | `Kill at a gate` | Stopping a weak idea early to save wasted effort (does **not** delete your files). |
-| `Card (C-001)` | One small, testable task created after planning stages `00–05` pass. |
+| `Card (C-001)` | One small, testable task created after planning stages `00–05` pass (or `debt-skip`). |
 | `ADR & Contract` | Short notes on tech choices (`04-adr`) and agreed inputs/outputs (`05-contract`) before coding. |
-| `World-state proof` | Real working proof (live URL/path + pasted command output), never just "tests pass". |
+| `World-state proof` | Real working proof (live URL or existing `evidence/cli-smoke.log` + command output & `exit 0`), replacing `(empty until done)`. |
 | `Resume / Worktree` | `/flow resume` picks up where you left off; a worktree is a safe folder copy for parallel tasks. |
 
 ## Everyday
@@ -95,7 +95,8 @@ Flags: [npm-wrapper/README.md](./npm-wrapper/README.md).
 /flow next       gate-check + unlock next stage
 /flow assess     brownfield assessment
 /flow card       create a build card
-/flow check C-001  validate card (done = world-state proof)
+/flow card done C-001  tick Verify [-x], replace (empty until done) with proof -> PASS done
+/flow check C-001      validate current status (for done: set status: done + Verify + proof)
 /flow auto       autonomous build (halts on security-class)
 /flow doctor     environment check
 /flow resume    continue an existing Flow project in a fresh session (read-only)

@@ -93,8 +93,12 @@ After installation completes, restart or reload your coding agent in your projec
 ### If a gate says `FAIL`
 
 - Check the exact `L<line>` line number reported in the `FAIL` output.
-- Replace every `[FILL: ...]` placeholder completely (delete the `[` `]` brackets too) and mark finished gate checkboxes `- [x]` (lowercase `x`), or run `/flow mode work` so AI drafts with you.
-- Re-run `/flow next` (or `/flow check C-001` once a card has real world-state proof pasted under `## Evidence`).
+- Replace every `[FILL: ...]` placeholder completely (delete the `[` `]` brackets too) and mark finished gate checkboxes `- [x]` (lowercase `x`), or run `/flow mode work` (Codex: `$flow mode work`) so AI drafts with you.
+- Re-run `/flow next` (Codex: `$flow next`) for planning gates.
+- To complete your first card (`PASS: C-001 is valid (status: done)`):
+  1. Run a command that creates a real world-state proof file (e.g., `mkdir -p evidence && node -e "console.log('ready')" > evidence/cli-smoke.log && cat evidence/cli-smoke.log`).
+  2. In `cards/C-001.md`, tick every Verify box `- [x]` and **replace `(empty until done)` completely** under `## Evidence` with `evidence/cli-smoke.log`, the pasted command output (`ready`), and `exit 0` (a `.js` source path alone scores `1/2` and fails).
+  3. Run `/flow card done C-001` (Codex: `$flow card done C-001`) to flip `status: done` and run the done-gate — or set `status: done` in `cards/C-001.md` and run `/flow check C-001` (Codex: `$flow check C-001`, which validates the card's current status).
 
 ---
 

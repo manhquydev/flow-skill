@@ -129,7 +129,7 @@ review and CI acceptance are complete; see the [v1 migration guide](https://gith
    one `NEXT ->` line). Skip only with live context this session.
 2. **Always call `flow.sh` first** and relay exit + output (`/flow`, `next`, `check`,
    `resume`, `doctor`). Lock BLOCKED → STOP. Treat `PIN v1` and inactive-`auto`
-   receipt/trace warnings as host-internal metadata (never dump `PIN v1` as user prose);
+   receipt warnings as host-internal metadata (never dump `PIN v1` as user prose);
    always add 1–2 plain EN/VI sentences stating what failed (`[FILL]`, `- [x]`,
    `done-evidence`), how to fix it, and the exact next command (`references/concierge.md`).
 3. **On next:** FAIL → STOP, offer help (and `/flow mode work` when a beginner is stuck

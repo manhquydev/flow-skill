@@ -93,8 +93,12 @@ Sau khi cài đặt hoàn tất, hãy khởi động lại hoặc tải lại co
 ### Khi cổng báo `FAIL`
 
 - Xem đúng số dòng `L<line>` được chỉ ra trong thông báo `FAIL`.
-- Thay thế trọn cụm `[FILL: ...]` (xóa luôn cả dấu ngoặc vuông `[` `]`) và đánh dấu ô kiểm `- [x]` (chữ `x` thường), hoặc gõ `/flow mode work` để AI hỗ trợ soạn nháp cùng bạn.
-- Chạy lại `/flow next` (hoặc `/flow check C-001` khi card đã dán bằng chứng chạy thật vào mục `## Evidence`).
+- Thay thế trọn cụm `[FILL: ...]` (xóa luôn cả dấu ngoặc vuông `[` `]`) và đánh dấu ô kiểm `- [x]` (chữ `x` thường), hoặc gõ `/flow mode work` (Codex: `$flow mode work`) để AI hỗ trợ soạn nháp cùng bạn.
+- Chạy lại `/flow next` (Codex: `$flow next`) cho các cổng lập kế hoạch.
+- Để hoàn tất card đầu tiên (`PASS: C-001 is valid (status: done)`):
+  1. Chạy lệnh tạo file bằng chứng thật ngoài thực tế (ví dụ: `mkdir -p evidence && node -e "console.log('ready')" > evidence/cli-smoke.log && cat evidence/cli-smoke.log`).
+  2. Trong `cards/C-001.md`, tick mọi ô Verify `- [x]` và **thay thế hoàn toàn dòng `(empty until done)`** dưới `## Evidence` bằng `evidence/cli-smoke.log`, kết quả lệnh (`ready`), và `exit 0` (chỉ đưa đường dẫn file `.js` chỉ đạt `1/2` và vẫn `FAIL`).
+  3. Chạy `/flow card done C-001` (Codex: `$flow card done C-001`) để chuyển sang `status: done` và kiểm gate — hoặc tự đổi `status: done` trong `cards/C-001.md` rồi chạy `/flow check C-001` (Codex: `$flow check C-001`, chỉ kiểm tra trạng thái hiện tại của card).
 
 ---
 
