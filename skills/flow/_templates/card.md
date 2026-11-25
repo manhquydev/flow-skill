@@ -34,5 +34,5 @@ a curl output, a deployed page. "Tests pass" / "code merged" are NOT done-eviden
 
 ## Evidence (paste the actual proof here when done)
 
-<!-- Replace `(empty until done)` completely with >=2 real world-state proofs (live URL or existing `.log`/`.txt`/image file path + re-run terminal output, see example above). Do not paste below `(empty until done)` or quote the agent claiming tests ran. -->
+<!-- Replace the placeholder line below completely with >=2 real world-state proofs (live URL or existing `.log`/`.txt`/image file path + re-run terminal output, see example above). Do not paste below the placeholder or quote the agent claiming tests ran. -->
 (empty until done)

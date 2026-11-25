@@ -94,7 +94,7 @@ Flag: [npm-wrapper/README_VN.md](./npm-wrapper/README_VN.md).
 /flow next       kiểm gate + mở stage kế
 /flow assess     đánh giá brownfield
 /flow card       tạo build card
-/flow card done C-001  tick Verify [-x], thay (empty until done) bằng proof -> PASS done
+/flow card done C-001  tick Verify - [x], thay (empty until done) bằng proof -> PASS done
 /flow check C-001      kiểm trạng thái hiện tại (nếu done: cần status: done + Verify + proof)
 /flow auto       build tự động (HALT nhóm bảo mật)
 /flow doctor     kiểm môi trường

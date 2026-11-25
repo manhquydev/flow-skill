@@ -55,6 +55,8 @@ has_lit "$ROOT/npm-wrapper/README.md" "check C-001" "npm-wrapper/README.md disti
 has_lit "$ROOT/npm-wrapper/README_VN.md" "check C-001" "npm-wrapper/README_VN.md distinguishes check C-001"
 has_lit "$ROOT/README.md" "check C-001" "README.md distinguishes check C-001"
 has_lit "$ROOT/README_VN.md" "check C-001" "README_VN.md distinguishes check C-001"
+sentinel_cnt="$(grep -o '(empty until done)' "$ROOT/skills/flow/_templates/card.md" | wc -l | tr -d '[:space:]')"
+ck "1" "$sentinel_cnt" "card.md contains (empty until done) exactly once (never in HTML comment)"
 
 echo "B) Isolated real-FlowSkill fixture: scaffold C-001 via flow.sh card"
 SB="$(mktemp -d)"
@@ -102,12 +104,12 @@ PY
 echo "C) Negative 1: keeping (empty until done) above proof still fails"
 cp "$SB/proj/cards/C-001.md" "$SB/proj/cards/C-001.base.md"
 python3 - "$SB/proj/cards/C-001.md" <<'PY'
-import sys
+import re, sys
 p = sys.argv[1]
 txt = open(p, encoding="utf-8").read()
 txt = txt.replace("status: todo", "status: done", 1)
 txt = txt.replace("- [ ] ", "- [x] ", 1)
-txt = txt.replace("(empty until done)", "(empty until done)\nevidence/cli-smoke.log\n$ cat evidence/cli-smoke.log\nready\nexit 0")
+txt = re.sub(r"(?m)^\(empty until done\)$", "(empty until done)\nevidence/cli-smoke.log\n$ cat evidence/cli-smoke.log\nready\nexit 0", txt, count=1)
 open(p, "w", encoding="utf-8").write(txt)
 PY
 mkdir -p "$SB/proj/evidence"
@@ -121,12 +123,12 @@ echo "D) Negative 2: .js path + output + exit 0 scores 1/2 and fails"
 cp "$SB/proj/cards/C-001.base.md" "$SB/proj/cards/C-001.md"
 printf 'console.log("Homework tracker ready");\n' > "$SB/proj/dist/cli.js"
 python3 - "$SB/proj/cards/C-001.md" <<'PY'
-import sys
+import re, sys
 p = sys.argv[1]
 txt = open(p, encoding="utf-8").read()
 txt = txt.replace("status: todo", "status: done", 1)
 txt = txt.replace("- [ ] ", "- [x] ", 1)
-txt = txt.replace("(empty until done)", "dist/cli.js\n$ node dist/cli.js\nHomework tracker ready\nexit 0")
+txt = re.sub(r"(?m)^\(empty until done\)$", "dist/cli.js\n$ node dist/cli.js\nHomework tracker ready\nexit 0", txt, count=1)
 open(p, "w", encoding="utf-8").write(txt)
 PY
 neg2_rc=0; neg2_out="$(cd "$SB/proj" && bash "$RUN" check C-001 2>&1)" || neg2_rc=$?
@@ -146,13 +148,16 @@ rm -rf "$SB/proj/evidence"
 cmd_out="$(cd "$SB/proj" && mkdir -p evidence && node -e "console.log('ready')" > evidence/cli-smoke.log && cat evidence/cli-smoke.log)"
 ck "ready" "$cmd_out" "documented CLI command creates evidence/cli-smoke.log and prints ready"
 python3 - "$SB/proj/cards/C-001.md" "$cmd_out" <<'PY'
-import sys
+import re, sys
 p, out = sys.argv[1], sys.argv[2]
 txt = open(p, encoding="utf-8").read()
 txt = txt.replace("- [ ] ", "- [x] ", 1)
-txt = txt.replace("(empty until done)", f"evidence/cli-smoke.log\n$ cat evidence/cli-smoke.log\n{out}\nexit 0")
+txt, n = re.subn(r"(?m)^\(empty until done\)$", f"evidence/cli-smoke.log\n$ cat evidence/cli-smoke.log\n{out}\nexit 0", txt, count=1)
+assert n == 1, f"expected 1 standalone placeholder line, replaced {n}"
 open(p, "w", encoding="utf-8").write(txt)
 PY
+grep -q '<!--' "$SB/proj/cards/C-001.md"
+ck 0 $? "HTML comment preserved after replacing standalone placeholder line"
 
 pos1_rc=0; pos1_out="$(cd "$SB/proj" && bash "$RUN" card done C-001 2>&1)" || pos1_rc=$?
 ck 0 "$pos1_rc" "card done C-001 exits 0 with documented proof"

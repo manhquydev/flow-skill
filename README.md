@@ -95,7 +95,7 @@ Flags: [npm-wrapper/README.md](./npm-wrapper/README.md).
 /flow next       gate-check + unlock next stage
 /flow assess     brownfield assessment
 /flow card       create a build card
-/flow card done C-001  tick Verify [-x], replace (empty until done) with proof -> PASS done
+/flow card done C-001  tick Verify - [x], replace (empty until done) with proof -> PASS done
 /flow check C-001      validate current status (for done: set status: done + Verify + proof)
 /flow auto       autonomous build (halts on security-class)
 /flow doctor     environment check
