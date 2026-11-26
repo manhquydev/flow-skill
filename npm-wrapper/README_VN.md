@@ -78,12 +78,27 @@ npx @manhquy/flow-skill@latest --yes --all --dry-run
 
 ## Lần chạy đầu & Các bước tiếp theo
 
-Sau khi cài đặt hoàn tất, hãy khởi động lại hoặc tải lại coding agent. Codex CLI dùng
-`$flow`; các agent dùng slash command (Claude Code, Antigravity, OMP) dùng `/flow`:
+Sau khi cài đặt hoàn tất, hãy khởi động lại hoặc tải lại coding agent trong **thư mục chính** của dự án (không mở trong thư mục con). Codex CLI dùng `$flow`; các agent dùng slash command (Claude Code, Antigravity, OMP) dùng `/flow`:
 
-- Codex: `$flow`; agent dùng slash command: `/flow` — kiểm tra giai đoạn hiện tại và xem điều gì đang chặn tiến trình
-- Codex: `$flow next`; agent dùng slash command: `/flow next` — đánh giá tiêu chí cổng và chuyển sang giai đoạn tiếp theo
-- Codex: `$flow doctor`; agent dùng slash command: `/flow doctor` — kiểm tra môi trường và tính toàn vẹn của gói skill đã cài đặt
+1. **Bắt đầu bằng cách chat Tiếng Việt hoặc English:**
+   - `/flow mình muốn làm web nhắc bài tập cho lớp` (Codex: `$flow mình muốn làm...`)
+   - `/flow I want to build a class homework tracker web app`
+   - Hoặc chạy `/flow assess` trước nếu thư mục đã có sẵn code.
+2. **Chọn tốc độ phù hợp với bạn:** Trả lời **đồng ý (yes)** để bật **`work` mode** (AI hỏi 5 câu ngắn, soạn nháp các bước `00–02`, dừng chờ bạn duyệt Scope rồi mới soạn tiếp `03–05`) hoặc giữ **`teach` mode** (bạn tự điền file kế hoạch) — cả hai chế độ đều giữ nguyên 100% cổng kiểm tra.
+3. **Các lệnh thường dùng:**
+   - Codex: `$flow`; agent dùng slash command: `/flow` — kiểm tra giai đoạn hiện tại và xem điều gì đang chặn tiến trình
+   - Codex: `$flow next`; agent dùng slash command: `/flow next` — đánh giá tiêu chí cổng và chuyển sang giai đoạn tiếp theo
+   - Codex: `$flow doctor`; agent dùng slash command: `/flow doctor` — kiểm tra môi trường và tính toàn vẹn của gói skill đã cài đặt
+
+### Khi cổng báo `FAIL`
+
+- Xem đúng số dòng `L<line>` được chỉ ra trong thông báo `FAIL`.
+- Thay thế trọn cụm `[FILL: ...]` (xóa luôn cả dấu ngoặc vuông `[` `]`) và đánh dấu ô kiểm `- [x]` (chữ `x` thường), hoặc gõ `/flow mode work` (Codex: `$flow mode work`) để AI hỗ trợ soạn nháp cùng bạn.
+- Chạy lại `/flow next` (Codex: `$flow next`) cho các cổng lập kế hoạch.
+- Để hoàn tất card đầu tiên (`PASS: C-001 is valid (status: done)`):
+  1. Chạy lệnh của tính năng bạn vừa build và ghi kết quả thật ra file log (ví dụ: `mkdir -p evidence && <lệnh-chạy-tính-năng> > evidence/cli-smoke.log && cat evidence/cli-smoke.log`; không tự in chuỗi giả để đối phó).
+  2. Trong `cards/C-001.md`, tick mọi ô Verify `- [x]` và **thay thế hoàn toàn dòng `(empty until done)`** dưới `## Evidence` bằng `evidence/cli-smoke.log`, kết quả chạy thật, và `exit 0` (chỉ đưa đường dẫn file `.js` chỉ đạt `1/2` và vẫn `FAIL`).
+  3. Chạy `/flow card done C-001` (Codex: `$flow card done C-001`) để chuyển sang `status: done` và kiểm gate — hoặc tự đổi `status: done` trong `cards/C-001.md` rồi chạy `/flow check C-001` (Codex: `$flow check C-001`, chỉ kiểm tra trạng thái hiện tại của card).
 
 ---
 
@@ -92,7 +107,8 @@ Sau khi cài đặt hoàn tất, hãy khởi động lại hoặc tải lại co
 | | |
 |---|---|
 | **Mục tiêu phát hành** | npm **1.0.1** / skill **v1.0.1** — kênh dự kiến `latest`; không phải biên nhận đã phát hành |
-| **Node.js** | `>= 22.14.0` |
+| **Node.js** | `>= 22.14.0` (trình cài đặt) |
+| **Môi trường chạy (Flow v1)** | Python `>= 3.7` từ [python.org](https://www.python.org/) (`sqlite3` có sẵn) · Windows: [Git for Windows](https://git-scm.com/) (Git Bash) |
 | **Tài liệu** | [flowskill.io.vn](https://flowskill.io.vn) |
 | **Kho lưu trữ** | [GitHub: manhquydev/flow-skill](https://github.com/manhquydev/flow-skill) |
 | **Giấy phép** | MIT |
@@ -105,7 +121,7 @@ Bản phát hành đã xác minh ngày 2026-10-30: GitHub phát hành skill v1.0
 
 - **Agent không nhận lệnh `/flow`:** Hãy chắc chắn rằng bạn chạy qua lệnh `npx @manhquy/flow-skill@latest`. Nếu chỉ chạy `npm install @manhquy/flow-skill` đơn thuần, npm chỉ tải package về `node_modules` mà không thực thi cài đặt để sao chép skill vào thư mục của agent.
 - **Cập nhật Flow:** Chạy lại lệnh `npx @manhquy/flow-skill@latest` bất cứ lúc nào. Luôn gắn `@latest` để đảm bảo `npx` không dùng bản lưu cache cũ.
-- **Yêu cầu phiên bản Node.js:** Yêu cầu Node.js ≥ 22.14 LTS (`node --version`).
+- **Yêu cầu Node.js & môi trường chạy:** Trình cài đặt yêu cầu Node.js >= 22.14 LTS (`node --version`). Khi chạy các lệnh `/flow`, bạn cần Python >= 3.7 từ python.org (`sqlite3` đi kèm sẵn; trên Windows hãy tránh alias `python` rỗng của Microsoft Store) và **Git for Windows (Git Bash)** nếu dùng Windows. Gõ `/flow doctor` bất cứ lúc nào để kiểm tra toàn bộ môi trường.
 - **Gỡ cài đặt:** Xóa thư mục skill khỏi các đường dẫn agent mà bạn đã cài:
   ```bash
   rm -rf ~/.claude/skills/flow ~/.cursor/skills/flow ~/.codex/skills/flow ~/.agents/skills/flow ~/.gemini/antigravity-cli/skills/flow ~/.omp/agent/skills/flow
