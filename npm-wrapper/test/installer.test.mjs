@@ -701,6 +701,7 @@ test('renderHelp: states shared SemVer, links master SECURITY.md, and shows AFTE
   assert.equal(out.includes('blob/main/SECURITY.md'), false);
   assert.equal(out.includes('AFTER INSTALL'), true);
   assert.equal(out.includes('/flow doctor'), true);
+  assert.equal(out.includes('$flow doctor'), true);
 });
 
 test('prompt.mjs: uses beginner-clear AI coding tools and Install scope wording', () => {

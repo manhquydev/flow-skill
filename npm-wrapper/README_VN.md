@@ -84,7 +84,7 @@ Sau khi cài đặt hoàn tất, hãy khởi động lại hoặc tải lại co
    - `/flow mình muốn làm web nhắc bài tập cho lớp` (Codex: `$flow mình muốn làm...`)
    - `/flow I want to build a class homework tracker web app`
    - Hoặc chạy `/flow assess` trước nếu thư mục đã có sẵn code.
-2. **Chọn tốc độ phù hợp với bạn:** Trả lời **đồng ý (yes)** để bật **`work` mode** (AI hỏi 5 câu ngắn, soạn nháp các bước `00–05` và dừng chờ bạn duyệt) hoặc giữ **`teach` mode** (bạn tự điền file kế hoạch) — cả hai chế độ đều giữ nguyên 100% cổng kiểm tra.
+2. **Chọn tốc độ phù hợp với bạn:** Trả lời **đồng ý (yes)** để bật **`work` mode** (AI hỏi 5 câu ngắn, soạn nháp các bước `00–02`, dừng chờ bạn duyệt Scope rồi mới soạn tiếp `03–05`) hoặc giữ **`teach` mode** (bạn tự điền file kế hoạch) — cả hai chế độ đều giữ nguyên 100% cổng kiểm tra.
 3. **Các lệnh thường dùng:**
    - Codex: `$flow`; agent dùng slash command: `/flow` — kiểm tra giai đoạn hiện tại và xem điều gì đang chặn tiến trình
    - Codex: `$flow next`; agent dùng slash command: `/flow next` — đánh giá tiêu chí cổng và chuyển sang giai đoạn tiếp theo

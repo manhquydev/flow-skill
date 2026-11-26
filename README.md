@@ -75,7 +75,7 @@ Flags: [npm-wrapper/README.md](./npm-wrapper/README.md).
 
 1. Open your AI coding tool in your project's **main folder** (not a subfolder), where Flow uses or creates `flow/` and `cards/`.
 2. Chat in plain English or Tiếng Việt (Codex: `$flow`): e.g. `/flow I want to build a class homework tracker web app` or `/flow mình muốn làm web nhắc bài tập cho lớp` (or `/flow assess` if the folder already has code).
-3. Pick your pace: say **yes** to **`work` mode** (AI asks 5 quick questions, drafts stages `00–05`, pauses for your approval) or stay in **`teach` mode** (you fill files yourself: delete `[FILL: ...]` brackets completely, then change `- [ ]` to `- [x]`). Both modes enforce the exact same gates. Details: [tutorial](https://flowskill.io.vn/docs/tutorials/install-and-first-run/).
+3. Pick your pace: say **yes** to **`work` mode** (AI asks 5 quick questions, drafts stages `00–02`, pauses for your Scope approval, then drafts `03–05`) or stay in **`teach` mode** (you fill files yourself: delete `[FILL: ...]` brackets completely, then change `- [ ]` to `- [x]`). Both modes enforce the exact same gates. Details: [tutorial](https://flowskill.io.vn/docs/tutorials/install-and-first-run/).
 
 ## Key terms in plain words
 

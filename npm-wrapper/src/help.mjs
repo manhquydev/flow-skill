@@ -44,7 +44,7 @@ EXAMPLES
 AFTER INSTALL
   Reload your AI tool in your project's main folder, then chat:
   /flow <describe your idea in English or Tiếng Việt>   (Codex: $flow)
-  /flow doctor                                          (verify Python >= 3.7 & Git Bash)
+  /flow doctor                                          (Codex: $flow doctor — verify Python >= 3.7 & Git Bash)
 
 MORE
   Docs:     https://github.com/manhquydev/flow-skill#readme

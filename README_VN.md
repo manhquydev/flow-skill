@@ -74,7 +74,7 @@ Flag: [npm-wrapper/README_VN.md](./npm-wrapper/README_VN.md).
 
 1. Mở công cụ AI trong **thư mục chính** của dự án (không mở trong thư mục con), nơi Flow dùng hoặc tạo `flow/` và `cards/`.
 2. Chat tự nhiên bằng Tiếng Việt hoặc English (Codex dùng `$flow`): ví dụ `/flow mình muốn làm web nhắc bài tập cho lớp` hoặc `/flow I want to build a class homework tracker web app` (hoặc gõ `/flow assess` nếu thư mục đã có code sẵn).
-3. Chọn cách làm phù hợp với bạn: trả lời **đồng ý (yes)** để bật **`work` mode** (AI hỏi 5 câu ngắn, soạn nháp các bước `00–05` rồi dừng chờ bạn duyệt) hoặc giữ **`teach` mode** (bạn tự điền file: xóa trọn cụm ngoặc `[FILL: ...]`, sau đó đổi `- [ ]` thành `- [x]`). Cả hai chế độ đều giữ nguyên 100% cổng kiểm tra. Chi tiết: [hướng dẫn](https://flowskill.io.vn/vi/docs/tutorials/install-and-first-run/).
+3. Chọn cách làm phù hợp với bạn: trả lời **đồng ý (yes)** để bật **`work` mode** (AI hỏi 5 câu ngắn, soạn nháp các bước `00–02`, dừng chờ bạn duyệt Scope rồi mới soạn tiếp `03–05`) hoặc giữ **`teach` mode** (bạn tự điền file: xóa trọn cụm ngoặc `[FILL: ...]`, sau đó đổi `- [ ]` thành `- [x]`). Cả hai chế độ đều giữ nguyên 100% cổng kiểm tra. Chi tiết: [hướng dẫn](https://flowskill.io.vn/vi/docs/tutorials/install-and-first-run/).
 
 ## Giải nghĩa nhanh thuật ngữ
 

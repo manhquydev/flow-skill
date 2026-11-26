@@ -84,7 +84,7 @@ After installation completes, restart or reload your coding agent in your projec
    - `/flow I want to build a class homework tracker web app` (Codex: `$flow I want to build...`)
    - `/flow mình muốn làm web nhắc bài tập cho lớp`
    - Or run `/flow assess` first if the folder already has existing code.
-2. **Choose your pace:** Say **yes** to **`work` mode** (AI asks 5 quick questions, drafts stages `00–05`, and pauses for your approval) or stay in **`teach` mode** (you fill the planning files yourself) — both modes enforce the exact same gates.
+2. **Choose your pace:** Say **yes** to **`work` mode** (AI asks 5 quick questions, drafts stages `00–02`, pauses for your Scope approval, then drafts `03–05`) or stay in **`teach` mode** (you fill the planning files yourself) — both modes enforce the exact same gates.
 3. **Everyday commands:**
    - Codex: `$flow`; slash-command agents: `/flow` — check current project stage and blockers
    - Codex: `$flow next`; slash-command agents: `/flow next` — evaluate gates and advance to the next stage

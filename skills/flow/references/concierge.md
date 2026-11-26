@@ -125,8 +125,8 @@ Single canonical home for translating Flow terms to beginners and non-programmer
   - EN: A tamper-evident check-off slip required **only** when autonomous `/flow auto` mode is active; manual builds do not need receipts.
   - VI: Phiếu xác nhận tự động **chỉ bắt buộc khi chạy `/flow auto`**; khi làm thủ công bình thường bạn không cần bận tâm cảnh báo thiếu receipt.
 - **`teach vs work mode` (`/flow mode teach|work`)**
-  - EN: Both modes enforce **100% of the exact same gates**. In `teach` (default), you edit the planning files yourself and AI only gatekeeps; in `work`, AI interviews you once and drafts stages `00–05` for your review.
-  - VI: Cả hai chế độ đều giữ **cùng 100% cổng kiểm tra nghiêm ngặt như nhau**. Ở `teach` (mặc định), bạn tự điền file kế hoạch; ở `work`, AI phỏng vấn ngắn một lần rồi soạn nháp `00–05` để bạn duyệt.
+  - EN: Both modes enforce **100% of the exact same gates**. In `teach` (default), you edit the planning files yourself and AI only gatekeeps; in `work`, AI interviews you once, drafts stages `00–02`, pauses for your Scope sign-off, then drafts `03–05`.
+  - VI: Cả hai chế độ đều giữ **cùng 100% cổng kiểm tra nghiêm ngặt như nhau**. Ở `teach` (mặc định), bạn tự điền file kế hoạch; ở `work`, AI phỏng vấn ngắn một lần, soạn nháp `00–02`, dừng chờ bạn duyệt Scope rồi mới soạn tiếp `03–05`.
 - **`brownfield / assess` (`/flow assess`)**
   - EN: Starting Flow in a folder that already has existing code — run `/flow assess` first to map current stack, features, tests, and risks in `flow/00-inspect.md`.
   - VI: Dự án đã có sẵn code — chạy `/flow assess` trước tiên để Flow khảo sát hiện trạng vào `flow/00-inspect.md` rồi mới lên kế hoạch mới.
