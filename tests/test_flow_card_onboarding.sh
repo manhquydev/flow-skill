@@ -63,6 +63,7 @@ echo "B) Isolated real-FlowSkill fixture: scaffold C-001 via flow.sh card"
 SB="$(mktemp -d)"
 trap 'rm -rf "$SB"' EXIT
 export HOME="$SB/home"
+export FLOW_PROJECT_ROOT="$SB/proj"
 mkdir -p "$HOME" "$SB/proj/flow" "$SB/proj/dist"
 (
   cd "$SB/proj" || exit 1
@@ -158,8 +159,16 @@ txt, n = re.subn(r"(?m)^\(empty until done\)$", f"evidence/cli-smoke.log\n$ cat 
 assert n == 1, f"expected 1 standalone placeholder line, replaced {n}"
 open(p, "w", encoding="utf-8").write(txt)
 PY
-grep -q '<!--' "$SB/proj/cards/C-001.md"
-ck 0 $? "HTML comment preserved after replacing standalone placeholder line"
+ev_comment_rc=0
+python3 - "$SB/proj/cards/C-001.md" <<'PY' || ev_comment_rc=$?
+import re, sys
+txt = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r"(?ms)^## Evidence\b.*?(?=^## |\Z)", txt)
+assert m, "missing ## Evidence section"
+expected_comment = "<!-- Replace the placeholder line below completely with >=2 real world-state proofs (live URL or existing `.log`/`.txt`/image file path + re-run terminal output, see example above). Do not paste below the placeholder or quote the agent claiming tests ran. -->"
+assert re.search(r"(?m)^" + re.escape(expected_comment) + r"$", m.group(0)), "Evidence HTML comment missing or changed"
+PY
+ck 0 "$ev_comment_rc" "Evidence section HTML comment preserved after replacing standalone placeholder line"
 
 pos1_rc=0; pos1_out="$(cd "$SB/proj" && bash "$RUN" card done C-001 2>&1)" || pos1_rc=$?
 ck 0 "$pos1_rc" "card done C-001 exits 0 with documented proof"
@@ -182,6 +191,22 @@ pos2_rc=0; pos2_out="$(cd "$SB/proj" && bash "$RUN" check C-001 2>&1)" || pos2_r
 ck 0 "$pos2_rc" "check C-001 on completed card exits 0"
 printf '%s' "$pos2_out" | grep -q 'PASS: C-001 is valid (status: done).'
 ck 0 $? "check C-001 on completed card prints PASS: C-001 is valid (status: done)."
+
+if [ "${_FLOW_CARD_ONBOARDING_SELF_TEST:-0}" != 1 ]; then
+  echo "H) Regression: exported external FLOW_PROJECT_ROOT cannot be written by this suite"
+  EXT="$(mktemp -d)"
+  mkdir -p "$EXT/flow" "$EXT/cards"
+  printf '# 00 Idea\n- [x] Done\n' > "$EXT/flow/00-idea.md"
+  for s in 01-research 02-scope 03-prd 04-adr 05-contract; do
+    printf '# %s\n- [x] Done\n' "$s" > "$EXT/flow/$s.md"
+  done
+  ext_rc=0
+  FLOW_PROJECT_ROOT="$EXT" _FLOW_CARD_ONBOARDING_SELF_TEST=1 bash "$0" >/dev/null 2>&1 || ext_rc=$?
+  ck 0 "$ext_rc" "suite succeeds even when caller exports external FLOW_PROJECT_ROOT"
+  ext_cards="$(find "$EXT/cards" -mindepth 1 -maxdepth 1 | wc -l | tr -d '[:space:]')"
+  ck "0" "$ext_cards" "external FLOW_PROJECT_ROOT/cards remains untouched (0 files)"
+  rm -rf "$EXT"
+fi
 
 rm -f "$SB/proj/cards/C-001.base.md"
 echo

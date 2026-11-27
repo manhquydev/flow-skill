@@ -77,6 +77,9 @@ jobs:
           if [ '${{ matrix.shard }}' != full ]; then
             export FLOW_SUITE_SHARD='${{ matrix.shard }}'
           fi
+          if [ '${{ matrix.os }}' = windows-latest ]; then
+            export FLOW_SUITE_PIN_SYNC_RELEASE=1
+          fi
           bash tests/run_all.sh
         shell: bash
 
