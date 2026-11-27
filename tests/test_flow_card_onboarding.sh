@@ -165,7 +165,8 @@ import re, sys
 txt = open(sys.argv[1], encoding="utf-8").read()
 m = re.search(r"(?ms)^## Evidence\b.*?(?=^## |\Z)", txt)
 assert m, "missing ## Evidence section"
-assert "<!-- Replace the placeholder line below completely with >=2 real world-state proofs" in m.group(0), "Evidence HTML comment missing"
+expected_comment = "<!-- Replace the placeholder line below completely with >=2 real world-state proofs (live URL or existing `.log`/`.txt`/image file path + re-run terminal output, see example above). Do not paste below the placeholder or quote the agent claiming tests ran. -->"
+assert re.search(r"(?m)^" + re.escape(expected_comment) + r"$", m.group(0)), "Evidence HTML comment missing or changed"
 PY
 ck 0 "$ev_comment_rc" "Evidence section HTML comment preserved after replacing standalone placeholder line"
 
