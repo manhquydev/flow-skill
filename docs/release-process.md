@@ -67,7 +67,10 @@ The publisher packs exactly once because `npm-wrapper/scripts/sync.mjs` writes n
 node npm-wrapper/scripts/smoke.mjs <exact-version>
 npm view @manhquy/flow-skill dist-tags --json
 npm view @manhquy/flow-skill@<exact-version> dist.integrity dist.attestations.provenance
+bash scripts/release-preflight.sh --strict-published   # run only after the npm and skill tags and GitHub Release exist (needs authenticated gh, origin remote, network)
 ```
+
+`bash scripts/release-preflight.sh --strict-published` (delegating to `scripts/check-release-live.mjs`) is the fail-closed post-publication coherence gate across npm dist-tags/provenance, remote `npm@`/`v` tags at `HEAD`, GitHub Release, README `Publication status verified` lines (each must uniquely cite the exact published npm version with none older), changelogs, and `docs/quality-metrics.md`. Because the tags must point at `HEAD`, those lines and docs must be committed before the tags are created.
 
 The smoke runs against the public registry from a clean temporary working directory. Missing/mismatched provenance or failed install/CLI/skill checks is a failed release verification; never republish the immutable version to hide partial state.
 
