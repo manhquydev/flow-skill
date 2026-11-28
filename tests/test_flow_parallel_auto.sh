@@ -265,6 +265,63 @@ except Exception as e:
 ck "OK" "$py_res" "same-file cards never share a wave"
 rm -rf "$SB"
 
+echo "O) READY-REPORT-KEYSET: exact key-set across planning-incomplete, green, auto-parallel, and blocked states"
+_check_ready_keys() {
+  python3 -c '
+import json, sys
+data = json.loads(sys.argv[1])
+expected = sorted(["schema_version", "kind", "planning_complete", "note", "buildable", "blocked", "warnings", "groups", "auto", "parallel_policy"])
+keys = sorted(data.keys())
+assert keys == expected, "top-level key mismatch: got %s expected %s" % (keys, expected)
+assert data["schema_version"] == 1
+assert data["kind"] == "ready.report"
+exp_item = sorted(["id", "deps", "allowed_files", "wave"])
+for item in data["buildable"]:
+    ik = sorted(item.keys())
+    assert ik == exp_item, "buildable item key mismatch: got %s expected %s" % (ik, exp_item)
+exp_blocked = sorted(["id", "reason"])
+for bitem in data["blocked"]:
+    bk = sorted(bitem.keys())
+    assert bk == exp_blocked, "blocked item key mismatch: got %s expected %s" % (bk, exp_blocked)
+print("OK")
+' "$1" 2>&1
+}
+
+# O1) planning incomplete
+SB="$(mktemp -d)"; export FLOW_PROJECT_ROOT="$SB"
+mkdir -p "$SB/.flow"
+git -C "$SB" init -q
+git -C "$SB" config user.email "t@example.com"
+git -C "$SB" config user.name "T"
+git -C "$SB" commit --allow-empty -qm init
+out="$(bash "$RUN" ready --json 2>&1)"; rc=$?
+ck 1 "$rc" "O1 planning incomplete ready --json rc 1"
+ck "OK" "$(_check_ready_keys "$out")" "O1 planning incomplete exact key-set"
+rm -rf "$SB"
+
+# O2) green default (INACTIVE, parallel_policy=false, buildable non-empty)
+setup_green
+out="$(bash "$RUN" ready --json 2>&1)"; rc=$?
+ck 0 "$rc" "O2 green ready --json rc 0"
+ck "OK" "$(_check_ready_keys "$out")" "O2 green exact key-set"
+
+# O3) auto --parallel ACTIVE (parallel_policy=true)
+bash "$RUN" attest semantic --stage 05-contract --revision HEAD --owner bin/owner_stage.txt >/dev/null
+bash "$RUN" auto --parallel >/dev/null 2>&1
+out="$(bash "$RUN" ready --json 2>&1)"; rc=$?
+ck 0 "$rc" "O3 auto --parallel ready --json rc 0"
+ck "OK" "$(_check_ready_keys "$out")" "O3 auto --parallel exact key-set"
+has "$out" '"auto":"ACTIVE"' "O3 auto is ACTIVE"
+has "$out" '"parallel_policy":true' "O3 parallel_policy is true"
+
+# O4) blocked card (unmet deps -> blocked[] non-empty)
+printf '# C-002\nstatus: todo\ndeps: C-001\nimplements: none\nrisk: standard\nrisk-reason: ordinary non-security work\nrisk-ack: none\n## Scope\ntwo\n## Allowed files\nlib/\n## Verify\n- [x] ok\n## Done-evidence\ncli\n## Evidence\n$ curl https://x/healthz -> 200 PASS healthcheck\n' > "$SB/cards/C-002.md"
+out="$(bash "$RUN" ready --json 2>&1)"; rc=$?
+ck 0 "$rc" "O4 blocked card ready --json rc 0"
+ck "OK" "$(_check_ready_keys "$out")" "O4 blocked card exact key-set"
+has "$out" '"blocked":\[{"id":"C-002"' "O4 blocked[] contains C-002"
+rm -rf "$SB"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
