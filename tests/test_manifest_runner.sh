@@ -5,7 +5,7 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 MANIFEST="$HERE/manifest.txt"
 # Runner fixtures must not inherit the CI shard running this test suite.
-unset FLOW_SUITE_SHARD
+unset FLOW_SUITE_SHARD FLOW_SUITE_PIN_SYNC_RELEASE
 pass=0; fail=0
 ck() { if [ "$1" = "$2" ]; then echo "  ok   [$3]"; pass=$((pass+1)); else echo "  FAIL [$3] expected=$1 got=$2"; fail=$((fail+1)); fi; }
 
@@ -209,6 +209,43 @@ IFS= read -r replacement < "$tmp/dropped"
 printf '%s\n' "$replacement" >> "$tmp/replaced"
 r=0; partition_complete "$tmp/replaced" || r=$?
 ck 1 "$r" "hollow partition: omission plus duplicate with unchanged count fails"
+
+echo "K) Windows CI opt-in pins only the release suite to shard 2"
+# A sorted round-robin oracle for the rest of the registry, independent of the runner.
+LC_ALL=C sort "$listed" > "$tmp/sorted"
+pinned="$tmp/pinned"
+: > "$pinned"
+for shard in 1 2 3; do
+  FLOW_SUITE_TEST_LOG="$tmp/executed"
+  : > "$FLOW_SUITE_TEST_LOG"
+  r=0
+  out="$(FLOW_SUITE_PIN_SYNC_RELEASE=1 FLOW_SUITE_SHARD="$shard/3" bash "$tmp/tests/run_all.sh" 2>&1)" || r=$?
+  ck 0 "$r" "pinned fixture shard $shard/3 succeeds"
+  LC_ALL=C sort "$FLOW_SUITE_TEST_LOG" > "$tmp/observed"
+  awk -v shard="$shard" '
+    $0 == "test_sync_release.sh" { if (shard == 2) print; next }
+    (NR-1)%3+1 == shard { print }
+  ' "$tmp/sorted" > "$tmp/wanted"
+  r=0; cmp -s "$tmp/wanted" "$tmp/observed" || r=$?
+  ck 0 "$r" "only release suite can change membership on shard $shard/3"
+  cat "$FLOW_SUITE_TEST_LOG" >> "$pinned"
+done
+r=0; partition_complete "$pinned" || r=$?
+ck 0 "$r" "pinned shards cover the manifest exactly once"
+for spec in 1/1 1/2 2/4; do
+  : > "$FLOW_SUITE_TEST_LOG"
+  r=0
+  out="$(FLOW_SUITE_PIN_SYNC_RELEASE=1 FLOW_SUITE_SHARD="$spec" bash "$tmp/tests/run_all.sh" 2>&1)" || r=$?
+  ck 1 "$r" "pin refuses shard $spec"
+  ck '' "$(cat "$FLOW_SUITE_TEST_LOG")" "pin refuses shard $spec before executing suites"
+done
+for pin in '' typo; do
+  : > "$FLOW_SUITE_TEST_LOG"
+  r=0
+  out="$(FLOW_SUITE_PIN_SYNC_RELEASE="$pin" FLOW_SUITE_SHARD=1/3 bash "$tmp/tests/run_all.sh" 2>&1)" || r=$?
+  ck 1 "$r" "pin refuses invalid value [$pin]"
+  ck '' "$(cat "$FLOW_SUITE_TEST_LOG")" "pin refuses invalid value [$pin] before executing suites"
+done
 rm -rf "$tmp"
 unset FLOW_SUITE_TEST_LOG
 

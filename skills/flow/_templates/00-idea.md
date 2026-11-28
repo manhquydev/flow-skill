@@ -1,6 +1,7 @@
 # Stage 00 — Idea
 
 ## Gate — check ALL before `/flow next`
+> How to complete: 1) Replace every bracketed placeholder below with your real answer (delete the brackets too). 2) Change each `- [ ]` gate box to `- [x]` (lowercase `x`), then run `/flow next` (or run `/flow mode work` so AI interviews you and drafts with you).
 - [ ] The pitch below is 3 sentences, no more
 - [ ] I can name at least ONE real person/group who has this pain (named below)
 - [ ] No FILL placeholders remain in this file

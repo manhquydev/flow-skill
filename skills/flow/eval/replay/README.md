@@ -11,9 +11,17 @@ On a host with real `timeout`/`gtimeout` (or `FLOW_EVAL_UNBOUNDED=1` for that ru
 bash skills/flow/runner/flow.sh eval --record --n 3
 ```
 
-Plan accounting is 15 fixtures × 3 + 1 probe = 45 + 1 billable calls (15 heading-mapped;
-`n_expected` = 15). Unfiltered batches are `--report`-complete (`n_expected` already counted
-f05; `total_evaluated` is now 15). Old 9-eval and 11-eval jsonl are not comparable. Still no `meta` — do not invent transcripts.
+Plan accounting is `M × N + 1` billable calls: `M` selected manifest rows,
+`N` votes (3 above), plus one probe, before retries or early aborts. With no filters,
+`M` is every nonempty, non-header row in `../manifest.tsv`, including 00-inspect.
+Count the current checkout without calling a model:
+
+```sh
+awk -F '\t' '{ gsub(/\r/, ""); if ($1 != "" && $1 != "id") n++ } END { print n+0 }' skills/flow/eval/manifest.tsv
+```
+
+`n_expected` uses that same selection; a completed unfiltered batch evaluates `M`
+fixtures. Old 9-eval and 11-eval jsonl are not comparable. Do not invent transcripts.
 Writes `meta` only after a non-aborted batch, plus
 `<fixture>/<vote>.txt` (one `GATE-EVAL-<nonce>: FLAG|PASS` line each). Never commit raw
 `claude --output-format json` envelopes (`session_id` / `cwd` must stay out).

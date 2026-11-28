@@ -23,6 +23,13 @@ stage tiến. Kill tại một cổng là kết quả hợp lệ, được tôn 
 `/flow` đưa sản phẩm từ ý tưởng tới bằng chứng done thật. Chat là cửa mặc
 định; lệnh gõ vẫn dùng được. Độc lập — không bắt buộc AgentKit hay claudekit.
 
+## Hiểu đơn giản
+
+Flow là danh sách kiểm tra chất lượng từng bước cho trợ lý AI lập trình của bạn
+(**Ý tưởng -> Kế hoạch -> Việc nhỏ -> Bằng chứng chạy thật**) để AI không đoán
+mò hay báo "xong rồi" khi chưa chạy được. Phù hợp cho lập trình viên, học sinh
+và người chưa biết code học Vibe Coding — chat tự nhiên bằng Tiếng Việt hoặc English.
+
 | | |
 |---|---|
 | **Skill product** | Mục tiêu phát hành **v1.0.1** (không phải biên nhận đã phát hành) |
@@ -42,7 +49,12 @@ Bản phát hành đã xác minh ngày 2026-10-30: GitHub phát hành skill v1.0
 
 ## Cài đặt
 
-**Yêu cầu:** [Node.js](https://nodejs.org/) **≥ 22.14** để cài đặt; thao tác sản phẩm Flow v1 yêu cầu Python **≥ 3.7** (chỉ thư viện chuẩn).
+**Yêu cầu:**
+- [Node.js](https://nodejs.org/) **>= 22.14** (để chạy trình cài đặt)
+- [Python](https://www.python.org/) **>= 3.7** tải từ python.org (`sqlite3` có sẵn, không cần `pip install`; trên Windows hãy tránh alias `python` rỗng từ Microsoft Store)
+- **Git for Windows (có sẵn Git Bash)** nếu bạn dùng Windows ([git-scm.com](https://git-scm.com/))
+
+Bạn có thể chạy `/flow doctor` (Codex: `$flow doctor`) bất cứ lúc nào để kiểm tra máy đã đủ môi trường chưa.
 
 ```bash
 npx @manhquy/flow-skill@latest
@@ -60,11 +72,20 @@ Flag: [npm-wrapper/README_VN.md](./npm-wrapper/README_VN.md).
 
 ## Lần chạy đầu
 
-Mở session agent mới trong thư mục cấp cao nhất của dự án, nơi Flow tạo `flow/` và `cards/`
-khi bạn bắt đầu sử dụng (nếu đang ở trong thư mục con, chuyển về thư mục gốc repository
-trước) — nói bạn muốn build gì, rồi gõ `/flow`
-(Codex: `$flow`). Chi tiết:
-[hướng dẫn](https://flowskill.io.vn/vi/docs/tutorials/install-and-first-run/).
+1. Mở công cụ AI trong **thư mục chính** của dự án (không mở trong thư mục con), nơi Flow dùng hoặc tạo `flow/` và `cards/`.
+2. Chat tự nhiên bằng Tiếng Việt hoặc English (Codex dùng `$flow`): ví dụ `/flow mình muốn làm web nhắc bài tập cho lớp` hoặc `/flow I want to build a class homework tracker web app` (hoặc gõ `/flow assess` nếu thư mục đã có code sẵn).
+3. Chọn cách làm phù hợp với bạn: trả lời **đồng ý (yes)** để bật **`work` mode** (AI hỏi 5 câu ngắn, soạn nháp các bước `00–02`, dừng chờ bạn duyệt Scope rồi mới soạn tiếp `03–05`) hoặc giữ **`teach` mode** (bạn tự điền file: xóa trọn cụm ngoặc `[FILL: ...]`, sau đó đổi `- [ ]` thành `- [x]`). Cả hai chế độ đều giữ nguyên 100% cổng kiểm tra. Chi tiết: [hướng dẫn](https://flowskill.io.vn/vi/docs/tutorials/install-and-first-run/).
+
+## Giải nghĩa nhanh thuật ngữ
+
+| Thuật ngữ | Nghĩa dễ hiểu |
+|---|---|
+| `Gate` | Chốt kiểm tra trước khi qua bước mới; cả script (`flow.sh`) và luật AI (`SKILL.md`) phải cùng đạt. |
+| `Kill at a gate` | Chủ động dừng sớm ý tưởng chưa khả thi để đỡ tốn công làm tiếp (**không** xóa file của bạn). |
+| `Card (C-001)` | Một phần việc nhỏ, kiểm thử được, tạo ra sau khi các bước lập kế hoạch `00–05` qua cổng (hoặc `debt-skip`). |
+| `ADR & Contract` | Ghi chú ngắn về lựa chọn công nghệ (`04-adr`) và đầu vào/đầu ra thống nhất (`05-contract`) trước khi code. |
+| `World-state proof` | Bằng chứng chạy thật (link sống hoặc file `evidence/cli-smoke.log` có thật + kết quả lệnh & `exit 0`), thay thế `(empty until done)`. |
+| `Resume / Worktree` | `/flow resume` giúp làm tiếp phiên trước; worktree là bản sao thư mục tách riêng để làm song song an toàn. |
 
 ## Hằng ngày
 
@@ -73,7 +94,8 @@ trước) — nói bạn muốn build gì, rồi gõ `/flow`
 /flow next       kiểm gate + mở stage kế
 /flow assess     đánh giá brownfield
 /flow card       tạo build card
-/flow check C-001  validate card (done = bằng chứng thế giới thật)
+/flow card done C-001  tick Verify - [x], thay (empty until done) bằng proof -> PASS done
+/flow check C-001      kiểm trạng thái hiện tại (nếu done: cần status: done + Verify + proof)
 /flow auto       build tự động (HALT nhóm bảo mật)
 /flow doctor     kiểm môi trường
 /flow resume    tiếp tục dự án Flow hiện có trong session mới (chỉ đọc)

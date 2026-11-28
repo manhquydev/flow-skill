@@ -33,6 +33,32 @@ has "$G01" "Apply the lens by project type" "stage 01 challenge keys on project 
 has "$G05" "Do NOT let a web product blank the access column" "stage 05 guards web abuse of non-web framing"
 has "$G01" "Reject the soft" "stage 01 refuses a web product hiding behind soft framing"
 
+echo "Stage 00 & Card templates guide beginners without breaking scan_gate"
+structok "$T/00-idea.md" "00-idea"
+has "$T/00-idea.md" "How to complete:" "00-idea includes beginner completion tip"
+has "$T/00-idea.md" '\- \[x\]' "00-idea explains - [x] checkbox completion syntax"
+idea_fills="$(awk '{ s=$0; while ((i=index(s, "[FILL")) > 0) { c++; s=substr(s, i+5) } } END { print c+0 }' "$T/00-idea.md" 2>/dev/null)"
+if [ "$idea_fills" = "4" ]; then
+  echo "  ok   [00-idea has exact expected [FILL count (4)]"; pass=$((pass+1))
+else
+  echo "  FAIL [00-idea [FILL count expected 4, got $idea_fills]"; fail=$((fail+1))
+fi
+idea_boxes="$(grep -cE '^[[:space:]]*- \[ \]' "$T/00-idea.md" 2>/dev/null | tr -d '[:space:]')"
+if [ "$idea_boxes" = "3" ]; then
+  echo "  ok   [00-idea has exact expected gate checkbox count (3)]"; pass=$((pass+1))
+else
+  echo "  FAIL [00-idea gate checkbox count expected 3, got $idea_boxes]"; fail=$((fail+1))
+fi
+has "$T/card.md" "(empty until done)" "card.md preserves (empty until done) sentinel"
+has "$T/card.md" "Example of >=2 real world-state signals" "card.md explains world-state proof examples"
+has "$T/card.md" "exit 0" "card.md proof example shows command output & exit code"
+card_ev_fills="$(awk '/^## Evidence/{flag=1; next} /^## /{flag=0} flag{ s=$0; while ((i=index(s, "[FILL")) > 0) { c++; s=substr(s, i+5) } } END { print c+0 }' "$T/card.md" 2>/dev/null)"
+if [ "$card_ev_fills" = "0" ]; then
+  echo "  ok   [card.md introduces 0 [FILL substrings under ## Evidence]"; pass=$((pass+1))
+else
+  echo "  FAIL [card.md has $card_ev_fills unexpected [FILL substrings under ## Evidence]"; fail=$((fail+1))
+fi
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
