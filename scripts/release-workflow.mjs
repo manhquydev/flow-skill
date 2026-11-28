@@ -246,6 +246,11 @@ if (isCliEntry()) {
       const bytes = readFileSync(artifactTarballPath(process.env.ARTIFACT_DIR, metadata.name));
       const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
       if (integrity !== metadata.integrity || metadata.sha !== process.env.EXPECTED_SHA || metadata.version !== process.env.EXPECTED_VERSION || metadata.workflowRunId !== process.env.GITHUB_RUN_ID || metadata.workflowRunAttempt !== process.env.GITHUB_RUN_ATTEMPT || process.env.FLOW_AUTOPUBLISH_ENABLED !== 'true') throw new Error('artifact identity, bytes, run or default-off gate mismatch');
+      try {
+        execFileSync('bash', [join(repoRoot, 'scripts/check-release-coherence.sh')], { cwd: repoRoot, stdio: 'inherit' });
+      } catch (err) {
+        throw new Error(`pre-publish offline release coherence verification failed (exit code ${err.status ?? 1})`);
+      }
       const existing = npmView(`${PACKAGE}@${process.env.EXPECTED_VERSION}`, ['version']);
       if (existing.present || existing.error !== 'E404') throw new Error('prepublish registry version is present or absence is not proven by E404');
       const channel = parseSemver(process.env.EXPECTED_VERSION).prerelease ? 'next' : 'latest';

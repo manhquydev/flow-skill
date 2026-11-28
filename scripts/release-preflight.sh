@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # release-preflight.sh — harness-aware gate before shipping skill and/or npm-wrapper.
-# Run from repo root: bash scripts/release-preflight.sh [--strict-published]
+# Run from repo root: bash scripts/release-preflight.sh [--strict-published [--historical-receipts]]
 # Exit 0 = checks passed; canonical release gates still apply.
 set -u
 STRICT_PUBLISHED=0
+HISTORICAL_RECEIPTS=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --strict-published) STRICT_PUBLISHED=1 ;;
+    --historical-receipts) HISTORICAL_RECEIPTS=1 ;;
     -h|--help)
-      echo "usage: bash scripts/release-preflight.sh [--strict-published]"
+      echo "usage: bash scripts/release-preflight.sh [--strict-published [--historical-receipts]]"
       exit 0
       ;;
     *)
@@ -18,6 +20,9 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+if [ "$HISTORICAL_RECEIPTS" -eq 1 ] && [ "$STRICT_PUBLISHED" -ne 1 ]; then
+  echo "FAIL: --historical-receipts requires --strict-published" >&2; exit 2
+fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT" || exit 2
 rc=0
@@ -268,10 +273,18 @@ if [ "$STRICT_PUBLISHED" -eq 1 ]; then
   elif [ ! -f "$ROOT/scripts/check-release-live.mjs" ]; then
     fail "missing $ROOT/scripts/check-release-live.mjs"
   else
-    if FLOW_RELEASE_ROOT="$ROOT" "$NODE" "$ROOT/scripts/check-release-live.mjs"; then
-      ok "strict published coherence passed"
+    if [ "$HISTORICAL_RECEIPTS" -eq 1 ]; then
+      if FLOW_RELEASE_ROOT="$ROOT" "$NODE" "$ROOT/scripts/check-release-live.mjs" --historical-receipts; then
+        ok "strict published coherence passed"
+      else
+        fail "strict published coherence failed"
+      fi
     else
-      fail "strict published coherence failed"
+      if FLOW_RELEASE_ROOT="$ROOT" "$NODE" "$ROOT/scripts/check-release-live.mjs"; then
+        ok "strict published coherence passed"
+      else
+        fail "strict published coherence failed"
+      fi
     fi
   fi
 fi

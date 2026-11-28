@@ -71,6 +71,7 @@ test_flow_host_hooks.sh
 test_flow_journal.sh
 test_flow_rules.sh
 test_release_coherence.sh
+test_release_coherence_historical_candidate.sh
 test_sync_release.sh
 test_harness_cli_optional_smoke.sh
 test_manifest_runner.sh
