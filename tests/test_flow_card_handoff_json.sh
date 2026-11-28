@@ -541,6 +541,83 @@ ck 1 "$?" "unpadded '21' rejected"
 _wc_exact_22 "23"
 ck 1 "$?" "unpadded '23' rejected"
 
+echo "=== 14. Secret redaction across all user-supplied fields and child query stderr ==="
+cat << 'EOC' > "$SB/cards/C-004.md"
+# C-004: Deploy with API_KEY=sk_live_title_secret_987654
+
+status: API_KEY=sk_live_status_secret_111222
+deps: none
+implements: none
+risk: ghp_123456789012345678901234567890123456
+
+## Scope
+Use https://alice:SuperSecretPass99@example.com/api and AKIA1234567890ABCDEF.
+
+## Allowed files
+src/Bearer SECRET_BEARER_TOKEN_12345/app.ts
+
+## Verify
+- [x] curl -H "Authorization: Bearer my_secret_bearer_token_999" https://example.com
+
+## Done-evidence
+ok
+EOC
+out_redact="$(bash "$RUN" resume --card C-004 --json 2>&1)"; rc_redact=$?
+ck 0 "$rc_redact" "resume --card C-004 --json exits 0"
+py_redact="$("$py" -c '
+import json, sys
+raw = sys.argv[1]
+for leaked in [
+    "sk_live_title_secret_987654",
+    "sk_live_status_secret_111222",
+    "ghp_123456789012345678901234567890123456",
+    "SuperSecretPass99",
+    "AKIA1234567890ABCDEF",
+    "SECRET_BEARER_TOKEN_12345",
+    "my_secret_bearer_token_999",
+]:
+    assert leaked not in raw, "raw secret leaked in JSON: %s" % leaked
+d = json.loads(raw)
+assert "[REDACTED:credential]" in d["title"], "title not redacted: %s" % d["title"]
+assert "[REDACTED:credential]" in d["status"], "status not redacted: %s" % d["status"]
+assert "[REDACTED:github-token]" in d["risk"], "risk not redacted: %s" % d["risk"]
+assert "[REDACTED:credentials]" in d["scope"], "scope url creds not redacted: %s" % d["scope"]
+assert "[REDACTED:aws-key-id]" in d["scope"], "scope aws key not redacted: %s" % d["scope"]
+assert any("[REDACTED:bearer]" in x for x in d["allowed_files"]), "allowed_files not redacted: %s" % d["allowed_files"]
+assert "[REDACTED:bearer]" in d["verify_commands"][0], "verify_commands not redacted: %s" % d["verify_commands"]
+print("PASS")
+' "$out_redact")"
+ck "PASS" "$py_redact" "all user-supplied JSON fields redact secrets"
+
+# Child query stderr redaction on failure (preserves non-zero exit & distinguishes error from empty)
+err_shim_dir="$(mktemp -d)"
+real_py="$(command -v python3 2>/dev/null || command -v python 2>/dev/null)"
+cat > "$err_shim_dir/python3" <<EOSHIM
+#!/usr/bin/env bash
+case "\$*" in
+  *"query decisions"*)
+    printf 'sqlite error: Authorization: Bearer child_stderr_secret_123456 API_KEY=sk_child_err_secret_98765\n' >&2
+    exit 1
+    ;;
+esac
+exec "$real_py" "\$@"
+EOSHIM
+cp "$err_shim_dir/python3" "$err_shim_dir/python"
+chmod +x "$err_shim_dir/python3" "$err_shim_dir/python"
+out_stderr_redact="$(PATH="$err_shim_dir:$PATH" bash "$RUN" resume --card C-004 --json 2>&1)"; rc_stderr_redact=$?
+rm -rf "$err_shim_dir"
+ck 1 "$rc_stderr_redact" "child query failure exits 1"
+printf '%s\n' "$out_stderr_redact" | grep -q "FAIL: harness query decisions failed:"
+ck 0 "$?" "child query failure reports FAIL diagnostic (distinct from empty)"
+printf '%s\n' "$out_stderr_redact" | grep -q "child_stderr_secret_123456"
+ck 1 "$?" "child query stderr does not leak bearer secret"
+printf '%s\n' "$out_stderr_redact" | grep -q "sk_child_err_secret_98765"
+ck 1 "$?" "child query stderr does not leak API_KEY secret"
+printf '%s\n' "$out_stderr_redact" | grep -q "\[REDACTED:bearer\]"
+ck 0 "$?" "child query stderr redacts bearer secret"
+printf '%s\n' "$out_stderr_redact" | grep -q "\[REDACTED:credential\]"
+ck 0 "$?" "child query stderr redacts API_KEY secret"
+
 clean
 
 echo

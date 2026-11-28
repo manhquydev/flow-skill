@@ -1398,6 +1398,7 @@ _emit_card_handoff_json() {
     raw_title="$(printf '%s\n' "$first_h1" | sed -E -e 's/^#[[:space:]]*[Cc]-[0-9]+//' -e 's/^[[:space:]]+//' -e 's/^(-|:|—)[[:space:]]*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
   fi
   [ -n "$raw_title" ] || raw_title="$resume_card"
+  raw_title="$(printf '%s\n' "$raw_title" | _redact_secrets)"
 
   local scope; scope="$(awk '/^## Scope/{flag=1; next} /^## /{flag=0} flag' "$card_file" | sed -e '1{/^[[:space:]]*$/d;}' -e '${/^[[:space:]]*$/d;}')"
   local raw_scope; raw_scope="$(printf '%s\n' "$scope" | _redact_secrets)"
@@ -1460,7 +1461,7 @@ END {
     local py; py="$(_python)"
     local d_err; d_err="$(mktemp 2>/dev/null || echo "$ROOT/.flow/.dec-err.$$")"
     if ! decisions="$(FLOW_PROJECT_ROOT="$ROOT" "$py" "$(_harness_native)" query decisions --story "$resume_card" 2>"$d_err")"; then
-      local err_msg; err_msg="$(cat "$d_err" 2>/dev/null)"
+      local err_msg; err_msg="$(cat "$d_err" 2>/dev/null | _redact_secrets)"
       rm -f "$d_err"
       echo "FAIL: harness query decisions failed: ${err_msg:-exit non-zero}" >&2
       return 1
@@ -1500,11 +1501,13 @@ END {
 
   local raw_risk; raw_risk="$(grep -m1 -E '^risk:' "$card_file" 2>/dev/null | sed -e 's/^risk:[[:space:]]*//' -e 's/[[:space:]]*$//' | tr -d '\r')"
   [ -n "$raw_risk" ] || raw_risk="unknown"
+  raw_risk="$(printf '%s\n' "$raw_risk" | _redact_secrets)"
+  local safe_status; safe_status="$(printf '%s\n' "${card_st:-unknown}" | _redact_secrets)"
 
   printf '{"schema_version":1,"kind":"card.handoff","card_id":"%s","title":"%s","status":"%s","scope":"%s","allowed_files":[%s],"verify_commands":[%s],"linked_decisions":[%s],"git_baseline":{"commit":"%s","clean":%s},"risk":"%s"}\n' \
     "$(_json_str "$resume_card")" \
     "$(_json_str "$raw_title")" \
-    "$(_json_str "${card_st:-unknown}")" \
+    "$(_json_str "$safe_status")" \
     "$scope_json" \
     "$allowed_json" \
     "$verify_json" \
