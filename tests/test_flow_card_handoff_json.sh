@@ -167,8 +167,8 @@ echo "=== 4. 100% prose output preservation when --json is omitted ==="
 out_prose_done="$(bash "$RUN" resume --card C-002 2>&1)"; rc_prose_done=$?
 ck 0 "$rc_prose_done" "resume --card C-002 prose exits 0"
 ck "yes" "$([ "$out_prose_done" != "$out_done_json" ] && echo yes || echo no)" "prose output differs from JSON output"
-printf '%s\n' "$out_prose_done" | grep -q "card C-002 is already done - see 'flow recall'"
-ck 0 "$?" "prose output preserves 'already done' message"
+printf '%s\n' "$out_prose_done" | grep -q "WARNING: card C-002 receipt is missing (auto will require a current pass; see references/attestations.md)"
+ck 0 "$?" "prose output warns when done card lacks semantic receipt"
 printf '%s\n' "$out_prose_done" | grep -q "NEXT_VERB=card"
 ck 0 "$?" "prose output preserves NEXT_VERB=card"
 
@@ -203,12 +203,14 @@ printf '%s\n' "$out_prose_active" | grep -qxF "git status:"
 ck 0 "$?" "prose preserves git status section header"
 printf '%s\n' "$out_prose_active" | grep -qE '^  (Not captured in this session|[^ ].*)$'
 ck 0 "$?" "prose preserves git status body line"
+printf '%s\n' "$out_prose_active" | grep -qxF "receipts:"
+ck 0 "$?" "prose preserves receipts section header"
 printf '%s\n' "$out_prose_active" | grep -qxF "NEXT_VERB=card"
 ck 0 "$?" "prose preserves NEXT_VERB line"
 printf '%s\n' "$out_prose_active" | grep -qxF "**First safe step**: review Scope and run Verify commands before editing"
 ck 0 "$?" "prose preserves First safe step line"
 prose_lines="$(printf '%s\n' "$out_prose_active" | wc -l | tr -d '[:space:]')"
-ck "22" "$prose_lines" "prose output keeps the exact 22-line surface"
+ck "26" "$prose_lines" "prose output keeps the exact 26-line surface"
 
 echo "=== 5. Project-level resume --json preservation (flow_context/v1) ==="
 out_proj_json="$(bash "$RUN" resume --json 2>&1)"; rc_proj_json=$?
