@@ -805,7 +805,7 @@ git -C "$strict_repo" checkout -q -- npm-wrapper/README_VN.md
 strict_lstree128_rc=0
 FAKE_GIT_LSTREE=128 PATH="$strict_bin:$PATH" bash "$strict_repo/scripts/release-preflight.sh" --strict-published >"$OUT/strict-lstree128.out" 2>&1 || strict_lstree128_rc=$?
 ck 1 "$strict_lstree128_rc" "--strict-published fails when git ls-tree exits 128"
-grep -q 'git ls-tree failed with exit 128' "$OUT/strict-lstree128.out" && ck 0 0 "reports git ls-tree failure" || ck 0 1 "reports git ls-tree failure" 
+grep -q 'git ls-tree failed with exit 128' "$OUT/strict-lstree128.out" && ck 0 0 "reports git ls-tree failure" || ck 0 1 "reports git ls-tree failure"
 
 # Test: Registry eventual consistency retry succeeds on attempt 2
 strict_lag_file="$OUT/strict-lag.count"
@@ -876,6 +876,129 @@ ck 1 "$strict_prelive_rc" "strict live coherence fails closed before remote tags
 grep -q 'remote tag npm@2.0.0 missing on origin' "$OUT/strict-prelive.out" \
   && ck 0 0 "reports remote tag missing before publish" || ck 0 1 "reports remote tag missing before publish"
 
+
+echo "P) contributor docs never describe separate release/version axes"
+contrib_file="$HERE/../CONTRIBUTING.md"
+dispatch_file="$HERE/../skills/flow/references/command-dispatch.md"
+if [ ! -r "$contrib_file" ]; then
+  echo "  FAIL [CONTRIBUTING.md missing or unreadable]"
+  fail=$((fail + 1))
+elif tr -s '[:space:]' ' ' < "$contrib_file" | grep -q 'separate release axes'; then
+  echo "  FAIL [CONTRIBUTING.md contains stale 'separate release axes']"
+  fail=$((fail + 1))
+else
+  echo "  ok   [CONTRIBUTING.md has no 'separate release axes']"
+  pass=$((pass + 1))
+fi
+if [ ! -r "$dispatch_file" ]; then
+  echo "  FAIL [command-dispatch.md missing or unreadable]"
+  fail=$((fail + 1))
+elif tr -s '[:space:]' ' ' < "$dispatch_file" | grep -q 'remain separate version axes'; then
+  echo "  FAIL [skills/flow/references/command-dispatch.md contains stale 'remain separate version axes']"
+  fail=$((fail + 1))
+else
+  echo "  ok   [skills/flow/references/command-dispatch.md has no 'remain separate version axes']"
+  pass=$((pass + 1))
+fi
+
+# Negative test: original multiline wrapped paragraph must FAIL the guard when restored
+neg_dispatch="$(mktemp)"
+printf 'The skill product and npm installer remain separate\nversion axes; an npm installer pin restores bytes\n' > "$neg_dispatch"
+if tr -s '[:space:]' ' ' < "$neg_dispatch" | grep -q 'remain separate version axes'; then
+  echo "  ok   [negative guard: wrapped 'remain separate\\nversion axes' correctly detected]"
+  pass=$((pass + 1))
+else
+  echo "  FAIL [negative guard: wrapped 'remain separate\\nversion axes' was missed]"
+  fail=$((fail + 1))
+fi
+rm -f "$neg_dispatch"
+
+
+echo "L) README publication status versions are non-empty full SemVer, aligned across READMEs, and recorded in CHANGELOG"
+_extract_pub_ver() {
+  sed -nE 's/.*(Publication status verified|Bản phát hành đã xác minh)[^:]*:.*npm installer ([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?).*/\2/p' "$1" | head -1 | tr -d '\r'
+}
+_extract_changelog_vers() {
+  awk '/^## \[/{v=$0; sub(/^## \[/, "", v); sub(/\].*$/, "", v); if (v != "Unreleased" && v != "") print v}' "$1" | tr -d '\r'
+}
+_check_pub_guard() {
+  local changelog_file="$1"
+  shift
+  local cl_vers
+  cl_vers="$(_extract_changelog_vers "$changelog_file")"
+  [ -n "$cl_vers" ] || return 1
+  local base_ver="" r ver
+  for r in "$@"; do
+    [ -f "$r" ] || return 1
+    ver="$(_extract_pub_ver "$r")"
+    [ -n "$ver" ] || return 1
+    printf '%s\n' "$cl_vers" | grep -Fxq "$ver" || return 1
+    if [ -z "$base_ver" ]; then
+      base_ver="$ver"
+    elif [ "$ver" != "$base_ver" ]; then
+      return 1
+    fi
+  done
+}
+
+cl_live="$(_extract_changelog_vers "$HERE/../npm-wrapper/CHANGELOG.md")"
+[ -n "$cl_live" ] && ck 0 0 "npm-wrapper/CHANGELOG.md extracts non-empty version list" || ck 0 1 "npm-wrapper/CHANGELOG.md extracts non-empty version list"
+pub_ref=""
+for rrel in README.md README_VN.md npm-wrapper/README.md npm-wrapper/README_VN.md; do
+  rver="$(_extract_pub_ver "$HERE/../$rrel")"
+  [ -n "$rver" ] && ck 0 0 "$rrel publication status extracts non-empty full SemVer ($rver)" || ck 0 1 "$rrel publication status extracts non-empty full SemVer"
+  if [ -n "$rver" ]; then
+    printf '%s\n' "$cl_live" | grep -Fxq "$rver" && ck 0 0 "$rrel verified version ($rver) recorded in npm-wrapper/CHANGELOG.md" || ck 0 1 "$rrel verified version ($rver) recorded in npm-wrapper/CHANGELOG.md"
+    if [ -z "$pub_ref" ]; then
+      pub_ref="$rver"
+    else
+      ck "$pub_ref" "$rver" "$rrel verified version matches $pub_ref"
+    fi
+  fi
+done
+
+# Temp fixtures: Unreleased without ' - ' + newer prepared heading (1.0.2) must still pass,
+# while empty extract, prerelease mismatch, or missing changelog entry must fail.
+jtmp="$OUT/pub-guard"
+mkdir -p "$jtmp/npm-wrapper"
+cat > "$jtmp/npm-wrapper/CHANGELOG.md" <<'EOF'
+# Changelog
+
+## [Unreleased]
+- pending note without date separator
+
+## [1.0.2] - 2026-11-12
+- prepared unreleased target
+
+## [1.0.1] - 2026-11-10
+- prepared target
+
+## [1.0.0] - 2026-10-25
+- published baseline
+EOF
+printf 'Publication status verified 2026-10-30: GitHub skill release v1.0.0 (2026-10-24) and npm installer 1.0.0 (2026-10-25); registry `latest` is 1.0.0.\n' > "$jtmp/README.md"
+printf 'Bản phát hành đã xác minh ngày 2026-10-30: GitHub phát hành skill v1.0.0 (2026-10-24) và npm installer 1.0.0 (2026-10-25); registry xác nhận `latest` là 1.0.0.\n' > "$jtmp/README_VN.md"
+cp "$jtmp/README.md" "$jtmp/npm-wrapper/README.md"
+cp "$jtmp/README_VN.md" "$jtmp/npm-wrapper/README_VN.md"
+
+printf '%s\n' "$(_extract_changelog_vers "$jtmp/npm-wrapper/CHANGELOG.md")" | grep -Fq 'Unreleased' \
+  && ck 0 1 "Unreleased heading without date is skipped" || ck 0 0 "Unreleased heading without date is skipped"
+_check_pub_guard "$jtmp/npm-wrapper/CHANGELOG.md" "$jtmp/README.md" "$jtmp/README_VN.md" "$jtmp/npm-wrapper/README.md" "$jtmp/npm-wrapper/README_VN.md"
+ck 0 $? "fixture with ## [Unreleased] and ## [1.0.2] passes without forcing README to claim 1.0.2"
+
+printf 'No version line here\n' > "$jtmp/README_empty.md"
+_check_pub_guard "$jtmp/npm-wrapper/CHANGELOG.md" "$jtmp/README_empty.md"
+ck 1 $? "empty publication version extraction fails closed"
+
+printf 'Publication status verified 2026-11-12: npm installer 1.0.1-rc.1 (2026-11-12).\n' > "$jtmp/README_rc.md"
+ck "1.0.1-rc.1" "$(_extract_pub_ver "$jtmp/README_rc.md")" "full SemVer preserves prerelease suffix (-rc.1)"
+_check_pub_guard "$jtmp/npm-wrapper/CHANGELOG.md" "$jtmp/README_rc.md"
+ck 1 $? "prerelease 1.0.1-rc.1 does not falsely match 1.0.1 in CHANGELOG"
+
+printf 'Publication status verified 2026-11-12: npm installer 1.0.0 (2026-10-25).\n' > "$jtmp/README_ok.md"
+printf 'Publication status verified 2026-10-30: npm installer 1.0.1 (2026-11-10).\n' > "$jtmp/npm-wrapper/README_stale.md"
+_check_pub_guard "$jtmp/npm-wrapper/CHANGELOG.md" "$jtmp/README_ok.md" "$jtmp/npm-wrapper/README_stale.md"
+ck 1 $? "cross-README publication version drift fails"
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

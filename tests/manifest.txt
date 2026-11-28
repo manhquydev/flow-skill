@@ -29,6 +29,7 @@ test_flow_antigravity_integration.sh
 test_flow_claudekit_integration.sh
 test_flow_host_agnostic_parallel.sh
 test_flow_card_lifecycle.sh
+test_flow_card_onboarding.sh
 test_flow_done_evidence.sh
 test_flow_auto_done_path.sh
 test_flow_usage_log.sh
@@ -42,6 +43,7 @@ test_flow_eval.sh
 test_flow_eval_grader_isolation.sh
 test_eval_fixture_lint.sh
 test_flow_resume.sh
+test_flow_resume_receipt.sh
 test_flow_status_legibility.sh
 test_flow_concierge.sh
 test_flow_native_rituals.sh
@@ -69,10 +71,12 @@ test_flow_host_hooks.sh
 test_flow_journal.sh
 test_flow_rules.sh
 test_release_coherence.sh
+test_release_coherence_historical_candidate.sh
 test_sync_release.sh
 test_harness_cli_optional_smoke.sh
 test_manifest_runner.sh
 test_doc_budgets.sh
+test_flow_floor_guards.sh
 test_flow_four_point_compat.sh
 test_i18n_pairs.sh
 test_install_safe_update.sh

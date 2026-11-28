@@ -9,8 +9,8 @@ is no fragment loader (ADR-0001).
 
 | User input | Runner call | Host duties after |
 |---|---|---|
-| `/flow` | `bash <skill>/runner/flow.sh status` | Relay prose `NEXT ->`, PIN v1 after NEXT_VERB (display-only, do not exec), dwell, and (past 10 cards) the compact summary; nothing to author. Compact recovery is prose status/resume, not `--json`. Optional `status --json` prints one `flow_context/v1` object (`v,stage,gate,next_verb,card,dwell,load`) — **display-only**. Hosts MUST NOT dispatch `next_verb` (`next`/`card`/`card-start`/`check`/`fix-gate`/`auto`/`skip`). Default `/flow` stays prose status. |
-| `/flow resume` | `bash <skill>/runner/flow.sh resume` | Read-only session-story; no lock. PIN v1 after NEXT_VERB, display-only, do not exec. Compact recovery is prose status/resume, not `--json`. Optional `resume --budget` caps in-flight cards at 5 with count line; `resume --card C-NNN` streams card continuation brief (scope, verify, linked decisions, bounded git status, masked secrets); `resume --json` same closed schema as status; display-only, never exec `next_verb`. FAIL/PASS/Never: SKILL.md STOP + Dispatch. |
+| `/flow` | `bash <skill>/runner/flow.sh status` | Relay prose `NEXT ->`, dwell, and (past 10 cards) the compact summary; obey `PIN v1` internally (host-internal, display-only — do not exec or dump as user prose); nothing to author. Compact recovery is prose status/resume, not `--json`. Optional `status --json` prints one `flow_context/v1` object (`v,stage,gate,next_verb,card,dwell,load`) — **display-only**. Hosts MUST NOT dispatch `next_verb` (`next`/`card`/`card-start`/`check`/`fix-gate`/`auto`/`skip`). Default `/flow` stays prose status. |
+| `/flow resume` | `bash <skill>/runner/flow.sh resume` | Read-only session-story; no lock. Obey `PIN v1` internally (host-internal, display-only — do not exec or dump as user prose). Compact recovery is prose status/resume, not `--json`. Optional `resume --budget` caps in-flight cards at 5 with count line; `resume --card C-NNN` streams card continuation brief (scope, verify, linked decisions, bounded git status, masked secrets); `resume --json` same closed schema as status; display-only, never exec `next_verb`. FAIL/PASS/Never: SKILL.md STOP + Dispatch. |
 | `/flow next` | `bash <skill>/runner/flow.sh next` | V1 target: after the mechanical gate passes, the graph executor supplies the next stage node; `flow.sh` remains the gate verdict authority. Paused/inconsistent/unavailable graph state refuses progression; it never falls back to the legacy ordering ladder. After PASS, compare to `gate-examples.md` (not a second always-on load). FAIL/Never: SKILL.md STOP + Dispatch. |
 | `/flow assess` | `bash <skill>/runner/flow.sh assess` | Fill `flow/00-inspect.md` from EVIDENCE; Brownfield challenge in `gate-rules.md`. |
 | `/flow card` | `bash <skill>/runner/flow.sh card` | Fill per `law/CLAUDE.md`; before coding, `law/CODING.md`. |
@@ -72,8 +72,8 @@ Codex/Gemini discovery: `.agents/skills/flow/SKILL.md` pointer is checked into t
 ## V1 compatibility gate
 
 The owner-approved v1 target makes Python required, graph ordering the default for `/flow next`,
-and `FLOW_HARNESS_DISABLE` a product-operation refusal. This is a breaking change and remains
-unreleased until implementation, independent review, exact-head CI, migration/rollback evidence,
-and installed-package acceptance pass. The skill product and npm installer remain separate
-version axes; an npm installer pin restores bytes only through the installer CLI and does not
-by itself reverse a migrated database. See the [v1 migration guide](https://github.com/manhquydev/flow-skill/blob/master/docs/migration-v1.md).
+and `FLOW_HARNESS_DISABLE` a product-operation refusal. The v1 release gate has passed; independent
+review, exact-head CI, migration/rollback evidence and installed-package acceptance remain required
+for future releases — see the [release runbook](https://github.com/manhquydev/flow-skill/blob/master/docs/release-process.md). The
+skill product and npm installer share one SemVer. An npm installer pin restores bytes only through the
+installer CLI and does not by itself reverse a migrated database. See the [v1 migration guide](https://github.com/manhquydev/flow-skill/blob/master/docs/migration-v1.md).

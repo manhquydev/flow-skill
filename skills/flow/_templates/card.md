@@ -30,8 +30,9 @@ risk-ack: none
 
 [FILL: what will be observable in the world when this is done — a URL you can click,
 a curl output, a deployed page. "Tests pass" / "code merged" are NOT done-evidence.]
+> Example of >=2 real world-state signals to paste under `## Evidence` when done: 1) live URL or created `.log`/`.txt`/image file path (e.g. `https://my-app.pages.dev/items` or `evidence/cli-smoke.log`) + 2) pasted real feature command output & exit code (`$ mkdir -p evidence && <your-feature-cmd> > evidence/cli-smoke.log && cat evidence/cli-smoke.log` -> `<real output>`, `exit 0`), never a dummy string or "I tested it".
 
 ## Evidence (paste the actual proof here when done)
 
-<!-- Paste the re-run command output or re-read the path/URL. Do not quote the agent claiming tests passed. -->
+<!-- Replace the placeholder line below completely with >=2 real world-state proofs (live URL or existing `.log`/`.txt`/image file path + re-run terminal output, see example above). Do not paste below the placeholder or quote the agent claiming tests ran. -->
 (empty until done)

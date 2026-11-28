@@ -29,6 +29,15 @@ if [ "${FLOW_SUITE_SHARD+x}" = x ]; then
   fi
 fi
 
+# CI opt-in: keep the longest Windows suite on shard 2 independent of its ordinal.
+if [ "${FLOW_SUITE_PIN_SYNC_RELEASE+x}" = x ]; then
+  if [ "$FLOW_SUITE_PIN_SYNC_RELEASE" != 1 ] || [ "$shard_n" != 3 ]; then
+    echo "FLOW_SUITE_PIN_SYNC_RELEASE requires value 1 and FLOW_SUITE_SHARD=i/3" >&2
+    echo "SOME SUITES FAILED"
+    exit 1
+  fi
+fi
+
 suite_list() {
   while IFS= read -r suite || [ -n "$suite" ]; do
     suite="${suite%$'\r'}"
@@ -50,8 +59,12 @@ ordinal=0
 total_t0=$(date +%s 2>/dev/null || echo 0)
 while IFS= read -r suite || [ -n "$suite" ]; do
   ordinal=$((ordinal + 1))
-  if [ "$shard_i" -ne 0 ] && [ "$(((ordinal - 1) % shard_n + 1))" -ne "$shard_i" ]; then
-    continue
+  if [ "$shard_i" -ne 0 ]; then
+    selected_shard=$(((ordinal - 1) % shard_n + 1))
+    if [ "${FLOW_SUITE_PIN_SYNC_RELEASE:-0}" = 1 ] && [ "$suite" = test_sync_release.sh ]; then
+      selected_shard=2
+    fi
+    [ "$selected_shard" -eq "$shard_i" ] || continue
   fi
   n=$((n + 1))
   echo "==================== $suite ===================="
