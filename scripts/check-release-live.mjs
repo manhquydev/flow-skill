@@ -284,8 +284,10 @@ if (npmV && parseSemver(npmV)) {
           ok(`remote tag v${skillVersion} reused with identical skills/ subtree (${tagTree.slice(0, 12)})`);
         } else if (/^[0-9a-f]{40}$/.test(headSha) && skillTagSha !== headSha) {
           fail(`remote tag v${skillVersion} (${skillTagSha}) != local HEAD (${headSha})`);
+        } else if (npmTagSha && skillTagSha !== npmTagSha) {
+          fail(`remote tag v${skillVersion} (${skillTagSha}) != npm@${npmV} (${npmTagSha})`);
         } else {
-          ok(`remote tag v${skillVersion} matches npm@${npmV} and HEAD (${skillTagSha.slice(0, 12)})`);
+          fail(`remote tag v${skillVersion} (${skillTagSha}) could not be verified against HEAD/skills subtree`);
         }
       } else if (npmTagSha && skillTagSha !== npmTagSha) {
         fail(`remote tag v${skillVersion} (${skillTagSha}) != npm@${npmV} (${npmTagSha})`);

@@ -273,12 +273,18 @@ if [ "$STRICT_PUBLISHED" -eq 1 ]; then
   elif [ ! -f "$ROOT/scripts/check-release-live.mjs" ]; then
     fail "missing $ROOT/scripts/check-release-live.mjs"
   else
-    set --
-    if [ "$HISTORICAL_RECEIPTS" -eq 1 ]; then set -- --historical-receipts; fi
-    if FLOW_RELEASE_ROOT="$ROOT" "$NODE" "$ROOT/scripts/check-release-live.mjs" "$@"; then
-      ok "strict published coherence passed"
+    if [ "$HISTORICAL_RECEIPTS" -eq 1 ]; then
+      if FLOW_RELEASE_ROOT="$ROOT" "$NODE" "$ROOT/scripts/check-release-live.mjs" --historical-receipts; then
+        ok "strict published coherence passed"
+      else
+        fail "strict published coherence failed"
+      fi
     else
-      fail "strict published coherence failed"
+      if FLOW_RELEASE_ROOT="$ROOT" "$NODE" "$ROOT/scripts/check-release-live.mjs"; then
+        ok "strict published coherence passed"
+      else
+        fail "strict published coherence failed"
+      fi
     fi
   fi
 fi

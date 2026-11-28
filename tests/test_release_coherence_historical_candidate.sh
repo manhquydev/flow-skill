@@ -917,6 +917,49 @@ ck 1 "$strict_prelive_rc" "strict live coherence fails closed before remote tags
 grep -q 'remote tag npm@2.0.0 missing on origin' "$OUT/strict-prelive.out" \
   && ck 0 0 "reports remote tag missing before publish" || ck 0 1 "reports remote tag missing before publish"
 
+# (3) Rerun after post-check failure: when npm@<ver> / registry version already exists,
+# prepublish refuses to authorize a second publish.
+git -C "$strict_repo" tag -f "npm@2.0.0" >/dev/null
+git -C "$strict_repo" push -qf origin "npm@2.0.0"
+rerun_live_rc=0
+PATH="$strict_bin:$PATH" FLOW_REGISTRY_RETRIES=1 FLOW_REGISTRY_RETRY_DELAY_MS=0 node "$strict_repo/scripts/check-release-live.mjs" >"$OUT/rerun-live-fail.out" 2>&1 || rerun_live_rc=$?
+ck 1 "$rerun_live_rc" "post-check still fails when v2.0.0 / release missing"
+rerun_art="$OUT/rerun-artifact"
+mkdir -p "$rerun_art"
+printf 'fake-tarball-bytes' > "$rerun_art/manhquy-flow-skill-1.0.1.tgz"
+git -C "$offline_repo" checkout -- portable-manifest.json
+rerun_sha="$(git -C "$offline_repo" rev-parse HEAD)"
+rerun_integrity="sha512-$(node -e 'const c=require("node:crypto"),fs=require("node:fs");process.stdout.write(c.createHash("sha512").update(fs.readFileSync(process.argv[1])).digest("base64"));' "$rerun_art/manhquy-flow-skill-1.0.1.tgz")"
+printf '{"name":"manhquy-flow-skill-1.0.1.tgz","version":"1.0.1","sha":"%s","integrity":"%s","workflowRunId":"999","workflowRunAttempt":"1"}\n' \
+  "$rerun_sha" "$rerun_integrity" > "$rerun_art/release-artifact.json"
+cp "$HERE/../scripts/release-workflow.mjs" "$offline_repo/scripts/"
+rerun_bin="$OUT/rerun-bin"
+mkdir -p "$rerun_bin"
+cat > "$rerun_bin/npm" <<'EOS'
+#!/usr/bin/env bash
+if [ "${1:-}" = "view" ] && [ "${2:-}" = "@manhquy/flow-skill@1.0.1" ] && [ "${3:-}" = "version" ]; then
+  printf '"1.0.1"\n'
+  exit 0
+fi
+exit 1
+EOS
+chmod +x "$rerun_bin/npm"
+rerun_prepub_rc=0
+(
+  cd "$offline_repo" && \
+  PATH="$rerun_bin:$PATH" \
+    ARTIFACT_DIR="$rerun_art" \
+    EXPECTED_SHA="$rerun_sha" \
+    EXPECTED_VERSION="1.0.1" \
+    GITHUB_RUN_ID="999" \
+    GITHUB_RUN_ATTEMPT="1" \
+    FLOW_AUTOPUBLISH_ENABLED="true" \
+    node "$offline_repo/scripts/release-workflow.mjs" prepublish
+) >"$OUT/rerun-prepub.out" 2>&1 || rerun_prepub_rc=$?
+ck 1 "$rerun_prepub_rc" "rerun prepublish after post-check failure aborts before second publish"
+grep -q 'prepublish registry version is present' "$OUT/rerun-prepub.out" \
+  && ck 0 0 "rerun prepublish refuses because registry version is already present" || { cat "$OUT/rerun-prepub.out" >&2; ck 0 1 "rerun prepublish refuses because registry version is already present"; }
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
